@@ -7,6 +7,7 @@ program JanusSmoke;
 
 uses
   System.SysUtils,
+  System.IOUtils,
   {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX,
   {$ENDIF}
@@ -54,14 +55,29 @@ var
   LResults: IRunResults;
   LLogger: ITestLogger;
   LNunitLogger: ITestLogger;
+  LXmlOutputFile: string;
+  LXmlDir: string;
+  LRunStartTime: TDateTime;
 begin
 {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX.RunRegisteredTests;
   Exit;
 {$ENDIF}
   try
+    // Record run start time for artifact freshness validation
+    LRunStartTime := Now;
     // Check command line options
     TDUnitX.CheckCommandLine;
+    // Pre-create XML output directory to prevent EInOutError on relative paths
+    // (S2: relative-path directory handling fix)
+    LXmlOutputFile := TDUnitX.Options.XMLOutputFile;
+    if LXmlOutputFile <> '' then
+    begin
+      LXmlOutputFile := TPath.GetFullPath(LXmlOutputFile);
+      LXmlDir := TPath.GetDirectoryName(LXmlOutputFile);
+      if (LXmlDir <> '') and (not TDirectory.Exists(LXmlDir)) then
+        TDirectory.CreateDirectory(LXmlDir);
+    end;
     // Create the test runner
     LRunner := TDUnitX.CreateRunner;
     // Add loggers
@@ -73,6 +89,23 @@ begin
     LRunner.FailsOnNoAsserts := False;
     // Run tests
     LResults := LRunner.Execute;
+    // S3: Artifact freshness validation — artifact must exist and timestamp must
+    // be newer than run start time; stale or missing artifact is treated as failure.
+    if LXmlOutputFile <> '' then
+    begin
+      if not TFile.Exists(LXmlOutputFile) then
+      begin
+        System.Writeln('EVIDENCE ERROR: XML artifact was not generated: ' + LXmlOutputFile);
+        System.ExitCode := EXIT_FAILURE;
+        Exit;
+      end;
+      if TFile.GetLastWriteTime(LXmlOutputFile) < LRunStartTime then
+      begin
+        System.Writeln('EVIDENCE ERROR: XML artifact is stale — timestamp predates run start. Possible reuse of prior execution artifact.');
+        System.ExitCode := EXIT_FAILURE;
+        Exit;
+      end;
+    end;
     // Report results
     if not LResults.AllPassed then
       System.ExitCode := EXIT_FAILURE
@@ -87,6 +120,11 @@ begin
     {$ENDIF}
   except
     on E: Exception do
+    begin
+      // S3: Ensure exceptions during setup or execution yield EXIT_FAILURE,
+      // not the default ExitCode=0 (which was the false-positive source).
       System.Writeln(E.ClassName, ': ', E.Message);
+      System.ExitCode := EXIT_FAILURE;
+    end;
   end;
 end.
