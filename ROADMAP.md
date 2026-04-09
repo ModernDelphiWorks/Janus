@@ -41,6 +41,7 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 8. Validar o pacote smoke via gates de review e test; consolidar evidencia de execucao nos artefatos de pipeline antes de abrir expansao funcional do ciclo R18.x.
 9. Formalizar a proxima demanda R18.2 como ESP-002 (feature): ampliar baseline smoke de lazy loading transparente com criterios de evidencia deterministicos e rastreabilidade entre diff e reports.
 10. Abrir a issue da rodada R18.2 via `/task` apos alinhamento de assumptions (ausencia de card em `Ready`) e manter o escopo restrito a confiabilidade (ObjectSet + DataSet) sem redesign arquitetural.
+11. Formalizar a proxima demanda R18.3 como ESP-002 (feature): consolidar comando canonico do smoke lazy, pre-condicoes deterministicas para evidencias XML e matriz de rastreabilidade de cenarios para reduzir caveats recorrentes de QA.
 
 ## Backlog resumido
 

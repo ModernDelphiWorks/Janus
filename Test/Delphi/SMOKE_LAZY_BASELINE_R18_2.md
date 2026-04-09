@@ -26,14 +26,26 @@ Define an expanded but bounded smoke baseline for ObjectSet and DataSet lazy-loa
 
 ## Deterministic evidence contract
 
-1. Command
-- Run from Test/Delphi: JanusSmoke.exe --exitBehavior:Continue --format:nunit --output:dunitx-results.xml
+1. Canonical command
+- Run from Test/Delphi: JanusSmoke.exe --exitbehavior:Continue --xmlfile:dunitx-results.xml
 
-2. Output artifact
+2. XML output preconditions
+- Execute from Test/Delphi so dunitx-results.xml resolves to a deterministic local path.
+- If a custom xmlfile path contains directories, create and validate the target directory before execution.
+- If the output directory cannot be created or validated, stop and record the caveat as environment-bound evidence.
+
+3. Output artifact
 - Test/Delphi/dunitx-results.xml
 
-3. Traceability
-- Report command used.
-- Report generated artifact path.
+4. Traceability expectations
+- Report the exact canonical command used.
+- Report generated artifact path and existence result.
 - Map failed/passed tests to acceptance criteria in pipeline reports.
 - Ensure modified-files section in reports matches the tracked git diff.
+
+## Scenario-to-output traceability matrix
+
+| Scenario group | Baseline scenarios | Expected deterministic output | Evidence in reports |
+|---|---|---|---|
+| ObjectSet lazy association contract | TestSmokeLazyLoading + TestObjectSetLazyProxy (deferred, invalid session, reset) | Console summary and NUnit XML include passing assertions for lazy association behavior | Implement and QA reports must map command output + XML artifact to ObjectSet scope |
+| DataSet auto-lazy and proxy contract | TestDataSetAutoLazy + TestDataSetLazyProxy (scroll, pk change, cache, reset) | Console summary and NUnit XML include passing assertions for DataSet lazy routing and proxy lifecycle | Implement and QA reports must map command output + XML artifact to DataSet scope |
