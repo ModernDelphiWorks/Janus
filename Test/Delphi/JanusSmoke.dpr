@@ -34,6 +34,7 @@ uses
   TestDataSetLazyProxy in 'Tests\TestDataSetLazyProxy.pas',
   TestRestLazyProxy  in 'Tests\TestRestLazyProxy.pas',
   TestLazyProxyMultiplicity in 'Tests\TestLazyProxyMultiplicity.pas',
+  TestLazyWrapper    in 'Tests\TestLazyWrapper.pas',
   TestGetDictionary  in 'Tests\TestGetDictionary.pas',
   TestQueryCache     in 'Tests\TestQueryCache.pas',
   TestDataSetAutoLazy in 'Tests\TestDataSetAutoLazy.pas',

@@ -11,8 +11,8 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 ## Estado estrategico atual
 
 - Versao mais recente: v2.19.3.
-- Fase atual: encerramento estrategico de R17.x e preparacao da abertura de R18.x.
-- Leitura do ciclo: o programa de lazy loading transparente ja foi entregue, endurecido e consolidado documentalmente; o proximo passo depende de nova demanda formalizada, nao de acumulo de status operacional neste arquivo.
+- Fase atual: execucao de R18.1 — pacote minimo de smoke validation do lazy loading transparente.
+- Leitura do ciclo: R17.x encerrado e consolidado; R18.1 em execucao com issue #99 como demanda ativa, cobrindo objetivos de smoke validation (ObjectSet + DataSet) antes de expandir novo trabalho funcional.
 
 ## Marcos recentes
 
@@ -22,11 +22,12 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 
 ## Ciclo atual
 
-### Fechamento de R17.x
+### R18.1 — Pacote minimo de smoke validation (em execucao)
 
-- Objetivo estrategico: transformar a frente de lazy loading em baseline estavel, auditavel e bem documentada antes de abrir novo trabalho funcional.
-- Estado atual: ObjectSet, DataSet e REST estao alinhados ao contrato lazy ja publicado; a rodada mais recente consolidou a rastreabilidade do ciclo sem reabrir arquitetura nem API publica.
-- Proxima decisao: abrir R18.x somente com demanda formalizada, aceite fechado e gate explicito de continuidade.
+- Objetivo estrategico: consolidar evidencia auditavel de comportamento do lazy loading transparente antes de abrir novo trabalho funcional.
+- Estado atual: implementacao em andamento em `Test/Delphi/` com matriz de smoke (ObjectSet + DataSet), reaproveitando fixtures de `Examples/Delphi/Data/Object Lazy/`; gates de review e test pendentes.
+- Demanda ativa: issue #99 (ESP-002, feature), classificacao mantida, handoff rastreavel entre architect, task, implement, review e test.
+- Proxima decisao: executar review e test gates para confirmar readiness antes de abrir nova frente funcional.
 
 ## Proximos milestones
 
@@ -36,7 +37,8 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 4. Publicar a demanda candidata R18.1 (origem textual "proxiam demanda", normalizada como "proxima demanda"), mantendo classificacao ESP-002 (feature), escopo funcional fechado, criterios de aceite auditaveis e handoff pronto para `/task`.
 5. Detalhar o recorte funcional executavel de R18.1 (modulo alvo, comportamento esperado e evidencia de validacao) antes de abrir nova issue de implementacao.
 6. Recorte proposto para R18.1: pacote de smoke validation do lazy loading transparente (ObjectSet + DataSet), com cenarios minimos executaveis em `Test/Delphi/` e evidencia objetiva de execucao para gate de implementacao.
-7. Demanda ativa da rodada atual: issue #102 (`In progress`) - entregar o pacote minimo de smoke validation do lazy loading transparente mantendo classificacao ESP-002, evidencia auditavel e handoff alinhado entre task, implement, review e test.
+7. Demanda ativa da rodada atual: issue #99 (especificacao em arquiteto) + issue #102 (implementacao) - entregar o pacote minimo de smoke validation do lazy loading transparente, mantendo classificacao ESP-002, evidencia auditavel e handoff alinhado entre architect, task, implement, review e test.
+8. Validar o pacote smoke via gates de review e test; consolidar evidencia de execucao nos artefatos de pipeline antes de abrir expansao funcional do ciclo R18.x.
 
 ## Backlog resumido
 
