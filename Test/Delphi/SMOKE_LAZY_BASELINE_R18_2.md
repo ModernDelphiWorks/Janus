@@ -83,3 +83,45 @@ If Strategy A raises `EInOutError` or produces no XML artifact: switch to Strate
 |---|---|---|---|
 | ObjectSet lazy association contract | TestSmokeLazyLoading + TestObjectSetLazyProxy (deferred, invalid session, reset) | Console summary and NUnit XML include passing assertions for lazy association behavior | Implement and QA reports must map command output + XML artifact to ObjectSet scope |
 | DataSet auto-lazy and proxy contract | TestDataSetAutoLazy + TestDataSetLazyProxy (scroll, pk change, cache, reset) | Console summary and NUnit XML include passing assertions for DataSet lazy routing and proxy lifecycle | Implement and QA reports must map command output + XML artifact to DataSet scope |
+
+## R18.5 — ESP-003 bug fix: relative-path EInOutError and exit code hardening
+
+### Problem corrected
+
+Three failure modes were confirmed when running Strategy A (canonical relative-path command) in certain environments:
+
+1. `EInOutError: Unable to create directory` raised by `TDUnitXXMLNUnitFileLogger.Create()` during XML logger initialization.
+2. Exit code `0` returned despite the exception — silent false-positive success because the `except` block did not set `ExitCode := EXIT_FAILURE`.
+3. Stale XML artifact risk: a prior artifact could be accepted as fresh evidence because no timestamp check was performed.
+
+### Fix applied in `JanusSmoke.dpr` (issue #113)
+
+| Fix | Mechanism |
+|-----|-----------|
+| Relative-path directory creation | Before `TDUnitXXMLNUnitFileLogger.Create`, resolve the full XML output path with `TPath.GetFullPath`, extract the directory component, and call `TDirectory.CreateDirectory` if the directory does not yet exist. |
+| Exit code on exception | `except` handler now explicitly sets `System.ExitCode := EXIT_FAILURE` before printing the exception message. Default `ExitCode=0` false-positive eliminated. |
+| Artifact existence check | After `LRunner.Execute`, verify the XML file exists at the resolved full path. If absent, print `EVIDENCE ERROR` and set `EXIT_FAILURE`. |
+| Artifact freshness check | After `LRunner.Execute`, verify `TFile.GetLastWriteTime(LXmlOutputFile) >= LRunStartTime` (recorded at the start of the try block). If the artifact timestamp predates the run start, print `EVIDENCE ERROR` (stale artifact) and set `EXIT_FAILURE`. |
+
+### Updated evidence rules
+
+After R18.5, the following rules apply to all evidence-producing smoke runs:
+
+1. **Artifact must exist**: any run that does not produce a non-empty XML artifact at the declared path is treated as FAILED, regardless of console output.
+2. **Artifact must be fresh**: the XML file's last-write timestamp must be greater than or equal to `LRunStartTime` captured at the beginning of the run. A stale artifact from a prior run is never accepted as valid evidence.
+3. **Exit code must be non-zero on failure**: any exception during harness setup, logger creation, or test execution yields `EXIT_FAILURE` (exit code 1). Exit code 0 now reliably means all tests passed AND a fresh XML artifact was produced.
+4. **Strategy A is now the canonical path after this fix**: reports must still declare `PATH_STRATEGY=relative` or `PATH_STRATEGY=explicit` as required by R18.4.
+
+### Strategy A freshness evidence declaration (post-R18.5)
+
+```
+PATH_STRATEGY=relative
+ARTIFACT=Test/Delphi/dunitx-results.xml
+exists=<true|false>
+fresh=<true|false>   ← NEW: must be true for valid evidence
+EXIT_CODE=<0|1>
+```
+
+### Fallback rule update
+
+If Strategy A still fails after the R18.5 fix is compiled and deployed, fallback to Strategy B remains valid. Record `PATH_STRATEGY=explicit` and the stale/absent artifact diagnosis. Do not accept exit code 0 as valid evidence when the fresh= declaration cannot be confirmed.
