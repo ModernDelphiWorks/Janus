@@ -1,0 +1,261 @@
+{
+      ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi
+
+                   Copyright (c) 2016, Isaque Pinheiro
+                          All rights reserved.
+
+                    GNU Lesser General Public License
+                      Vers�o 3, 29 de junho de 2007
+
+       Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
+       A todos � permitido copiar e distribuir c�pias deste documento de
+       licen�a, mas mud�-lo n�o � permitido.
+
+       Esta vers�o da GNU Lesser General Public License incorpora
+       os termos e condi��es da vers�o 3 da GNU General Public License
+       Licen�a, complementado pelas permiss�es adicionais listadas no
+       arquivo LICENSE na pasta principal.
+}
+
+{
+  @abstract(Janus Framework.)
+  @created(20 Jul 2016)
+  @author(Isaque Pinheiro <isaquepsp@gmail.com>)
+}
+
+unit Janus.Container.DataSet;
+
+interface
+
+uses
+  DB,
+  RTTi,
+  Classes,
+  SysUtils,
+  Generics.Collections,
+  /// Janus
+  Janus.Container.DataSet.Interfaces,
+  Janus.Session.Abstract,
+  DataEngine.FactoryInterfaces,
+  Janus.DataSet.Base.Adapter;
+
+type
+  TContainerDataSet<M: class, constructor> = class(TInterfacedObject, IContainerDataSet<M>)
+  private
+    function _GetAutoNextPacket: Boolean;
+    procedure _SetAutoNextPacket(const Value: Boolean);
+  protected
+    FDataSetAdapter: TDataSetBaseAdapter<M>;
+  public
+    destructor Destroy; override;
+    procedure LoadLazy(AOwner: M);
+    procedure Open; overload;
+    procedure Open(const AID: Integer); overload;
+    procedure Open(const AID: String); overload;
+    procedure OpenWhere(const AWhere: String; const AOrderBy: String = '');
+    procedure OpenSQL(const ASQL: String);
+    procedure Insert;
+    procedure Append;
+    procedure Post;
+    procedure Edit;
+    procedure Delete;
+    procedure Close;
+    procedure Cancel;
+    procedure RefreshRecord;
+    procedure RefreshRecordWhere(const AWhere: String);
+    procedure EmptyDataSet;
+    procedure CancelUpdates;
+    procedure Save(AObject: M);
+    procedure ApplyUpdates(MaxErros: Integer);
+    procedure AddLookupField(AFieldName: String;
+                             AKeyFields: String;
+                             ALookupDataSet: TObject;
+                             ALookupKeyFields: String;
+                             ALookupResultField: String;
+                             ADisplayLabel: String = '');
+    procedure NextPacket; virtual;
+    function DataSet: TDataSet;
+    function MasterObject: TDataSetBaseAdapter<M>;
+    function This: TDataSetBaseAdapter<M>;
+    function Current: M;
+    // ObjectSet
+    function Find: TObjectList<M>; overload;
+    function Find(const AID: Integer): M; overload;
+    function Find(const AID: String): M; overload;
+    function FindWhere(const AWhere: String; const AOrderBy: String = ''): TObjectList<M>;
+  end;
+
+implementation
+
+{ TContainerDataSet<M> }
+
+procedure TContainerDataSet<M>.AddLookupField(AFieldName, AKeyFields: String;
+  ALookupDataSet: TObject; ALookupKeyFields, ALookupResultField: String;
+  ADisplayLabel: String);
+begin
+  inherited;
+  FDataSetAdapter.AddLookupField(AFieldName,
+                                 AKeyFields,
+                                 ALookupDataSet,
+                                 ALookupKeyFields,
+                                 ALookupResultField,
+                                 ADisplayLabel);
+end;
+
+procedure TContainerDataSet<M>.Append;
+begin
+  FDataSetAdapter.Append;
+end;
+
+procedure TContainerDataSet<M>.ApplyUpdates(MaxErros: Integer);
+begin
+  FDataSetAdapter.ApplyUpdates(MaxErros);
+end;
+
+procedure TContainerDataSet<M>.Cancel;
+begin
+  FDataSetAdapter.Cancel;
+end;
+
+procedure TContainerDataSet<M>.CancelUpdates;
+begin
+  FDataSetAdapter.CancelUpdates;
+end;
+
+procedure TContainerDataSet<M>.Close;
+begin
+  FDataSetAdapter.EmptyDataSet;
+end;
+
+function TContainerDataSet<M>.MasterObject: TDataSetBaseAdapter<M>;
+begin
+  Result := FDataSetAdapter;
+end;
+
+procedure TContainerDataSet<M>.Delete;
+begin
+  FDataSetAdapter.Delete;
+end;
+
+destructor TContainerDataSet<M>.Destroy;
+begin
+  inherited;
+end;
+
+procedure TContainerDataSet<M>.Edit;
+begin
+  FDataSetAdapter.Edit;
+end;
+
+procedure TContainerDataSet<M>.EmptyDataSet;
+begin
+  FDataSetAdapter.EmptyDataSet;
+end;
+
+function TContainerDataSet<M>.Find: TObjectList<M>;
+begin
+  Result := FDataSetAdapter.Find;
+end;
+
+function TContainerDataSet<M>.Find(const AID: Integer): M;
+begin
+  Result := FDataSetAdapter.Find(AID);
+end;
+
+function TContainerDataSet<M>.Find(const AID: String): M;
+begin
+  Result := FDataSetAdapter.Find(AID);
+end;
+
+function TContainerDataSet<M>.FindWhere(const AWhere, AOrderBy: String): TObjectList<M>;
+begin
+  Result := FDataSetAdapter.FindWhere(AWhere, AOrderBy);
+end;
+
+function TContainerDataSet<M>._GetAutoNextPacket: Boolean;
+begin
+  Result := FDataSetAdapter.AutoNextPacket
+end;
+
+function TContainerDataSet<M>.Current: M;
+begin
+  Result := FDataSetAdapter.Current;
+end;
+
+function TContainerDataSet<M>.DataSet: TDataSet;
+begin
+  Result := FDataSetAdapter.FOrmDataSet;
+end;
+
+procedure TContainerDataSet<M>.Insert;
+begin
+  inherited;
+  FDataSetAdapter.Insert;
+end;
+
+procedure TContainerDataSet<M>.LoadLazy(AOwner: M);
+begin
+  FDataSetAdapter.LoadLazy(AOwner);
+end;
+
+procedure TContainerDataSet<M>.NextPacket;
+begin
+  FDataSetAdapter.NextPacket;
+end;
+
+procedure TContainerDataSet<M>.Open;
+begin
+  FDataSetAdapter.OpenSQLInternal('');
+end;
+
+procedure TContainerDataSet<M>.OpenWhere(const AWhere, AOrderBy: String);
+begin
+  FDataSetAdapter.OpenWhereInternal(AWhere, AOrderBy);
+end;
+
+procedure TContainerDataSet<M>.Open(const AID: String);
+begin
+  FDataSetAdapter.OpenIDInternal(AID);
+end;
+
+procedure TContainerDataSet<M>.OpenSQL(const ASQL: String);
+begin
+  FDataSetAdapter.OpenSQLInternal(ASQL);
+end;
+
+procedure TContainerDataSet<M>.Open(const AID: Integer);
+begin
+  FDataSetAdapter.OpenIDInternal(AID);
+end;
+
+procedure TContainerDataSet<M>.Post;
+begin
+  FDataSetAdapter.Post;
+end;
+
+procedure TContainerDataSet<M>.RefreshRecord;
+begin
+  FDataSetAdapter.RefreshRecord;
+end;
+
+procedure TContainerDataSet<M>.RefreshRecordWhere(const AWhere: String);
+begin
+  FDataSetAdapter.RefreshRecordWhere(AWhere);
+end;
+
+procedure TContainerDataSet<M>.Save(AObject: M);
+begin
+  FDataSetAdapter.Save(AObject);
+end;
+
+procedure TContainerDataSet<M>._SetAutoNextPacket(const Value: Boolean);
+begin
+  FDataSetAdapter.AutoNextPacket := Value;
+end;
+
+function TContainerDataSet<M>.This: TDataSetBaseAdapter<M>;
+begin
+  Result := FDataSetAdapter;
+end;
+
+end.

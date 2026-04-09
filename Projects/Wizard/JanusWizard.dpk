@@ -1,0 +1,49 @@
+package JanusWizard;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS OFF}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION ON}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO OFF}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES OFF}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE RELEASE}
+{$ENDIF IMPLICITBUILDING}
+{$DESCRIPTION 'Janus - Model Generator Wizard'}
+{$IMPLICITBUILD OFF}
+{$DESIGNONLY}
+
+requires
+  rtl,
+  vcl,
+  dbrtl,
+  FireDAC,
+  FireDACCommonDriver,
+  designide;
+
+contains
+  Janus.Wizard.Main in 'Janus.Wizard.Main.pas',
+  Janus.Wizard.Form in 'Janus.Wizard.Form.pas',
+  Janus.CodeGen.Types in '..\..\Source\CodeGen\Janus.CodeGen.Types.pas',
+  Janus.CodeGen.Schema in '..\..\Source\CodeGen\Janus.CodeGen.Schema.pas',
+  Janus.CodeGen.Template in '..\..\Source\CodeGen\Janus.CodeGen.Template.pas',
+  Janus.CodeGen.Options in '..\..\Source\CodeGen\Janus.CodeGen.Options.pas',
+  Janus.CodeGen.Engine in '..\..\Source\CodeGen\Janus.CodeGen.Engine.pas';
+
+end.

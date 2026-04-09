@@ -1,0 +1,48 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{D0027D40-ACA8-46EF-8EC8-3831A5EB811D}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="Server\JanusServer.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Client\JanusFireDAC.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="JanusServer">
+        <MSBuild Projects="Server\JanusServer.dproj"/>
+    </Target>
+    <Target Name="JanusServer:Clean">
+        <MSBuild Projects="Server\JanusServer.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="JanusServer:Make">
+        <MSBuild Projects="Server\JanusServer.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="JanusFireDAC">
+        <MSBuild Projects="Client\JanusFireDAC.dproj"/>
+    </Target>
+    <Target Name="JanusFireDAC:Clean">
+        <MSBuild Projects="Client\JanusFireDAC.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="JanusFireDAC:Make">
+        <MSBuild Projects="Client\JanusFireDAC.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="JanusServer;JanusFireDAC"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="JanusServer:Clean;JanusFireDAC:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="JanusServer:Make;JanusFireDAC:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

@@ -1,0 +1,96 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{C403A32F-5943-4559-978D-74063C7B385C}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="JanusCore.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="JanusDriversLinks.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="dclJanusDriversLinks.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="dclJanusManagerClientDataSet.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="dclJanusManagerFDMemTable.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="dclJanusManagerObjectSet.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="JanusCore">
+        <MSBuild Projects="JanusCore.dproj"/>
+    </Target>
+    <Target Name="JanusCore:Clean">
+        <MSBuild Projects="JanusCore.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="JanusCore:Make">
+        <MSBuild Projects="JanusCore.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="JanusDriversLinks">
+        <MSBuild Projects="JanusDriversLinks.dproj"/>
+    </Target>
+    <Target Name="JanusDriversLinks:Clean">
+        <MSBuild Projects="JanusDriversLinks.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="JanusDriversLinks:Make">
+        <MSBuild Projects="JanusDriversLinks.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="dclJanusDriversLinks">
+        <MSBuild Projects="dclJanusDriversLinks.dproj"/>
+    </Target>
+    <Target Name="dclJanusDriversLinks:Clean">
+        <MSBuild Projects="dclJanusDriversLinks.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="dclJanusDriversLinks:Make">
+        <MSBuild Projects="dclJanusDriversLinks.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="dclJanusManagerClientDataSet">
+        <MSBuild Projects="dclJanusManagerClientDataSet.dproj"/>
+    </Target>
+    <Target Name="dclJanusManagerClientDataSet:Clean">
+        <MSBuild Projects="dclJanusManagerClientDataSet.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="dclJanusManagerClientDataSet:Make">
+        <MSBuild Projects="dclJanusManagerClientDataSet.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="dclJanusManagerFDMemTable">
+        <MSBuild Projects="dclJanusManagerFDMemTable.dproj"/>
+    </Target>
+    <Target Name="dclJanusManagerFDMemTable:Clean">
+        <MSBuild Projects="dclJanusManagerFDMemTable.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="dclJanusManagerFDMemTable:Make">
+        <MSBuild Projects="dclJanusManagerFDMemTable.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="dclJanusManagerObjectSet">
+        <MSBuild Projects="dclJanusManagerObjectSet.dproj"/>
+    </Target>
+    <Target Name="dclJanusManagerObjectSet:Clean">
+        <MSBuild Projects="dclJanusManagerObjectSet.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="dclJanusManagerObjectSet:Make">
+        <MSBuild Projects="dclJanusManagerObjectSet.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="JanusCore;JanusDriversLinks;dclJanusDriversLinks;dclJanusManagerClientDataSet;dclJanusManagerFDMemTable;dclJanusManagerObjectSet"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="JanusCore:Clean;JanusDriversLinks:Clean;dclJanusDriversLinks:Clean;dclJanusManagerClientDataSet:Clean;dclJanusManagerFDMemTable:Clean;dclJanusManagerObjectSet:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="JanusCore:Make;JanusDriversLinks:Make;dclJanusDriversLinks:Make;dclJanusManagerClientDataSet:Make;dclJanusManagerFDMemTable:Make;dclJanusManagerObjectSet:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

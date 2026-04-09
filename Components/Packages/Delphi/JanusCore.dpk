@@ -1,0 +1,87 @@
+package JanusCore;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$DESCRIPTION 'Janus - Core'}
+{$RUNONLY}
+{$IMPLICITBUILD OFF}
+
+requires
+  rtl,
+  vcl,
+  vclimg,
+  dbrtl,
+  DataEngineCore,
+  MetaDbDiffCore;
+
+contains
+  Janus.Core.Consts in '..\..\..\Source\Core\Janus.Core.Consts.pas',
+  Janus.Json in '..\..\..\Source\Core\Janus.Json.pas',
+  Janus.Objects.Helper in '..\..\..\Source\Core\Janus.Objects.Helper.pas',
+  Janus.Session.Abstract in '..\..\..\Source\Core\Janus.Session.Abstract.pas',
+  Janus.Types.Lazy in '..\..\..\Source\Core\Janus.Types.Lazy.pas',
+  Janus.Types.Nullable in '..\..\..\Source\Core\Janus.Types.Nullable.pas',
+  Janus.Utils in '..\..\..\Source\Core\Janus.Utils.pas',
+  Janus.DataSet.Base.Adapter in '..\..\..\Source\Dataset\Janus.DataSet.Base.Adapter.pas',
+  Janus.DataSet.Events in '..\..\..\Source\Dataset\Janus.DataSet.Events.pas',
+  Janus.DataSet.Fields in '..\..\..\Source\Dataset\Janus.DataSet.Fields.pas',
+  Janus.Command.Abstract in '..\..\..\Source\Core\Janus.Command.Abstract.pas',
+  Janus.Command.Deleter in '..\..\..\Source\Core\Janus.Command.Deleter.pas',
+  Janus.Command.Factory in '..\..\..\Source\Core\Janus.Command.Factory.pas',
+  Janus.Command.Inserter in '..\..\..\Source\Core\Janus.Command.Inserter.pas',
+  Janus.Command.Selecter in '..\..\..\Source\Core\Janus.Command.Selecter.pas',
+  Janus.Command.Updater in '..\..\..\Source\Core\Janus.Command.Updater.pas',
+  Janus.DML.Commands in '..\..\..\Source\Core\Janus.DML.Commands.pas',
+  Janus.DML.Generator in '..\..\..\Source\Core\Janus.DML.Generator.pas',
+  Janus.DML.Interfaces in '..\..\..\Source\Core\Janus.DML.Interfaces.pas',
+  Janus.Driver.Register in '..\..\..\Source\Core\Janus.Driver.Register.pas',
+  Janus.Query.ResultSet in '..\..\..\Source\Core\Janus.Query.ResultSet.pas',
+  FluentSQL.Interfaces in '..\..\..\Source\Dependencies\FluentSQL\Core\FluentSQL.Interfaces.pas',
+  FluentSQL in '..\..\..\Source\Dependencies\FluentSQL\Core\FluentSQL.pas',
+  Janus.DataSet.Consts in '..\..\..\Source\Dataset\Janus.DataSet.Consts.pas',
+  Janus.Bind in '..\..\..\Source\Core\Janus.Bind.pas',
+  Janus.ObjectSet.Adapter in '..\..\..\Source\Objectset\Janus.ObjectSet.Adapter.pas',
+  Janus.ObjectSet.Base.Adapter in '..\..\..\Source\Objectset\Janus.ObjectSet.Base.Adapter.pas',
+  Janus.ObjectSet.Abstract in '..\..\..\Source\Objectset\Janus.ObjectSet.Abstract.pas',
+  Janus.Session.ObjectSet in '..\..\..\Source\Objectset\Janus.Session.ObjectSet.pas',
+  Janus.Session.DataSet in '..\..\..\Source\Dataset\Janus.Session.DataSet.pas',
+  Janus.DataSet.Adapter in '..\..\..\Source\Dataset\Janus.DataSet.Adapter.pas',
+  Janus.Types.Blob in '..\..\..\Source\Core\Janus.Types.Blob.pas',
+  Janus.DML.Cache in '..\..\..\Source\Core\Janus.DML.Cache.pas',
+  Janus.RTTI.Helper in '..\..\..\Source\Core\Janus.RTTI.Helper.pas',
+  Janus.Objects.Utils in '..\..\..\Source\Core\Janus.Objects.Utils.pas',
+  Janus.Command.Executor.Abstract in '..\..\..\Source\Core\Janus.Command.Executor.Abstract.pas',
+  Janus.Command.Executor in '..\..\..\Source\Core\Janus.Command.Executor.pas',
+  Janus.Register.Middleware in '..\..\..\Source\Middleware\Janus.Register.Middleware.pas',
+  JsonFlow in '..\..\..\Source\Dependencies\JsonFlow\Source\JsonFlow.pas',
+  JsonFlow.Builders in '..\..\..\Source\Dependencies\JsonFlow\Source\Core\JsonFlow.Builders.pas',
+  JsonFlow.Reader in '..\..\..\Source\Dependencies\JsonFlow\Source\Reader\JsonFlow.Reader.pas',
+  JsonFlow.Utils in '..\..\..\Source\Dependencies\JsonFlow\Source\Core\JsonFlow.Utils.pas',
+  JsonFlow.Writer in '..\..\..\Source\Dependencies\JsonFlow\Source\Writer\JsonFlow.Writer.pas';
+
+end.
+
+

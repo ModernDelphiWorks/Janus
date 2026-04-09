@@ -1,0 +1,51 @@
+name: Build Docs
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - docs-src/**
+      - .github/workflows/build-docs.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-publish-docs-folder:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install docs dependencies
+        run: npm --prefix docs-src ci
+
+      - name: Build docs to Docs/
+        run: npm --prefix docs-src run build -- --out-dir ../Docs
+
+      - name: Add .nojekyll
+        run: touch Docs/.nojekyll
+
+      - name: Commit generated Docs folder
+        run: |
+          if [ -z "$(git status --porcelain Docs)" ]; then
+            echo "No Docs changes to commit."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Docs
+          git commit -m "docs: update built Docs folder [skip ci]"
+          git push

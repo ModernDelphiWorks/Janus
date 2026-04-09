@@ -1,0 +1,265 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{8D8C1B8C-DD5B-4666-8F11-C9B3C8653C30}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="FireDAC\Janus_Firedac.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="FireDAC Crud Simples\Janus_FiredacCrudSimples.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="FireDAC Sem DataSet\Janus_FiredacSemDataSet.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Usando FluentSQL\\Janus_FiredacUsandoFluentSQL.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Uso TManagerDataSet\Janus_FiredacManagerDataSet.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Uso TManagerObjectSet\Janus_FiredacManagerObjectSet.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Blob\Janus_Blob.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Blob Sem DataSet\Janus_BlobSemDataSet.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="DBExpress\Janus_DBExpress.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="DBExpress Sem DataSet\Janus_DBExpressSemDataSet.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="IBExpress\Janus_IBExpress.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Object Lazy\Janus_ObjectLazy.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Quatro Niveis de Dados\Janus_QuatroNiveisDeDados.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="SQLite Native\Janus_SQLite.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="SQLite Native Sem DataSet\Janus_SQLiteSemDataSet.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Varios Niveis de Dados\Janus_VariosNiveisDeDados.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Zeos Sem DataSet\Janus_ZeosSemDataSet.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Zeos\Janus_Zeos.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="ADO\Janus_ADO.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="ADO Sem DataSet\Janus_ADOSemDataSet.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="Janus_Firedac">
+        <MSBuild Projects="FireDAC\Janus_Firedac.dproj"/>
+    </Target>
+    <Target Name="Janus_Firedac:Clean">
+        <MSBuild Projects="FireDAC\Janus_Firedac.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_Firedac:Make">
+        <MSBuild Projects="FireDAC\Janus_Firedac.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_FiredacCrudSimples">
+        <MSBuild Projects="FireDAC Crud Simples\Janus_FiredacCrudSimples.dproj"/>
+    </Target>
+    <Target Name="Janus_FiredacCrudSimples:Clean">
+        <MSBuild Projects="FireDAC Crud Simples\Janus_FiredacCrudSimples.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_FiredacCrudSimples:Make">
+        <MSBuild Projects="FireDAC Crud Simples\Janus_FiredacCrudSimples.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_FiredacSemDataSet">
+        <MSBuild Projects="FireDAC Sem DataSet\Janus_FiredacSemDataSet.dproj"/>
+    </Target>
+    <Target Name="Janus_FiredacSemDataSet:Clean">
+        <MSBuild Projects="FireDAC Sem DataSet\Janus_FiredacSemDataSet.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_FiredacSemDataSet:Make">
+        <MSBuild Projects="FireDAC Sem DataSet\Janus_FiredacSemDataSet.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_FiredacUsandoFluentSQL">
+        <MSBuild Projects="Usando FluentSQL\\Janus_FiredacUsandoFluentSQL.dproj"/>
+    </Target>
+    <Target Name="Janus_FiredacUsandoFluentSQL:Clean">
+        <MSBuild Projects="Usando FluentSQL\\Janus_FiredacUsandoFluentSQL.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_FiredacUsandoFluentSQL:Make">
+        <MSBuild Projects="Usando FluentSQL\\Janus_FiredacUsandoFluentSQL.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_FiredacManagerDataSet">
+        <MSBuild Projects="Uso TManagerDataSet\Janus_FiredacManagerDataSet.dproj"/>
+    </Target>
+    <Target Name="Janus_FiredacManagerDataSet:Clean">
+        <MSBuild Projects="Uso TManagerDataSet\Janus_FiredacManagerDataSet.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_FiredacManagerDataSet:Make">
+        <MSBuild Projects="Uso TManagerDataSet\Janus_FiredacManagerDataSet.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_FiredacManagerObjectSet">
+        <MSBuild Projects="Uso TManagerObjectSet\Janus_FiredacManagerObjectSet.dproj"/>
+    </Target>
+    <Target Name="Janus_FiredacManagerObjectSet:Clean">
+        <MSBuild Projects="Uso TManagerObjectSet\Janus_FiredacManagerObjectSet.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_FiredacManagerObjectSet:Make">
+        <MSBuild Projects="Uso TManagerObjectSet\Janus_FiredacManagerObjectSet.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_Blob">
+        <MSBuild Projects="Blob\Janus_Blob.dproj"/>
+    </Target>
+    <Target Name="Janus_Blob:Clean">
+        <MSBuild Projects="Blob\Janus_Blob.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_Blob:Make">
+        <MSBuild Projects="Blob\Janus_Blob.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_BlobSemDataSet">
+        <MSBuild Projects="Blob Sem DataSet\Janus_BlobSemDataSet.dproj"/>
+    </Target>
+    <Target Name="Janus_BlobSemDataSet:Clean">
+        <MSBuild Projects="Blob Sem DataSet\Janus_BlobSemDataSet.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_BlobSemDataSet:Make">
+        <MSBuild Projects="Blob Sem DataSet\Janus_BlobSemDataSet.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_DBExpress">
+        <MSBuild Projects="DBExpress\Janus_DBExpress.dproj"/>
+    </Target>
+    <Target Name="Janus_DBExpress:Clean">
+        <MSBuild Projects="DBExpress\Janus_DBExpress.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_DBExpress:Make">
+        <MSBuild Projects="DBExpress\Janus_DBExpress.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_DBExpressSemDataSet">
+        <MSBuild Projects="DBExpress Sem DataSet\Janus_DBExpressSemDataSet.dproj"/>
+    </Target>
+    <Target Name="Janus_DBExpressSemDataSet:Clean">
+        <MSBuild Projects="DBExpress Sem DataSet\Janus_DBExpressSemDataSet.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_DBExpressSemDataSet:Make">
+        <MSBuild Projects="DBExpress Sem DataSet\Janus_DBExpressSemDataSet.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_IBExpress">
+        <MSBuild Projects="IBExpress\Janus_IBExpress.dproj"/>
+    </Target>
+    <Target Name="Janus_IBExpress:Clean">
+        <MSBuild Projects="IBExpress\Janus_IBExpress.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_IBExpress:Make">
+        <MSBuild Projects="IBExpress\Janus_IBExpress.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_ObjectLazy">
+        <MSBuild Projects="Object Lazy\Janus_ObjectLazy.dproj"/>
+    </Target>
+    <Target Name="Janus_ObjectLazy:Clean">
+        <MSBuild Projects="Object Lazy\Janus_ObjectLazy.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_ObjectLazy:Make">
+        <MSBuild Projects="Object Lazy\Janus_ObjectLazy.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_QuatroNiveisDeDados">
+        <MSBuild Projects="Quatro Niveis de Dados\Janus_QuatroNiveisDeDados.dproj"/>
+    </Target>
+    <Target Name="Janus_QuatroNiveisDeDados:Clean">
+        <MSBuild Projects="Quatro Niveis de Dados\Janus_QuatroNiveisDeDados.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_QuatroNiveisDeDados:Make">
+        <MSBuild Projects="Quatro Niveis de Dados\Janus_QuatroNiveisDeDados.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_SQLite">
+        <MSBuild Projects="SQLite Native\Janus_SQLite.dproj"/>
+    </Target>
+    <Target Name="Janus_SQLite:Clean">
+        <MSBuild Projects="SQLite Native\Janus_SQLite.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_SQLite:Make">
+        <MSBuild Projects="SQLite Native\Janus_SQLite.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_SQLiteSemDataSet">
+        <MSBuild Projects="SQLite Native Sem DataSet\Janus_SQLiteSemDataSet.dproj"/>
+    </Target>
+    <Target Name="Janus_SQLiteSemDataSet:Clean">
+        <MSBuild Projects="SQLite Native Sem DataSet\Janus_SQLiteSemDataSet.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_SQLiteSemDataSet:Make">
+        <MSBuild Projects="SQLite Native Sem DataSet\Janus_SQLiteSemDataSet.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_VariosNiveisDeDados">
+        <MSBuild Projects="Varios Niveis de Dados\Janus_VariosNiveisDeDados.dproj"/>
+    </Target>
+    <Target Name="Janus_VariosNiveisDeDados:Clean">
+        <MSBuild Projects="Varios Niveis de Dados\Janus_VariosNiveisDeDados.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_VariosNiveisDeDados:Make">
+        <MSBuild Projects="Varios Niveis de Dados\Janus_VariosNiveisDeDados.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_ZeosSemDataSet">
+        <MSBuild Projects="Zeos Sem DataSet\Janus_ZeosSemDataSet.dproj"/>
+    </Target>
+    <Target Name="Janus_ZeosSemDataSet:Clean">
+        <MSBuild Projects="Zeos Sem DataSet\Janus_ZeosSemDataSet.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_ZeosSemDataSet:Make">
+        <MSBuild Projects="Zeos Sem DataSet\Janus_ZeosSemDataSet.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_Zeos">
+        <MSBuild Projects="Zeos\Janus_Zeos.dproj"/>
+    </Target>
+    <Target Name="Janus_Zeos:Clean">
+        <MSBuild Projects="Zeos\Janus_Zeos.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_Zeos:Make">
+        <MSBuild Projects="Zeos\Janus_Zeos.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_ADO">
+        <MSBuild Projects="ADO\Janus_ADO.dproj"/>
+    </Target>
+    <Target Name="Janus_ADO:Clean">
+        <MSBuild Projects="ADO\Janus_ADO.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_ADO:Make">
+        <MSBuild Projects="ADO\Janus_ADO.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Janus_ADOSemDataSet">
+        <MSBuild Projects="ADO Sem DataSet\Janus_ADOSemDataSet.dproj"/>
+    </Target>
+    <Target Name="Janus_ADOSemDataSet:Clean">
+        <MSBuild Projects="ADO Sem DataSet\Janus_ADOSemDataSet.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Janus_ADOSemDataSet:Make">
+        <MSBuild Projects="ADO Sem DataSet\Janus_ADOSemDataSet.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="Janus_Firedac;Janus_FiredacCrudSimples;Janus_FiredacSemDataSet;Janus_FiredacUsandoFluentSQL;Janus_FiredacManagerDataSet;Janus_FiredacManagerObjectSet;Janus_Blob;Janus_BlobSemDataSet;Janus_DBExpress;Janus_DBExpressSemDataSet;Janus_IBExpress;Janus_ObjectLazy;Janus_QuatroNiveisDeDados;Janus_SQLite;Janus_SQLiteSemDataSet;Janus_VariosNiveisDeDados;Janus_ZeosSemDataSet;Janus_Zeos;Janus_ADO;Janus_ADOSemDataSet"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="Janus_Firedac:Clean;Janus_FiredacCrudSimples:Clean;Janus_FiredacSemDataSet:Clean;Janus_FiredacUsandoFluentSQL:Clean;Janus_FiredacManagerDataSet:Clean;Janus_FiredacManagerObjectSet:Clean;Janus_Blob:Clean;Janus_BlobSemDataSet:Clean;Janus_DBExpress:Clean;Janus_DBExpressSemDataSet:Clean;Janus_IBExpress:Clean;Janus_ObjectLazy:Clean;Janus_QuatroNiveisDeDados:Clean;Janus_SQLite:Clean;Janus_SQLiteSemDataSet:Clean;Janus_VariosNiveisDeDados:Clean;Janus_ZeosSemDataSet:Clean;Janus_Zeos:Clean;Janus_ADO:Clean;Janus_ADOSemDataSet:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="Janus_Firedac:Make;Janus_FiredacCrudSimples:Make;Janus_FiredacSemDataSet:Make;Janus_FiredacUsandoFluentSQL:Make;Janus_FiredacManagerDataSet:Make;Janus_FiredacManagerObjectSet:Make;Janus_Blob:Make;Janus_BlobSemDataSet:Make;Janus_DBExpress:Make;Janus_DBExpressSemDataSet:Make;Janus_IBExpress:Make;Janus_ObjectLazy:Make;Janus_QuatroNiveisDeDados:Make;Janus_SQLite:Make;Janus_SQLiteSemDataSet:Make;Janus_VariosNiveisDeDados:Make;Janus_ZeosSemDataSet:Make;Janus_Zeos:Make;Janus_ADO:Make;Janus_ADOSemDataSet:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>
+

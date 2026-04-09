@@ -1,0 +1,47 @@
+package dclJanusManagerFDMemTable;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$DESCRIPTION 'Janus - Manager TFDMemTable'}
+{$DESIGNONLY}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl,
+  designide,
+  FireDAC,
+  FireDACCommonDriver,
+  FireDACCommon,
+  DataEngineCore,
+  JanusCore;
+
+contains
+  Janus.Manager.FDMemTable.Reg in '..\..\Source\Janus.Manager.FDMemTable.Reg.pas',
+  Janus.DB.Manager.FDMemTable in '..\..\Source\Janus.DB.Manager.FDMemTable.pas',
+  Janus.Manager.FDMemTable in '..\..\Source\Janus.Manager.FDMemTable.pas',
+  Janus.DataSet.FDMemTable in '..\..\..\Source\Dataset\Janus.DataSet.FDMemTable.pas';
+
+end.
