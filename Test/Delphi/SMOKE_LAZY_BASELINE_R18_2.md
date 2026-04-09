@@ -43,6 +43,40 @@ Define an expanded but bounded smoke baseline for ObjectSet and DataSet lazy-loa
 - Map failed/passed tests to acceptance criteria in pipeline reports.
 - Ensure modified-files section in reports matches the tracked git diff.
 
+## R18.4 portability hardening — Path strategy declaration
+
+Every evidence-producing run must explicitly declare which path strategy was used. Evidence that omits the path strategy declaration must be rejected at review and QA gates.
+
+### Strategy A — Default relative path (run-directory-relative)
+
+```
+cd Test/Delphi
+JanusSmoke.exe --exitbehavior:Continue --xmlfile:dunitx-results.xml
+```
+
+- XML resolves to: `Test/Delphi/dunitx-results.xml`
+- Precondition: the working directory must be `Test/Delphi` before execution.
+- Known caveat: may raise `EInOutError: Unable to create directory` in environments where the working directory path contains restricted segments. If this occurs, fallback to Strategy B.
+- Evidence declaration required: `PATH_STRATEGY=relative; ARTIFACT=Test/Delphi/dunitx-results.xml; exists=<true|false>`
+
+### Strategy B — Explicit target path (pre-created directory)
+
+```powershell
+$targetDir = "<absolute-path>\<target-dir>"
+if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir | Out-Null }
+cd Test/Delphi
+JanusSmoke.exe --exitbehavior:Continue --xmlfile:"$targetDir\dunitx-results.xml"
+```
+
+- XML resolves to the explicit `$targetDir\dunitx-results.xml`.
+- Precondition: target directory must exist before invoking JanusSmoke.exe. Agent must create it and confirm existence.
+- Fallback declaration required when Strategy A fails: record reason and confirm target directory was created successfully.
+- Evidence declaration required: `PATH_STRATEGY=explicit; ARTIFACT=<absolute-path>; exists=<true|false>`
+
+### Fallback rule
+
+If Strategy A raises `EInOutError` or produces no XML artifact: switch to Strategy B, record the caveat, and map it to the evidence declaration. Do not silently accept exit code `0` as sufficient evidence when XML artifact is absent or unverifiable.
+
 ## Scenario-to-output traceability matrix
 
 | Scenario group | Baseline scenarios | Expected deterministic output | Evidence in reports |

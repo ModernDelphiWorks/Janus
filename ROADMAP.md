@@ -11,8 +11,8 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 ## Estado estrategico atual
 
 - Versao mais recente: v2.19.3.
-- Fase atual: execucao de R18.1 — pacote minimo de smoke validation do lazy loading transparente.
-- Leitura do ciclo: R17.x encerrado e consolidado; R18.1 em fechamento operacional (issues #99/#101/#102 em QA Testing) e preparacao da proxima demanda R18.2 para ampliar baseline de confiabilidade antes de expansao funcional ampla.
+- Fase atual: execucao de R18.x — trilha de confiabilidade do smoke validation do lazy loading transparente.
+- Leitura do ciclo: R17.x encerrado e consolidado; R18.1 e R18.3 formalizados/validados em rodadas sucessivas; R18.4 em execucao ativa (issue #111) para fechar caveat de portabilidade de evidencia XML antes de expansao funcional ampla.
 
 ## Marcos recentes
 
@@ -21,6 +21,13 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 - R17.x entregou o lazy loading transparente, executou hardening interno e fechou a consolidacao operacional pos-hotfix antes da abertura do proximo ciclo funcional.
 
 ## Ciclo atual
+
+### R18.4 — XML evidence portability hardening (em execucao)
+
+- Objetivo estrategico: fechar o caveat de portabilidade da evidencia XML herdado de #108, garantindo que o smoke lazy-loading produza evidencias deterministicas em ambientes relativos e com caminho explicito.
+- Estado atual: issue #111 aberta e em implementacao.
+- Demanda ativa: issue #111 (ESP-002, feature) — endurecer contrato de portabilidade XML, preconditions, fallback e rastreabilidade de evidencia.
+- Proxima decisao: apos QA, avaliar expansao funcional do ciclo R18.x.
 
 ### R18.1 — Pacote minimo de smoke validation (em execucao)
 
@@ -42,6 +49,7 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 9. Formalizar a proxima demanda R18.2 como ESP-002 (feature): ampliar baseline smoke de lazy loading transparente com criterios de evidencia deterministicos e rastreabilidade entre diff e reports.
 10. Abrir a issue da rodada R18.2 via `/task` apos alinhamento de assumptions (ausencia de card em `Ready`) e manter o escopo restrito a confiabilidade (ObjectSet + DataSet) sem redesign arquitetural.
 11. Formalizar a proxima demanda R18.3 como ESP-002 (feature): consolidar comando canonico do smoke lazy, pre-condicoes deterministicas para evidencias XML e matriz de rastreabilidade de cenarios para reduzir caveats recorrentes de QA.
+12. Formalizar a proxima demanda R18.4 como ESP-002 (feature): endurecer portabilidade da evidencia XML (modo relativo e caminho explicito), com contrato deterministico de fallback e rastreabilidade obrigatoria entre comando, estrategia de caminho e artefato gerado.
 
 ## Backlog resumido
 
