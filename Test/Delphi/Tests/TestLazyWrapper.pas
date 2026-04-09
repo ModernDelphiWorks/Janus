@@ -25,7 +25,6 @@ implementation
 procedure TTestLazyWrapper.TestLazy_ImplicitOperator_WithFactory;
 var
   LFactory: TFunc<TProcedimento>;
-  LLazy: Lazy<TProcedimento>;
   LLazyValue: ILazy<TProcedimento>;
   LValue: TProcedimento;
 begin
@@ -33,20 +32,17 @@ begin
     begin
       Result := TProcedimento.Create;
     end;
-  LLazy := LFactory;
-  LLazyValue := LLazy;
-  LValue := LLazyValue.Value;
+  LLazyValue := TLazy<TProcedimento>.Create(LFactory);
+  LValue := LLazyValue();
   Assert.IsNotNull(LValue, 'Lazy value must not be nil after factory call');
 end;
 
 procedure TTestLazyWrapper.TestLazy_DefaultValue_IsCreatedByRtti;
 var
   LLazy: Lazy<TProcedimento>;
-  LLazyValue: ILazy<TProcedimento>;
   LValue: TProcedimento;
 begin
-  LLazyValue := LLazy;
-  LValue := LLazyValue.Value;
+  LValue := LLazy.Value;
   Assert.IsNotNull(LValue, 'Default lazy value should be created by RTTI');
 end;
 

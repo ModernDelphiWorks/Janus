@@ -12,7 +12,7 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 
 - Versao mais recente: v2.19.3.
 - Fase atual: execucao de R18.1 — pacote minimo de smoke validation do lazy loading transparente.
-- Leitura do ciclo: R17.x encerrado e consolidado; R18.1 em execucao com issue #99 como demanda ativa, cobrindo objetivos de smoke validation (ObjectSet + DataSet) antes de expandir novo trabalho funcional.
+- Leitura do ciclo: R17.x encerrado e consolidado; R18.1 em fechamento operacional (issues #99/#101/#102 em QA Testing) e preparacao da proxima demanda R18.2 para ampliar baseline de confiabilidade antes de expansao funcional ampla.
 
 ## Marcos recentes
 
@@ -25,9 +25,9 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 ### R18.1 — Pacote minimo de smoke validation (em execucao)
 
 - Objetivo estrategico: consolidar evidencia auditavel de comportamento do lazy loading transparente antes de abrir novo trabalho funcional.
-- Estado atual: implementacao em andamento em `Test/Delphi/` com matriz de smoke (ObjectSet + DataSet), reaproveitando fixtures de `Examples/Delphi/Data/Object Lazy/`; gates de review e test pendentes.
-- Demanda ativa: issue #99 (ESP-002, feature), classificacao mantida, handoff rastreavel entre architect, task, implement, review e test.
-- Proxima decisao: executar review e test gates para confirmar readiness antes de abrir nova frente funcional.
+- Estado atual: baseline minimo de smoke consolidado para ObjectSet + DataSet, com evidencias recentes em rodadas de QA e preparo da formalizacao R18.2 em andamento.
+- Demanda ativa: issue #99 (especificacao), issue #101 (correcao de handoff) e issue #102 (execucao/QA), todas dentro do trilho ESP-002.
+- Proxima decisao: abrir a rodada R18.2 via `/task` com escopo de confiabilidade ampliada e contrato de evidencia deterministico.
 
 ## Proximos milestones
 
@@ -39,6 +39,8 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 6. Recorte proposto para R18.1: pacote de smoke validation do lazy loading transparente (ObjectSet + DataSet), com cenarios minimos executaveis em `Test/Delphi/` e evidencia objetiva de execucao para gate de implementacao.
 7. Demanda ativa da rodada atual: issue #99 (especificacao em arquiteto) + issue #102 (implementacao) - entregar o pacote minimo de smoke validation do lazy loading transparente, mantendo classificacao ESP-002, evidencia auditavel e handoff alinhado entre architect, task, implement, review e test.
 8. Validar o pacote smoke via gates de review e test; consolidar evidencia de execucao nos artefatos de pipeline antes de abrir expansao funcional do ciclo R18.x.
+9. Formalizar a proxima demanda R18.2 como ESP-002 (feature): ampliar baseline smoke de lazy loading transparente com criterios de evidencia deterministicos e rastreabilidade entre diff e reports.
+10. Abrir a issue da rodada R18.2 via `/task` apos alinhamento de assumptions (ausencia de card em `Ready`) e manter o escopo restrito a confiabilidade (ObjectSet + DataSet) sem redesign arquitetural.
 
 ## Backlog resumido
 
