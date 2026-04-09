@@ -29,6 +29,7 @@ uses
   TestRttiSingleton  in 'Tests\TestRttiSingleton.pas',
   TestNullable       in 'Tests\TestNullable.pas',
   TestSmokeLazyLoading in 'Tests\TestSmokeLazyLoading.pas',
+  TestObjectSetLazyProxy in 'Tests\TestObjectSetLazyProxy.pas',
   TestLazyMapping    in 'Tests\TestLazyMapping.pas',
   TestLazyProxy      in 'Tests\TestLazyProxy.pas',
   TestDataSetLazyProxy in 'Tests\TestDataSetLazyProxy.pas',
