@@ -36,6 +36,7 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 4. Publicar a demanda candidata R18.1 (origem textual "proxiam demanda", normalizada como "proxima demanda"), mantendo classificacao ESP-002 (feature), escopo funcional fechado, criterios de aceite auditaveis e handoff pronto para `/task`.
 5. Detalhar o recorte funcional executavel de R18.1 (modulo alvo, comportamento esperado e evidencia de validacao) antes de abrir nova issue de implementacao.
 6. Recorte proposto para R18.1: pacote de smoke validation do lazy loading transparente (ObjectSet + DataSet), com cenarios minimos executaveis em `Test/Delphi/` e evidencia objetiva de execucao para gate de implementacao.
+7. Demanda ativa da rodada atual: issue #102 (`In progress`) - entregar o pacote minimo de smoke validation do lazy loading transparente mantendo classificacao ESP-002, evidencia auditavel e handoff alinhado entre task, implement, review e test.
 
 ## Backlog resumido
 
