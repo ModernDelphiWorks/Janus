@@ -1,0 +1,48 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{EDCD9502-1F15-49DE-9C2D-070FC3B28C6C}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="Server\JanusServer.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Client\JanusClient.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="JanusServer">
+        <MSBuild Projects="Server\JanusServer.dproj"/>
+    </Target>
+    <Target Name="JanusServer:Clean">
+        <MSBuild Projects="Server\JanusServer.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="JanusServer:Make">
+        <MSBuild Projects="Server\JanusServer.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="JanusClient">
+        <MSBuild Projects="Client\JanusClient.dproj"/>
+    </Target>
+    <Target Name="JanusClient:Clean">
+        <MSBuild Projects="Client\JanusClient.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="JanusClient:Make">
+        <MSBuild Projects="Client\JanusClient.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="JanusServer;JanusClient"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="JanusServer:Clean;JanusClient:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="JanusServer:Make;JanusClient:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

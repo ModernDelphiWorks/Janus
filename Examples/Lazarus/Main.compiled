@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CONFIG>
+  <Compiler Value="C:\lazarus\fpc\3.2.2\bin\i386-win32\fpc.exe" Date="1449426723"/>
+  <Params Value=" -MObjFPC -Scgi -O1 -g -gl -l -vewnhibq -FuC:\lazarus\packager\units\i386-win32 -Fud:\Ecossistema-Delphi\Janus\Examples\Lazarus\ -od:\Ecossistema-Delphi\Janus\Examples\Lazarus\Main.exe Main.pas"/>
+  <Complete Value="False"/>
+</CONFIG>

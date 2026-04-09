@@ -1,0 +1,110 @@
+# Janus Framework — CI Test Pipeline
+#
+# This workflow compiles and runs the DUnitX test suite (JanusSmoke.dpr)
+# on a self-hosted runner with Delphi installed.
+#
+# ─── HOW TO CONFIGURE THE SELF-HOSTED RUNNER ───
+#
+# 1. Install a GitHub Actions self-hosted runner on a Windows machine
+#    with Embarcadero Delphi (XE or later) installed.
+#    Docs: https://docs.github.com/en/actions/hosting-your-own-runners
+#
+# 2. Add labels "self-hosted" and "delphi" to the runner.
+#
+# 3. Ensure rsvars.bat is accessible. Typical path:
+#    C:\Program Files (x86)\Embarcadero\Studio\<version>\bin\rsvars.bat
+#
+# 4. The runner must have MSBuild available (ships with Delphi RAD Studio).
+#
+# 5. Once the runner is online, this workflow will execute automatically
+#    on push/PR to main and develop branches.
+# ────────────────────────────────────────────────
+
+name: Janus Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  test-dunitx:
+    name: DUnitX Smoke Tests
+    runs-on: [self-hosted, delphi]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Boss)
+        run: |
+          if (Get-Command boss -ErrorAction SilentlyContinue) {
+            boss install
+          } else {
+            Write-Host "Boss not found — skipping dependency install. Ensure dependencies are available."
+          }
+        shell: pwsh
+
+      - name: Locate Delphi environment
+        id: delphi-env
+        run: |
+          # Try common rsvars.bat locations
+          $rsvars = @(
+            "C:\Program Files (x86)\Embarcadero\Studio\23.0\bin\rsvars.bat",
+            "C:\Program Files (x86)\Embarcadero\Studio\22.0\bin\rsvars.bat",
+            "C:\Program Files (x86)\Embarcadero\Studio\21.0\bin\rsvars.bat",
+            "C:\Program Files (x86)\Embarcadero\Studio\20.0\bin\rsvars.bat"
+          )
+          foreach ($path in $rsvars) {
+            if (Test-Path $path) {
+              Write-Host "Found rsvars.bat at: $path"
+              echo "RSVARS_PATH=$path" >> $env:GITHUB_OUTPUT
+              exit 0
+            }
+          }
+          Write-Host "::warning::rsvars.bat not found. Compilation may fail."
+          echo "RSVARS_PATH=" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Compile JanusSmoke.dpr
+        run: |
+          $rsvars = "${{ steps.delphi-env.outputs.RSVARS_PATH }}"
+          if ($rsvars -and (Test-Path $rsvars)) {
+            # Load Delphi environment and compile
+            cmd /c "call `"$rsvars`" && msbuild Test\Delphi\JanusSmoke.dproj /t:Build /p:Config=Debug /p:Platform=Win32 /verbosity:minimal"
+          } else {
+            Write-Host "::error::Cannot compile — rsvars.bat not found"
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Run tests
+        run: |
+          $env:CI = "1"
+          $exe = Get-ChildItem -Path "Test\Delphi" -Filter "JanusSmoke.exe" -Recurse | Select-Object -First 1
+          if (-not $exe) {
+            $exe = Get-ChildItem -Path "." -Filter "JanusSmoke.exe" -Recurse | Select-Object -First 1
+          }
+          if ($exe) {
+            Write-Host "Running: $($exe.FullName)"
+            & $exe.FullName
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::Tests failed with exit code $LASTEXITCODE"
+              exit $LASTEXITCODE
+            }
+          } else {
+            Write-Host "::error::JanusSmoke.exe not found"
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dunitx-results
+          path: |
+            **/dunitx-results.xml
+            **/JanusSmoke-*.xml
+          if-no-files-found: warn

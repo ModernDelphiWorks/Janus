@@ -1,0 +1,193 @@
+{
+      ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi
+
+                   Copyright (c) 2016, Isaque Pinheiro
+                          All rights reserved.
+
+                    GNU Lesser General Public License
+                      Vers�o 3, 29 de junho de 2007
+
+       Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
+       A todos � permitido copiar e distribuir c�pias deste documento de
+       licen�a, mas mud�-lo n�o � permitido.
+
+       Esta vers�o da GNU Lesser General Public License incorpora
+       os termos e condi��es da vers�o 3 da GNU General Public License
+       Licen�a, complementado pelas permiss�es adicionais listadas no
+       arquivo LICENSE na pasta principal.
+}
+
+{
+  @abstract(Janus Framework.)
+  @created(20 Jul 2016)
+  @author(Isaque Pinheiro <isaquepsp@gmail.com>)
+  @abstract(Website : http://www.Janus.com.br)
+  @abstract(Telagram : https://t.me/Janus)
+}
+
+unit Janus.DataSet.Abstract;
+
+interface
+
+uses
+  DB,
+  Rtti,
+  Generics.Collections,
+  Janus.DataSet.Fields,
+  Janus.Session.Abstract,
+  MetaDbDiff.mapping.classes,
+  MetaDbDiff.rtti.helper;
+
+type
+  TDataSetLocal = class(TDataSet)
+  protected
+    procedure InternalClose; override;
+    procedure InternalHandleException; override;
+    procedure InternalInitFieldDefs; override;
+    procedure InternalOpen; override;
+    function IsCursorOpen: Boolean; override;
+  end;
+
+  TDataSetAbstract<M: class, constructor> = class abstract
+  protected
+    FSession: TSessionAbstract<M>;
+    FOrmDataSource: TDataSource;
+    procedure RefreshDataSetOneToOneChilds(AFieldName: String); virtual;
+    procedure DoDataChange(Sender: TObject; Field: TField); virtual;
+    // Abstract
+    procedure DoBeforeApplyUpdates(DataSet: TDataSet); overload; virtual; abstract;
+    procedure DoAfterApplyUpdates(DataSet: TDataSet; AErrors: Integer); overload; virtual; abstract;
+    procedure DoBeforeApplyUpdates(Sender: TObject; var OwnerData: OleVariant); overload; virtual; abstract;
+    procedure DoAfterApplyUpdates(Sender: TObject; var OwnerData: OleVariant); overload; virtual; abstract;
+    procedure OpenIDInternal(const AID: TValue); overload; virtual; abstract;
+    procedure ApplyInserter(const MaxErros: Integer); virtual; abstract;
+    procedure ApplyUpdater(const MaxErros: Integer); virtual; abstract;
+    procedure ApplyDeleter(const MaxErros: Integer); virtual; abstract;
+    procedure ApplyInternal(const MaxErros: Integer); virtual; abstract;
+    procedure LoadLazy(const AOwner: M); virtual; abstract;
+    procedure OpenDataSetChilds; virtual; abstract;
+    procedure EmptyDataSetChilds; virtual; abstract;
+    procedure OpenSQLInternal(const ASQL: String); virtual; abstract;
+    procedure OpenWhereInternal(const AWhere: String; const AOrderBy: String = ''); virtual; abstract;
+    procedure ApplyUpdates(const MaxErros: Integer); virtual; abstract;
+    procedure EmptyDataSet; virtual; abstract;
+  public
+    FOrmDataSet: TDataSet;
+    constructor Create(ADataSet: TDataSet; APageSize: Integer;
+      AMasterObject: TObject); overload; virtual;
+    destructor Destroy; override;
+  end;
+
+implementation
+
+uses
+  MetaDbDiff.mapping.explorer;
+
+{ TDataSetAbstract<M> }
+
+constructor TDataSetAbstract<M>.Create(ADataSet: TDataSet; APageSize: Integer;
+  AMasterObject: TObject);
+begin
+  FOrmDataSource := TDataSource.Create(nil);
+  FOrmDataSource.DataSet := FOrmDataSet;
+  FOrmDataSource.OnDataChange := DoDataChange;
+end;
+
+destructor TDataSetAbstract<M>.Destroy;
+begin
+  FOrmDataSource.Free;
+  inherited;
+end;
+
+procedure TDataSetAbstract<M>.DoDataChange(Sender: TObject; Field: TField);
+var
+  LValues: TDictionary<String, String>;
+  LColumn: TColumnMapping;
+  LColumns: TColumnMappingList;
+begin
+  if not (FOrmDataSet.State in [dsInsert, dsEdit]) then
+    Exit;
+  if Field = nil then
+    Exit;
+  if Field.Tag > 0 then
+    Exit;
+  if (Field.FieldKind <> fkData) or (Field.FieldName = cInternalField) then
+    Exit;
+  // S� adiciona a lista se for edi��o
+  if FOrmDataSet.State in [dsEdit] then
+  begin
+    LValues := FSession.ModifiedFields.Items[M.ClassName];
+    if LValues <> nil then
+    begin
+      if not LValues.ContainsValue(Field.FieldName) then
+      begin
+        LColumns := TMappingExplorer.GetMappingColumn(M);
+        for LColumn in LColumns do
+        begin
+          if LColumn.ColumnProperty = nil then
+            Continue;
+          if LColumn.ColumnProperty.IsVirtualData then
+            Continue;
+          if LColumn.ColumnProperty.IsNoUpdate then
+            Continue;
+          if LColumn.ColumnProperty.IsAssociation then
+            Continue;
+          if LColumn.ColumnName <> Field.FieldName then
+            Continue;
+          LValues.Add(LColumn.ColumnProperty.Name, Field.FieldName);
+          Break;
+        end;
+//        LObjectType := LContext.GetType(TypeInfo(M));
+//        for LProperty in LObjectType.GetProperties do
+//        begin
+//          if LProperty.GetColumn.ColumnName = Field.FieldName then
+//          begin
+//            LValue.Add(LProperty.Name, Field.FieldName);
+//            Break;
+//          end;
+//        end;
+      end;
+    end;
+  end;
+  // Atualiza o registro da tabela externa, se o campo alterado
+  // pertencer a um relacionamento OneToOne ou ManyToOne
+  RefreshDataSetOneToOneChilds(Field.FieldName);
+end;
+
+procedure TDataSetAbstract<M>.RefreshDataSetOneToOneChilds(AFieldName: String);
+begin
+
+end;
+
+{ TDataSetLocal }
+
+procedure TDataSetLocal.InternalClose;
+begin
+  inherited;
+
+end;
+
+procedure TDataSetLocal.InternalHandleException;
+begin
+  inherited;
+
+end;
+
+procedure TDataSetLocal.InternalInitFieldDefs;
+begin
+  inherited;
+
+end;
+
+procedure TDataSetLocal.InternalOpen;
+begin
+  inherited;
+
+end;
+
+function TDataSetLocal.IsCursorOpen: Boolean;
+begin
+  Result := False;
+end;
+
+end.

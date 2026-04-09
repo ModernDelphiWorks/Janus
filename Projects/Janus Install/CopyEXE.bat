@@ -1,0 +1,1 @@
+@Copy JanusInstall.exe ..\..\

@@ -1,0 +1,46 @@
+package JanusDriversLinks;
+
+{$R *.res}
+{$IFDEF IMPLICITBUILDING This IFDEF should not be used by users}
+{$ALIGN 8}
+{$ASSERTIONS ON}
+{$BOOLEVAL OFF}
+{$DEBUGINFO OFF}
+{$EXTENDEDSYNTAX ON}
+{$IMPORTEDDATA ON}
+{$IOCHECKS ON}
+{$LOCALSYMBOLS ON}
+{$LONGSTRINGS ON}
+{$OPENSTRINGS ON}
+{$OPTIMIZATION OFF}
+{$OVERFLOWCHECKS OFF}
+{$RANGECHECKS OFF}
+{$REFERENCEINFO ON}
+{$SAFEDIVIDE OFF}
+{$STACKFRAMES ON}
+{$TYPEDADDRESS OFF}
+{$VARSTRINGCHECKS ON}
+{$WRITEABLECONST OFF}
+{$MINENUMSIZE 1}
+{$IMAGEBASE $400000}
+{$DEFINE DEBUG}
+{$ENDIF IMPLICITBUILDING}
+{$DESCRIPTION 'Janus - Drivers Links'}
+{$RUNONLY}
+{$IMPLICITBUILD ON}
+
+requires
+  rtl;
+
+contains
+  Janus.Driver.Link.Firebird in '..\..\Source\Janus.Driver.Link.Firebird.pas',
+  Janus.Driver.Link.InterBase in '..\..\Source\Janus.Driver.Link.InterBase.pas',
+  Janus.Driver.Link.MongoDB in '..\..\Source\Janus.Driver.Link.MongoDB.pas',
+  Janus.Driver.Link.MSSQL in '..\..\Source\Janus.Driver.Link.MSSQL.pas',
+  Janus.Driver.Link.MySQL in '..\..\Source\Janus.Driver.Link.MySQL.pas',
+  Janus.Driver.Link.Oracle in '..\..\Source\Janus.Driver.Link.Oracle.pas',
+  Janus.Driver.Link.PostgreSQL in '..\..\Source\Janus.Driver.Link.PostgreSQL.pas',
+  Janus.Driver.Link.SQLDirect in '..\..\Source\Janus.Driver.Link.SQLDirect.pas',
+  Janus.Driver.Link.SQLite in '..\..\Source\Janus.Driver.Link.SQLite.pas';
+
+end.
