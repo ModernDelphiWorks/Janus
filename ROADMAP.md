@@ -2,7 +2,7 @@
 
 Este arquivo registra apenas direcao estrategica, fase atual, milestones proximos e backlog resumido. Historico de release, status operacional por issue, evidencias de teste e reports da pipeline ficam fora deste artefato.
 
-**Ultima atualizacao:** 2026-04-09
+**Ultima atualizacao:** 2026-04-10
 
 ## Visao
 
@@ -11,8 +11,8 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 ## Estado estrategico atual
 
 - Versao mais recente: v2.19.3.
-- Fase atual: execucao de R18.x — trilha de confiabilidade do smoke validation do lazy loading transparente.
-- Leitura do ciclo: R17.x encerrado e consolidado; R18.1 e R18.3 formalizados/validados em rodadas sucessivas; R18.4 em execucao ativa (issue #111) para fechar caveat de portabilidade de evidencia XML antes de expansao funcional ampla.
+- Fase atual: execucao de R18.x — trilha de confiabilidade e governanca pre-gate para publicacao deterministica.
+- Leitura do ciclo: R17.x encerrado e consolidado; R18.1 a R18.10 formalizados/validados em rodadas sucessivas; R18.11 em execucao ativa (issue #122) para reconciliar o blocker de develop causado por diff tracked pre-existente em `ROADMAP.md`.
 
 ## Marcos recentes
 
@@ -50,6 +50,8 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 10. Abrir a issue da rodada R18.2 via `/task` apos alinhamento de assumptions (ausencia de card em `Ready`) e manter o escopo restrito a confiabilidade (ObjectSet + DataSet) sem redesign arquitetural.
 11. Formalizar a proxima demanda R18.3 como ESP-002 (feature): consolidar comando canonico do smoke lazy, pre-condicoes deterministicas para evidencias XML e matriz de rastreabilidade de cenarios para reduzir caveats recorrentes de QA.
 12. Formalizar a proxima demanda R18.4 como ESP-002 (feature): endurecer portabilidade da evidencia XML (modo relativo e caminho explicito), com contrato deterministico de fallback e rastreabilidade obrigatoria entre comando, estrategia de caminho e artefato gerado.
+13. Formalizar a proxima demanda R18.10 como ESP-002 (feature): estabelecer baseline deterministico de validacao pre-gate para freshness de evidencias e isolamento de escopo (diff in-scope vs out-of-scope) antes de `/review`, `/test` e `/develop`.
+14. Formalizar a demanda de correcao R18.11 como ESP-003 (bug): reconciliar explicitamente o diff tracked pre-existente de `ROADMAP.md` para eliminar bloqueio recorrente em `/develop` (`NO_COMMITTABLE_FILES`) com evidencia objetiva de escopo.
 
 ## Backlog resumido
 
@@ -83,5 +85,5 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 3. Registre entregas concluidas no changelog, analises em discussoes e execucao da rodada nos artefatos da pipeline.
 4. Se a informacao nao altera prioridade, fase ou direcao do projeto, ela nao deve aumentar o roadmap.
 
-*Ultima atualizacao: 2026-04-09*
+*Ultima atualizacao: 2026-04-10*
 
