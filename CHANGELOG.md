@@ -7,6 +7,11 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.19.12](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.19.12) — 2026-04-10
+
+### Changed
+- Entrega da rodada ESP-004 com normalizacao completa em portugues do artefato `.archive/Isaque/project-evolution.md`, alinhamento consistente dos artefatos de arquitetura e rollover de checklist de pipeline, sem alteracoes de runtime ([#114](https://github.com/ModernDelphiWorks/Janus/issues/114))
+
 ## [v2.19.11](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.19.11) — 2026-04-08
 
 ### Changed
