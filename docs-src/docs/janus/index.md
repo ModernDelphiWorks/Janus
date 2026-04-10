@@ -23,10 +23,12 @@ Framework ORM para Delphi com mapeamento por atributos, suporte multi-banco, Dat
 - Cobre: persistência ORM, mapeamento de entidades, integrações de runtime e guias técnicos do framework.
 - Não cobre: conteúdo legado removido e estrutura antiga da pasta Doc.
 
-## Status do ciclo (R18.1 formalizada para handoff)
+## Release status (R18.1 formalized for handoff)
 
-- Versão publicada mais recente: `v2.19.11`.
-- Tag publicada mais recente: `v2.19.11`.
+- Most recent published version: `v2.19.13`.
+- Most recent published tag: `v2.19.13`.
+- `v2.19.13` fixed a release-gate blockage by reconciling pre-existing tracked roadmap diff behavior, restoring deterministic release flow without changing runtime/product behavior (issue `#122`).
+- `v2.19.13` closed a smoke-evidence reliability gap for Strategy A by formalizing deterministic XML generation semantics, reducing environment variance in evidence collection (issue `#118`).
 - A issue `#81` entregou o lazy loading transparente com proxy unificado nos contextos ObjectSet, DataSet e REST, preservando o caminho explícito `LoadLazy`.
 - A issue `#88` desbloqueou os gates finais de compilação da release, com correção para `E2003 Undeclared identifier: 'Supports'` no smoke test e `F2613 Unit 'SysUtils' not found` no fluxo `JanusSmoke`.
 - A issue `#90` estabilizou os cenários funcionais remanescentes do lazy reset/reload e o contrato de entidade anotada com `[View]` sem `[Table]`.
