@@ -6,6 +6,7 @@ program JanusSmoke;
 {$STRONGLINKTYPES ON}
 
 uses
+  System.Classes,
   System.SysUtils,
   System.IOUtils,
   {$IFDEF TESTINSIGHT}
@@ -57,12 +58,16 @@ var
   LNunitLogger: ITestLogger;
   LXmlOutputFile: string;
   LXmlDir: string;
+  LProbeFile: string;
+  LProbeStream: TFileStream;
   LRunStartTime: TDateTime;
 begin
 {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX.RunRegisteredTests;
   Exit;
 {$ENDIF}
+  // Fail-closed by default; set EXIT_SUCCESS only after all checks pass.
+  System.ExitCode := EXIT_FAILURE;
   try
     // Record run start time for artifact freshness validation
     LRunStartTime := Now;
@@ -77,6 +82,20 @@ begin
       LXmlDir := TPath.GetDirectoryName(LXmlOutputFile);
       if (LXmlDir <> '') and (not TDirectory.Exists(LXmlDir)) then
         TDirectory.CreateDirectory(LXmlDir);
+      // Probe writability early to avoid false-positive runs when logger output path
+      // is invalid or not writable.
+      if LXmlDir <> '' then
+      begin
+        LProbeFile := TPath.Combine(LXmlDir, '.janus_smoke_write_probe.tmp');
+        LProbeStream := nil;
+        try
+          LProbeStream := TFileStream.Create(LProbeFile, fmCreate);
+        finally
+          FreeAndNil(LProbeStream);
+          if TFile.Exists(LProbeFile) then
+            TFile.Delete(LProbeFile);
+        end;
+      end;
     end;
     // Create the test runner
     LRunner := TDUnitX.CreateRunner;
@@ -84,7 +103,10 @@ begin
     LLogger := TDUnitXConsoleLogger.Create(True);
     LRunner.AddLogger(LLogger);
     // Generate NUnit compatible XML
-    LNunitLogger := TDUnitXXMLNUnitFileLogger.Create(TDUnitX.Options.XMLOutputFile);
+    if LXmlOutputFile <> '' then
+      LNunitLogger := TDUnitXXMLNUnitFileLogger.Create(LXmlOutputFile)
+    else
+      LNunitLogger := TDUnitXXMLNUnitFileLogger.Create(TDUnitX.Options.XMLOutputFile);
     LRunner.AddLogger(LNunitLogger);
     LRunner.FailsOnNoAsserts := False;
     // Run tests
