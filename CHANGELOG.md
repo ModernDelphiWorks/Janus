@@ -7,6 +7,12 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.19.13](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.19.13) — 2026-04-10
+
+### Fixed
+- Correcao do bloqueio de release no gate de develop ao reconciliar o diff tracked preexistente do roadmap, restabelecendo o fluxo deterministico sem alterar runtime/produto ([#122](https://github.com/ModernDelphiWorks/Janus/issues/122))
+- Fechamento do gap de confiabilidade na evidencia smoke para Strategy A com semantica de geracao XML deterministica, reduzindo variabilidade ambiental na coleta de provas ([#118](https://github.com/ModernDelphiWorks/Janus/issues/118))
+
 ## [v2.19.11](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.19.11) — 2026-04-08
 
 ### Changed
