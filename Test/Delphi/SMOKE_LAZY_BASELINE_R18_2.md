@@ -56,7 +56,7 @@ JanusSmoke.exe --exitbehavior:Continue --xmlfile:dunitx-results.xml
 
 - XML resolves to: `Test/Delphi/dunitx-results.xml`
 - Precondition: the working directory must be `Test/Delphi` before execution.
-- Known caveat: may raise `EInOutError: Unable to create directory` in environments where the working directory path contains restricted segments. If this occurs, fallback to Strategy B.
+- Primary path: this strategy is the canonical execution path and must be attempted first for every smoke evidence run.
 - Evidence declaration required: `PATH_STRATEGY=relative; ARTIFACT=Test/Delphi/dunitx-results.xml; exists=<true|false>`
 
 ### Strategy B — Explicit target path (pre-created directory)
@@ -75,7 +75,14 @@ JanusSmoke.exe --exitbehavior:Continue --xmlfile:"$targetDir\dunitx-results.xml"
 
 ### Fallback rule
 
-If Strategy A raises `EInOutError` or produces no XML artifact: switch to Strategy B, record the caveat, and map it to the evidence declaration. Do not silently accept exit code `0` as sufficient evidence when XML artifact is absent or unverifiable.
+Use Strategy B only when Strategy A fails objective evidence checks (`EXIT_CODE != 0`, XML missing, or XML stale). Record the explicit failure reason from Strategy A before fallback. Do not silently accept exit code `0` as sufficient evidence when XML artifact is absent or unverifiable.
+
+## R18.7 closure note — Strategy A relative-path caveat
+
+Issue #118 closes the remaining Strategy A caveat by normalizing the XML path before logger creation and enforcing deterministic evidence checks.
+
+- Expected post-fix behavior: Strategy A no longer raises setup-time relative-path directory errors in the canonical run.
+- If Strategy A still fails in a specific environment, this must be treated as a concrete blocker and recorded with full evidence (`PATH_STRATEGY=relative`, `EXIT_CODE`, `exists`, `fresh`) before any Strategy B fallback.
 
 ## Scenario-to-output traceability matrix
 
