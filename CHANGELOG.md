@@ -7,6 +7,11 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.19.14](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.19.14) — 2026-04-12
+
+### Changed
+- Reconciliacao do escopo da documentacao de manual do usuario, consolidando os arquivos `docs-src/docs/janus/user/index.md`, `docs-src/docs/janus/user/introduction.md` e `docs-src/docs/janus/user/getting-started/quickstart.md` como entrega explicita e validada da rodada ESP-004 ([#127](https://github.com/ModernDelphiWorks/Janus/issues/127))
+
 ## [v2.19.13](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.19.13) — 2026-04-10
 
 ### Fixed
