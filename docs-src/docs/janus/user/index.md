@@ -7,7 +7,7 @@ User manual for Janus in Delphi, focused on installation, first-use workflows, a
 
 Current manual status: aligned with release `v2.19.14`, including transparent lazy loading in ObjectSet, DataSet, and REST.
 Releases from `v2.19.5` to `v2.19.14` did not change the public usage contract of the framework.
-The latest release (`v2.19.14`) reconciled user-manual scope for tracked documentation files (issue `#127`) without changing runtime behavior for end users.
+The latest release (`v2.19.14`) preserved runtime behavior for end users.
 
 ## Who this manual is for
 

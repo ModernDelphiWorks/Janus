@@ -5,15 +5,14 @@ displayed_sidebar: janusSidebar
 
 Esta pagina reune os principais pontos de configuracao para operar o Janus em projetos Delphi.
 
-Versao de referencia deste manual: `v2.19.10`.
+Versao de referencia deste manual: `v2.19.14`.
 
-As releases `v2.19.5`, `v2.19.6`, `v2.19.7`, `v2.19.8`, `v2.19.9` e `v2.19.10` nao alteraram requisitos de configuracao: a primeira realizou refactor interno de serializacao JSON no runtime MARS; a segunda encerrou a validacao ESP-006 sem mudancas no contrato de configuracao; a terceira formalizou governanca de validacao processual na pipeline; a quarta formalizou a demanda R18.1 (ESP-002) para handoff; e as duas ultimas consolidaram editorialmente o milestone R18.1 no `ROADMAP.md`.
-A issue `#103` (ESP-004) atuou apenas na governanca da pipeline e nao alterou requisitos de configuracao de runtime.
+As releases de `v2.19.5` ate `v2.19.14` nao alteraram o contrato de configuracao de uso para quem opera o framework no dia a dia.
 
 ## Comandos de instalacao
 
 ```bash
-boss install "https://github.com/HashLoad/Janus"
+boss install "https://github.com/ModernDelphiWorks/Janus"
 ```
 
 ## Dependencias do ecossistema
