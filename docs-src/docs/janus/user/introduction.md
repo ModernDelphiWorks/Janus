@@ -1,37 +1,39 @@
 ---
-title: Introducao
+title: Introduction
 displayed_sidebar: janusSidebar
 ---
 
-O Janus e um framework ORM para Delphi que transforma classes em entidades persistidas no banco, com geracao automatica de comandos SQL para diferentes drivers.
+Janus is a Delphi ORM framework that maps classes to persisted entities and generates SQL automatically for multiple database drivers.
 
-Para quem usa o framework no dia a dia, isso significa menos SQL manual, menos codigo repetitivo de persistencia e uma mesma abordagem de uso em cenarios com DataSet visual, listas orientadas a objetos e integracao REST.
+For daily usage, this means less manual SQL, less repetitive persistence code, and one consistent usage model across visual DataSet screens, object-oriented lists, and REST integration.
 
-## O que o Janus resolve
+The public end-user usage contract remained stable across releases `v2.19.5` through `v2.19.13`.
 
-- Reduz codigo repetitivo de CRUD.
-- Centraliza mapeamento com atributos na propria classe de dominio.
-- Permite trocar banco suportado com minimo impacto no codigo da aplicacao.
-- Mantem integracao natural com DataSet para telas e rotinas legadas.
+## What Janus solves
 
-## Publico-alvo
+- Reduces repetitive CRUD boilerplate.
+- Centralizes mapping through attributes in the domain class.
+- Allows switching supported databases with minimal application-code impact.
+- Preserves natural DataSet integration for screens and legacy routines.
 
-- Desenvolvedor Delphi em sistemas VCL/FMX.
-- Equipe que mantem aplicacoes com multiplos bancos suportados.
-- Projetos que precisam de persistencia OO com menor acoplamento ao SQL nativo.
+## Target audience
 
-## Conceitos essenciais
+- Delphi developers working on VCL/FMX systems.
+- Teams maintaining applications across multiple supported databases.
+- Projects that need object-oriented persistence with lower coupling to native SQL.
 
-- Entidade mapeada: classe Delphi com atributos como Entity, Table, PrimaryKey e Column.
-- Registro de entidade: etapa obrigatoria no bloco initialization para o runtime reconhecer o mapeamento.
-- Container DataSet/ObjectSet: camada de operacao de dados para leitura, edicao e persistencia.
-- Driver DML: componente que traduz operacoes para o dialeto do banco selecionado.
-- Lazy transparente: associacoes anotadas com `[Lazy]` podem carregar no primeiro acesso, sem exigir `LoadLazy` manual em fluxos suportados.
+## Core concepts
 
-## Fluxo de uso no dia a dia
+- Mapped entity: a Delphi class with attributes such as Entity, Table, PrimaryKey, and Column.
+- Entity registration: required initialization-block step so runtime can resolve mapping metadata.
+- DataSet/ObjectSet container: data-operation layer for reading, editing, and persisting data.
+- DML driver: component that translates operations to the selected database dialect.
+- Transparent lazy loading: associations marked with `[Lazy]` load on first access without mandatory manual `LoadLazy` in supported flows.
 
-1. Modelar entidade Delphi com atributos.
-2. Registrar entidade no initialization da unit.
-3. Configurar conexao via DataEngine Factory.
-4. Instanciar container e abrir os dados.
-5. Aplicar alteracoes com ApplyUpdates.
+## Typical usage flow
+
+1. Model a Delphi entity with attributes.
+2. Register the entity in the unit initialization block.
+3. Configure the connection through a DataEngine factory.
+4. Create a container and open data.
+5. Persist changes with ApplyUpdates.
