@@ -25,8 +25,9 @@ Framework ORM para Delphi com mapeamento por atributos, suporte multi-banco, Dat
 
 ## Release status (R18.1 formalized for handoff)
 
-- Most recent published version: `v2.19.13`.
-- Most recent published tag: `v2.19.13`.
+- Most recent published version: `v2.19.14`.
+- Most recent published tag: `v2.19.14`.
+- `v2.19.14` reconciled the user-manual documentation scope for tracked diffs under `docs-src/docs/janus/user/`, closing issue `#127` without runtime/product behavior changes.
 - `v2.19.13` fixed a release-gate blockage by reconciling pre-existing tracked roadmap diff behavior, restoring deterministic release flow without changing runtime/product behavior (issue `#122`).
 - `v2.19.13` closed a smoke-evidence reliability gap for Strategy A by formalizing deterministic XML generation semantics, reducing environment variance in evidence collection (issue `#118`).
 - A issue `#81` entregou o lazy loading transparente com proxy unificado nos contextos ObjectSet, DataSet e REST, preservando o caminho explícito `LoadLazy`.

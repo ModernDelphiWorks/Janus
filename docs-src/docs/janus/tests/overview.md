@@ -25,6 +25,7 @@ title: Testes
 - A v2.19.10 consolidou editorialmente o milestone R18.1 em item unico no `ROADMAP.md` (issue `#110`), sem alteracao de suite, cobertura ou baseline funcional.
 - A v2.19.11 normalizou editorialmente a redacao da origem de R18.1 no `ROADMAP.md` (de "proxiam demanda" para "proxima demanda"), sem alterar classificacao ESP-002, escopo funcional ou baseline de testes (issue `#113`).
 - A v2.19.13 reforcou a confiabilidade da evidencia smoke para Strategy A com semantica deterministica de geracao XML e corrigiu o bloqueio de release no gate de develop, sem alteracao na suite de produto, cobertura publicada ou baseline funcional (issues `#118` e `#122`).
+- A v2.19.14 publicou reconciliacao de escopo documental do manual do usuario (issue `#127`) sem alteracao na suite de produto, cobertura publicada ou baseline funcional.
 
 ## Suíte DUnitX — arquivos de teste
 
