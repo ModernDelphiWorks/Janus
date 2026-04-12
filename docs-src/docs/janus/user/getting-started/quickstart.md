@@ -3,24 +3,22 @@ title: Quickstart
 displayed_sidebar: janusSidebar
 ---
 
-## Pre-requisitos
+## Prerequisites
 
 - Delphi XE+
 - Boss package manager
-- Driver de banco configurado (ex.: FireDAC)
+- Configured database driver (for example, FireDAC)
 
-Este quickstart reflete o contrato de uso publicado na versao `v2.19.10`.
+This quickstart reflects the published usage contract up to version `v2.19.13`.
+Releases `v2.19.5` through `v2.19.13` did not change this end-user operational flow.
 
-As releases `v2.19.5`, `v2.19.6`, `v2.19.7`, `v2.19.8`, `v2.19.9` e `v2.19.10` nao alteraram este fluxo: a primeira realizou refactor interno do runtime MARS para JSON via `Janus.Json`; a segunda encerrou a validacao ESP-006 sem mudancas no contrato publico; a terceira formalizou regra de validacao processual para a pipeline; a quarta formalizou a demanda R18.1 (ESP-002) para handoff; e as duas ultimas consolidaram editorialmente o milestone R18.1 no `ROADMAP.md`.
-A rodada processual da issue `#103` (ESP-004) tambem nao introduziu mudancas neste fluxo.
-
-## Instalacao
+## Installation
 
 ```bash
-boss install "https://github.com/HashLoad/Janus"
+boss install "https://github.com/ModernDelphiWorks/Janus"
 ```
 
-## Passo 1: criar entidade mapeada
+## Step 1: Create a mapped entity
 
 ```delphi
 [Entity]
@@ -39,14 +37,14 @@ public
 end;
 ```
 
-## Passo 2: registrar entidade
+## Step 2: Register the entity
 
 ```delphi
 initialization
   TRegisterClass.RegisterEntity(Tclient);
 ```
 
-## Passo 3: configurar conexao e container
+## Step 3: Configure connection and container
 
 ```delphi
 procedure TForm3.FormCreate(Sender: TObject);
@@ -57,13 +55,13 @@ begin
 end;
 ```
 
-Se o projeto usar propriedades com `[Lazy]`, inclua tambem a unit do driver DML correspondente no `uses` do projeto para garantir a geracao correta de SQL:
+If your project uses properties marked with `[Lazy]`, include the matching DML generator unit in the project `uses` section so SQL generation is registered correctly:
 
 ```delphi
 uses Janus.DML.Generator.SQLite;
 ```
 
-## Passo 4: persistir alteracoes
+## Step 4: Persist changes
 
 ```delphi
 procedure TForm3.ButtonSalvarClick(Sender: TObject);
@@ -72,16 +70,16 @@ begin
 end;
 ```
 
-## Checklist de validacao rapida
+## Quick validation checklist
 
-1. O pacote Janus foi instalado via Boss sem erro.
-2. A entidade foi registrada no initialization.
-3. O DataSet abre com Open sem excecao.
-4. O ApplyUpdates(0) executa e grava no banco.
-5. Se houver propriedade lazy, o primeiro acesso a `.Value` retorna o relacionamento esperado com a sessao ainda aberta.
+1. Janus is installed via Boss without errors.
+2. The entity is registered in initialization.
+3. DataSet opens with Open without exception.
+4. ApplyUpdates(0) executes and writes to the database.
+5. If lazy properties exist, first access to `.Value` resolves while the session is still active.
 
-## Proximos passos
+## Next steps
 
-- [Guia: Primeiro CRUD com DataSet](../guides/primeiro-crud-com-dataset)
-- [Guia: Operacao Master-Detail](../guides/operacao-master-detail)
-- [Referencia de configuracao](../reference/configuration)
+- [Guide: Primeiro CRUD com DataSet](../guides/primeiro-crud-com-dataset)
+- [Guide: Operacao Master-Detail](../guides/operacao-master-detail)
+- [Configuration reference](../reference/configuration)
