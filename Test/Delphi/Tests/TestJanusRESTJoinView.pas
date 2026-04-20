@@ -59,6 +59,7 @@ const
 
 procedure TTestRESTJoinView.Setup;
 begin
+  FPrefix := 'api/Janus';
   inherited Setup;
   FHTTPClient := THTTPClient.Create;
   FHTTPClient.ConnectionTimeout := cTIMEOUT_MS;
@@ -75,7 +76,7 @@ end;
 function TTestRESTJoinView._BuildURL(const AResource: String;
   const AQuery: String): String;
 begin
-  Result := Format('http://localhost:%d/api/Janus/%s', [Port, AResource]);
+  Result := BuildResourceURL(AResource);
   if AQuery <> '' then
     Result := Result + '?' + AQuery;
 end;
