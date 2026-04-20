@@ -2,7 +2,7 @@
 
 Este arquivo registra apenas direcao estrategica, fase atual, milestones proximos e backlog resumido. Historico de release, status operacional por issue, evidencias de teste e reports da pipeline ficam fora deste artefato.
 
-**Ultima atualizacao:** 2026-04-10
+**Ultima atualizacao:** 2026-04-20
 
 ## Visao
 
@@ -53,6 +53,21 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 13. Formalizar a proxima demanda R18.10 como ESP-002 (feature): estabelecer baseline deterministico de validacao pre-gate para freshness de evidencias e isolamento de escopo (diff in-scope vs out-of-scope) antes de `/review`, `/test` e `/develop`.
 14. Formalizar a demanda de correcao R18.11 como ESP-003 (bug): reconciliar explicitamente o diff tracked pre-existente de `ROADMAP.md` para eliminar bloqueio recorrente em `/develop` (`NO_COMMITTABLE_FILES`) com evidencia objetiva de escopo.
 
+### R19 — REST/Horse OData hardening, RESTReadOnly e JOIN via View (em formalizacao)
+
+- Objetivo estrategico: consolidar a camada REST/Horse como base OData testada, com granularidade read-only por classe e alternativa explicita de JOIN via VIEW gerada por FluentSQL + DataEngine.
+- Estado atual: ciclo formalizado por /architect em 2026-04-20; 6 slices definidos; 4 ADRs aprovados; handoff pronto para /task.
+- Demanda ativa: ESP-002 (feature) — cobertura de testes REST/Horse, tokenizacao do parser OData, atributo `[RESTReadOnly]`, `TRESTViewManager` e atualizacao do exemplo `HorseJanus`.
+- Itens da rodada:
+  - [ ] Suite de testes unitarios do parser OData (`TestJanusRESTQueryParse.pas` ≥ 30 cenarios).
+  - [ ] Suite de integracao CRUD Horse + SQLite (`TestJanusRESTHorseIntegration.pas` ≥ 12 cenarios).
+  - [ ] Atributo `[RESTReadOnly]` com cache em `MetaDbDiff` e guard em `TAppResourceBase`.
+  - [ ] Parser OData tokenizado com operadores logicos (and/or/not) e funcoes (contains/startswith/endswith/tolower/toupper).
+  - [ ] Validacao de `$expand` RTTI via teste master/detail.
+  - [ ] Utilitario `TRESTViewManager` para geracao/atualizacao de VIEW via FluentSQL DDL + DataEngine.
+  - [ ] Atualizacao do exemplo `Examples/Delphi/RESTful/Horse/` e documentacao em `docs-src/docs/janus/`.
+- Proxima decisao: apos QA, avaliar expansao para outros web frameworks (DMVC/MARS/WiRL/DataSnap) e Cliente REST.
+
 ## Backlog resumido
 
 - Evolucoes futuras de lazy loading permanecem como backlog exploratorio, com detalhamento tecnico fora deste roadmap.
@@ -85,5 +100,5 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 3. Registre entregas concluidas no changelog, analises em discussoes e execucao da rodada nos artefatos da pipeline.
 4. Se a informacao nao altera prioridade, fase ou direcao do projeto, ela nao deve aumentar o roadmap.
 
-*Ultima atualizacao: 2026-04-10*
+*Ultima atualizacao: 2026-04-20*
 
