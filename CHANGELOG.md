@@ -7,6 +7,19 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.20.0](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.20.0) — 2026-04-20
+
+### Added
+- `[RESTReadOnly]` attribute in `MetaDbDiff.Mapping.Attributes` with cache in `TMappingExplorer` and write guard in `TAppResourceBase` (ParseInsert/ParseUpdate/ParseDelete) — deterministic JSON error response for blocked write operations ([#130](https://github.com/ModernDelphiWorks/Janus/issues/130))
+- `TRESTViewManager` in `Janus.Server.RestView.Manager.pas`: EnsureView DDL flow via FluentSQL DDL + DataEngine supports `CREATE OR REPLACE VIEW` (MySQL/MariaDB/PostgreSQL/Oracle) and DROP+CREATE (SQLite/Firebird) ([#130](https://github.com/ModernDelphiWorks/Janus/issues/130))
+- `TestJanusRESTQueryParse.pas`: 44 OData parser unit tests added to `JanusSmoke.dpr` ([#130](https://github.com/ModernDelphiWorks/Janus/issues/130))
+- `JanusRestHorse.dpr` with `TestJanusRESTHorseIntegration.pas` (12 CRUD integration tests), `TestJanusRESTReadOnly.pas` (6 tests), `TestJanusRESTJoinView.pas` (6 tests) ([#130](https://github.com/ModernDelphiWorks/Janus/issues/130))
+- Documentation pages: `odata-reference.md`, `rest-readonly.md`, `rest-join-strategy.md` in `docs-src/docs/janus/`; links added to `restful.md` ([#130](https://github.com/ModernDelphiWorks/Janus/issues/130))
+- Horse example `README.md` with step-by-step instructions for read-only, `$expand`, and VIEW scenarios ([#130](https://github.com/ModernDelphiWorks/Janus/issues/130))
+
+### Changed
+- OData parser (`Janus.Server.RestQuery.Parse.pas`): replaced global `StringReplace` with word-boundary tokenizer (`_TokenizeFilter`/`_EmitSQL`) eliminating field-name corruption (e.g. `adicional` → `+icional`); added `and`/`or`/`not` logical operators and `contains`/`startswith`/`endswith`/`tolower`/`toupper` OData functions ([#130](https://github.com/ModernDelphiWorks/Janus/issues/130))
+
 ## [v2.19.14](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.19.14) — 2026-04-12
 
 ### Changed
