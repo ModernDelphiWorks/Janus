@@ -15,6 +15,8 @@ uses
   HorseJanus.DAO.Base in 'dao\HorseJanus.DAO.Base.pas',
   HorseJanus.Controller.Master in 'controller\HorseJanus.Controller.Master.pas',
   HorseJanus.Controller.Client in 'controller\HorseJanus.Controller.Client.pas',
+  HorseJanus.Controller.ReadOnly in 'controller\HorseJanus.Controller.ReadOnly.pas',
+  Janus.Model.ReadOnly in 'models\Janus.Model.ReadOnly.pas',
   System.Classes;
 
 begin
@@ -32,6 +34,8 @@ begin
   THorse.Get('client/:id', HorseJanus.Controller.Client.Find);
   THorse.Put('client/:id', HorseJanus.Controller.Client.Update);
   THorse.Delete('client/:id', HorseJanus.Controller.Client.Delete);
+
+  THorse.Get('readonly', HorseJanus.Controller.ReadOnly.List);
 
   THorse.Listen(9000, '127.0.0.1',
     procedure
