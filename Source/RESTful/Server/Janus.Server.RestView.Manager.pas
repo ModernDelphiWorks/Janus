@@ -47,7 +47,6 @@ type
 implementation
 
 uses
-  FluentSQL.Interfaces,
   MetaDbDiff.Mapping.Classes;
 
 { TRESTViewManager }
