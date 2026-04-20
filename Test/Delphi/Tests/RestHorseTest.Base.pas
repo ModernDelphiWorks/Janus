@@ -42,8 +42,10 @@ type
     procedure _CreateSchema;
     procedure _RegisterTestEntities;
   protected
+    FPrefix: String;
     property Connection: IDBConnection read FConnection;
     property Port: Integer read FPort;
+    function BuildResourceURL(const AResource: String): String;
     // Executes all pending DDL/DML against the test database
     procedure ExecuteSQL(const ASQL: String);
     // Resets the test database to a known clean state
@@ -126,10 +128,18 @@ begin
   FConnection.ExecuteDirect(ASQL);
 end;
 
+function TRestHorseTestBase.BuildResourceURL(const AResource: String): String;
+begin
+  if FPrefix <> '' then
+    Result := Format('http://127.0.0.1:%d/%s/%s', [FPort, FPrefix, AResource])
+  else
+    Result := Format('http://127.0.0.1:%d/%s', [FPort, AResource]);
+end;
+
 procedure TRestHorseTestBase._StartHorse;
 begin
   FPort := 9890 + Random(100);
-  FServer := TRESTServerHorse.Create(nil, FConnection);
+  FServer := TRESTServerHorse.Create(nil, FConnection, FPrefix);
   FServerThread := TThread.CreateAnonymousThread(
     procedure
     begin
