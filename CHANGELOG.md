@@ -7,6 +7,13 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### Added
+- Suite de testes de integração REST/Horse via Driver: extensão de `RestHorseTest.Base.pas` com campo `FPrefix` e método `BuildResourceURL`; criação de `TestJanusRESTHorseDriver.pas` com 8 cenários CRUD via prefixo `api/Janus`; atualização de `JanusRestHorse.dpr` ([#134](https://github.com/ModernDelphiWorks/Janus/issues/134))
+
+### Fixed
+- Fechamento dos três caveats pós-release de v2.20.0: remoção da cláusula `uses FluentSQL.Interfaces` duplicada em `Janus.Server.RestView.Manager.pas`; adição da categoria `RESTful` no sidebar do Docusaurus com links para `odata-reference`, `rest-readonly` e `rest-join-strategy`; adição de exemplo `[RESTReadOnly]` em `HorseJanus.dpr` com controller e model dedicados ([#133](https://github.com/ModernDelphiWorks/Janus/issues/133))
+- Alinhamento do contrato de prefixo nas fixtures de teste: adição de `FPrefix := 'api/Janus'` antes de `inherited Setup` em `TestJanusRESTReadOnly` e `TestJanusRESTJoinView`; substituição de `_BuildURL` hardcoded por delegação a `BuildResourceURL` da classe base ([#135](https://github.com/ModernDelphiWorks/Janus/issues/135))
+
 ## [v2.19.14](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.19.14) — 2026-04-12
 
 ### Changed

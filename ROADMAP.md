@@ -10,9 +10,9 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 
 ## Estado estrategico atual
 
-- Versao mais recente: v2.19.3.
-- Fase atual: execucao de R18.x — trilha de confiabilidade e governanca pre-gate para publicacao deterministica.
-- Leitura do ciclo: R17.x encerrado e consolidado; R18.1 a R18.10 formalizados/validados em rodadas sucessivas; R18.11 em execucao ativa (issue #122) para reconciliar o blocker de develop causado por diff tracked pre-existente em `ROADMAP.md`.
+- Versao mais recente: v2.20.0 (released 2026-04-20).
+- Fase atual: pos-release v2.20.0 — tres commits (#133, #134, #135) em develop pendentes de release v2.20.1.
+- Leitura do ciclo: R19 entregue como v2.20.0 (#130); R19.1 fechado (#133); R19.2 fechado (#134, #135); artefatos de governanca sendo consolidados para gate do /release v2.20.1.
 
 ## Marcos recentes
 
@@ -53,19 +53,36 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 13. Formalizar a proxima demanda R18.10 como ESP-002 (feature): estabelecer baseline deterministico de validacao pre-gate para freshness de evidencias e isolamento de escopo (diff in-scope vs out-of-scope) antes de `/review`, `/test` e `/develop`.
 14. Formalizar a demanda de correcao R18.11 como ESP-003 (bug): reconciliar explicitamente o diff tracked pre-existente de `ROADMAP.md` para eliminar bloqueio recorrente em `/develop` (`NO_COMMITTABLE_FILES`) com evidencia objetiva de escopo.
 
-### R19 — REST/Horse OData hardening, RESTReadOnly e JOIN via View (em formalizacao)
+### R19.1 — Post-release caveat closure for v2.20.0 — delivered 2026-04-20
+
+- [x] Fix: `FluentSQL.Interfaces` duplicate removed from `implementation uses` in `RestView.Manager.pas` — delivered #133 2026-04-20
+- [x] Fix: Docusaurus sidebar updated with `RESTful` category linking `odata-reference`, `rest-readonly`, `rest-join-strategy` — delivered #133 2026-04-20
+- [x] Fix: `HorseJanus.dpr` extended with `[RESTReadOnly]` model + controller example — delivered #133 2026-04-20
+
+### R19.2 — REST/Horse via Driver: suite de testes de integração (entregue)
+
+- Objetivo estrategico: fechar lacuna de cobertura de testes — `TRESTServerHorse` com prefixo de URL (`'api/Janus'`) não tinha suite de testes dedicada.
+- Estado atual: entregue — commits b70aecf (#134) e 61a02c7 (#135) em develop 2026-04-20.
+- Demanda ativa: nenhuma — rodada encerrada.
+- Itens da rodada:
+  - [x] Estender `RestHorseTest.Base.pas` com campo `FPrefix` e método `BuildResourceURL` — delivered #134 2026-04-20
+  - [x] Criar `TestJanusRESTHorseDriver.pas` — fixture com prefixo `api/Janus` e mínimo 8 testes CRUD — delivered #134 2026-04-20
+  - [x] Atualizar `JanusRestHorse.dpr` com a nova unit de testes — delivered #134 2026-04-20
+- Proxima decisao: apos QA, avaliar expansao de cobertura (outros frameworks via Driver: DMVC, MARS, WiRL).
+
+### R19 — REST/Horse OData hardening, RESTReadOnly e JOIN via View (entregue como v2.20.0)
 
 - Objetivo estrategico: consolidar a camada REST/Horse como base OData testada, com granularidade read-only por classe e alternativa explicita de JOIN via VIEW gerada por FluentSQL + DataEngine.
-- Estado atual: ciclo formalizado por /architect em 2026-04-20; 6 slices definidos; 4 ADRs aprovados; handoff pronto para /task.
-- Demanda ativa: ESP-002 (feature) — cobertura de testes REST/Horse, tokenizacao do parser OData, atributo `[RESTReadOnly]`, `TRESTViewManager` e atualizacao do exemplo `HorseJanus`.
+- Estado atual: entregue como v2.20.0 (#130) e complementos em develop (#133).
+- Demanda ativa: nenhuma — rodada encerrada.
 - Itens da rodada:
-  - [ ] Suite de testes unitarios do parser OData (`TestJanusRESTQueryParse.pas` ≥ 30 cenarios).
-  - [ ] Suite de integracao CRUD Horse + SQLite (`TestJanusRESTHorseIntegration.pas` ≥ 12 cenarios).
-  - [ ] Atributo `[RESTReadOnly]` com cache em `MetaDbDiff` e guard em `TAppResourceBase`.
-  - [ ] Parser OData tokenizado com operadores logicos (and/or/not) e funcoes (contains/startswith/endswith/tolower/toupper).
-  - [ ] Validacao de `$expand` RTTI via teste master/detail.
-  - [ ] Utilitario `TRESTViewManager` para geracao/atualizacao de VIEW via FluentSQL DDL + DataEngine.
-  - [ ] Atualizacao do exemplo `Examples/Delphi/RESTful/Horse/` e documentacao em `docs-src/docs/janus/`.
+  - [x] Suite de testes unitarios do parser OData (`TestJanusRESTQueryParse.pas` ≥ 30 cenarios) — delivered #130 2026-04-20
+  - [x] Suite de integracao CRUD Horse + SQLite (`TestJanusRESTHorseIntegration.pas` ≥ 12 cenarios) — delivered #130 2026-04-20
+  - [x] Atributo `[RESTReadOnly]` com cache em `MetaDbDiff` e guard em `TAppResourceBase` — delivered #130 2026-04-20
+  - [x] Parser OData tokenizado com operadores logicos (and/or/not) e funcoes (contains/startswith/endswith/tolower/toupper) — delivered #130 2026-04-20
+  - [x] Validacao de `$expand` RTTI via teste master/detail — delivered #130 2026-04-20
+  - [x] Utilitario `TRESTViewManager` para geracao/atualizacao de VIEW via FluentSQL DDL + DataEngine — delivered #130 2026-04-20
+  - [x] Atualizacao do exemplo `Examples/Delphi/RESTful/Horse/` e documentacao em `docs-src/docs/janus/` — delivered #130 2026-04-20, complemento #133 2026-04-20
 - Proxima decisao: apos QA, avaliar expansao para outros web frameworks (DMVC/MARS/WiRL/DataSnap) e Cliente REST.
 
 ## Backlog resumido
@@ -100,5 +117,5 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 3. Registre entregas concluidas no changelog, analises em discussoes e execucao da rodada nos artefatos da pipeline.
 4. Se a informacao nao altera prioridade, fase ou direcao do projeto, ela nao deve aumentar o roadmap.
 
-*Ultima atualizacao: 2026-04-20*
+*Ultima atualizacao: 2026-04-20 — ESP-004 pre-release v2.20.1 artifact consolidation: R19, R19.1, R19.2 marked delivered; CHANGELOG [Unreleased] populated*
 
