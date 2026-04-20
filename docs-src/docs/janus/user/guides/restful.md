@@ -84,3 +84,11 @@ Banco de dados
 - Aplicações cliente-servidor via HTTP.
 - Quando o banco não pode ser acessado diretamente do cliente.
 - Multi-camada com autenticação centralizada no servidor.
+
+## Referências de funcionalidade avançada (ESP-002)
+
+| Tópico | Documento |
+|--------|-----------|
+| Consulta OData (operadores, funções, lógica) | [OData Query Reference](../../odata-reference.md) |
+| Atributo `[RESTReadOnly]` | [RESTReadOnly](../../rest-readonly.md) |
+| Estratégia de JOIN (RTTI vs VIEW) | [JOIN Strategy](../../rest-join-strategy.md) |

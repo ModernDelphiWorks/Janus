@@ -44,6 +44,7 @@ type
     const cRESOURCENOTFOUND = '{"exception":"Resource T%s not found!"}';
     const cRESOURCENOTREGISTER = '{"exception":"Resource [%s] not registered on the server!"}';
     const cRESOURCEPERMITION = '{"exception":"Resource [%s] without access permission by the [NotServerUse] attribute!"}';
+    const cRESOURCEREADONLY = '{"exception":"Resource %s is read-only (RESTReadOnly)"}';
     const cEXCEPTIONJSON = '{"exception":"There was an error in trying to convert JSON into the class [%s]!"}';
     const cRESOURCEDELETE = '{"result":"Resource %s delete command executed successfully"}';
     const cRESOURCEINSERT = '{"result":"Resource %s insert command executed successfully", "params":[{%s}]}';
@@ -165,6 +166,10 @@ begin
   LClassType := TMappingExplorer.GetRepositoryMapping.FindEntityByName(AQuery.ResourceName);
   if LClassType = nil then
     Exit;
+
+  if TMappingExplorer.GetRESTReadOnly(LClassType) then
+    raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
+
   try
     LObjectSet := TRESTObjectSet.Create(FConnection, LClassType);
     try
@@ -239,6 +244,9 @@ begin
   if LClassType = nil then
     raise Exception.CreateFmt(cRESOURCENOTREGISTER, [AQuery.ResourceName]);
 
+  if TMappingExplorer.GetRESTReadOnly(LClassType) then
+    raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
+
   try
     LObjectSet := TRESTObjectSet.Create(FConnection, LClassType);
     LObject := LClassType.Create;
@@ -290,6 +298,9 @@ begin
                                 .FindEntityByName(AQuery.ResourceName);
   if LClassType = nil then
     Exit;
+
+  if TMappingExplorer.GetRESTReadOnly(LClassType) then
+    raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
   try
     LObjectSet := TRESTObjectSet.Create(FConnection, LClassType);
     LObjectNew := LClassType.Create;
