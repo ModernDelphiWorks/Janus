@@ -56,6 +56,7 @@ type
     function GetTable: Table;
     function GetResource: Resource;
     function GetNotServerUse: NotServerUse;
+    function GetRESTReadOnly: Boolean;
     function GetSubResource: SubResource;
     function &GetType(out AType: TRttiType): Boolean;
     function GetSequence: Sequence;
@@ -73,6 +74,7 @@ var
   GTableCache: TObjectDictionary<String, Table>;
   GSequenceCache: TObjectDictionary<String, Sequence>;
   GNotServerUseCache: TObjectDictionary<String, NotServerUse>;
+  GRESTReadOnlyCache: TDictionary<String, Boolean>;
 
 { TObjectHelper }
 
@@ -92,6 +94,22 @@ begin
 
   Result := NotServerUse.Create;
   GNotServerUseCache.Add(LClassName, Result);
+end;
+
+function TObjectHelper.GetRESTReadOnly: Boolean;
+var
+  LClassName: String;
+begin
+  Result := False;
+  if not Assigned(Self) then
+    Exit;
+
+  LClassName := Self.ClassName;
+  if GRESTReadOnlyCache.TryGetValue(LClassName, Result) then
+    Exit;
+
+  Result := TMappingExplorer.GetRESTReadOnly(Self.ClassType);
+  GRESTReadOnlyCache.Add(LClassName, Result);
 end;
 
 function TObjectHelper.GetResource: Resource;
@@ -282,10 +300,12 @@ initialization
   GTableCache := TObjectDictionary<String, Table>.Create([doOwnsValues]);
   GSequenceCache := TObjectDictionary<String, Sequence>.Create([doOwnsValues]);
   GNotServerUseCache := TObjectDictionary<String, NotServerUse>.Create([doOwnsValues]);
+  GRESTReadOnlyCache := TDictionary<String, Boolean>.Create;
 
 finalization
   GNotServerUseCache.Free;
   GSequenceCache.Free;
   GTableCache.Free;
+  GRESTReadOnlyCache.Free;
 
 end.

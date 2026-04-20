@@ -45,7 +45,9 @@ uses
   TestCriteriaAdvanced in 'Tests\TestCriteriaAdvanced.pas',
   TestMiddlewarePipeline in 'Tests\TestMiddlewarePipeline.pas',
   TestDMLGenerator in 'Tests\TestDMLGenerator.pas',
-  TestFluentSQLIntegration in 'Tests\TestFluentSQLIntegration.pas';
+  TestFluentSQLIntegration in 'Tests\TestFluentSQLIntegration.pas',
+  /// REST/Horse Tests — ESP-002
+  TestJanusRESTQueryParse in 'Tests\TestJanusRESTQueryParse.pas';
 
 const
   EXIT_SUCCESS = 0;
