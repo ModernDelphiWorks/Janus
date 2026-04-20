@@ -23,7 +23,9 @@ uses
   /// Integration Test Suites — ESP-002
   TestJanusRESTHorseIntegration in 'Tests\TestJanusRESTHorseIntegration.pas',
   TestJanusRESTReadOnly         in 'Tests\TestJanusRESTReadOnly.pas',
-  TestJanusRESTJoinView         in 'Tests\TestJanusRESTJoinView.pas';
+  TestJanusRESTJoinView         in 'Tests\TestJanusRESTJoinView.pas',
+  /// Integration Test Suites — ESP-006
+  TestJanusRESTHorseDriver      in 'Tests\TestJanusRESTHorseDriver.pas';
 
 const
   EXIT_SUCCESS = 0;
