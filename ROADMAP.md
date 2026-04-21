@@ -85,6 +85,18 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
   - [x] Atualizacao do exemplo `Examples/Delphi/RESTful/Horse/` e documentacao em `docs-src/docs/janus/` — delivered #130 2026-04-20, complemento #133 2026-04-20
 - Proxima decisao: apos QA, avaliar expansao para outros web frameworks (DMVC/MARS/WiRL/DataSnap) e Cliente REST.
 
+### R20 — RESTReadOnly method-level granularity (planejado)
+
+- Objetivo estrategico: estender o controle de acesso REST de binario (tudo/somente-leitura) para por-verbo HTTP, habilitando casos como audit logs (POST permitido, PUT/DELETE bloqueados) e tabelas de referencia (GET+POST, sem UPDATE/DELETE).
+- Estado atual: planejado — artefatos de pipeline gerados em 2026-04-20; aguarda fechamento de v2.20.1.
+- Demanda ativa: nenhuma — handoff pronto para /task apos release v2.20.1.
+- Itens da rodada:
+  - [ ] Definir atributos `[RESTAllowGET]`, `[RESTAllowPOST]`, `[RESTAllowPUT]`, `[RESTAllowDELETE]` em `MetaDbDiff.Mapping.Attributes`
+  - [ ] Estender cache MetaDbDiff com conjunto de verbos permitidos por classe
+  - [ ] Implementar guard de grant-list em `TAppResourceBase` (com precedencia de `[RESTReadOnly]`)
+  - [ ] Testes unitarios de deteccao RTTI e testes de integracao via Horse (CA-001..CA-012)
+  - [ ] Atualizar `rest-readonly.md` com novos atributos e tabela de comportamento combinado
+
 ## Backlog resumido
 
 - Evolucoes futuras de lazy loading permanecem como backlog exploratorio, com detalhamento tecnico fora deste roadmap.
@@ -117,5 +129,5 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 3. Registre entregas concluidas no changelog, analises em discussoes e execucao da rodada nos artefatos da pipeline.
 4. Se a informacao nao altera prioridade, fase ou direcao do projeto, ela nao deve aumentar o roadmap.
 
-*Ultima atualizacao: 2026-04-20 — ESP-004 pre-release v2.20.1 artifact consolidation: R19, R19.1, R19.2 marked delivered; CHANGELOG [Unreleased] populated*
+*Ultima atualizacao: 2026-04-20 — R20 planejado: RESTReadOnly method-level granularity ([RESTAllowGET/POST/PUT/DELETE]); aguarda release v2.20.1*
 
