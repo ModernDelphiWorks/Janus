@@ -4,8 +4,63 @@ interface
 
 uses
   SysUtils,
+  DB,
   DUnitX.TestFramework,
+  MetaDbDiff.Mapping.Attributes,
+  MetaDbDiff.Mapping.Explorer,
   Janus.Server.RestQuery.Parse;
+
+// Local model stubs for RTTI attribute detection tests
+type
+  [Entity]
+  [Table('rtti_allow_get_stub', '')]
+  [RESTAllowGET]
+  TRTTIAllowGETStub = class
+  end;
+
+  [Entity]
+  [Table('rtti_allow_post_stub', '')]
+  [RESTAllowPOST]
+  TRTTIAllowPOSTStub = class
+  end;
+
+  [Entity]
+  [Table('rtti_allow_put_stub', '')]
+  [RESTAllowPUT]
+  TRTTIAllowPUTStub = class
+  end;
+
+  [Entity]
+  [Table('rtti_allow_delete_stub', '')]
+  [RESTAllowDELETE]
+  TRTTIAllowDELETEStub = class
+  end;
+
+  [Entity]
+  [Table('rtti_no_allow_stub', '')]
+  TRTTINoAllowStub = class
+  end;
+
+type
+  [TestFixture]
+  TTestRESTAllowVerbsRTTI = class
+  public
+    // CA-001
+    [Test]
+    procedure GetRESTAllowVerbs_ClassWithRESTAllowGET_DetectsGET;
+    // CA-002
+    [Test]
+    procedure GetRESTAllowVerbs_ClassWithRESTAllowPOST_DetectsPOST;
+    // CA-003
+    [Test]
+    procedure GetRESTAllowVerbs_ClassWithRESTAllowPUT_DetectsPUT;
+    // CA-004
+    [Test]
+    procedure GetRESTAllowVerbs_ClassWithRESTAllowDELETE_DetectsDELETE;
+    // CA-010: class with no [RESTAllow*] has HasAllowList = False
+    [Test]
+    procedure GetRESTAllowVerbs_ClassWithNoAttribute_HasAllowListFalse;
+  end;
 
 type
   [TestFixture]
@@ -446,7 +501,54 @@ begin
   Assert.AreEqual('id,name,email', FParser.Select);
 end;
 
+{ TTestRESTAllowVerbsRTTI }
+
+procedure TTestRESTAllowVerbsRTTI.GetRESTAllowVerbs_ClassWithRESTAllowGET_DetectsGET;
+var
+  LCache: TRESTAllowVerbCache;
+begin
+  LCache := TMappingExplorer.GetRESTAllowVerbs(TRTTIAllowGETStub);
+  Assert.IsTrue(LCache.HasAllowList, 'HasAllowList must be True for [RESTAllowGET]');
+  Assert.IsTrue(rvGET in LCache.AllowedVerbs, 'rvGET must be in AllowedVerbs');
+end;
+
+procedure TTestRESTAllowVerbsRTTI.GetRESTAllowVerbs_ClassWithRESTAllowPOST_DetectsPOST;
+var
+  LCache: TRESTAllowVerbCache;
+begin
+  LCache := TMappingExplorer.GetRESTAllowVerbs(TRTTIAllowPOSTStub);
+  Assert.IsTrue(LCache.HasAllowList, 'HasAllowList must be True for [RESTAllowPOST]');
+  Assert.IsTrue(rvPOST in LCache.AllowedVerbs, 'rvPOST must be in AllowedVerbs');
+end;
+
+procedure TTestRESTAllowVerbsRTTI.GetRESTAllowVerbs_ClassWithRESTAllowPUT_DetectsPUT;
+var
+  LCache: TRESTAllowVerbCache;
+begin
+  LCache := TMappingExplorer.GetRESTAllowVerbs(TRTTIAllowPUTStub);
+  Assert.IsTrue(LCache.HasAllowList, 'HasAllowList must be True for [RESTAllowPUT]');
+  Assert.IsTrue(rvPUT in LCache.AllowedVerbs, 'rvPUT must be in AllowedVerbs');
+end;
+
+procedure TTestRESTAllowVerbsRTTI.GetRESTAllowVerbs_ClassWithRESTAllowDELETE_DetectsDELETE;
+var
+  LCache: TRESTAllowVerbCache;
+begin
+  LCache := TMappingExplorer.GetRESTAllowVerbs(TRTTIAllowDELETEStub);
+  Assert.IsTrue(LCache.HasAllowList, 'HasAllowList must be True for [RESTAllowDELETE]');
+  Assert.IsTrue(rvDELETE in LCache.AllowedVerbs, 'rvDELETE must be in AllowedVerbs');
+end;
+
+procedure TTestRESTAllowVerbsRTTI.GetRESTAllowVerbs_ClassWithNoAttribute_HasAllowListFalse;
+var
+  LCache: TRESTAllowVerbCache;
+begin
+  LCache := TMappingExplorer.GetRESTAllowVerbs(TRTTINoAllowStub);
+  Assert.IsFalse(LCache.HasAllowList, 'HasAllowList must be False when no [RESTAllow*] present');
+end;
+
 initialization
+  TDUnitX.RegisterTestFixture(TTestRESTAllowVerbsRTTI);
   TDUnitX.RegisterTestFixture(TTestRESTQueryParse);
 
 end.
