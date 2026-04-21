@@ -31,6 +31,9 @@ Lib/
 /Source/Dependencies/MetaDbDiff/
 /Source/Dependencies/DataEngine/
 /Source/Dependencies/JsonFlow/
+/Source/Dependencies/Horse/
+/Source/Dependencies/DataEngine-backup/
+/Source/Dependencies/MetaDbDiff-backup/
 /Test/Lazarus/Engines/
 
 # Docs portal (Node/Docusaurus) - generated artifacts
