@@ -9,12 +9,23 @@ uses
   System.Classes,
   System.SysUtils,
   System.IOUtils,
+  // FireDAC silent wait-cursor — required when TFDConnection is used from
+  // non-VCL threads (Indy worker threads inside Horse). Registers a null
+  // GUI provider so FireDAC does not invoke VCL cursor callbacks that AV
+  // outside the main thread.
+  FireDAC.ConsoleUI.Wait,
+  FireDAC.Comp.Client,
   {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX,
   {$ENDIF}
   DUnitX.TestFramework,
   DUnitX.Loggers.Console,
   DUnitX.Loggers.Xml.NUnit,
+  /// DML generator registration — this unit's initialization block registers
+  /// the SQLite factory with TDriverRegister. Without it, TCommandSelecter's
+  /// construction path hits an unregistered driver and AVs deep in the
+  /// TDictionary miss path.
+  Janus.DML.Generator.SQLite,
   /// Models
   MetaDbDiff.Mapping.Register,
   /// Test Infrastructure
@@ -23,7 +34,11 @@ uses
   /// Integration Test Suites — ESP-002
   TestJanusRESTHorseIntegration in 'Tests\TestJanusRESTHorseIntegration.pas',
   TestJanusRESTReadOnly         in 'Tests\TestJanusRESTReadOnly.pas',
-  TestJanusRESTJoinView         in 'Tests\TestJanusRESTJoinView.pas';
+  TestJanusRESTJoinView         in 'Tests\TestJanusRESTJoinView.pas',
+  /// Integration Test Suites — ESP-006
+  TestJanusRESTHorseDriver      in 'Tests\TestJanusRESTHorseDriver.pas',
+  /// Integration Test Suites — R20 method-level grant (#137)
+  TestJanusRESTMethodGrant      in 'Tests\TestJanusRESTMethodGrant.pas';
 
 const
   EXIT_SUCCESS = 0;
@@ -45,6 +60,12 @@ begin
   Exit;
 {$ENDIF}
   System.ExitCode := EXIT_FAILURE;
+  // Required for any Delphi process that allocates from multiple threads.
+  // Horse dispatches requests on Indy worker threads; without this the RTL
+  // memory manager skips cross-thread locking and allocations race into AVs.
+  IsMultiThread := True;
+  // FireDAC manager-level silent: prevents any thread-unsafe GUI dispatch.
+  FDManager.SilentMode := True;
   try
     LRunStartTime := Now;
     TDUnitX.CheckCommandLine;

@@ -43,6 +43,15 @@ const sidebars = {
             },
             {
               type: 'category',
+              label: 'RESTful',
+              items: [
+                'janus/odata-reference',
+                'janus/rest-readonly',
+                'janus/rest-join-strategy',
+              ],
+            },
+            {
+              type: 'category',
               label: 'Tests & Support',
               items: ['janus/tests/overview', 'janus/troubleshooting/common-errors'],
             },

@@ -45,6 +45,7 @@ type
     const cRESOURCENOTREGISTER = '{"exception":"Resource [%s] not registered on the server!"}';
     const cRESOURCEPERMITION = '{"exception":"Resource [%s] without access permission by the [NotServerUse] attribute!"}';
     const cRESOURCEREADONLY = '{"exception":"Resource %s is read-only (RESTReadOnly)"}';
+    const cRESOURCEVERBNOTALLOWED = '{"exception":"HTTP %s not allowed for %s"}';
     const cEXCEPTIONJSON = '{"exception":"There was an error in trying to convert JSON into the class [%s]!"}';
     const cRESOURCEDELETE = '{"result":"Resource %s delete command executed successfully"}';
     const cRESOURCEINSERT = '{"result":"Resource %s insert command executed successfully", "params":[{%s}]}';
@@ -78,6 +79,7 @@ implementation
 
 uses
   MetaDbDiff.mapping.classes,
+  MetaDbDiff.mapping.attributes,
   MetaDbDiff.rtti.helper,
   Janus.Objects.Helper,
   Janus.Core.Consts;
@@ -138,6 +140,7 @@ var
   LObject: TObject;
   LClassType: TClass;
   LObjectSet: TRESTObjectSet;
+  LAllowVerbs: TRESTAllowVerbCache;
 
   procedure ExceptionExecute;
   begin
@@ -170,6 +173,11 @@ begin
   if TMappingExplorer.GetRESTReadOnly(LClassType) then
     raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
 
+  LAllowVerbs := TMappingExplorer.GetRESTAllowVerbs(LClassType);
+  if LAllowVerbs.HasAllowList then
+    if not (rvDELETE in LAllowVerbs.AllowedVerbs) then
+      raise Exception.CreateFmt(cRESOURCEVERBNOTALLOWED, ['DELETE', AQuery.ResourceName]);
+
   try
     LObjectSet := TRESTObjectSet.Create(FConnection, LClassType);
     try
@@ -201,6 +209,7 @@ var
   LClassType: TClass;
   LObjectSet: TRESTObjectSet;
   LNotSeverUse: Boolean;
+  LAllowVerbs: TRESTAllowVerbCache;
 begin
   LClassType := TMappingExplorer.GetRepositoryMapping
                                 .FindEntityByName(AQuery.ResourceName);
@@ -211,6 +220,12 @@ begin
   LNotSeverUse := TMappingExplorer.GetNotServerUse(LClassType);
   if LNotSeverUse then
     raise Exception.CreateFmt(cRESOURCEPERMITION, [AQuery.ResourceName]);
+
+  LAllowVerbs := TMappingExplorer.GetRESTAllowVerbs(LClassType);
+  if LAllowVerbs.HasAllowList then
+    if not TMappingExplorer.GetRESTReadOnly(LClassType) then
+      if not (rvGET in LAllowVerbs.AllowedVerbs) then
+        raise Exception.CreateFmt(cRESOURCEVERBNOTALLOWED, ['GET', AQuery.ResourceName]);
 
   LObjectSet := TRESTObjectSet.Create(FConnection, LClassType);
   try
@@ -238,6 +253,7 @@ var
   LClassType: TClass;
   LObjectSet: TRESTObjectSet;
   LValues: String;
+  LAllowVerbs: TRESTAllowVerbCache;
 begin
   LClassType := TMappingExplorer.GetRepositoryMapping
                                 .FindEntityByName(AQuery.ResourceName);
@@ -246,6 +262,11 @@ begin
 
   if TMappingExplorer.GetRESTReadOnly(LClassType) then
     raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
+
+  LAllowVerbs := TMappingExplorer.GetRESTAllowVerbs(LClassType);
+  if LAllowVerbs.HasAllowList then
+    if not (rvPOST in LAllowVerbs.AllowedVerbs) then
+      raise Exception.CreateFmt(cRESOURCEVERBNOTALLOWED, ['POST', AQuery.ResourceName]);
 
   try
     LObjectSet := TRESTObjectSet.Create(FConnection, LClassType);
@@ -293,6 +314,7 @@ var
   LPrimaryKey: TPrimaryKeyColumnsMapping;
   LColumn: TColumnMapping;
   LWhere: String;
+  LAllowVerbs: TRESTAllowVerbCache;
 begin
   LClassType := TMappingExplorer.GetRepositoryMapping
                                 .FindEntityByName(AQuery.ResourceName);
@@ -301,6 +323,11 @@ begin
 
   if TMappingExplorer.GetRESTReadOnly(LClassType) then
     raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
+
+  LAllowVerbs := TMappingExplorer.GetRESTAllowVerbs(LClassType);
+  if LAllowVerbs.HasAllowList then
+    if not (rvPUT in LAllowVerbs.AllowedVerbs) then
+      raise Exception.CreateFmt(cRESOURCEVERBNOTALLOWED, ['PUT', AQuery.ResourceName]);
   try
     LObjectSet := TRESTObjectSet.Create(FConnection, LClassType);
     LObjectNew := LClassType.Create;

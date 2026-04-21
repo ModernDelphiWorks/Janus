@@ -5,6 +5,7 @@ interface
 uses
   SysUtils,
   Classes,
+  IOUtils,
   SyncObjs,
   DUnitX.TestFramework,
   // DataEngine
@@ -34,6 +35,8 @@ type
   private
     FDConnection: TFDConnection;
     FConnection: IDBConnection;
+    FHorseDConnection: TFDConnection;
+    FHorseConnection: IDBConnection;
     FServer: TRESTServerHorse;
     FPort: Integer;
     FServerThread: TThread;
@@ -42,8 +45,10 @@ type
     procedure _CreateSchema;
     procedure _RegisterTestEntities;
   protected
+    FPrefix: String;
     property Connection: IDBConnection read FConnection;
     property Port: Integer read FPort;
+    function BuildResourceURL(const AResource: String): String;
     // Executes all pending DDL/DML against the test database
     procedure ExecuteSQL(const ASQL: String);
     // Resets the test database to a known clean state
@@ -51,6 +56,10 @@ type
     // Inserts seed data for tests
     procedure SeedCustomers;
   public
+    [SetupFixture]
+    procedure SetupFixture;
+    [TearDownFixture]
+    procedure TearDownFixture;
     [Setup]
     procedure Setup;
     [TearDown]
@@ -61,6 +70,7 @@ implementation
 
 uses
   DataEngine.FactoryFireDAC,
+  Horse.Core.RouterTree,
   RestHorseTest.Models;
 
 { TRestHorseTestBase }
@@ -71,6 +81,10 @@ begin
   TRegisterClass.RegisterEntity(TOrderTest);
   TRegisterClass.RegisterEntity(TProductTest);
   TRegisterClass.RegisterEntity(TCustomerOrderSummary);
+  TRegisterClass.RegisterEntity(TGrantGETOnly);
+  TRegisterClass.RegisterEntity(TGrantGETAndPOST);
+  TRegisterClass.RegisterEntity(TGrantFullAllow);
+  TRegisterClass.RegisterEntity(TGrantReadOnlyWithPOST);
 end;
 
 procedure TRestHorseTestBase._CreateSchema;
@@ -95,13 +109,41 @@ const
     '  name  VARCHAR(100) NOT NULL,' +
     '  price REAL DEFAULT 0' +
     ')';
+  LDDL_GRANT_GET_ONLY =
+    'CREATE TABLE IF NOT EXISTS grant_get_only_test (' +
+    '  id   INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  name VARCHAR(100) NOT NULL' +
+    ')';
+  LDDL_GRANT_GET_POST =
+    'CREATE TABLE IF NOT EXISTS grant_get_post_test (' +
+    '  id   INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  name VARCHAR(100) NOT NULL' +
+    ')';
+  LDDL_GRANT_FULL_ALLOW =
+    'CREATE TABLE IF NOT EXISTS grant_full_allow_test (' +
+    '  id   INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  name VARCHAR(100) NOT NULL' +
+    ')';
+  LDDL_GRANT_READONLY_POST =
+    'CREATE TABLE IF NOT EXISTS grant_readonly_post_test (' +
+    '  id   INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  name VARCHAR(100) NOT NULL' +
+    ')';
 begin
   FConnection.ExecuteDirect('DROP TABLE IF EXISTS order_test');
   FConnection.ExecuteDirect('DROP TABLE IF EXISTS customer_test');
   FConnection.ExecuteDirect('DROP TABLE IF EXISTS product_test');
+  FConnection.ExecuteDirect('DROP TABLE IF EXISTS grant_get_only_test');
+  FConnection.ExecuteDirect('DROP TABLE IF EXISTS grant_get_post_test');
+  FConnection.ExecuteDirect('DROP TABLE IF EXISTS grant_full_allow_test');
+  FConnection.ExecuteDirect('DROP TABLE IF EXISTS grant_readonly_post_test');
   FConnection.ExecuteDirect(LDDL_CUSTOMER);
   FConnection.ExecuteDirect(LDDL_ORDER);
   FConnection.ExecuteDirect(LDDL_PRODUCT);
+  FConnection.ExecuteDirect(LDDL_GRANT_GET_ONLY);
+  FConnection.ExecuteDirect(LDDL_GRANT_GET_POST);
+  FConnection.ExecuteDirect(LDDL_GRANT_FULL_ALLOW);
+  FConnection.ExecuteDirect(LDDL_GRANT_READONLY_POST);
 end;
 
 procedure TRestHorseTestBase.ResetDatabase;
@@ -126,10 +168,18 @@ begin
   FConnection.ExecuteDirect(ASQL);
 end;
 
+function TRestHorseTestBase.BuildResourceURL(const AResource: String): String;
+begin
+  if FPrefix <> '' then
+    Result := Format('http://127.0.0.1:%d/%s/%s', [FPort, FPrefix, AResource])
+  else
+    Result := Format('http://127.0.0.1:%d/%s', [FPort, AResource]);
+end;
+
 procedure TRestHorseTestBase._StartHorse;
 begin
   FPort := 9890 + Random(100);
-  FServer := TRESTServerHorse.Create(nil, FConnection);
+  FServer := TRESTServerHorse.Create(nil, FHorseConnection, FPrefix);
   FServerThread := TThread.CreateAnonymousThread(
     procedure
     begin
@@ -152,7 +202,7 @@ begin
   FreeAndNil(FServer);
 end;
 
-procedure TRestHorseTestBase.Setup;
+procedure TRestHorseTestBase.SetupFixture;
 begin
   Randomize;
   FDConnection := TFDConnection.Create(nil);
@@ -160,21 +210,45 @@ begin
   FDConnection.Params.Database := cTEST_DB_PATH;
   FDConnection.Params.Values['OpenMode'] := 'CreateUTF8';
   FDConnection.Connected := True;
-
   FConnection := TFactoryFireDAC.Create(FDConnection, dnSQLite);
+  FHorseDConnection := TFDConnection.Create(nil);
+  FHorseDConnection.Params.DriverID := 'SQLite';
+  FHorseDConnection.Params.Database := cTEST_DB_PATH;
+  FHorseDConnection.Params.Values['OpenMode'] := 'CreateUTF8';
+  FHorseDConnection.ResourceOptions.SilentMode := True;
+  FHorseDConnection.Connected := True;
+  FHorseConnection := TFactoryFireDAC.Create(FHorseDConnection, dnSQLite);
   _RegisterTestEntities;
-  _CreateSchema;
   _StartHorse;
 end;
 
-procedure TRestHorseTestBase.TearDown;
+procedure TRestHorseTestBase.TearDownFixture;
+var
+  LOldRoutes: THorseRouterTree;
+  LNewRoutes: THorseRouterTree;
 begin
   _StopHorse;
+  LOldRoutes := THorse.Routes;
+  LNewRoutes := THorseRouterTree.Create;
+  THorse.Routes := LNewRoutes;
+  LOldRoutes.Free;
+  FHorseConnection := nil;
+  FHorseDConnection.Connected := False;
+  FreeAndNil(FHorseDConnection);
   FConnection := nil;
   FDConnection.Connected := False;
   FreeAndNil(FDConnection);
   if TFile.Exists(cTEST_DB_PATH) then
     TFile.Delete(cTEST_DB_PATH);
+end;
+
+procedure TRestHorseTestBase.Setup;
+begin
+  _CreateSchema;
+end;
+
+procedure TRestHorseTestBase.TearDown;
+begin
 end;
 
 end.

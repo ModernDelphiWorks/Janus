@@ -23,6 +23,8 @@ type
     function _Put(const AURL: String; const ABody: String): String;
     function _Delete(const AURL: String): String;
   public
+    [SetupFixture]
+    procedure SetupFixture;
     [Setup]
     procedure Setup;
     [TearDown]
@@ -53,6 +55,12 @@ const
 
 { TTestRESTReadOnly }
 
+procedure TTestRESTReadOnly.SetupFixture;
+begin
+  FPrefix := 'api/Janus';
+  inherited SetupFixture;
+end;
+
 procedure TTestRESTReadOnly.Setup;
 begin
   inherited Setup;
@@ -70,7 +78,7 @@ end;
 function TTestRESTReadOnly._BuildURL(const AResource: String;
   const AQuery: String): String;
 begin
-  Result := Format('http://localhost:%d/api/Janus/%s', [Port, AResource]);
+  Result := BuildResourceURL(AResource);
   if AQuery <> '' then
     Result := Result + '?' + AQuery;
 end;
