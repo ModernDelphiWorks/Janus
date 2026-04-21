@@ -4,6 +4,7 @@ interface
 
 uses
   SysUtils,
+  Classes,
   Net.HTTPClient,
   Net.URLClient,
   DUnitX.TestFramework,

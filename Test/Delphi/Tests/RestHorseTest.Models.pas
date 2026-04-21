@@ -4,6 +4,7 @@ interface
 
 uses
   DB,
+  MetaDbDiff.Types.Mapping,
   MetaDbDiff.Mapping.Attributes;
 
 type
@@ -78,6 +79,83 @@ type
 
     [Column('price', ftFloat)]
     property Price: Double read FPrice write FPrice;
+  end;
+
+  // Grant-list: GET only
+  [Entity]
+  [Table('grant_get_only_test', '')]
+  [PrimaryKey('id', 'Primary key')]
+  [RESTAllowGET]
+  TGrantGETOnly = class
+  private
+    FId: Integer;
+    FName: String;
+  public
+    [Restrictions([NoUpdate, NotNull])]
+    [Column('id', ftInteger)]
+    property Id: Integer read FId write FId;
+
+    [Column('name', ftString, 100)]
+    property Name: String read FName write FName;
+  end;
+
+  // Grant-list: GET + POST
+  [Entity]
+  [Table('grant_get_post_test', '')]
+  [PrimaryKey('id', 'Primary key')]
+  [RESTAllowGET]
+  [RESTAllowPOST]
+  TGrantGETAndPOST = class
+  private
+    FId: Integer;
+    FName: String;
+  public
+    [Restrictions([NoUpdate, NotNull])]
+    [Column('id', ftInteger)]
+    property Id: Integer read FId write FId;
+
+    [Column('name', ftString, 100)]
+    property Name: String read FName write FName;
+  end;
+
+  // Grant-list: all four verbs allowed
+  [Entity]
+  [Table('grant_full_allow_test', '')]
+  [PrimaryKey('id', 'Primary key')]
+  [RESTAllowGET]
+  [RESTAllowPOST]
+  [RESTAllowPUT]
+  [RESTAllowDELETE]
+  TGrantFullAllow = class
+  private
+    FId: Integer;
+    FName: String;
+  public
+    [Restrictions([NoUpdate, NotNull])]
+    [Column('id', ftInteger)]
+    property Id: Integer read FId write FId;
+
+    [Column('name', ftString, 100)]
+    property Name: String read FName write FName;
+  end;
+
+  // RESTReadOnly + RESTAllowPOST: RESTReadOnly must win
+  [Entity]
+  [Table('grant_readonly_post_test', '')]
+  [PrimaryKey('id', 'Primary key')]
+  [RESTReadOnly]
+  [RESTAllowPOST]
+  TGrantReadOnlyWithPOST = class
+  private
+    FId: Integer;
+    FName: String;
+  public
+    [Restrictions([NoUpdate, NotNull])]
+    [Column('id', ftInteger)]
+    property Id: Integer read FId write FId;
+
+    [Column('name', ftString, 100)]
+    property Name: String read FName write FName;
   end;
 
   // View entity — read-only by nature (ADR-002 + ADR-003)

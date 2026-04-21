@@ -25,7 +25,9 @@ uses
   TestJanusRESTReadOnly         in 'Tests\TestJanusRESTReadOnly.pas',
   TestJanusRESTJoinView         in 'Tests\TestJanusRESTJoinView.pas',
   /// Integration Test Suites — ESP-006
-  TestJanusRESTHorseDriver      in 'Tests\TestJanusRESTHorseDriver.pas';
+  TestJanusRESTHorseDriver      in 'Tests\TestJanusRESTHorseDriver.pas',
+  /// Integration Test Suites — R20 method-level grant (#137)
+  TestJanusRESTMethodGrant      in 'Tests\TestJanusRESTMethodGrant.pas';
 
 const
   EXIT_SUCCESS = 0;

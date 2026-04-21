@@ -5,6 +5,7 @@ interface
 uses
   SysUtils,
   Classes,
+  IOUtils,
   SyncObjs,
   DUnitX.TestFramework,
   // DataEngine
@@ -73,6 +74,10 @@ begin
   TRegisterClass.RegisterEntity(TOrderTest);
   TRegisterClass.RegisterEntity(TProductTest);
   TRegisterClass.RegisterEntity(TCustomerOrderSummary);
+  TRegisterClass.RegisterEntity(TGrantGETOnly);
+  TRegisterClass.RegisterEntity(TGrantGETAndPOST);
+  TRegisterClass.RegisterEntity(TGrantFullAllow);
+  TRegisterClass.RegisterEntity(TGrantReadOnlyWithPOST);
 end;
 
 procedure TRestHorseTestBase._CreateSchema;
@@ -97,13 +102,41 @@ const
     '  name  VARCHAR(100) NOT NULL,' +
     '  price REAL DEFAULT 0' +
     ')';
+  LDDL_GRANT_GET_ONLY =
+    'CREATE TABLE IF NOT EXISTS grant_get_only_test (' +
+    '  id   INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  name VARCHAR(100) NOT NULL' +
+    ')';
+  LDDL_GRANT_GET_POST =
+    'CREATE TABLE IF NOT EXISTS grant_get_post_test (' +
+    '  id   INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  name VARCHAR(100) NOT NULL' +
+    ')';
+  LDDL_GRANT_FULL_ALLOW =
+    'CREATE TABLE IF NOT EXISTS grant_full_allow_test (' +
+    '  id   INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  name VARCHAR(100) NOT NULL' +
+    ')';
+  LDDL_GRANT_READONLY_POST =
+    'CREATE TABLE IF NOT EXISTS grant_readonly_post_test (' +
+    '  id   INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  name VARCHAR(100) NOT NULL' +
+    ')';
 begin
   FConnection.ExecuteDirect('DROP TABLE IF EXISTS order_test');
   FConnection.ExecuteDirect('DROP TABLE IF EXISTS customer_test');
   FConnection.ExecuteDirect('DROP TABLE IF EXISTS product_test');
+  FConnection.ExecuteDirect('DROP TABLE IF EXISTS grant_get_only_test');
+  FConnection.ExecuteDirect('DROP TABLE IF EXISTS grant_get_post_test');
+  FConnection.ExecuteDirect('DROP TABLE IF EXISTS grant_full_allow_test');
+  FConnection.ExecuteDirect('DROP TABLE IF EXISTS grant_readonly_post_test');
   FConnection.ExecuteDirect(LDDL_CUSTOMER);
   FConnection.ExecuteDirect(LDDL_ORDER);
   FConnection.ExecuteDirect(LDDL_PRODUCT);
+  FConnection.ExecuteDirect(LDDL_GRANT_GET_ONLY);
+  FConnection.ExecuteDirect(LDDL_GRANT_GET_POST);
+  FConnection.ExecuteDirect(LDDL_GRANT_FULL_ALLOW);
+  FConnection.ExecuteDirect(LDDL_GRANT_READONLY_POST);
 end;
 
 procedure TRestHorseTestBase.ResetDatabase;
