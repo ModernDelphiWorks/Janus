@@ -21,6 +21,8 @@ type
     function _Put(const AURL: String; const ABody: String): String;
     function _Delete(const AURL: String): String;
   public
+    [SetupFixture]
+    procedure SetupFixture;
     [Setup]
     procedure Setup;
     [TearDown]
@@ -51,9 +53,14 @@ const
 
 { TTestRESTHorseDriver }
 
-procedure TTestRESTHorseDriver.Setup;
+procedure TTestRESTHorseDriver.SetupFixture;
 begin
   FPrefix := 'api/Janus';
+  inherited SetupFixture;
+end;
+
+procedure TTestRESTHorseDriver.Setup;
+begin
   inherited Setup;
   FHTTPClient := THTTPClient.Create;
   FHTTPClient.ConnectionTimeout := cTIMEOUT_MS;

@@ -26,6 +26,8 @@ type
     function _PutStatusCode(const AURL: String; const ABody: String): Integer;
     function _DeleteStatusCode(const AURL: String): Integer;
   public
+    [SetupFixture]
+    procedure SetupFixture;
     [Setup]
     procedure Setup;
     [TearDown]
@@ -83,9 +85,14 @@ const
 
 { TTestRESTMethodGrant }
 
-procedure TTestRESTMethodGrant.Setup;
+procedure TTestRESTMethodGrant.SetupFixture;
 begin
   FPrefix := 'api/Janus';
+  inherited SetupFixture;
+end;
+
+procedure TTestRESTMethodGrant.Setup;
+begin
   inherited Setup;
   FHTTPClient := THTTPClient.Create;
   FHTTPClient.ConnectionTimeout := cTIMEOUT_MS;

@@ -35,6 +35,8 @@ type
   private
     FDConnection: TFDConnection;
     FConnection: IDBConnection;
+    FHorseDConnection: TFDConnection;
+    FHorseConnection: IDBConnection;
     FServer: TRESTServerHorse;
     FPort: Integer;
     FServerThread: TThread;
@@ -54,6 +56,10 @@ type
     // Inserts seed data for tests
     procedure SeedCustomers;
   public
+    [SetupFixture]
+    procedure SetupFixture;
+    [TearDownFixture]
+    procedure TearDownFixture;
     [Setup]
     procedure Setup;
     [TearDown]
@@ -64,6 +70,7 @@ implementation
 
 uses
   DataEngine.FactoryFireDAC,
+  Horse.Core.RouterTree,
   RestHorseTest.Models;
 
 { TRestHorseTestBase }
@@ -172,7 +179,7 @@ end;
 procedure TRestHorseTestBase._StartHorse;
 begin
   FPort := 9890 + Random(100);
-  FServer := TRESTServerHorse.Create(nil, FConnection, FPrefix);
+  FServer := TRESTServerHorse.Create(nil, FHorseConnection, FPrefix);
   FServerThread := TThread.CreateAnonymousThread(
     procedure
     begin
@@ -195,7 +202,7 @@ begin
   FreeAndNil(FServer);
 end;
 
-procedure TRestHorseTestBase.Setup;
+procedure TRestHorseTestBase.SetupFixture;
 begin
   Randomize;
   FDConnection := TFDConnection.Create(nil);
@@ -203,21 +210,45 @@ begin
   FDConnection.Params.Database := cTEST_DB_PATH;
   FDConnection.Params.Values['OpenMode'] := 'CreateUTF8';
   FDConnection.Connected := True;
-
   FConnection := TFactoryFireDAC.Create(FDConnection, dnSQLite);
+  FHorseDConnection := TFDConnection.Create(nil);
+  FHorseDConnection.Params.DriverID := 'SQLite';
+  FHorseDConnection.Params.Database := cTEST_DB_PATH;
+  FHorseDConnection.Params.Values['OpenMode'] := 'CreateUTF8';
+  FHorseDConnection.ResourceOptions.SilentMode := True;
+  FHorseDConnection.Connected := True;
+  FHorseConnection := TFactoryFireDAC.Create(FHorseDConnection, dnSQLite);
   _RegisterTestEntities;
-  _CreateSchema;
   _StartHorse;
 end;
 
-procedure TRestHorseTestBase.TearDown;
+procedure TRestHorseTestBase.TearDownFixture;
+var
+  LOldRoutes: THorseRouterTree;
+  LNewRoutes: THorseRouterTree;
 begin
   _StopHorse;
+  LOldRoutes := THorse.Routes;
+  LNewRoutes := THorseRouterTree.Create;
+  THorse.Routes := LNewRoutes;
+  LOldRoutes.Free;
+  FHorseConnection := nil;
+  FHorseDConnection.Connected := False;
+  FreeAndNil(FHorseDConnection);
   FConnection := nil;
   FDConnection.Connected := False;
   FreeAndNil(FDConnection);
   if TFile.Exists(cTEST_DB_PATH) then
     TFile.Delete(cTEST_DB_PATH);
+end;
+
+procedure TRestHorseTestBase.Setup;
+begin
+  _CreateSchema;
+end;
+
+procedure TRestHorseTestBase.TearDown;
+begin
 end;
 
 end.
