@@ -9,8 +9,8 @@ displayed_sidebar: janusSidebar
 - Boss package manager
 - Configured database driver (for example, FireDAC)
 
-This quickstart reflects the published usage contract up to version `v2.19.13`.
-Releases `v2.19.5` through `v2.19.13` did not change this end-user operational flow.
+This quickstart reflects the published usage contract up to version `v2.19.14`.
+Releases `v2.19.5` through `v2.19.14` did not change this end-user operational flow.
 
 ## Installation
 
