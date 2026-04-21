@@ -7,6 +7,11 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+### Changed
+- Workspace hygiene: expanded `.gitignore` with patterns covering 60+ orphaned untracked files (cfg, drc, dres, DLLs in Examples/Test/, XML/txt/bat in Test/Delphi/, Lazarus output, compiled project artifacts); created `.local-readonly/` folder at workspace root for pipeline support files ([#141](https://github.com/ModernDelphiWorks/Janus/issues/141))
+- Physical move of `DISCUSSIONS.md`, `PLAN_LOAD_LAZY.md`, and `Test/Delphi/SMOKE_LAZY_BASELINE_R18_2.md` to `.local-readonly/` so these planning artifacts are absent from the working tree ([#142](https://github.com/ModernDelphiWorks/Janus/issues/142))
+- Added `/Source/Dependencies/Horse/` and backup guard patterns (`DataEngine-backup`, `MetaDbDiff-backup`) to `.gitignore` ([#143](https://github.com/ModernDelphiWorks/Janus/issues/143))
+
 ## [v2.20.1](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.20.1) — 2026-04-21
 
 ### Added
