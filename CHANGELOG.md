@@ -7,12 +7,16 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.20.1](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.20.1) — 2026-04-21
+
 ### Added
 - Suite de testes de integração REST/Horse via Driver: extensão de `RestHorseTest.Base.pas` com campo `FPrefix` e método `BuildResourceURL`; criação de `TestJanusRESTHorseDriver.pas` com 8 cenários CRUD via prefixo `api/Janus`; atualização de `JanusRestHorse.dpr` ([#134](https://github.com/ModernDelphiWorks/Janus/issues/134))
+- Controle de acesso por verbo HTTP: atributos `[RESTAllowGET]`, `[RESTAllowPOST]`, `[RESTAllowPUT]`, `[RESTAllowDELETE]` aplicáveis a controllers REST/Horse para grant-list granular por método; guard em `TAppResourceBase` retorna 405 para verbos não autorizados ([#137](https://github.com/ModernDelphiWorks/Janus/issues/137))
 
 ### Fixed
 - Fechamento dos três caveats pós-release de v2.20.0: remoção da cláusula `uses FluentSQL.Interfaces` duplicada em `Janus.Server.RestView.Manager.pas`; adição da categoria `RESTful` no sidebar do Docusaurus com links para `odata-reference`, `rest-readonly` e `rest-join-strategy`; adição de exemplo `[RESTReadOnly]` em `HorseJanus.dpr` com controller e model dedicados ([#133](https://github.com/ModernDelphiWorks/Janus/issues/133))
 - Alinhamento do contrato de prefixo nas fixtures de teste: adição de `FPrefix := 'api/Janus'` antes de `inherited Setup` em `TestJanusRESTReadOnly` e `TestJanusRESTJoinView`; substituição de `_BuildURL` hardcoded por delegação a `BuildResourceURL` da classe base ([#135](https://github.com/ModernDelphiWorks/Janus/issues/135))
+- Correção de 6 falhas de AV recorrentes em `JanusRestHorse.exe`: migração do ciclo de vida do servidor Horse em `TRestHorseTestBase` de `[Setup]`/`[TearDown]` por-teste para `[SetupFixture]`/`[TearDownFixture]` por-fixture; adição de `Janus.DML.Generator.SQLite` ausente no `JanusRestHorse.dpr`; nil-guards defensivos em `Janus.Command.Abstract.pas` e `Janus.Server.RestObject.Manager.pas` ([#138](https://github.com/ModernDelphiWorks/Janus/issues/138))
 
 ## [v2.20.0](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.20.0) — 2026-04-20
 
