@@ -28,6 +28,8 @@ type
     procedure _SeedOrderData;
     procedure _CreateSummaryView;
   public
+    [SetupFixture]
+    procedure SetupFixture;
     [Setup]
     procedure Setup;
     [TearDown]
@@ -58,9 +60,14 @@ const
 
 { TTestRESTJoinView }
 
-procedure TTestRESTJoinView.Setup;
+procedure TTestRESTJoinView.SetupFixture;
 begin
   FPrefix := 'api/Janus';
+  inherited SetupFixture;
+end;
+
+procedure TTestRESTJoinView.Setup;
+begin
   inherited Setup;
   FHTTPClient := THTTPClient.Create;
   FHTTPClient.ConnectionTimeout := cTIMEOUT_MS;

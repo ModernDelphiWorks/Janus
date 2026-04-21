@@ -129,7 +129,13 @@ end;
 
 destructor TRESTObjectManager.Destroy;
 begin
-  FLazyToken.Invalidate;
+  // Guarded against auto-Destroy after a constructor failure: if Create
+  // raises before each field is initialized, Delphi still invokes Destroy
+  // on the partially-constructed instance. Without these checks, the first
+  // nil field dereference masks the original constructor exception with a
+  // secondary AV, which is what surfaced as the recurring REST test AV.
+  if Assigned(FLazyToken) then
+    FLazyToken.Invalidate;
   FProcessingObjects.Free;
   FDMLCommandFactory.Free;
   FObjectInternal.Free;
