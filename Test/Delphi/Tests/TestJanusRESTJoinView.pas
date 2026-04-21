@@ -10,6 +10,7 @@ uses
   DUnitX.TestFramework,
   // FluentSQL
   FluentSQL,
+  FluentSQL.Interfaces,
   // Janus
   Janus.Server.RestView.Manager,
   RestHorseTest.Base,
@@ -27,6 +28,8 @@ type
     procedure _SeedOrderData;
     procedure _CreateSummaryView;
   public
+    [SetupFixture]
+    procedure SetupFixture;
     [Setup]
     procedure Setup;
     [TearDown]
@@ -57,6 +60,12 @@ const
 
 { TTestRESTJoinView }
 
+procedure TTestRESTJoinView.SetupFixture;
+begin
+  FPrefix := 'api/Janus';
+  inherited SetupFixture;
+end;
+
 procedure TTestRESTJoinView.Setup;
 begin
   inherited Setup;
@@ -75,7 +84,7 @@ end;
 function TTestRESTJoinView._BuildURL(const AResource: String;
   const AQuery: String): String;
 begin
-  Result := Format('http://localhost:%d/api/Janus/%s', [Port, AResource]);
+  Result := BuildResourceURL(AResource);
   if AQuery <> '' then
     Result := Result + '?' + AQuery;
 end;
@@ -120,13 +129,15 @@ var
   LSelect: IFluentSQL;
 begin
   LSelect := FluentSQL.Query(dbnSQLite)
-    .Select(['c.id AS customer_id',
-             'c.name AS customer_name',
-             'COUNT(o.id) AS order_count',
-             'COALESCE(SUM(o.total), 0) AS total_amount'])
+    .Select('c.id AS customer_id')
+    .Select('c.name AS customer_name')
+    .Select('COUNT(o.id) AS order_count')
+    .Select('COALESCE(SUM(o.total), 0) AS total_amount')
     .From('customer_test c')
-    .LeftJoin('order_test o', 'o.customer_id = c.id')
-    .GroupBy(['c.id', 'c.name']);
+    .LeftJoin('order_test o')
+    .OnCond('o.customer_id = c.id')
+    .GroupBy('c.id')
+    .GroupBy('c.name');
 
   TRESTViewManager.EnsureView(TCustomerOrderSummary, LSelect, Connection);
 end;
@@ -155,26 +166,26 @@ end;
 // CA-006 Test 1: EnsureView creates the VIEW without exception
 procedure TTestRESTJoinView.EnsureView_CreatesView_NoException;
 begin
-  Assert.WillNotRaise(
-    procedure
-    begin
-      _CreateSummaryView;
-    end,
-    Exception,
-    'EnsureView should not raise');
+  try
+    _CreateSummaryView;
+    Assert.IsTrue(True);
+  except
+    on E: Exception do
+      Assert.Fail('EnsureView raised: ' + E.Message);
+  end;
 end;
 
 // CA-006 Test 2: calling EnsureView again (idempotent) does not raise
 procedure TTestRESTJoinView.EnsureView_Idempotent_SecondCallNoException;
 begin
   _CreateSummaryView;
-  Assert.WillNotRaise(
-    procedure
-    begin
-      _CreateSummaryView;
-    end,
-    Exception,
-    'Second EnsureView call should not raise');
+  try
+    _CreateSummaryView;
+    Assert.IsTrue(True);
+  except
+    on E: Exception do
+      Assert.Fail('Second EnsureView call raised: ' + E.Message);
+  end;
 end;
 
 // CA-006 Test 3: GET on view resource returns data
