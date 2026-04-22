@@ -241,6 +241,7 @@ begin
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectValue);
       // Alimenta registros das associa��es existentes 1:1 ou 1:N
       FillAssociation(LObjectValue);
+      LResultSet.Next;
     end;
   finally
     LResultSet.Close;
@@ -275,6 +276,7 @@ begin
       LObjectList := AProperty.GetNullableValue(AObject).AsObject;
       if LObjectList <> nil then
         LObjectList.MethodCall('Add', [LObjectCreate]);
+      LResultSet.Next;
     end;
   finally
     LResultSet.Close;
@@ -324,6 +326,7 @@ begin
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectList.Last);
       // Alimenta registros das associa��es existentes 1:1 ou 1:N
       FillAssociation(LObjectList.Last);
+      LResultSet.Next;
     end;
     Result := LObjectList;
   finally
@@ -363,6 +366,7 @@ begin
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectList.Last);
       // Alimenta registros das associa��es existentes 1:1 ou 1:N
       FillAssociation(LObjectList.Last);
+      LResultSet.Next;
     end;
     Result := LObjectList;
   finally
@@ -386,6 +390,7 @@ begin
       TBind.Instance.SetFieldToProperty(LResultSet, AObjectList.Last);
       // Alimenta registros das associa��es existentes 1:1 ou 1:N
       FillAssociation(AObjectList.Last);
+      LResultSet.Next;
     end;
   finally
     LResultSet.Close;
@@ -408,6 +413,7 @@ begin
       TBind.Instance.SetFieldToProperty(LResultSet, AObjectList.Last);
       // Alimenta registros das associa��es existentes 1:1 ou 1:N
       FillAssociation(AObjectList.Last);
+      LResultSet.Next;
     end;
   finally
     LResultSet.Close;
@@ -432,6 +438,7 @@ begin
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectList.Last);
       // Alimenta registros das associa��es existentes 1:1 ou 1:N
       FillAssociation(LObjectList.Last);
+      LResultSet.Next;
     end;
     Result := LObjectList;
   finally
@@ -539,6 +546,7 @@ begin
       TBind.Instance.SetFieldToProperty(LResultSet, Result.Items[Result.Add(LObject)]);
       // Alimenta registros das associa��es existentes 1:1 ou 1:N
       FillAssociation(Result.Items[Result.Count -1]);
+      LResultSet.Next;
     end;
   finally
     LResultSet.Close;

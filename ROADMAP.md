@@ -2,7 +2,7 @@
 
 Este arquivo registra apenas direcao estrategica, fase atual, milestones proximos e backlog resumido. Historico de release, status operacional por issue, evidencias de teste e reports da pipeline ficam fora deste artefato.
 
-**Ultima atualizacao:** 2026-04-20
+**Ultima atualizacao:** 2026-04-21
 
 ## Visao
 
@@ -85,6 +85,18 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
   - [x] Atualizacao do exemplo `Examples/Delphi/RESTful/Horse/` e documentacao em `docs-src/docs/janus/` — delivered #130 2026-04-20, complemento #133 2026-04-20
 - Proxima decisao: apos QA, avaliar expansao para outros web frameworks (DMVC/MARS/WiRL/DataSnap) e Cliente REST.
 
+### R20 — RESTReadOnly method-level granularity (entregue como v2.20.1)
+
+- Objetivo estrategico: estender o controle de acesso REST de binario (tudo/somente-leitura) para por-verbo HTTP, habilitando casos como audit logs (POST permitido, PUT/DELETE bloqueados) e tabelas de referencia (GET+POST, sem UPDATE/DELETE).
+- Estado atual: entregue como v2.20.1 — commits #137 em develop, incluídos no PR #139 2026-04-21.
+- Demanda ativa: nenhuma — rodada encerrada.
+- Itens da rodada:
+  - [x] Definir atributos `[RESTAllowGET]`, `[RESTAllowPOST]`, `[RESTAllowPUT]`, `[RESTAllowDELETE]` em `MetaDbDiff.Mapping.Attributes` — delivered v2.20.1 2026-04-21
+  - [x] Estender cache MetaDbDiff com conjunto de verbos permitidos por classe — delivered v2.20.1 2026-04-21
+  - [x] Implementar guard de grant-list em `TAppResourceBase` (com precedencia de `[RESTReadOnly]`) — delivered v2.20.1 2026-04-21
+  - [x] Testes unitarios de deteccao RTTI e testes de integracao via Horse (CA-001..CA-012) — delivered v2.20.1 2026-04-21
+  - [x] Atualizar `rest-readonly.md` com novos atributos e tabela de comportamento combinado — delivered v2.20.1 2026-04-21
+
 ## Backlog resumido
 
 - Evolucoes futuras de lazy loading permanecem como backlog exploratorio, com detalhamento tecnico fora deste roadmap.
@@ -117,5 +129,5 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 3. Registre entregas concluidas no changelog, analises em discussoes e execucao da rodada nos artefatos da pipeline.
 4. Se a informacao nao altera prioridade, fase ou direcao do projeto, ela nao deve aumentar o roadmap.
 
-*Ultima atualizacao: 2026-04-20 — ESP-004 pre-release v2.20.1 artifact consolidation: R19, R19.1, R19.2 marked delivered; CHANGELOG [Unreleased] populated*
+*Ultima atualizacao: 2026-04-21 — R20 entregue como v2.20.1: RESTReadOnly method-level granularity ([RESTAllowGET/POST/PUT/DELETE]); todos os cinco itens marcados [x]; ciclo encerrado*
 

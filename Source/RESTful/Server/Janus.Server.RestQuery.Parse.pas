@@ -57,7 +57,6 @@ type
     function SplitString(const AValue, ADelimiters: String): TStringDynArray;
     function ParseQueryingData(const AURI: String): String;
     function ParseOperator(const AParams: String): String;
-    function ParseOperatorReverse(const AParams: String): String;
     function ParsePathTokens(const APath: String): TArray<String>;
     procedure ParseResourceNameAndID(const AValue: String);
     procedure ParseQueryTokens;
@@ -68,6 +67,9 @@ type
       const AStartPos: Integer; out AEndPos: Integer): TArray<TFilterToken>;
     function _EmitFunctionSQL(const AFuncName: String;
       const AArgTokens: TArray<TFilterToken>): String;
+    function _FindCommaTokenIdx(const AArgTokens: TArray<TFilterToken>): Integer;
+    function _JoinTokenSlice(const AArgTokens: TArray<TFilterToken>;
+      const AFrom, ATo: Integer): String;
     // Reverse: SQL → OData word-boundary safe replacement
     function _TokenizeSQL(const ASQL: String): TArray<TFilterToken>;
     function _EmitOData(const ATokens: TArray<TFilterToken>): String;
@@ -79,6 +81,7 @@ type
     constructor Create;
     destructor Destroy; override;
     procedure ParseQuery(const AURI: String);
+    function ParseOperatorReverse(const AParams: String): String;
     procedure SetSelect(const Value: String);
     procedure SetExpand(const Value: String);
     procedure SetFilter(const Value: String);
@@ -102,6 +105,13 @@ type
   end;
 
 implementation
+
+uses
+  System.NetEncoding;
+
+var
+  GCompOps: TDictionary<String, String>;
+  GLogOps:  TDictionary<String, String>;
 
 { TRESTQuery }
 
@@ -243,6 +253,8 @@ begin
             ParseResourceNameAndID(Copy(AValue, LFor + 1, LLength));
           Break;
         end;
+      '/':
+        LCommand := '';
       '?', '$':
         Break;
     else
@@ -303,6 +315,17 @@ begin
       else
       begin
         LToken.Kind := ftkOther;
+        if (LPos < LLen) and CharInSet(AFilter[LPos], ['<', '>']) then
+        begin
+          var LTwo := AFilter[LPos] + AFilter[LPos + 1];
+          if (LTwo = '<>') or (LTwo = '>=') or (LTwo = '<=') then
+          begin
+            LToken.Value := LTwo;
+            LResult.Add(LToken);
+            Inc(LPos, 2);
+            Continue;
+          end;
+        end;
         LToken.Value := AFilter[LPos];
         LResult.Add(LToken);
         Inc(LPos);
@@ -354,34 +377,55 @@ begin
   end;
 end;
 
+// Returns index of the first ftkOther ',' token in AArgTokens; -1 if none.
+function TRESTQueryParse._FindCommaTokenIdx(const AArgTokens: TArray<TFilterToken>): Integer;
+var
+  LFor: Integer;
+begin
+  Result := -1;
+  for LFor := 0 to High(AArgTokens) do
+  begin
+    if (AArgTokens[LFor].Kind = ftkOther) and (AArgTokens[LFor].Value = ',') then
+    begin
+      Result := LFor;
+      Break;
+    end;
+  end;
+end;
+
+// Concatenates .Value of tokens from AFrom to ATo (inclusive); returns '' when AFrom > ATo.
+function TRESTQueryParse._JoinTokenSlice(const AArgTokens: TArray<TFilterToken>;
+  const AFrom, ATo: Integer): String;
+var
+  LFor: Integer;
+begin
+  Result := '';
+  for LFor := AFrom to ATo do
+    Result := Result + AArgTokens[LFor].Value;
+end;
+
 // Transforms OData function call (arg tokens) to SQL equivalent.
 // Handles: contains, startswith, endswith → LIKE patterns; tolower, toupper → SQL functions.
 function TRESTQueryParse._EmitFunctionSQL(const AFuncName: String;
   const AArgTokens: TArray<TFilterToken>): String;
 var
-  LRaw: String;
-  LCommaPos: Integer;
   LField: String;
   LValue: String;
+  LCommaIdx: Integer;
 begin
-  // Rebuild raw arg string to extract field and value
-  LRaw := '';
-  for var LArgTok in AArgTokens do
-    LRaw := LRaw + LArgTok.Value;
-
   if SameText(AFuncName, 'tolower') then
-    Exit('LOWER(' + LRaw + ')');
+    Exit('LOWER(' + _JoinTokenSlice(AArgTokens, 0, High(AArgTokens)) + ')');
   if SameText(AFuncName, 'toupper') then
-    Exit('UPPER(' + LRaw + ')');
+    Exit('UPPER(' + _JoinTokenSlice(AArgTokens, 0, High(AArgTokens)) + ')');
 
-  // contains / startswith / endswith — need two arguments: field, value
-  LCommaPos := Pos(',', LRaw);
-  if LCommaPos = 0 then
-    Exit(LRaw);
+  LCommaIdx := _FindCommaTokenIdx(AArgTokens);
 
-  LField := Trim(Copy(LRaw, 1, LCommaPos - 1));
-  LValue := Trim(Copy(LRaw, LCommaPos + 1, MaxInt));
-  // Remove surrounding single quotes from value if present
+  if LCommaIdx < 0 then
+    Exit(_JoinTokenSlice(AArgTokens, 0, High(AArgTokens)));
+
+  LField := Trim(_JoinTokenSlice(AArgTokens, 0, LCommaIdx - 1));
+
+  LValue := Trim(_JoinTokenSlice(AArgTokens, LCommaIdx + 1, High(AArgTokens)));
   if (Length(LValue) >= 2) and (LValue[1] = '''') and (LValue[Length(LValue)] = '''') then
     LValue := Copy(LValue, 2, Length(LValue) - 2);
 
@@ -392,7 +436,7 @@ begin
   else if SameText(AFuncName, 'endswith') then
     Result := LField + ' LIKE ''%' + LValue + ''''
   else
-    Result := LRaw;
+    Result := LField + ',' + LValue;
 end;
 
 // Emits SQL from a token list, replacing OData operators and functions.
@@ -400,16 +444,13 @@ end;
 // preventing corruption of identifiers that contain operator substrings.
 function TRESTQueryParse._EmitSQL(const ATokens: TArray<TFilterToken>): String;
 const
-  cOpOData: array[0..9] of String  = ('eq','ne','gt','ge','lt','le','add','sub','mul','div');
-  cOpSQL:   array[0..9] of String  = ('=', '<>','>','>=','<','<=','+','-','*','/');
-  cLogOData: array[0..2] of String = ('and','or','not');
-  cLogSQL:   array[0..2] of String = ('AND','OR','NOT');
   cFuncNames: array[0..4] of String = ('contains','startswith','endswith','tolower','toupper');
 var
   LResult: TStringBuilder;
   LPos: Integer;
   LCount: Integer;
   LToken: TFilterToken;
+  LMapped: String;
   LMapFor: Integer;
   LFound: Boolean;
   LArgTokens: TArray<TFilterToken>;
@@ -445,33 +486,11 @@ begin
             Continue;
         end;
 
-        // Check comparison operators
-        LFound := False;
-        for LMapFor := 0 to High(cOpOData) do
-        begin
-          if SameText(LToken.Value, cOpOData[LMapFor]) then
-          begin
-            LResult.Append(cOpSQL[LMapFor]);
-            LFound := True;
-            Break;
-          end;
-        end;
-
-        if not LFound then
-        begin
-          // Check logical operators
-          for LMapFor := 0 to High(cLogOData) do
-          begin
-            if SameText(LToken.Value, cLogOData[LMapFor]) then
-            begin
-              LResult.Append(cLogSQL[LMapFor]);
-              LFound := True;
-              Break;
-            end;
-          end;
-        end;
-
-        if not LFound then
+        if GCompOps.TryGetValue(LowerCase(LToken.Value), LMapped) then
+          LResult.Append(LMapped)
+        else if GLogOps.TryGetValue(LowerCase(LToken.Value), LMapped) then
+          LResult.Append(LMapped)
+        else
           LResult.Append(LToken.Value);
       end
       else
@@ -536,11 +555,13 @@ end;
 // This replaces the legacy StringReplace approach that could corrupt field names (ADR-001).
 function TRESTQueryParse.ParseOperator(const AParams: String): String;
 var
+  LDecoded: String;
   LTokens: TArray<TFilterToken>;
 begin
   if AParams = '' then
     Exit('');
-  LTokens := _TokenizeFilter(AParams);
+  LDecoded := TNetEncoding.URL.Decode(AParams);
+  LTokens := _TokenizeFilter(LDecoded);
   Result := _EmitSQL(LTokens);
 end;
 
@@ -696,5 +717,27 @@ begin
 
   Result[LSplitPoints - 1] := Copy(AValue, LStartIdx, Length(AValue) - LStartIdx + 1);
 end;
+
+initialization
+  GCompOps := TDictionary<String, String>.Create;
+  GCompOps.Add('eq',  '=');
+  GCompOps.Add('ne',  '<>');
+  GCompOps.Add('gt',  '>');
+  GCompOps.Add('ge',  '>=');
+  GCompOps.Add('lt',  '<');
+  GCompOps.Add('le',  '<=');
+  GCompOps.Add('add', '+');
+  GCompOps.Add('sub', '-');
+  GCompOps.Add('mul', '*');
+  GCompOps.Add('div', '/');
+
+  GLogOps := TDictionary<String, String>.Create;
+  GLogOps.Add('and', 'AND');
+  GLogOps.Add('or',  'OR');
+  GLogOps.Add('not', 'NOT');
+
+finalization
+  GCompOps.Free;
+  GLogOps.Free;
 
 end.
