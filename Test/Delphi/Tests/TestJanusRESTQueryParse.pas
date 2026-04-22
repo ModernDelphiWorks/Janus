@@ -4,6 +4,7 @@ interface
 
 uses
   SysUtils,
+  Rtti,
   DB,
   DUnitX.TestFramework,
   MetaDbDiff.Mapping.Attributes,
@@ -178,6 +179,29 @@ type
     procedure SetExpand_StoresValue;
     [Test]
     procedure SetSelect_StoresValue;
+
+    // --- R21: Bug-fix tests ---
+    // CA-001
+    [Test]
+    procedure ParseOperator_URLEncoded_SpaceBeforeEq_Decoded;
+    // CA-002
+    [Test]
+    procedure ParseOperator_URLEncoded_SingleQuote_Decoded;
+    // CA-003
+    [Test]
+    procedure ParseOperator_Contains_WithCommaInLiteral;
+    // CA-004
+    [Test]
+    procedure ParseOperator_Startswith_WithCommaInLiteral;
+    // CA-005
+    [Test]
+    procedure ParseOperatorReverse_NotEqual_EmitsNe;
+    // CA-006
+    [Test]
+    procedure ParseOperatorReverse_GreaterOrEqual_EmitsGe;
+    // CA-007
+    [Test]
+    procedure ParseOperatorReverse_LessOrEqual_EmitsLe;
   end;
 
 implementation
@@ -499,6 +523,64 @@ procedure TTestRESTQueryParse.SetSelect_StoresValue;
 begin
   FParser.SetSelect('id,name,email');
   Assert.AreEqual('id,name,email', FParser.Select);
+end;
+
+// CA-001: URL encoding — %20 as space decoded before tokenisation
+procedure TTestRESTQueryParse.ParseOperator_URLEncoded_SpaceBeforeEq_Decoded;
+begin
+  FParser.SetFilter('name%20eq%20''Alice''');
+  Assert.AreEqual('name = ''Alice''', FParser.Filter);
+end;
+
+// CA-002: URL encoding — %27 as single-quote decoded before tokenisation
+procedure TTestRESTQueryParse.ParseOperator_URLEncoded_SingleQuote_Decoded;
+begin
+  FParser.SetFilter('name%20eq%20%27Alice%27');
+  Assert.AreEqual('name = ''Alice''', FParser.Filter);
+end;
+
+// CA-003: contains with comma inside string literal
+procedure TTestRESTQueryParse.ParseOperator_Contains_WithCommaInLiteral;
+begin
+  FParser.SetFilter('contains(name,''Smith, Jr.'')');
+  Assert.AreEqual('name LIKE ''%Smith, Jr.%''', FParser.Filter);
+end;
+
+// CA-004: startswith with comma inside string literal
+procedure TTestRESTQueryParse.ParseOperator_Startswith_WithCommaInLiteral;
+begin
+  FParser.SetFilter('startswith(name,''Smith, Jr.'')');
+  Assert.AreEqual('name LIKE ''Smith, Jr.%''', FParser.Filter);
+end;
+
+// CA-005: reverse — <> tokenised as single token, mapped to ne
+procedure TTestRESTQueryParse.ParseOperatorReverse_NotEqual_EmitsNe;
+var
+  LResult: String;
+begin
+  LResult := FParser.ParseOperatorReverse('status <> ''active''');
+  Assert.Contains(LResult, 'ne');
+  Assert.IsFalse(LResult.Contains('<>'));
+end;
+
+// CA-006: reverse — >= tokenised as single token, mapped to ge
+procedure TTestRESTQueryParse.ParseOperatorReverse_GreaterOrEqual_EmitsGe;
+var
+  LResult: String;
+begin
+  LResult := FParser.ParseOperatorReverse('score >= 10');
+  Assert.Contains(LResult, 'ge');
+  Assert.IsFalse(LResult.Contains('>='));
+end;
+
+// CA-007: reverse — <= tokenised as single token, mapped to le
+procedure TTestRESTQueryParse.ParseOperatorReverse_LessOrEqual_EmitsLe;
+var
+  LResult: String;
+begin
+  LResult := FParser.ParseOperatorReverse('score <= 10');
+  Assert.Contains(LResult, 'le');
+  Assert.IsFalse(LResult.Contains('<='));
 end;
 
 { TTestRESTAllowVerbsRTTI }
