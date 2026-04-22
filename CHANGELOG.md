@@ -7,6 +7,14 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.20.2](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.20.2) — 2026-04-22
+
+### Fixed
+- Filter-based DELETE in REST/Horse: replaced `FindOne(filter)` with `FindWhere(filter, '')` in `FilterExecuteFind` of `Janus.Server.Resource.pas`; objects are now correctly retrieved by OData-converted WHERE clause for filter-based deletes ([#145](https://github.com/ModernDelphiWorks/Janus/issues/145))
+- Seed data isolation for GET filter tests: `GetWithFilter_EqOperator_ReturnsFiltered` and `GetWithAndOrFilter_ReturnsCorrectResult` in `TestJanusRESTHorseIntegration.pas` now insert an Alice record inline before each assertion; filter tests pass regardless of execution order ([#145](https://github.com/ModernDelphiWorks/Janus/issues/145))
+- DataEngine FireDAC `_InternalExecuteQuery`: added missing `LResultSet.Next` at 8 while-loop iteration sites in `Janus.Server.RestObject.Manager.pas`; REST results now iterate correctly through all rows ([#147](https://github.com/ModernDelphiWorks/Janus/issues/147))
+- OData parser (`Janus.Server.RestQuery.Parse.pas`): added `TNetEncoding.URL.Decode` before tokenization so URL-encoded filters (`%20`, `%27`) are correctly parsed; fixed `_EmitFunctionSQL` to iterate over `AArgTokens` instead of raw string to handle commas inside string literals (e.g. `contains(name,'Smith, Jr.')`); added 2-char lookahead in `_TokenizeFilter` for `<>`, `>=`, `<=` so reverse OData path emits `ne`, `ge`, `le`; replaced linear `cOpOData`/`cLogOData` arrays with `TDictionary<String, String>` (O(1) lookup) initialized in `initialization` ([#149](https://github.com/ModernDelphiWorks/Janus/issues/149))
+
 ### Changed
 - Workspace hygiene: expanded `.gitignore` with patterns covering 60+ orphaned untracked files (cfg, drc, dres, DLLs in Examples/Test/, XML/txt/bat in Test/Delphi/, Lazarus output, compiled project artifacts); created `.local-readonly/` folder at workspace root for pipeline support files ([#141](https://github.com/ModernDelphiWorks/Janus/issues/141))
 - Physical move of `DISCUSSIONS.md`, `PLAN_LOAD_LAZY.md`, and `Test/Delphi/SMOKE_LAZY_BASELINE_R18_2.md` to `.local-readonly/` so these planning artifacts are absent from the working tree ([#142](https://github.com/ModernDelphiWorks/Janus/issues/142))
