@@ -2,7 +2,7 @@
 
 Este arquivo registra apenas direcao estrategica, fase atual, milestones proximos e backlog resumido. Historico de release, status operacional por issue, evidencias de teste e reports da pipeline ficam fora deste artefato.
 
-**Ultima atualizacao:** 2026-04-21
+**Ultima atualizacao:** 2026-04-22
 
 ## Visao
 
@@ -10,48 +10,32 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 
 ## Estado estrategico atual
 
-- Versao mais recente: v2.20.0 (released 2026-04-20).
-- Fase atual: pos-release v2.20.0 — tres commits (#133, #134, #135) em develop pendentes de release v2.20.1.
-- Leitura do ciclo: R19 entregue como v2.20.0 (#130); R19.1 fechado (#133); R19.2 fechado (#134, #135); artefatos de governanca sendo consolidados para gate do /release v2.20.1.
+- Versao mais recente: v2.20.2 (released 2026-04-22).
+- Fase atual: pos-release v2.20.2 — R21 entregue (3 bugs OData parser + O(1) lookup + ESP-003 #145); candidato R22 (expansao multi-framework) ainda nao aberto.
+- Leitura do ciclo: R21 corrigiu URL decode, virgula em literal, operadores multi-char no parser OData e migrou lookup para TDictionary O(1); divida tecnica residual aberta em #150 (_EmitOData double-space).
 
 ## Marcos recentes
 
 - R15.x encerrou a transicao Criteria -> FluentSQL e a limpeza principal do legado associado.
 - R16.x reorganizou backlog, governanca de pipeline e baseline de RTTI/cache para o ciclo seguinte.
 - R17.x entregou o lazy loading transparente, executou hardening interno e fechou a consolidacao operacional pos-hotfix antes da abertura do proximo ciclo funcional.
+- R19/R20 entregou RESTReadOnly por verbo, suite REST/Horse integrada e parser OData tokenizado.
+- R21 corrigiu 3 bugs no parser OData, melhorou performance de lookup para O(1) e fechou ESP-003.
 
 ## Ciclo atual
 
-### R18.4 — XML evidence portability hardening (em execucao)
+### Aguardando abertura de R22
 
-- Objetivo estrategico: fechar o caveat de portabilidade da evidencia XML herdado de #108, garantindo que o smoke lazy-loading produza evidencias deterministicas em ambientes relativos e com caminho explicito.
-- Estado atual: issue #111 aberta e em implementacao.
-- Demanda ativa: issue #111 (ESP-002, feature) — endurecer contrato de portabilidade XML, preconditions, fallback e rastreabilidade de evidencia.
-- Proxima decisao: apos QA, avaliar expansao funcional do ciclo R18.x.
-
-### R18.1 — Pacote minimo de smoke validation (em execucao)
-
-- Objetivo estrategico: consolidar evidencia auditavel de comportamento do lazy loading transparente antes de abrir novo trabalho funcional.
-- Estado atual: baseline minimo de smoke consolidado para ObjectSet + DataSet, com evidencias recentes em rodadas de QA e preparo da formalizacao R18.2 em andamento.
-- Demanda ativa: issue #99 (especificacao), issue #101 (correcao de handoff) e issue #102 (execucao/QA), todas dentro do trilho ESP-002.
-- Proxima decisao: abrir a rodada R18.2 via `/task` com escopo de confiabilidade ampliada e contrato de evidencia deterministico.
+- Objetivo: expansao da suite de integracao REST para segundo framework web Delphi (DMVC, WiRL ou MARS).
+- Estado: candidato nao formalizado — abrir via `/task` quando pronto para o proximo ciclo.
+- Pre-requisito concluido: R21 entregue e base OData estabilizada.
 
 ## Proximos milestones
 
-1. Formalizar a primeira demanda de R18.x no pipeline antes de expandir o roadmap.
-2. Preservar coerencia entre documentacao publica, changelog e baseline operacional consolidada do ciclo lazy.
-3. Reavaliar o backlog candidato apenas quando houver aprovacao explicita de nova direcao estrategica.
-4. Publicar a demanda candidata R18.1 (origem textual "proxiam demanda", normalizada como "proxima demanda"), mantendo classificacao ESP-002 (feature), escopo funcional fechado, criterios de aceite auditaveis e handoff pronto para `/task`.
-5. Detalhar o recorte funcional executavel de R18.1 (modulo alvo, comportamento esperado e evidencia de validacao) antes de abrir nova issue de implementacao.
-6. Recorte proposto para R18.1: pacote de smoke validation do lazy loading transparente (ObjectSet + DataSet), com cenarios minimos executaveis em `Test/Delphi/` e evidencia objetiva de execucao para gate de implementacao.
-7. Demanda ativa da rodada atual: issue #99 (especificacao em arquiteto) + issue #102 (implementacao) - entregar o pacote minimo de smoke validation do lazy loading transparente, mantendo classificacao ESP-002, evidencia auditavel e handoff alinhado entre architect, task, implement, review e test.
-8. Validar o pacote smoke via gates de review e test; consolidar evidencia de execucao nos artefatos de pipeline antes de abrir expansao funcional do ciclo R18.x.
-9. Formalizar a proxima demanda R18.2 como ESP-002 (feature): ampliar baseline smoke de lazy loading transparente com criterios de evidencia deterministicos e rastreabilidade entre diff e reports.
-10. Abrir a issue da rodada R18.2 via `/task` apos alinhamento de assumptions (ausencia de card em `Ready`) e manter o escopo restrito a confiabilidade (ObjectSet + DataSet) sem redesign arquitetural.
-11. Formalizar a proxima demanda R18.3 como ESP-002 (feature): consolidar comando canonico do smoke lazy, pre-condicoes deterministicas para evidencias XML e matriz de rastreabilidade de cenarios para reduzir caveats recorrentes de QA.
-12. Formalizar a proxima demanda R18.4 como ESP-002 (feature): endurecer portabilidade da evidencia XML (modo relativo e caminho explicito), com contrato deterministico de fallback e rastreabilidade obrigatoria entre comando, estrategia de caminho e artefato gerado.
-13. Formalizar a proxima demanda R18.10 como ESP-002 (feature): estabelecer baseline deterministico de validacao pre-gate para freshness de evidencias e isolamento de escopo (diff in-scope vs out-of-scope) antes de `/review`, `/test` e `/develop`.
-14. Formalizar a demanda de correcao R18.11 como ESP-003 (bug): reconciliar explicitamente o diff tracked pre-existente de `ROADMAP.md` para eliminar bloqueio recorrente em `/develop` (`NO_COMMITTABLE_FILES`) com evidencia objetiva de escopo.
+1. Normalizar espacamento em `_EmitOData` (#150, divida tecnica) — permite tightening das assertions CA-005/006/007 para `AreEqual`.
+2. Expandir suite de integracao REST/Horse para outro framework web Delphi (DMVC, WiRL ou MARS) como candidato principal R22 — portar cenarios CRUD existentes como baseline de compatibilidade multi-framework.
+3. Avaliar disponibilizacao do cliente REST (`Source/RESTful/Client/`) como demanda formal de ciclo futuro.
+4. Avaliar reescrita completa do parser OData como biblioteca PEG/ANTLR (longo prazo — ADR-001 usa abordagem incremental; reescrita so se justifica se o OData virar pilar central do Janus).
 
 ### R19.1 — Post-release caveat closure for v2.20.0 — delivered 2026-04-20
 
@@ -129,5 +113,5 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 3. Registre entregas concluidas no changelog, analises em discussoes e execucao da rodada nos artefatos da pipeline.
 4. Se a informacao nao altera prioridade, fase ou direcao do projeto, ela nao deve aumentar o roadmap.
 
-*Ultima atualizacao: 2026-04-21 — R20 entregue como v2.20.1: RESTReadOnly method-level granularity ([RESTAllowGET/POST/PUT/DELETE]); todos os cinco itens marcados [x]; ciclo encerrado*
+*Ultima atualizacao: 2026-04-22 — R21 aberto: correcao de 3 bugs no parser OData + melhoria de lookup O(1); expansao multi-framework deslocada para R22; milestones reordenados.*
 
