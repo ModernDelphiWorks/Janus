@@ -23,6 +23,8 @@
 
 unit Janus.FMX.Controls;
 
+{$MESSAGE WARN 'Janus.FMX.Controls (shadowing technique) is deprecated. Use TJanusBinder instead. This unit will be removed in R22.6.'}
+
 interface
 
 uses

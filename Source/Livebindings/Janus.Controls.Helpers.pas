@@ -23,6 +23,8 @@
 
 unit Janus.Controls.Helpers;
 
+{$MESSAGE WARN 'Janus.Controls.Helpers: TListControls global dictionary is deprecated. Use TJanusBinder with FindComponent resolver instead. Will be removed in R22.6.'}
+
 interface
 
 uses

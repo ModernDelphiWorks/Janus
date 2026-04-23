@@ -1,4 +1,4 @@
-program JanusSmoke;
+﻿program JanusSmoke;
 
 {$IFNDEF TESTINSIGHT}
 {$APPTYPE CONSOLE}
@@ -47,7 +47,9 @@ uses
   TestDMLGenerator in 'Tests\TestDMLGenerator.pas',
   TestFluentSQLIntegration in 'Tests\TestFluentSQLIntegration.pas',
   /// REST/Horse Tests — ESP-002
-  TestJanusRESTQueryParse in 'Tests\TestJanusRESTQueryParse.pas';
+  TestJanusRESTQueryParse in 'Tests\TestJanusRESTQueryParse.pas',
+  /// LiveBindings R22.1 Tests — ESP-004
+  Tests.Janus.LiveBindings.R221 in 'Tests\Tests.Janus.LiveBindings.R221.pas';
 
 const
   EXIT_SUCCESS = 0;
