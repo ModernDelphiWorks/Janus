@@ -35,7 +35,11 @@ uses
   Bindings.Helper,
   Data.Bind.ObjectScope,
   Generics.Collections,
-  Janus.Controls.Helpers;
+  Janus.Controls.Helpers
+  {$IFDEF DCC}
+  ,Janus.Binder.Resolver
+  {$ENDIF}
+  ;
 
 type
   LiveBindingsControl = class(TCustomAttribute)
@@ -71,6 +75,7 @@ type
 
   TJanusLivebindings = class
   private
+    FOwner: TComponent;
     FBindingExpressions: TObjectList<TBindingExpression>;
     procedure _GenerateLiveBindingsControls(const AAttribute: TCustomAttribute;
       const AProperty: TRttiProperty);
@@ -79,7 +84,8 @@ type
     procedure _GenerateLiveBindingsGridDetail(
       const AAttribute: TCustomAttribute; const AProperty: TRttiProperty);
   public
-    constructor Create; virtual;
+    constructor Create; overload; virtual;
+    constructor Create(const AOwner: TComponent); overload;
     destructor Destroy; override;
   end;
 
@@ -87,6 +93,12 @@ implementation
 
 uses
   Vcl.ComCtrls, Vcl.Grids;
+
+constructor TJanusLiveBindings.Create(const AOwner: TComponent);
+begin
+  FOwner := AOwner;
+  Create;
+end;
 
 constructor TJanusLiveBindings.Create;
 var
@@ -129,8 +141,14 @@ var
   LBindingExpressionComponent: TBindingExpression;
 begin
   LLiveBindingsControl := LiveBindingsControl(AAttribute);
-  // Get Component
-  LControl := TListControls.ListComponents.Items[LLiveBindingsControl.LinkControl] as TControl;
+  // Resolve via FindComponent first; fallback to global dictionary
+  LControl := nil;
+  {$IFDEF DCC}
+  if FOwner <> nil then
+    LControl := TJanusBinderResolver.Resolve(FOwner, LLiveBindingsControl.LinkControl) as TControl;
+  {$ENDIF}
+  if LControl = nil then
+    LControl := TListControls.ListComponents.Items[LLiveBindingsControl.LinkControl] as TControl;
   if LControl = nil then
     raise Exception.Create('Component [' + LLiveBindingsControl.LinkControl + '] not found!');
   // Expression do atributo
