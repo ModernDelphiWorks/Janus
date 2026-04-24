@@ -16,7 +16,9 @@ uses
   DUnitX.Loggers.Console,
   DUnitX.Loggers.Xml.NUnit,
   /// LiveBindings Tests — ESP-004 / R22.1
-  Tests.Janus.LiveBindings.R221 in 'Tests\Tests.Janus.LiveBindings.R221.pas';
+  Tests.Janus.LiveBindings.R221 in 'Tests\Tests.Janus.LiveBindings.R221.pas',
+  /// LiveBindings Tests — ESP-004 / R22.2
+  Tests.Janus.LiveBindings.R222 in 'Tests\Tests.Janus.LiveBindings.R222.pas';
 
 const
   EXIT_SUCCESS = 0;

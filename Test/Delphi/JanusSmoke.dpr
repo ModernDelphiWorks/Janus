@@ -49,7 +49,9 @@ uses
   /// REST/Horse Tests — ESP-002
   TestJanusRESTQueryParse in 'Tests\TestJanusRESTQueryParse.pas',
   /// LiveBindings R22.1 Tests — ESP-004
-  Tests.Janus.LiveBindings.R221 in 'Tests\Tests.Janus.LiveBindings.R221.pas';
+  Tests.Janus.LiveBindings.R221 in 'Tests\Tests.Janus.LiveBindings.R221.pas',
+  /// LiveBindings R22.2 Tests — ESP-004
+  Tests.Janus.LiveBindings.R222 in 'Tests\Tests.Janus.LiveBindings.R222.pas';
 
 const
   EXIT_SUCCESS = 0;
