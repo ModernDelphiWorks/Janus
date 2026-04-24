@@ -9,6 +9,7 @@ uses
 
 type
   [Entity]
+  [View('vw_pedidos_completos', '')]
   [Table('vw_pedidos_completos', '')]
   [PrimaryKey('id_pedido', 'Order identifier in view')]
   [RESTReadOnly]
