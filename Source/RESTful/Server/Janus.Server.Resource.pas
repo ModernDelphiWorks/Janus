@@ -1,11 +1,11 @@
 {
-      ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi
+      ORM Brasil é um ORM simples e descomplicado para quem utiliza Delphi
 
                    Copyright (c) 2018, Isaque Pinheiro
                           All rights reserved.
 }
 
-{ 
+{
   @abstract(REST Componentes)
   @created(20 Jun 2018)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
@@ -32,7 +32,6 @@ uses
   MetaDbDiff.mapping.explorer,
   MetaDbDiff.mapping.popular,
   MetaDbDiff.mapping.register,
-  Janus.Json,
   Janus.Server.RestQuery.Parse,
   Janus.Server.RestObjectSet,
   DataEngine.FactoryInterfaces;
@@ -41,37 +40,37 @@ type
   TAppResourceBase = class
   private
     FConnection: IDBConnection;
-    const cRESOURCENOTFOUND = '{"exception":"Resource T%s not found!"}';
-    const cRESOURCENOTREGISTER = '{"exception":"Resource [%s] not registered on the server!"}';
-    const cRESOURCEPERMITION = '{"exception":"Resource [%s] without access permission by the [NotServerUse] attribute!"}';
-    const cRESOURCEREADONLY = '{"exception":"Resource %s is read-only (RESTReadOnly)"}';
-    const cRESOURCEVERBNOTALLOWED = '{"exception":"HTTP %s not allowed for %s"}';
-    const cEXCEPTIONJSON = '{"exception":"There was an error in trying to convert JSON into the class [%s]!"}';
-    const cRESOURCEDELETE = '{"result":"Resource %s delete command executed successfully"}';
-    const cRESOURCEINSERT = '{"result":"Resource %s insert command executed successfully", "params":[{%s}]}';
-    const cRESOURCEUPDATE = '{"result":"Resource %s update command executed successfully"}';
-
+    const
+      cRESOURCENOTFOUND    = '{"exception":"Resource T%s not found!"}';
+      cRESOURCENOTREGISTER = '{"exception":"Resource [%s] not registered on the server!"}';
+      cRESOURCEPERMITION   = '{"exception":"Resource [%s] without access permission by the [NotServerUse] attribute!"}';
+      cRESOURCEREADONLY    = '{"exception":"Resource %s is read-only (RESTReadOnly)"}';
+      cRESOURCEVERBNOTALLOWED = '{"exception":"HTTP %s not allowed for %s"}';
+      cEXCEPTIONJSON       = '{"exception":"There was an error in trying to convert JSON into the class [%s]!"}';
+      cRESOURCEDELETE      = '{"result":"Resource %s delete command executed successfully"}';
+      cRESOURCEINSERT      = '{"result":"Resource %s insert command executed successfully", "params":[{%s}]}';
+      cRESOURCEUPDATE      = '{"result":"Resource %s update command executed successfully"}';
     function ResolverFindToSkip(const AObjectSet: TRESTObjectSet;
-      const AQuery: TRESTQueryParse): String;
+      const AQuery: TRESTQueryParse): string;
     function ResolverFindFilter(const AObjectSet: TRESTObjectSet;
-      const AQuery: TRESTQueryParse): String;
+      const AQuery: TRESTQueryParse): string;
     function ResolverFindID(const AObjectSet: TRESTObjectSet;
-      const AQuery: TRESTQueryParse): String;
+      const AQuery: TRESTQueryParse): string;
     function ResolverFindAll(const AObjectSet: TRESTObjectSet;
-      const AQuery: TRESTQueryParse): String;
+      const AQuery: TRESTQueryParse): string;
   protected
     FResultCount: Integer;
-    function ParseInsert(const AQuery: TRESTQueryParse; const AValue: String): String;
-    function ParseUpdate(const AQuery: TRESTQueryParse; const AValue: String): String;
+    function ParseInsert(const AQuery: TRESTQueryParse; const AValue: string): string;
+    function ParseUpdate(const AQuery: TRESTQueryParse; const AValue: string): string;
   public
     constructor Create(const AConnection: IDBConnection); overload; virtual;
     destructor Destroy; override;
-    function ParseFind(const AQuery: TRESTQueryParse): String;
-    function ParseDelete(const AQuery: TRESTQueryParse): String;
-    function select(const AResource: String): String; overload; virtual;
-    function insert(const AResource: String; const AValue: String): String; overload; virtual;
-    function update(const AResource: String; const AValue: String): String; overload; virtual;
-    function delete(const AResource: String): String; overload; virtual;
+    function ParseFind(const AQuery: TRESTQueryParse): string;
+    function ParseDelete(const AQuery: TRESTQueryParse): string;
+    function select(const AResource: string): string; overload; virtual;
+    function insert(const AResource: string; const AValue: string): string; overload; virtual;
+    function update(const AResource: string; const AValue: string): string; overload; virtual;
+    function delete(const AResource: string): string; overload; virtual;
     function ResultCount: Integer;
   end;
 
@@ -81,8 +80,10 @@ uses
   MetaDbDiff.mapping.classes,
   MetaDbDiff.mapping.attributes,
   MetaDbDiff.rtti.helper,
+  Janus.Json,
   Janus.Objects.Helper,
-  Janus.Core.Consts;
+  Janus.Core.Consts,
+  Janus.Server.RestView.Manager;
 
 { TAppResourceBase }
 
@@ -92,7 +93,7 @@ begin
   FConnection := AConnection;
 end;
 
-function TAppResourceBase.delete(const AResource: String): String;
+function TAppResourceBase.delete(const AResource: string): string;
 begin
   Result := AResource;
 end;
@@ -103,7 +104,7 @@ begin
   inherited;
 end;
 
-function TAppResourceBase.insert(const AResource, AValue: String): String;
+function TAppResourceBase.insert(const AResource, AValue: string): string;
 var
   LQuery: TRESTQueryParse;
 begin
@@ -119,7 +120,7 @@ begin
   end;
 end;
 
-function TAppResourceBase.update(const AResource, AValue: String): String;
+function TAppResourceBase.update(const AResource, AValue: string): string;
 var
   LQuery: TRESTQueryParse;
 begin
@@ -135,7 +136,7 @@ begin
   end;
 end;
 
-function TAppResourceBase.ParseDelete(const AQuery: TRESTQueryParse): String;
+function TAppResourceBase.ParseDelete(const AQuery: TRESTQueryParse): string;
 var
   LObject: TObject;
   LClassType: TClass;
@@ -173,6 +174,9 @@ begin
   if TMappingExplorer.GetRESTReadOnly(LClassType) then
     raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
 
+  if TMappingExplorer.GetMappingView(LClassType) <> nil then
+    raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
+
   LAllowVerbs := TMappingExplorer.GetRESTAllowVerbs(LClassType);
   if LAllowVerbs.HasAllowList then
     if not (rvDELETE in LAllowVerbs.AllowedVerbs) then
@@ -185,10 +189,10 @@ begin
       FilterExecuteFind;
       // Busca o registro pelo ID
       IDExecuteFind;
-      // Caso nenhum dos dois m�todos encontre um registro, � gerado uma
-      // exce��o com uma mensagem de registro n�o encontrado para quem requisitou
+      // Caso nenhum dos dois métodos encontre um registro, é gerado uma
+      // exceção com uma mensagem de registro não encontrado para quem requisitou
       ExceptionExecute;
-      // Se passar tudo ok, ser� executado o m�todo do Janus
+      // Se passar tudo ok, será executado o método do Janus
       LObjectSet.Delete(LObject);
       Result := Format(cRESOURCEDELETE, [AQuery.ResourceName]);
     finally
@@ -204,7 +208,7 @@ begin
   end;
 end;
 
-function TAppResourceBase.ParseFind(const AQuery: TRESTQueryParse): String;
+function TAppResourceBase.ParseFind(const AQuery: TRESTQueryParse): string;
 var
   LClassType: TClass;
   LObjectSet: TRESTObjectSet;
@@ -227,6 +231,9 @@ begin
       if not (rvGET in LAllowVerbs.AllowedVerbs) then
         raise Exception.CreateFmt(cRESOURCEVERBNOTALLOWED, ['GET', AQuery.ResourceName]);
 
+  if TMappingExplorer.GetMappingView(LClassType) <> nil then
+    TRESTViewManager.EnsureViewLazy(LClassType, FConnection);
+
   LObjectSet := TRESTObjectSet.Create(FConnection, LClassType);
   try
     if AQuery.Top > 0 then
@@ -245,14 +252,14 @@ begin
 end;
 
 function TAppResourceBase.ParseInsert(const AQuery: TRESTQueryParse;
-  const AValue: String): String;
+  const AValue: string): string;
 var
   LPrimaryKey: TPrimaryKeyColumnsMapping;
   LColumn: TColumnMapping;
   LObject: TObject;
   LClassType: TClass;
   LObjectSet: TRESTObjectSet;
-  LValues: String;
+  LValues: string;
   LAllowVerbs: TRESTAllowVerbCache;
 begin
   LClassType := TMappingExplorer.GetRepositoryMapping
@@ -261,6 +268,9 @@ begin
     raise Exception.CreateFmt(cRESOURCENOTREGISTER, [AQuery.ResourceName]);
 
   if TMappingExplorer.GetRESTReadOnly(LClassType) then
+    raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
+
+  if TMappingExplorer.GetMappingView(LClassType) <> nil then
     raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
 
   LAllowVerbs := TMappingExplorer.GetRESTAllowVerbs(LClassType);
@@ -305,7 +315,7 @@ begin
 end;
 
 function TAppResourceBase.ParseUpdate(const AQuery: TRESTQueryParse;
-  const AValue: String): String;
+  const AValue: string): string;
 var
   LObjectOld: TObject;
   LObjectNew: TObject;
@@ -313,7 +323,7 @@ var
   LObjectSet: TRESTObjectSet;
   LPrimaryKey: TPrimaryKeyColumnsMapping;
   LColumn: TColumnMapping;
-  LWhere: String;
+  LWhere: string;
   LAllowVerbs: TRESTAllowVerbCache;
 begin
   LClassType := TMappingExplorer.GetRepositoryMapping
@@ -322,6 +332,9 @@ begin
     Exit;
 
   if TMappingExplorer.GetRESTReadOnly(LClassType) then
+    raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
+
+  if TMappingExplorer.GetMappingView(LClassType) <> nil then
     raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
 
   LAllowVerbs := TMappingExplorer.GetRESTAllowVerbs(LClassType);
@@ -373,7 +386,7 @@ begin
 end;
 
 function TAppResourceBase.ResolverFindAll(const AObjectSet: TRESTObjectSet;
-  const AQuery: TRESTQueryParse): String;
+  const AQuery: TRESTQueryParse): string;
 var
   LObjectList: TObjectList<TObject>;
 begin
@@ -390,7 +403,7 @@ begin
 end;
 
 function TAppResourceBase.ResolverFindFilter(const AObjectSet: TRESTObjectSet;
-  const AQuery: TRESTQueryParse): String;
+  const AQuery: TRESTQueryParse): string;
 var
   LObjectList: TObjectList<TObject>;
 begin
@@ -407,7 +420,7 @@ begin
 end;
 
 function TAppResourceBase.ResolverFindID(const AObjectSet: TRESTObjectSet;
-  const AQuery: TRESTQueryParse): String;
+  const AQuery: TRESTQueryParse): string;
 var
   LObject: TObject;
 begin
@@ -423,7 +436,7 @@ begin
 end;
 
 function TAppResourceBase.ResolverFindToSkip(const AObjectSet: TRESTObjectSet;
-  const AQuery: TRESTQueryParse): String;
+  const AQuery: TRESTQueryParse): string;
 var
   LObjectList: TObjectList<TObject>;
 begin
@@ -447,7 +460,7 @@ begin
   Result := FResultCount;
 end;
 
-function TAppResourceBase.select(const AResource: String): String;
+function TAppResourceBase.select(const AResource: string): string;
 begin
   Result := AResource;
 end;

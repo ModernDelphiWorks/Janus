@@ -54,7 +54,11 @@ begin
     .OnCond('c.id_cliente = p.id_cliente')
     .InnerJoin('produtos pr')
     .OnCond('pr.id_produto = p.id_produto');
-  TRESTViewManager.EnsureView(TModelPedidosCompletos, LSelect, FConnection);
+  TRESTViewManager.Register(TModelPedidosCompletos,
+    function: IFluentSQL
+    begin
+      Result := LSelect;
+    end);
   FRESTServerHorse := TRESTServerHorse.Create(nil, FConnection, 'api/Janus');
 end;
 
