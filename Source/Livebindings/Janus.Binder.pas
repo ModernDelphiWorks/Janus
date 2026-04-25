@@ -15,7 +15,7 @@
        arquivo LICENSE na pasta principal.
 }
 
-{ @abstract(Janus Binder — R22.2 Object backend: simple controls + grid binding)
+{ @abstract(Janus Binder — R22.3 DataSet backend: TBindSourceDB + grid + master-detail)
   @created(23 Apr 2026)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
 }
@@ -31,6 +31,8 @@ uses
   System.SysUtils,
   System.Rtti,
   System.Generics.Collections,
+  Data.DB,
+  Data.Bind.DBScope,
   Data.Bind.ObjectScope,
   Data.Bind.Components,
   Data.Bind.Grid,
@@ -66,6 +68,9 @@ type
     FGridListAdapters: TObjectList<TObject>;
     FGridBindSources: TObjectList<TAdapterBindSource>;
     FGridLinks: TObjectList<TLinkGridToDataSource>;
+    FDataSources: TObjectList<TDataSource>;
+    FDBBindSources: TObjectList<TBindSourceDB>;
+    procedure _BindDataSetToGrid(ADataSet: TDataSet; const AGridName: string);
   public
     constructor Create(const AOwner: TComponent);
     destructor Destroy; override;
@@ -86,10 +91,20 @@ type
       const ADetailGridName: string;
       const AGetSubdetail: TJanusChildListFunc<TDetail, TSubdetail>;
       const ASubdetailGridName: string);
+    procedure BindDataSetGrid(ADataSet: TDataSet; const AGridName: string);
+    procedure BindDataSetMasterDetail(
+      AMasterDS: TDataSet; const AMasterGridName: string;
+      ADetailDS: TDataSet; const ADetailGridName: string);
+    procedure BindDataSetMasterDetailSubdetail(
+      AMasterDS: TDataSet; const AMasterGridName: string;
+      ADetailDS: TDataSet; const ADetailGridName: string;
+      ASubdetailDS: TDataSet; const ASubdetailGridName: string);
     property Adapter: TAdapterBindSource read FAdapter;
     property GridListAdapters: TObjectList<TObject> read FGridListAdapters;
     property GridBindSources: TObjectList<TAdapterBindSource> read FGridBindSources;
     property GridLinks: TObjectList<TLinkGridToDataSource> read FGridLinks;
+    property DBBindSources: TObjectList<TBindSourceDB> read FDBBindSources;
+    property DataSources: TObjectList<TDataSource> read FDataSources;
   end;
 
 {$ENDIF DCC}
@@ -134,11 +149,15 @@ begin
   FGridListAdapters := TObjectList<TObject>.Create(True);
   FGridBindSources := TObjectList<TAdapterBindSource>.Create(True);
   FGridLinks := TObjectList<TLinkGridToDataSource>.Create(True);
+  FDataSources := TObjectList<TDataSource>.Create(True);
+  FDBBindSources := TObjectList<TBindSourceDB>.Create(True);
 end;
 
 destructor TJanusBinder.Destroy;
 begin
   Unbind;
+  FDBBindSources.Free;
+  FDataSources.Free;
   FGridLinks.Free;
   FGridBindSources.Free;
   FGridListAdapters.Free;
@@ -197,10 +216,15 @@ var
   LLink: TLinkPropertyToField;
   LGridLink: TLinkGridToDataSource;
   LBindSource: TAdapterBindSource;
+  LDBSource: TBindSourceDB;
 begin
   for LGridLink in FGridLinks do
     LGridLink.Active := False;
   FGridLinks.Clear;
+  for LDBSource in FDBBindSources do
+    LDBSource.DataSource := nil;
+  FDBBindSources.Clear;
+  FDataSources.Clear;
   for LBindSource in FGridBindSources do
     LBindSource.Active := False;
   FGridBindSources.Clear;
@@ -414,6 +438,60 @@ begin
   LSubdetailGridLink.GridControl := LSubdetailGrid;
   LSubdetailGridLink.Active := True;
   FGridLinks.Add(LSubdetailGridLink);
+end;
+
+procedure TJanusBinder._BindDataSetToGrid(ADataSet: TDataSet;
+  const AGridName: string);
+var
+  LGrid: TComponent;
+  LDataSource: TDataSource;
+  LDBBindSource: TBindSourceDB;
+  LGridLink: TLinkGridToDataSource;
+begin
+  LGrid := TJanusBinderResolver.Resolve(FOwner, AGridName);
+  if LGrid = nil then
+    raise EJanusBinderException.CreateFmt(
+      'Grid [%s] not found on owner [%s]',
+      [AGridName, FOwner.Name]);
+  if not (LGrid is TCustomGrid) then
+    raise EJanusBinderException.CreateFmt(
+      'Control [%s] is not a TCustomGrid',
+      [AGridName]);
+  LDataSource := TDataSource.Create(nil);
+  LDataSource.DataSet := ADataSet;
+  FDataSources.Add(LDataSource);
+  LDBBindSource := TBindSourceDB.Create(nil);
+  LDBBindSource.DataSource := LDataSource;
+  FDBBindSources.Add(LDBBindSource);
+  LGridLink := TLinkGridToDataSource.Create(nil);
+  LGridLink.DataSource := LDBBindSource;
+  LGridLink.GridControl := LGrid;
+  LGridLink.Active := True;
+  FGridLinks.Add(LGridLink);
+end;
+
+procedure TJanusBinder.BindDataSetGrid(ADataSet: TDataSet;
+  const AGridName: string);
+begin
+  _BindDataSetToGrid(ADataSet, AGridName);
+end;
+
+procedure TJanusBinder.BindDataSetMasterDetail(
+  AMasterDS: TDataSet; const AMasterGridName: string;
+  ADetailDS: TDataSet; const ADetailGridName: string);
+begin
+  _BindDataSetToGrid(AMasterDS, AMasterGridName);
+  _BindDataSetToGrid(ADetailDS, ADetailGridName);
+end;
+
+procedure TJanusBinder.BindDataSetMasterDetailSubdetail(
+  AMasterDS: TDataSet; const AMasterGridName: string;
+  ADetailDS: TDataSet; const ADetailGridName: string;
+  ASubdetailDS: TDataSet; const ASubdetailGridName: string);
+begin
+  _BindDataSetToGrid(AMasterDS, AMasterGridName);
+  _BindDataSetToGrid(ADetailDS, ADetailGridName);
+  _BindDataSetToGrid(ASubdetailDS, ASubdetailGridName);
 end;
 
 {$ENDIF DCC}
