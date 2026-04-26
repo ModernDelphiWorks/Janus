@@ -47,7 +47,17 @@ uses
   TestDMLGenerator in 'Tests\TestDMLGenerator.pas',
   TestFluentSQLIntegration in 'Tests\TestFluentSQLIntegration.pas',
   /// REST/Horse Tests — ESP-002
-  TestJanusRESTQueryParse in 'Tests\TestJanusRESTQueryParse.pas';
+  TestJanusRESTQueryParse in 'Tests\TestJanusRESTQueryParse.pas',
+  /// Plugin/Middleware Tests — Demand A
+  TestPluginRegistry in 'Tests\TestPluginRegistry.pas',
+  TestPluginIntegration in 'Tests\TestPluginIntegration.pas',
+  TestCrudEndToEnd in 'Tests\TestCrudEndToEnd.pas',
+  /// CodeGen Tests — Demand A
+  TestCodeGenEngine in 'Tests\TestCodeGenEngine.pas',
+  TestCodeGenComplex in 'Tests\TestCodeGenComplex.pas',
+  TestCodeGenTemplate in 'Tests\TestCodeGenTemplate.pas',
+  /// JSON Tests — Demand A
+  TestJanusJson in 'Tests\TestJanusJson.pas';
 
 const
   EXIT_SUCCESS = 0;
