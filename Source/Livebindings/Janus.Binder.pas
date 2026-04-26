@@ -104,7 +104,7 @@ type
       ASubdetailDS: TDataSet; const ASubdetailGridName: string);
     procedure BindList<TItem: class>(const AList: TObjectList<TItem>;
       const AControlName: string; const ADisplayFieldName: string);
-    procedure ConfigureGridColumns(const AGridName: string; AItemType: TClass);
+    procedure ConfigureGridColumns(const AGridName: string; const AItemType: TClass);
     property Adapter: TAdapterBindSource read FAdapter;
     property GridListAdapters: TObjectList<TObject> read FGridListAdapters;
     property AdapterBindSources: TObjectList<TAdapterBindSource> read FAdapterBindSources;
@@ -539,7 +539,7 @@ begin
 end;
 
 procedure TJanusBinder.ConfigureGridColumns(const AGridName: string;
-  AItemType: TClass);
+  const AItemType: TClass);
 var
   LContext: TRttiContext;
   LType: TRttiType;
