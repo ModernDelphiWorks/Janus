@@ -183,25 +183,6 @@ Fluxo de uso:
 `ConfigureGridColumns` suporta `TStringGrid`. Grades do tipo `TDBGrid` ou de terceiros não são suportadas nesta versão.
 :::
 
-## Migração do engine legado
-
-:::caution Depreciação — remoção no R22.6
-Os seguintes símbolos foram marcados como `deprecated` no Janus R22.4 e serão **removidos no R22.6**:
-
-- `LiveBindingsControl`, `LiveBindingsGridMaster`, `LiveBindingsGridDetail` (em `Janus.LiveBindings`)
-- `TJanusLivebindings` (em `Janus.LiveBindings`)
-- `TListComponents`, `TListFieldNames`, `TListControls` (em `Janus.Controls.Helpers`)
-- As unidades `Janus.VCL.Controls` e `Janus.FMX.Controls` (engine de shadowing)
-:::
-
-**Passos de migração:**
-
-1. **Remova a herança.** Troque `TProduto = class(TJanusLiveBindings)` por `TProduto = class`.
-2. **Substitua os atributos.** Troque `[LiveBindingsControl('c', 'p')]` por `[Bind('c', 'p')]` de `Janus.Binder.Attributes`.
-3. **Elimine o `TBindings.Notify`.** Remova as chamadas `TBindings.Notify(Self, 'Campo')` dos setters. Para campos calculados (ex.: `Soma := ID * Preco`), compute o valor diretamente no setter.
-4. **Crie o binder no formulário.** Em `FormCreate`, crie um `TJanusBinder`, chame `Bind(entidade)` e `Refresh`. Em `FormDestroy`, libere o binder antes da entidade.
-5. **Remova `Janus.VCL.Controls` do `uses`.** Não é mais necessário posicioná-lo em último lugar.
-
 ## FMX
 
-O `TJanusBinder` atual depende de unidades VCL (`Vcl.Controls`, `Vcl.Grids`). O suporte a projetos FMX — sem dependência de unidades VCL — requer suporte a compilação condicional por plataforma em `Janus.Binder.pas`, previsto para um ciclo futuro. Os exemplos FMX em `Examples/Delphi/Livebindings/FMX/` mantêm o engine legado com um aviso de migração.
+O suporte a projetos FMX em `TJanusBinder` requer unidades condicionais por plataforma em `Janus.Binder.pas` (que atualmente declara `Vcl.Controls` e `Vcl.Grids`). O engine FMX nativo está previsto para um ciclo futuro. O exemplo FMX legado foi removido junto com o engine legado.
