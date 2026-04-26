@@ -22,6 +22,7 @@ interface
 
 uses
   SysUtils,
+  Generics.Collections,
   DataEngine.FactoryInterfaces,
   MetaDbDiff.Mapping.Explorer,
   FluentSQL,
@@ -29,19 +30,24 @@ uses
   FluentSQL.Interfaces;
 
 type
+  ERegistryMissingException = class(Exception);
+
   TRESTViewManager = class
   private
-    class function _GetViewName(const AClassType: TClass): String;
+    class var FViewDefinitionRegistry: TDictionary<string, TFunc<IFluentSQL>>;
+    class var FViewEnsuredCache: TDictionary<string, Boolean>;
+    class function _GetViewName(const AClassType: TClass): string;
     class function _MapDriverToFluent(const ADriver: TDBEngineDriver): TFluentSQLDriver;
     class function _SupportsCreateOrReplace(const ADriver: TDBEngineDriver): Boolean;
-    class procedure _ExecuteDDL(const ASQL: String; const AConnection: IDBConnection);
+    class procedure _ExecuteDDL(const ASQL: string; const AConnection: IDBConnection);
   public
-    // Creates or replaces the VIEW in the database for the given mapped class.
-    // AClassType must be decorated with [View] and [Table('view_name','')].
-    // ASelect is the IFluentSQL query that defines the view body.
-    // Call only at application startup/setup — never inside a REST handler.
     class procedure EnsureView(const AClassType: TClass; const ASelect: IFluentSQL;
       const AConnection: IDBConnection);
+    class procedure Register(const AClassType: TClass;
+      const ASelectFactory: TFunc<IFluentSQL>);
+    class procedure EnsureViewLazy(const AClassType: TClass;
+      const AConnection: IDBConnection);
+    class procedure ClearCache;
   end;
 
 implementation
@@ -51,7 +57,7 @@ uses
 
 { TRESTViewManager }
 
-class function TRESTViewManager._GetViewName(const AClassType: TClass): String;
+class function TRESTViewManager._GetViewName(const AClassType: TClass): string;
 var
   LTableMapping: TTableMapping;
   LViewMapping: TViewMapping;
@@ -90,7 +96,7 @@ begin
   Result := ADriver in [dnMySQL, dnMariaDB, dnPostgreSQL, dnOracle];
 end;
 
-class procedure TRESTViewManager._ExecuteDDL(const ASQL: String;
+class procedure TRESTViewManager._ExecuteDDL(const ASQL: string;
   const AConnection: IDBConnection);
 begin
   if ASQL = '' then
@@ -101,11 +107,11 @@ end;
 class procedure TRESTViewManager.EnsureView(const AClassType: TClass;
   const ASelect: IFluentSQL; const AConnection: IDBConnection);
 var
-  LViewName: String;
+  LViewName: string;
   LDriver: TDBEngineDriver;
   LDialect: TFluentSQLDriver;
-  LCreateSQL: String;
-  LDropSQL: String;
+  LCreateSQL: string;
+  LDropSQL: string;
   LSchema: IFluentSchema;
 begin
   if not Assigned(AClassType) then
@@ -138,6 +144,49 @@ begin
     _ExecuteDDL(LDropSQL, AConnection);
     _ExecuteDDL(LCreateSQL, AConnection);
   end;
+  FViewEnsuredCache.AddOrSetValue(AClassType.ClassName, True);
 end;
+
+class procedure TRESTViewManager.Register(const AClassType: TClass;
+  const ASelectFactory: TFunc<IFluentSQL>);
+begin
+  if not Assigned(AClassType) then
+    raise EArgumentNilException.Create('AClassType must not be nil');
+  if not Assigned(ASelectFactory) then
+    raise EArgumentNilException.Create('ASelectFactory must not be nil');
+  FViewDefinitionRegistry.AddOrSetValue(AClassType.ClassName, ASelectFactory);
+end;
+
+class procedure TRESTViewManager.EnsureViewLazy(const AClassType: TClass;
+  const AConnection: IDBConnection);
+var
+  LFactory: TFunc<IFluentSQL>;
+  LSelect: IFluentSQL;
+begin
+  if FViewEnsuredCache.ContainsKey(AClassType.ClassName) then
+    Exit;
+  if not FViewDefinitionRegistry.TryGetValue(AClassType.ClassName, LFactory) then
+    raise ERegistryMissingException.CreateFmt(
+      'No view definition registered for class %s. ' +
+      'Call TRESTViewManager.Register before the server handles GET requests.',
+      [AClassType.ClassName]);
+  LSelect := LFactory;
+  EnsureView(AClassType, LSelect, AConnection);
+end;
+
+class procedure TRESTViewManager.ClearCache;
+begin
+  FViewEnsuredCache.Clear;
+end;
+
+initialization
+  TRESTViewManager.FViewDefinitionRegistry :=
+    TDictionary<string, TFunc<IFluentSQL>>.Create;
+  TRESTViewManager.FViewEnsuredCache :=
+    TDictionary<string, Boolean>.Create;
+
+finalization
+  FreeAndNil(TRESTViewManager.FViewDefinitionRegistry);
+  FreeAndNil(TRESTViewManager.FViewEnsuredCache);
 
 end.

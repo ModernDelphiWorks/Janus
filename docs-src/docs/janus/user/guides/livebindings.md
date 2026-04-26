@@ -1,71 +1,207 @@
 ---
-title: Guia - LiveBindings (VCL e FMX)
+title: Guia - LiveBindings (VCL)
 displayed_sidebar: janusSidebar
 ---
 
-O Janus oferece atributos de LiveBindings para vincular propriedades de entidades a controles VCL/FMX automaticamente, sem código manual de binding.
+O Janus oferece um engine de LiveBindings (R22+) baseado em atributos e em `TJanusBinder` para vincular propriedades de entidades a controles VCL automaticamente, sem necessidade de código manual de binding, herança especial ou truques de ordenação no `uses`.
+
+## TJanusBinder
+
+O `TJanusBinder` é o ponto central do novo engine. Ele lê os atributos `[Bind]` da entidade via RTTI, cria os vínculos e mantém os controles sincronizados.
+
+Padrão de ciclo de vida:
+
+```delphi
+// FormCreate
+FBinder := TJanusBinder.Create(Self);
+FBinder.Bind(FEntidade);    // lê [Bind] via RTTI e cria os links
+FBinder.Refresh;            // propaga valores iniciais para os controles
+
+// FormDestroy
+FBinder.Free;               // antes de liberar a entidade
+```
+
+- `Bind(AEntity)` percorre as propriedades da entidade via RTTI e cria um `TLinkPropertyToField` por anotação `[Bind]` encontrada.
+- `Refresh` força a re-leitura do adapter e atualiza todos os controles. Chamar após alterações programáticas nas propriedades da entidade.
+- `FBinder` deve ser liberado antes da entidade que foi passada para `Bind`.
 
 ## Atributos disponíveis
 
 | Atributo | Uso |
 |----------|-----|
-| `[LiveBindingsControl('controle', 'campo')]` | Vincula uma propriedade a um controle pelo nome |
-| `[LiveBindingsGridMaster('grid')]` | Vincula a entidade como mestre de uma grade |
-| `[LiveBindingsGridDetail('grid', 'campoMestre')]` | Vincula como detalhe de uma grade |
+| `[Bind('controle', 'propriedade')]` | Vincula uma propriedade da entidade a uma propriedade do controle via `TLinkPropertyToField` |
+| `[BindGrid('grid')]` | Declara que a propriedade alimenta uma grade (chamada imperativa: `BindGrid<T>`) |
+| `[BindGridDetail('grid', 'propMestre')]` | Declara binding de detalhe (chamada imperativa: `BindMasterDetail<M,D>`) |
+| `[BindListControl('controle', 'campo')]` | Declara binding de lista (chamada imperativa: `BindList<T>`) |
+| `[BindGridColumn('título', largura, visível)]` | Metadados de coluna para uso com `ConfigureGridColumns` |
 
-## Incluir os controles estendidos
+:::note
+`[BindGrid]`, `[BindGridDetail]` e `[BindListControl]` são declarativos. O dispatch automático via RTTI (equivalente ao que `[Bind]` faz) está previsto para um ciclo futuro; por enquanto, use as chamadas imperativas correspondentes.
+:::
 
-Para VCL, inclua no uses do formulário:
+## Exemplo: controles simples (VCL)
 
-```delphi
-uses Janus.VCL.Controls;
-// O Janus redefine TEdit, TMaskEdit, TLabel, TComboBox, TMemo
-// com suporte automático a LiveBindings
-```
-
-Para FMX:
+Entidade (PODO — sem herança especial):
 
 ```delphi
-uses Janus.FMX.Controls;
-```
+unit produto;
 
-## Anotar a entidade
+interface
 
-```delphi
-[Entity]
-[Table('client', '')]
-Tclient = class
-private
-  Fclient_name: String;
-  Fclient_email: String;
-public
-  [Column('client_name', ftString, 40)]
-  [LiveBindingsControl('EditNome', 'Text')]
-  property client_name: String read Fclient_name write Fclient_name;
+uses
+  Janus.Binder.Attributes;
 
-  [Column('client_email', ftString, 100)]
-  [LiveBindingsControl('EditEmail', 'Text')]
-  property client_email: String read Fclient_email write Fclient_email;
-end;
-```
+type
+  TProduto = class
+  private
+    FID: Integer;
+    FPreco: Double;
+    FSoma: Double;
+    procedure SetID(const AValue: Integer);
+    procedure SetPreco(const AValue: Double);
+  public
+    [Bind('EditID', 'Text')]
+    [Bind('LabelID', 'Caption')]
+    property ID: Integer read FID write SetID;
 
-## Ativar o binding no formulário
+    [Bind('EditPreco', 'Text')]
+    property Preco: Double read FPreco write SetPreco;
 
-```delphi
-uses Janus.LiveBindings;
+    [Bind('EditSoma', 'Text')]  // campo computado: somente leitura
+    property Soma: Double read FSoma;
+  end;
 
-procedure TFormCliente.FormCreate(Sender: TObject);
-var LBindings: TJanusLivebindings;
+implementation
+
+procedure TProduto.SetID(const AValue: Integer);
 begin
-  LBindings := TJanusLivebindings.Create(Self);
-  LBindings.Bind(LClientEntity);
+  FID := AValue;
+  FSoma := FID * FPreco;  // recalcula campo derivado
+end;
+
+procedure TProduto.SetPreco(const AValue: Double);
+begin
+  FPreco := AValue;
+  FSoma := FID * FPreco;
+end;
+
+end.
+```
+
+Formulário (trecho):
+
+```delphi
+uses Janus.Binder;
+
+type
+  TFormPrincipal = class(TForm)
+    EditID: TEdit;
+    EditPreco: TEdit;
+    EditSoma: TEdit;    // somente leitura — campo computado
+    LabelID: TLabel;
+    BtnAtualizar: TButton;
+    procedure FormCreate(Sender: TObject);
+    procedure FormDestroy(Sender: TObject);
+    procedure BtnAtualizarClick(Sender: TObject);
+  private
+    FProduto: TProduto;
+    FBinder: TJanusBinder;
+  end;
+
+procedure TFormPrincipal.FormCreate(Sender: TObject);
+begin
+  FProduto := TProduto.Create;
+  FBinder := TJanusBinder.Create(Self);
+  FBinder.Bind(FProduto);
+  FProduto.ID := 1;
+  FProduto.Preco := 10;
+  FBinder.Refresh;          // exibe valores iniciais nos controles
+  EditSoma.ReadOnly := True; // campo derivado não deve ser editado pelo usuário
+end;
+
+procedure TFormPrincipal.FormDestroy(Sender: TObject);
+begin
+  FBinder.Free;    // libere o binder antes da entidade
+  FProduto.Free;
+end;
+
+procedure TFormPrincipal.BtnAtualizarClick(Sender: TObject);
+begin
+  FProduto.ID := FProduto.ID * 2;
+  FProduto.Preco := FProduto.Preco * 4.5;
+  FBinder.Refresh;  // propaga as alterações programáticas para os controles
 end;
 ```
 
-O Janus lê os atributos via RTTI e cria as expressões de binding automaticamente.
+## Exemplo: grade (VCL)
 
-## Dicas
+```delphi
+// Entidade com metadados de coluna
+type
+  TPedido = class
+  private
+    FId: Integer;
+    FDescricao: string;
+  published
+    [BindGridColumn('Código', 60)]
+    property Id: Integer read FId write FId;
 
-- Os nomes nos atributos devem corresponder exatamente ao nome do componente no formulário (`Name` do controle).
-- Para grades, use `[LiveBindingsGridMaster]` na entidade pai e `[LiveBindingsGridDetail]` na entidade filha.
-- Funciona com VCL e FMX sem alteração no code de negócio.
+    [BindGridColumn('Descrição', 200)]
+    property Descricao: string read FDescricao write FDescricao;
+  end;
+
+// No formulário
+var LPedidos: TObjectList<TPedido>;
+begin
+  LPedidos := // carregue a lista...
+  FBinder.BindGrid<TPedido>(LPedidos, 'GridPedidos');
+  FBinder.ConfigureGridColumns('GridPedidos', TPedido);
+end;
+```
+
+## Exemplo: controle de lista (VCL)
+
+```delphi
+FBinder.BindList<TPedido>(LPedidos, 'ListBoxPedidos', 'Descricao');
+```
+
+## Metadados de colunas com `[BindGridColumn]`
+
+Campos do atributo:
+
+- `ATitle: string` — título da coluna no cabeçalho da grade.
+- `AWidth: Integer` (padrão `-1`) — largura em pixels; `-1` mantém a largura padrão da grade.
+- `AVisible: Boolean` (padrão `True`) — se `False`, a coluna é omitida por `ConfigureGridColumns`.
+
+Fluxo de uso:
+
+1. Anote as propriedades `published` da entidade com `[BindGridColumn]`.
+2. Chame `FBinder.BindGrid<T>(lista, 'NomeDaGrade')` para criar o vínculo.
+3. Chame `FBinder.ConfigureGridColumns('NomeDaGrade', T)` para aplicar os metadados.
+
+:::note
+`ConfigureGridColumns` suporta `TStringGrid`. Grades do tipo `TDBGrid` ou de terceiros não são suportadas nesta versão.
+:::
+
+## Migração do engine legado
+
+:::caution Depreciação — remoção no R22.6
+Os seguintes símbolos foram marcados como `deprecated` no Janus R22.4 e serão **removidos no R22.6**:
+
+- `LiveBindingsControl`, `LiveBindingsGridMaster`, `LiveBindingsGridDetail` (em `Janus.LiveBindings`)
+- `TJanusLivebindings` (em `Janus.LiveBindings`)
+- `TListComponents`, `TListFieldNames`, `TListControls` (em `Janus.Controls.Helpers`)
+- As unidades `Janus.VCL.Controls` e `Janus.FMX.Controls` (engine de shadowing)
+:::
+
+**Passos de migração:**
+
+1. **Remova a herança.** Troque `TProduto = class(TJanusLiveBindings)` por `TProduto = class`.
+2. **Substitua os atributos.** Troque `[LiveBindingsControl('c', 'p')]` por `[Bind('c', 'p')]` de `Janus.Binder.Attributes`.
+3. **Elimine o `TBindings.Notify`.** Remova as chamadas `TBindings.Notify(Self, 'Campo')` dos setters. Para campos calculados (ex.: `Soma := ID * Preco`), compute o valor diretamente no setter.
+4. **Crie o binder no formulário.** Em `FormCreate`, crie um `TJanusBinder`, chame `Bind(entidade)` e `Refresh`. Em `FormDestroy`, libere o binder antes da entidade.
+5. **Remova `Janus.VCL.Controls` do `uses`.** Não é mais necessário posicioná-lo em último lugar.
+
+## FMX
+
+O `TJanusBinder` atual depende de unidades VCL (`Vcl.Controls`, `Vcl.Grids`). O suporte a projetos FMX — sem dependência de unidades VCL — requer suporte a compilação condicional por plataforma em `Janus.Binder.pas`, previsto para um ciclo futuro. Os exemplos FMX em `Examples/Delphi/Livebindings/FMX/` mantêm o engine legado com um aviso de migração.
