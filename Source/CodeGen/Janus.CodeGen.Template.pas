@@ -1,3 +1,16 @@
+{
+  ------------------------------------------------------------------------------
+  Janus
+  Modern Object-Relational Mapping (ORM) framework for Delphi.
+
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2016-2026 Isaque Pinheiro
+
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
+}
+
 unit Janus.CodeGen.Template;
 
 interface

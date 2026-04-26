@@ -1,8 +1,14 @@
 {
-      ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi
+  ------------------------------------------------------------------------------
+  Janus
+  Modern Object-Relational Mapping (ORM) framework for Delphi.
 
-                   Copyright (c) 2018, Isaque Pinheiro
-                          All rights reserved.
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2016-2026 Isaque Pinheiro
+
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
 }
 
 {
