@@ -1,4 +1,4 @@
-program JanusSmoke;
+﻿program JanusSmoke;
 
 {$IFNDEF TESTINSIGHT}
 {$APPTYPE CONSOLE}

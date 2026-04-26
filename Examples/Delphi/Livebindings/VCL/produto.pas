@@ -3,55 +3,45 @@ unit produto;
 interface
 
 uses
-  Janus.LiveBindings;
+  Janus.Binder.Attributes;
 
 type
-  TProduto = class(TJanusLiveBindings)
+  TProduto = class
   private
     FID: Integer;
     FPreco: Double;
     FSoma: Double;
-    procedure SetPreco(const Value: Double);
-    procedure SetID(const Value: Integer);
+    procedure SetID(const AValue: Integer);
+    procedure SetPreco(const AValue: Double);
   public
-    constructor Create; override;
-
-    [LiveBindingsControl('EditID', 'Text')]
-    [LiveBindingsControl('LabelID', 'Caption')]
-    [LiveBindingsControl('ComboEditID', 'ItemIndex')]
-    [LiveBindingsControl('ProgressBarID', 'Position')]
+    [Bind('EditID', 'Text')]
+    [Bind('LabelID', 'Caption')]
+    [Bind('ComboEditID', 'ItemIndex')]
+    [Bind('ProgressBarID', 'Position')]
     property ID: Integer read FID write SetID;
 
-    [LiveBindingsControl('EditPreco', 'Text')]
-    [LiveBindingsControl('LabelPreco', 'Caption')]
+    [Bind('EditPreco', 'Text')]
+    [Bind('LabelPreco', 'Caption')]
     property Preco: Double read FPreco write SetPreco;
 
-    [LiveBindingsControl('EditSoma', 'Text', 'TProduto.ID * TProduto.Preco')]
-    property Soma: Double read FSoma write FSoma;
+    [Bind('EditSoma', 'Text')]
+    property Soma: Double read FSoma;
   end;
 
 implementation
 
-uses
-  Bindings.Helper;
-
 { TProduto }
 
-constructor TProduto.Create;
+procedure TProduto.SetID(const AValue: Integer);
 begin
-  inherited;
+  FID := AValue;
+  FSoma := FID * FPreco;
 end;
 
-procedure TProduto.SetID(const Value: Integer);
+procedure TProduto.SetPreco(const AValue: Double);
 begin
-  FID := Value;
-  TBindings.Notify(Self, 'ID');
-end;
-
-procedure TProduto.SetPreco(const Value: Double);
-begin
-  FPreco := Value;
-  TBindings.Notify(Self, 'Preco');
+  FPreco := AValue;
+  FSoma := FID * FPreco;
 end;
 
 end.
