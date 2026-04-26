@@ -20,7 +20,9 @@ uses
   /// LiveBindings Tests — ESP-004 / R22.2
   Tests.Janus.LiveBindings.R222 in 'Tests\Tests.Janus.LiveBindings.R222.pas',
   /// LiveBindings Tests — ESP-002 / R22.3
-  Tests.Janus.LiveBindings.R223 in 'Tests\Tests.Janus.LiveBindings.R223.pas';
+  Tests.Janus.LiveBindings.R223 in 'Tests\Tests.Janus.LiveBindings.R223.pas',
+  /// LiveBindings Tests — ESP-002 / R22.4
+  Tests.Janus.LiveBindings.R224 in 'Tests\Tests.Janus.LiveBindings.R224.pas';
 
 const
   EXIT_SUCCESS = 0;
