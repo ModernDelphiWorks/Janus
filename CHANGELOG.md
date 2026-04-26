@@ -7,6 +7,15 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.22.0](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.22.0) — 2026-04-26
+
+### Added
+- R22.4 DUnitX fixture (`Tests.Janus.LiveBindings.R224.pas`) with 10 tests covering `BindGridColumn` attribute binding, regression guard for R22.1–R22.3, and `AdapterBindSources` wiring; registered in `JanusLiveBindings.dpr` ([#165](https://github.com/ModernDelphiWorks/Janus/issues/165))
+
+### Changed
+- `Janus.Binder.Attributes.pas`: committed `BindGridColumn` attribute class (previously unstaged); `ConfigureGridColumns` parameter `AItemType` now declared `const` in both interface and implementation ([#165](https://github.com/ModernDelphiWorks/Janus/issues/165))
+- Removed legacy `TJanusLiveBindings` engine units (`Janus.LiveBindings.pas`, `Janus.Controls.Helpers.pas`, `Janus.VCL.Controls.pas`, `Janus.FMX.Controls.pas`) and FMX example from repository; renamed `FGridBindSources` → `FAdapterBindSources` in `TJanusBinder` ([#164](https://github.com/ModernDelphiWorks/Janus/issues/164))
+
 ## [v2.21.0](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.21.0) — 2026-04-26
 
 ### Added
