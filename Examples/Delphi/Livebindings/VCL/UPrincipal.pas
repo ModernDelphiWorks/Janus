@@ -15,12 +15,7 @@ uses
   Vcl.StdCtrls,
   Vcl.ComCtrls,
 
-  produto,
-  // ESSA UNIT TEM QUE ESTAR AQUI POR ULTIMO EM TODOS OS FORMULARIOS,
-  // SEN�O N�O FUNCIONA.
-  //
-  // N�O COLOCAR NO IMPLEMENTATION, TEM QUE SER AQU NA INTERFACE MESMO E POR �LTIMO.
-  Janus.VCL.Controls;
+  produto;
 
 type
   TFormPrincipal = class(TForm)
@@ -44,6 +39,7 @@ type
   private
     { Private declarations }
     FProduto_1: TProduto;
+    FBinder: TJanusBinder;
   public
     { Public declarations }
   end;
@@ -52,6 +48,9 @@ var
   FormPrincipal: TFormPrincipal;
 
 implementation
+
+uses
+  Janus.Binder;
 
 {$R *.dfm}
 
@@ -69,6 +68,7 @@ procedure TFormPrincipal.Button3Click(Sender: TObject);
 begin
   FProduto_1.ID := FProduto_1.ID * 2;
   FProduto_1.Preco := FProduto_1.Preco * 4.5;
+  FBinder.Refresh;
 end;
 
 procedure TFormPrincipal.Button4Click(Sender: TObject);
@@ -79,13 +79,17 @@ end;
 procedure TFormPrincipal.FormCreate(Sender: TObject);
 begin
   FProduto_1 := TProduto.Create;
-  // Valor padr�o, j� ser� mostrado nos componentes
+  FBinder := TJanusBinder.Create(Self);
+  FBinder.Bind(FProduto_1);
   FProduto_1.ID := 1;
   FProduto_1.Preco := 10;
+  FBinder.Refresh;
+  EditSoma.ReadOnly := True;
 end;
 
 procedure TFormPrincipal.FormDestroy(Sender: TObject);
 begin
+  FBinder.Free;
   FProduto_1.Free;
 end;
 

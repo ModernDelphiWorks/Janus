@@ -4,9 +4,8 @@ uses
   Vcl.Forms,
   UPrincipal in 'UPrincipal.pas' {FormPrincipal},
   produto in 'produto.pas',
-  Janus.Controls.Helpers in '..\..\..\Source\Livebindings\Janus.Controls.Helpers.pas',
-  Janus.LiveBindings in '..\..\..\Source\Livebindings\Janus.LiveBindings.pas',
-  Janus.VCL.Controls in '..\..\..\Source\Livebindings\Janus.VCL.Controls.pas';
+  Janus.Binder.Attributes in '..\..\..\Source\Livebindings\Janus.Binder.Attributes.pas',
+  Janus.Binder in '..\..\..\Source\Livebindings\Janus.Binder.pas';
 
 {$R *.res}
 
