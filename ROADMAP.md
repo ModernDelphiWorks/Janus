@@ -2,7 +2,7 @@
 
 Este arquivo registra apenas direcao estrategica, fase atual, milestones proximos e backlog resumido. Historico de release, status operacional por issue, evidencias de teste e reports da pipeline ficam fora deste artefato.
 
-**Ultima atualizacao:** 2026-04-25
+**Ultima atualizacao:** 2026-04-26
 
 ## Visao
 
@@ -10,48 +10,33 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 
 ## Estado estrategico atual
 
-- Versao mais recente: v2.20.0 (released 2026-04-20).
-- Fase atual: pos-release v2.20.0 — tres commits (#133, #134, #135) em develop pendentes de release v2.20.1.
-- Leitura do ciclo: R19 entregue como v2.20.0 (#130); R19.1 fechado (#133); R19.2 fechado (#134, #135); artefatos de governanca sendo consolidados para gate do /release v2.20.1.
+- Versao mais recente: v2.22.0 (released 2026-04-26).
+- Fase atual: pos-release v2.22.0 — develop e main alinhados via PR #166.
+- Leitura do ciclo: rework de LiveBindings (R22.x) entregue end-to-end; engine legado fisicamente removido; documentacao e exemplos atualizados.
 
 ## Marcos recentes
 
 - R15.x encerrou a transicao Criteria -> FluentSQL e a limpeza principal do legado associado.
 - R16.x reorganizou backlog, governanca de pipeline e baseline de RTTI/cache para o ciclo seguinte.
 - R17.x entregou o lazy loading transparente, executou hardening interno e fechou a consolidacao operacional pos-hotfix antes da abertura do proximo ciclo funcional.
+- R18.x consolidou o lazy loading transparente e estabeleceu o protocolo de scope-isolation, baseline de smoke e governanca pre-gate da pipeline.
+- R19/R20 endureceu a camada REST/Horse com OData tokenizado, atributo [RESTReadOnly] por classe e granularidade [RESTAllow*] por verbo HTTP.
+- R22.x reescreveu o engine de LiveBindings em torno de TJanusBinder com adapters publicos Data.Bind.*, eliminando o engine legado de uma vez (R22.4b).
+- R23/R24 entregaram o exemplo Oracle REST Horse e o registry de auto-view com lazy-init para [View].
 
 ## Ciclo atual
 
-### R18.4 — XML evidence portability hardening (em execucao)
-
-- Objetivo estrategico: fechar o caveat de portabilidade da evidencia XML herdado de #108, garantindo que o smoke lazy-loading produza evidencias deterministicas em ambientes relativos e com caminho explicito.
-- Estado atual: issue #111 aberta e em implementacao.
-- Demanda ativa: issue #111 (ESP-002, feature) — endurecer contrato de portabilidade XML, preconditions, fallback e rastreabilidade de evidencia.
-- Proxima decisao: apos QA, avaliar expansao funcional do ciclo R18.x.
-
-### R18.1 — Pacote minimo de smoke validation (em execucao)
-
-- Objetivo estrategico: consolidar evidencia auditavel de comportamento do lazy loading transparente antes de abrir novo trabalho funcional.
-- Estado atual: baseline minimo de smoke consolidado para ObjectSet + DataSet, com evidencias recentes em rodadas de QA e preparo da formalizacao R18.2 em andamento.
-- Demanda ativa: issue #99 (especificacao), issue #101 (correcao de handoff) e issue #102 (execucao/QA), todas dentro do trilho ESP-002.
-- Proxima decisao: abrir a rodada R18.2 via `/task` com escopo de confiabilidade ampliada e contrato de evidencia deterministico.
+- Nenhuma rodada ativa apos v2.22.0.
+- Develop e main alinhados via PR #166.
+- Pipeline pronto para abrir nova frente assim que houver decisao estrategica do dono do projeto.
 
 ## Proximos milestones
 
-1. Formalizar a primeira demanda de R18.x no pipeline antes de expandir o roadmap.
-2. Preservar coerencia entre documentacao publica, changelog e baseline operacional consolidada do ciclo lazy.
-3. Reavaliar o backlog candidato apenas quando houver aprovacao explicita de nova direcao estrategica.
-4. Publicar a demanda candidata R18.1 (origem textual "proxiam demanda", normalizada como "proxima demanda"), mantendo classificacao ESP-002 (feature), escopo funcional fechado, criterios de aceite auditaveis e handoff pronto para `/task`.
-5. Detalhar o recorte funcional executavel de R18.1 (modulo alvo, comportamento esperado e evidencia de validacao) antes de abrir nova issue de implementacao.
-6. Recorte proposto para R18.1: pacote de smoke validation do lazy loading transparente (ObjectSet + DataSet), com cenarios minimos executaveis em `Test/Delphi/` e evidencia objetiva de execucao para gate de implementacao.
-7. Demanda ativa da rodada atual: issue #99 (especificacao em arquiteto) + issue #102 (implementacao) - entregar o pacote minimo de smoke validation do lazy loading transparente, mantendo classificacao ESP-002, evidencia auditavel e handoff alinhado entre architect, task, implement, review e test.
-8. Validar o pacote smoke via gates de review e test; consolidar evidencia de execucao nos artefatos de pipeline antes de abrir expansao funcional do ciclo R18.x.
-9. Formalizar a proxima demanda R18.2 como ESP-002 (feature): ampliar baseline smoke de lazy loading transparente com criterios de evidencia deterministicos e rastreabilidade entre diff e reports.
-10. Abrir a issue da rodada R18.2 via `/task` apos alinhamento de assumptions (ausencia de card em `Ready`) e manter o escopo restrito a confiabilidade (ObjectSet + DataSet) sem redesign arquitetural.
-11. Formalizar a proxima demanda R18.3 como ESP-002 (feature): consolidar comando canonico do smoke lazy, pre-condicoes deterministicas para evidencias XML e matriz de rastreabilidade de cenarios para reduzir caveats recorrentes de QA.
-12. Formalizar a proxima demanda R18.4 como ESP-002 (feature): endurecer portabilidade da evidencia XML (modo relativo e caminho explicito), com contrato deterministico de fallback e rastreabilidade obrigatoria entre comando, estrategia de caminho e artefato gerado.
-13. Formalizar a proxima demanda R18.10 como ESP-002 (feature): estabelecer baseline deterministico de validacao pre-gate para freshness de evidencias e isolamento de escopo (diff in-scope vs out-of-scope) antes de `/review`, `/test` e `/develop`.
-14. Formalizar a demanda de correcao R18.11 como ESP-003 (bug): reconciliar explicitamente o diff tracked pre-existente de `ROADMAP.md` para eliminar bloqueio recorrente em `/develop` (`NO_COMMITTABLE_FILES`) com evidencia objetiva de escopo.
+- Lazarus parity para o novo engine de LiveBindings — reimplementacao das primitivas Data.Bind.* ou padroes fpcunit/Lazarus-native equivalentes (candidata — direção a confirmar).
+- Auditoria dos demais wrappers DataEngine (Firebird, PostgreSQL, MySQL, MSSQL, etc.) para o mesmo bug de transaction lifecycle corrigido em DataEngine.DriverFireDac (candidata — direção a confirmar).
+- Suporte a grids de terceiros para LiveBindings (DevExpress, TMS, cxGrid) preservando uso de APIs publicas de TCustomGrid (candidata — direção a confirmar).
+- Port da camada REST/Horse para outros frameworks web (DMVC, MARS, WiRL, DataSnap) e Cliente REST (candidata — direção a confirmar).
+- Documentacao: lint/link-check leve para docs-src/docs/janus/user/ antes de /review (candidata — direção a confirmar).
 
 ### R19.1 — Post-release caveat closure for v2.20.0 — delivered 2026-04-20
 
@@ -96,6 +81,78 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
   - [x] Implementar guard de grant-list em `TAppResourceBase` (com precedencia de `[RESTReadOnly]`) — delivered v2.20.1 2026-04-21
   - [x] Testes unitarios de deteccao RTTI e testes de integracao via Horse (CA-001..CA-012) — delivered v2.20.1 2026-04-21
   - [x] Atualizar `rest-readonly.md` com novos atributos e tabela de comportamento combinado — delivered v2.20.1 2026-04-21
+
+### R21 — pre-release v2.21.0 / v2.21.1 / v2.20.2 caveat closure (entregue)
+
+- Objetivo estrategico: fechar tres rodadas de caveats acumulados desde v2.20.1 — bug do filtro/DELETE no REST/Horse, transaction lifecycle no DataEngine FireDAC, e parser OData (URL-decoding + literais com virgula + lookahead de operadores).
+- Estado atual: entregue como v2.20.2 (2026-04-22).
+- Demanda ativa: nenhuma — rodada encerrada.
+- Itens da rodada:
+  - [x] Fix: filter-based DELETE em REST/Horse — FindWhere em FilterExecuteFind — delivered #145 2026-04-21
+  - [x] Fix: seed isolation em GET filter tests — Alice insertion inline antes de cada assert — delivered #145 2026-04-21
+  - [x] Fix: DataEngine FireDAC LResultSet.Next em 8 sites de loop em RestObject.Manager.pas — delivered #147 2026-04-22
+  - [x] Fix: OData parser TNetEncoding.URL.Decode + iteracao de AArgTokens + lookahead 2-char + dicionario O(1) — delivered #149 2026-04-22
+- Proxima decisao: nenhuma — rodada encerrada.
+
+### R22-STUDY — LiveBindings attribute engine rework (estudo entregue)
+
+- Objetivo estrategico: aprovar a direcao arquitetural do novo engine de LiveBindings antes de iniciar implementacao — adapter-based sobre Data.Bind.*, DSL unificado [Bind]/[BindGrid]/[BindList]/[BindGridColumn], dual backend Object+DataSet, remocao do shadowing VCL/FMX, plano em sprints R22.1..R22.6.
+- Estado atual: estudo entregue (2026-04-22) — 9 ADRs aprovados; zero modificacao em Source/.
+- Demanda ativa: nenhuma — rodada encerrada.
+- Itens da rodada:
+  - [x] 9 ADRs aprovados cobrindo engine adapter-based, DSL unificado, dual backend, kernel publico Janus.OneToMany.pas, scope por form, Lazarus fora da engine nova — delivered 2026-04-22
+  - [x] Plano de sprints R22.1..R22.6 publicado em ROADMAP.md — delivered 2026-04-22
+- Proxima decisao: nenhuma — rodada encerrada.
+
+### R22.1 — TJanusBinder engine + Bind attribute DSL (entregue como v2.21.0)
+
+- Objetivo estrategico: introduzir engine adapter-based para LiveBindings sem heranca de TJanusLiveBindings, com DSL de atributos [Bind]/[BindGrid]/[BindGridDetail]/[BindListControl]/[BindGridColumn] e ciclo de vida Bind/Refresh/Free.
+- Estado atual: entregue como v2.21.0 (2026-04-26).
+- Demanda ativa: nenhuma — rodada encerrada.
+- Itens da rodada:
+  - [x] TJanusBinder + Janus.Binder.Resolver + Janus.Binder.Attributes — delivered #154 (60084fd) 2026-04-23
+  - [x] Tests.Janus.LiveBindings.R221 fixture com controles simples — delivered #154 (60084fd) 2026-04-23
+- Proxima decisao: nenhuma — rodada encerrada.
+
+### R22.2 — BindGrid Object backend + master/detail/sub-detail (entregue como v2.21.0)
+
+- Objetivo estrategico: estender TJanusBinder com BindGrid<TItem>, BindMasterDetail<TMaster,TDetail> e BindMasterDetailSubdetail<TMaster,TDetail,TSubdetail> sobre adapters Object via TListBindSourceAdapter<T>, com propagacao de scroll via eventos AfterScroll/BeforeScroll diretos.
+- Estado atual: entregue como v2.21.0 (2026-04-26).
+- Demanda ativa: nenhuma — rodada encerrada.
+- Itens da rodada:
+  - [x] BindGrid + BindMasterDetail + BindMasterDetailSubdetail (Object backend) — delivered #155 (f5f7049) 2026-04-24
+  - [x] Tests.Janus.LiveBindings.R222 fixture (31 testes) — delivered #155 (f5f7049) 2026-04-24
+- Proxima decisao: nenhuma — rodada encerrada.
+
+### R22.5 — LiveBindings user manual rewrite + VCL example PODO migration (entregue como v2.21.0)
+
+- Objetivo estrategico: reescrever docs-src/docs/janus/user/guides/livebindings.md em torno da nova API TJanusBinder; migrar exemplo VCL para PODO + [Bind]; anotar exemplo FMX com nota de migracao.
+- Estado atual: entregue como v2.21.0 (2026-04-26).
+- Demanda ativa: nenhuma — rodada encerrada.
+- Itens da rodada:
+  - [x] livebindings.md reescrito (lifecycle, atributos, samples [Bind]/BindGrid<T>/BindList<T>/[BindGridColumn], guia de migracao com horizonte R22.6) — delivered #161 (b7f46f5) 2026-04-26
+  - [x] Exemplo VCL migrado de TJanusLiveBindings para PODO + TJanusBinder — delivered #161 (b7f46f5) 2026-04-26
+  - [x] Exemplo FMX anotado com bloco de comentario migration-note — delivered #161 (b7f46f5) 2026-04-26
+- Proxima decisao: nenhuma — rodada encerrada.
+
+### R23 — Oracle REST Horse example (entregue como v2.21.0)
+
+- Objetivo estrategico: publicar exemplo completo de servidor REST Horse contra Oracle XE 11g em Examples/Delphi/RESTful/Horse/Oracle/, incluindo TProviderJanus + TProviderDM, modelos com [Table]+[RESTReadOnly]+[RESTAllow*], CRUD endpoints e view modelpedidoscompletos.
+- Estado atual: entregue como v2.21.0 (2026-04-26).
+- Demanda ativa: nenhuma — rodada encerrada.
+- Itens da rodada:
+  - [x] JanusOracleRESTServer.dpr + 4 modelos + 3 unidades de provider + Postman collection — delivered #157 (a9304f1) 2026-04-24
+- Proxima decisao: nenhuma — rodada encerrada.
+
+### R24 — Oracle AutoView lazy-init registry (entregue como v2.21.0)
+
+- Objetivo estrategico: introduzir TRESTViewManager.Register/EnsureViewLazy/ClearCache para criacao lazy de VIEW Oracle no primeiro acesso GET; ParseFind detecta [View] e dispara EnsureViewLazy; mutations bloqueiam [View] implicitamente.
+- Estado atual: entregue como v2.21.0 (2026-04-26).
+- Demanda ativa: nenhuma — rodada encerrada.
+- Itens da rodada:
+  - [x] TRESTViewManager lazy-init + ParseFind [View] detection + implicit read-only guard para rotas nao mapeadas — delivered #158 (3982516) 2026-04-24
+  - [x] TestJanusRESTOracleAutoView fixture (4 testes) PASS contra Oracle XE 11g Docker — delivered #158 (3982516) 2026-04-24
+- Proxima decisao: nenhuma — rodada encerrada.
 
 ### R22.3 — LiveBindings DataSet backend: TBindSourceDB + grid + master-detail (commitado em develop)
 
@@ -169,5 +226,5 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 3. Registre entregas concluidas no changelog, analises em discussoes e execucao da rodada nos artefatos da pipeline.
 4. Se a informacao nao altera prioridade, fase ou direcao do projeto, ela nao deve aumentar o roadmap.
 
-*Ultima atualizacao: 2026-04-26 — R22.4-Commit (#165, `374fd3a`) commitado em develop: BindGridColumn attribute, R224 test suite (10 testes), JanusLiveBindings.dpr atualizado, caveats LP0/LP1/LP2 e GridBindSources corrigidos; todos os itens R22.4 e R22.4b entregues — aguarda /release*
+*Ultima atualizacao: 2026-04-26 — Post-v2.22.0-Roadmap-Consolidation: refresh do estado estrategico, secoes entregue R21/R22-STUDY/R22.1/R22.2/R22.5/R23/R24 inseridas, Ciclo atual e Proximos milestones reset; develop e main alinhados via PR #166*
 

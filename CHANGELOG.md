@@ -7,6 +7,13 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.22.1](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.22.1) — 2026-04-26
+
+### Changed
+- Replace LGPL header with canonical MIT header in all 134 `Source/` `.pas` files; source-level license mismatch with the `LICENSE` file is fully resolved ([#168](https://github.com/ModernDelphiWorks/Janus/issues/168))
+- ROADMAP consolidated: post-v2.22.0 strategic state documented with seven delivered cycles; current and next milestones reset ([#167](https://github.com/ModernDelphiWorks/Janus/issues/167))
+- Added `.mailmap` to normalize AI co-authorship entries in git history to main contributor identity
+
 ## [v2.22.0](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.22.0) — 2026-04-26
 
 ### Added
