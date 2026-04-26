@@ -108,9 +108,8 @@
             <FormType>dfm</FormType>
         </DCCReference>
         <DCCReference Include="produto.pas"/>
-        <DCCReference Include="..\..\..\Source\Livebindings\Janus.Controls.Helpers.pas"/>
-        <DCCReference Include="..\..\..\Source\Livebindings\Janus.LiveBindings.pas"/>
-        <DCCReference Include="..\..\..\Source\Livebindings\Janus.VCL.Controls.pas"/>
+        <DCCReference Include="..\..\..\Source\Livebindings\Janus.Binder.Attributes.pas"/>
+        <DCCReference Include="..\..\..\Source\Livebindings\Janus.Binder.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

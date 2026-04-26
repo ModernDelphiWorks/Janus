@@ -1,3 +1,17 @@
+// ============================================================
+// FMX MIGRATION NOTE (R22.5 / 2026-04-26)
+// ------------------------------------------------------------
+// Este exemplo ainda usa o engine legado (TJanusLiveBindings +
+// Janus.FMX.Controls). Os símbolos legados foram marcados como
+// deprecated no R22.4 e serão removidos no R22.6.
+//
+// A migração completa para TJanusBinder em FMX requer suporte
+// a unidades FMX condicionais em Janus.Binder.pas, previsto para
+// um ciclo futuro. Consulte o exemplo VCL migrado em:
+//   Examples/Delphi/Livebindings/VCL/
+// e o guia em:
+//   docs-src/docs/janus/user/guides/livebindings.md
+// ============================================================
 unit produto;
 
 interface
