@@ -15,7 +15,7 @@
        arquivo LICENSE na pasta principal.
 }
 
-{ @abstract(Janus Binder Attributes — R22.1)
+{ @abstract(Janus Binder Attributes — R22.4)
   @created(23 Apr 2026)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
 }
@@ -68,6 +68,20 @@ type
     property FieldName: string read FFieldName;
   end;
 
+  BindGridColumn = class(TCustomAttribute)
+  private
+    FTitle: string;
+    FWidth: Integer;
+    FVisible: Boolean;
+  public
+    constructor Create(const ATitle: string;
+      const AWidth: Integer = -1;
+      const AVisible: Boolean = True);
+    property Title: string read FTitle;
+    property Width: Integer read FWidth;
+    property Visible: Boolean read FVisible;
+  end;
+
 {$ENDIF DCC}
 
 implementation
@@ -103,6 +117,16 @@ constructor BindListControl.Create(const AControlName, AFieldName: string);
 begin
   FControlName := AControlName;
   FFieldName := AFieldName;
+end;
+
+{ BindGridColumn }
+
+constructor BindGridColumn.Create(const ATitle: string;
+  const AWidth: Integer; const AVisible: Boolean);
+begin
+  FTitle := ATitle;
+  FWidth := AWidth;
+  FVisible := AVisible;
 end;
 
 {$ENDIF DCC}

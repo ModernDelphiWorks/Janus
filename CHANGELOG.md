@@ -7,6 +7,24 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.21.0](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.21.0) — 2026-04-26
+
+### Added
+- `TJanusBinder` engine (R22.1): adapter-based live-bindings without `TJanusLiveBindings` inheritance; `[Bind]`, `[BindGrid]`, `[BindGridDetail]`, `[BindListControl]`, `[BindGridColumn]` attributes; `Bind(entity)` / `Refresh` / `Free` lifecycle ([#154](https://github.com/ModernDelphiWorks/Janus/issues/154))
+- `BindGrid<T>` / `ConfigureGridColumns` / `BindList<T>` engine wiring with master-detail and sub-detail grid support; R22.2 DUnitX fixture (31 tests) ([#155](https://github.com/ModernDelphiWorks/Janus/issues/155))
+- `BindSourceDB` DataSet backend for `TJanusBinder`: `TLinkDataSourceToMaster`/`TLinkPropertyToField` wiring from `TDataSource`; R22.3 DUnitX fixture ([#159](https://github.com/ModernDelphiWorks/Janus/issues/159))
+- Oracle REST Horse example (`Examples/Delphi/RESTful/Horse/Oracle/`): `JanusOracleRESTServer.dpr` with `TProviderJanus` + `TProviderDM`, 4 entity models, CRUD endpoints, and `modelpedidoscompletos` view ([#157](https://github.com/ModernDelphiWorks/Janus/issues/157))
+- `TRESTViewManager` lazy-init registry and Oracle AutoView DUnitX fixture (`TestJanusRESTOracleAutoView.pas`); implicit read-only guard for unmapped routes ([#158](https://github.com/ModernDelphiWorks/Janus/issues/158))
+- `JanusRESTHorseConsole.dpr`: zero-endpoint canonical demo using `TProviderJanus` + `TProviderDM` with 4 model registrations and Horse server lifecycle ([#153](https://github.com/ModernDelphiWorks/Janus/issues/153))
+- Initial `JanusRESTHorseConsole` with zero-endpoint CRUD self-test console for `TRESTServerHorse` ([#152](https://github.com/ModernDelphiWorks/Janus/issues/152))
+
+### Fixed
+- Removed erroneous LiveBindings R22.1/R22.2 test entries from `JanusSmoke.dpr` that caused false test-suite scope ([#156](https://github.com/ModernDelphiWorks/Janus/issues/156))
+
+### Changed
+- LiveBindings user manual (`docs-src/docs/janus/user/guides/livebindings.md`) fully rewritten to document `TJanusBinder` API: lifecycle, attributes table, code samples for `[Bind]`/`BindGrid<T>`/`BindList<T>`/`[BindGridColumn]`, and migration guide with R22.6 removal horizon ([#161](https://github.com/ModernDelphiWorks/Janus/issues/161))
+- VCL LiveBindings example (`Examples/Delphi/Livebindings/VCL/`) migrated from `TJanusLiveBindings` to plain PODO + `TJanusBinder`; FMX example annotated with migration-note comment block ([#161](https://github.com/ModernDelphiWorks/Janus/issues/161))
+
 ## [v2.20.2](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.20.2) — 2026-04-22
 
 ### Fixed

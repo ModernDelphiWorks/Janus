@@ -15,7 +15,7 @@
        arquivo LICENSE na pasta principal.
 }
 
-{ @abstract(Janus Binder — R22.3 DataSet backend: TBindSourceDB + grid + master-detail)
+{ @abstract(Janus Binder — R22.4: BindList + BindGridColumn metadata + FListLinks)
   @created(23 Apr 2026)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
 }
@@ -30,12 +30,14 @@ uses
   System.Classes,
   System.SysUtils,
   System.Rtti,
+  System.TypInfo,
   System.Generics.Collections,
   Data.DB,
   Data.Bind.DBScope,
   Data.Bind.ObjectScope,
   Data.Bind.Components,
   Data.Bind.Grid,
+  Vcl.Controls,
   Vcl.Grids,
   Janus.Binder.Attributes,
   Janus.Binder.Resolver;
@@ -66,10 +68,11 @@ type
     FObjectAdapter: TObjectBindSourceAdapter;
     FLinks: TObjectList<TLinkPropertyToField>;
     FGridListAdapters: TObjectList<TObject>;
-    FGridBindSources: TObjectList<TAdapterBindSource>;
+    FAdapterBindSources: TObjectList<TAdapterBindSource>;
     FGridLinks: TObjectList<TLinkGridToDataSource>;
     FDataSources: TObjectList<TDataSource>;
     FDBBindSources: TObjectList<TBindSourceDB>;
+    FListLinks: TObjectList<TLinkListControlToField>;
     procedure _BindDataSetToGrid(ADataSet: TDataSet; const AGridName: string);
   public
     constructor Create(const AOwner: TComponent);
@@ -99,12 +102,16 @@ type
       AMasterDS: TDataSet; const AMasterGridName: string;
       ADetailDS: TDataSet; const ADetailGridName: string;
       ASubdetailDS: TDataSet; const ASubdetailGridName: string);
+    procedure BindList<TItem: class>(const AList: TObjectList<TItem>;
+      const AControlName: string; const ADisplayFieldName: string);
+    procedure ConfigureGridColumns(const AGridName: string; const AItemType: TClass);
     property Adapter: TAdapterBindSource read FAdapter;
     property GridListAdapters: TObjectList<TObject> read FGridListAdapters;
-    property GridBindSources: TObjectList<TAdapterBindSource> read FGridBindSources;
+    property AdapterBindSources: TObjectList<TAdapterBindSource> read FAdapterBindSources;
     property GridLinks: TObjectList<TLinkGridToDataSource> read FGridLinks;
     property DBBindSources: TObjectList<TBindSourceDB> read FDBBindSources;
     property DataSources: TObjectList<TDataSource> read FDataSources;
+    property ListLinks: TObjectList<TLinkListControlToField> read FListLinks;
   end;
 
 {$ENDIF DCC}
@@ -147,19 +154,21 @@ begin
   FOwner := AOwner;
   FLinks := TObjectList<TLinkPropertyToField>.Create(True);
   FGridListAdapters := TObjectList<TObject>.Create(True);
-  FGridBindSources := TObjectList<TAdapterBindSource>.Create(True);
+  FAdapterBindSources := TObjectList<TAdapterBindSource>.Create(True);
   FGridLinks := TObjectList<TLinkGridToDataSource>.Create(True);
   FDataSources := TObjectList<TDataSource>.Create(True);
   FDBBindSources := TObjectList<TBindSourceDB>.Create(True);
+  FListLinks := TObjectList<TLinkListControlToField>.Create(True);
 end;
 
 destructor TJanusBinder.Destroy;
 begin
   Unbind;
+  FListLinks.Free;
   FDBBindSources.Free;
   FDataSources.Free;
   FGridLinks.Free;
-  FGridBindSources.Free;
+  FAdapterBindSources.Free;
   FGridListAdapters.Free;
   FLinks.Free;
   inherited;
@@ -213,11 +222,15 @@ end;
 
 procedure TJanusBinder.Unbind;
 var
+  LListLink: TLinkListControlToField;
   LLink: TLinkPropertyToField;
   LGridLink: TLinkGridToDataSource;
   LBindSource: TAdapterBindSource;
   LDBSource: TBindSourceDB;
 begin
+  for LListLink in FListLinks do
+    LListLink.Active := False;
+  FListLinks.Clear;
   for LGridLink in FGridLinks do
     LGridLink.Active := False;
   FGridLinks.Clear;
@@ -225,9 +238,9 @@ begin
     LDBSource.DataSource := nil;
   FDBBindSources.Clear;
   FDataSources.Clear;
-  for LBindSource in FGridBindSources do
+  for LBindSource in FAdapterBindSources do
     LBindSource.Active := False;
-  FGridBindSources.Clear;
+  FAdapterBindSources.Clear;
   FGridListAdapters.Clear;
   for LLink in FLinks do
     LLink.Active := False;
@@ -268,7 +281,7 @@ begin
   LBindSource := TAdapterBindSource.Create(nil);
   LBindSource.Adapter := LListAdapter;
   LBindSource.Active := True;
-  FGridBindSources.Add(LBindSource);
+  FAdapterBindSources.Add(LBindSource);
   LGridLink := TLinkGridToDataSource.Create(nil);
   LGridLink.DataSource := LBindSource;
   LGridLink.GridControl := LGrid;
@@ -324,7 +337,7 @@ begin
   LMasterBindSource := TAdapterBindSource.Create(nil);
   LMasterBindSource.Adapter := LMasterAdapter;
   LMasterBindSource.Active := True;
-  FGridBindSources.Add(LMasterBindSource);
+  FAdapterBindSources.Add(LMasterBindSource);
   LMasterGridLink := TLinkGridToDataSource.Create(nil);
   LMasterGridLink.DataSource := LMasterBindSource;
   LMasterGridLink.GridControl := LMasterGrid;
@@ -333,7 +346,7 @@ begin
   LDetailBindSource := TAdapterBindSource.Create(nil);
   LDetailBindSource.Adapter := LDetailAdapter;
   LDetailBindSource.Active := True;
-  FGridBindSources.Add(LDetailBindSource);
+  FAdapterBindSources.Add(LDetailBindSource);
   LDetailGridLink := TLinkGridToDataSource.Create(nil);
   LDetailGridLink.DataSource := LDetailBindSource;
   LDetailGridLink.GridControl := LDetailGrid;
@@ -414,7 +427,7 @@ begin
   LMasterBindSource := TAdapterBindSource.Create(nil);
   LMasterBindSource.Adapter := LMasterAdapter;
   LMasterBindSource.Active := True;
-  FGridBindSources.Add(LMasterBindSource);
+  FAdapterBindSources.Add(LMasterBindSource);
   LMasterGridLink := TLinkGridToDataSource.Create(nil);
   LMasterGridLink.DataSource := LMasterBindSource;
   LMasterGridLink.GridControl := LMasterGrid;
@@ -423,7 +436,7 @@ begin
   LDetailBindSource := TAdapterBindSource.Create(nil);
   LDetailBindSource.Adapter := LDetailAdapter;
   LDetailBindSource.Active := True;
-  FGridBindSources.Add(LDetailBindSource);
+  FAdapterBindSources.Add(LDetailBindSource);
   LDetailGridLink := TLinkGridToDataSource.Create(nil);
   LDetailGridLink.DataSource := LDetailBindSource;
   LDetailGridLink.GridControl := LDetailGrid;
@@ -432,7 +445,7 @@ begin
   LSubdetailBindSource := TAdapterBindSource.Create(nil);
   LSubdetailBindSource.Adapter := LSubdetailAdapter;
   LSubdetailBindSource.Active := True;
-  FGridBindSources.Add(LSubdetailBindSource);
+  FAdapterBindSources.Add(LSubdetailBindSource);
   LSubdetailGridLink := TLinkGridToDataSource.Create(nil);
   LSubdetailGridLink.DataSource := LSubdetailBindSource;
   LSubdetailGridLink.GridControl := LSubdetailGrid;
@@ -492,6 +505,117 @@ begin
   _BindDataSetToGrid(AMasterDS, AMasterGridName);
   _BindDataSetToGrid(ADetailDS, ADetailGridName);
   _BindDataSetToGrid(ASubdetailDS, ASubdetailGridName);
+end;
+
+procedure TJanusBinder.BindList<TItem>(const AList: TObjectList<TItem>;
+  const AControlName: string; const ADisplayFieldName: string);
+var
+  LControl: TComponent;
+  LListAdapter: TListBindSourceAdapter<TItem>;
+  LBindSource: TAdapterBindSource;
+  LListLink: TLinkListControlToField;
+begin
+  LControl := TJanusBinderResolver.Resolve(FOwner, AControlName);
+  if LControl = nil then
+    raise EJanusBinderException.CreateFmt(
+      'Control [%s] not found on owner [%s]',
+      [AControlName, FOwner.Name]);
+  if not (LControl is TCustomListControl) then
+    raise EJanusBinderException.CreateFmt(
+      'Control [%s] is not a TCustomListControl',
+      [AControlName]);
+  LListAdapter := TListBindSourceAdapter<TItem>.Create(nil, AList, False);
+  FGridListAdapters.Add(LListAdapter);
+  LBindSource := TAdapterBindSource.Create(nil);
+  LBindSource.Adapter := LListAdapter;
+  LBindSource.Active := True;
+  FAdapterBindSources.Add(LBindSource);
+  LListLink := TLinkListControlToField.Create(nil);
+  LListLink.DataSource := LBindSource;
+  LListLink.FieldName := ADisplayFieldName;
+  LListLink.Control := LControl;
+  LListLink.Active := True;
+  FListLinks.Add(LListLink);
+end;
+
+procedure TJanusBinder.ConfigureGridColumns(const AGridName: string;
+  const AItemType: TClass);
+var
+  LContext: TRttiContext;
+  LType: TRttiType;
+  LProperty: TRttiProperty;
+  LAttribute: TCustomAttribute;
+  LColAttr: Janus.Binder.Attributes.BindGridColumn;
+  LGrid: TStringGrid;
+  LResolved: TComponent;
+  LTitle: string;
+  LWidth: Integer;
+  LColIndex: Integer;
+  LVisibleCount: Integer;
+begin
+  LResolved := TJanusBinderResolver.Resolve(FOwner, AGridName);
+  if LResolved = nil then
+    raise EJanusBinderException.CreateFmt(
+      'Grid [%s] not found on owner [%s]',
+      [AGridName, FOwner.Name]);
+  if not (LResolved is TStringGrid) then
+    raise EJanusBinderException.CreateFmt(
+      'Control [%s] is not a TStringGrid (column metadata is TStringGrid-specific)',
+      [AGridName]);
+  LGrid := TStringGrid(LResolved);
+  LContext := TRttiContext.Create;
+  try
+    LType := LContext.GetType(AItemType);
+    if LType = nil then
+      Exit;
+    LVisibleCount := 0;
+    for LProperty in LType.GetProperties do
+    begin
+      if LProperty.Visibility <> mvPublished then
+        Continue;
+      LColAttr := nil;
+      for LAttribute in LProperty.GetAttributes do
+        if LAttribute is Janus.Binder.Attributes.BindGridColumn then
+        begin
+          LColAttr := Janus.Binder.Attributes.BindGridColumn(LAttribute);
+          Break;
+        end;
+      if Assigned(LColAttr) and (not LColAttr.Visible) then
+        Continue;
+      Inc(LVisibleCount);
+    end;
+    if LVisibleCount = 0 then
+      Exit;
+    LGrid.ColCount := LVisibleCount;
+    LColIndex := 0;
+    for LProperty in LType.GetProperties do
+    begin
+      if LProperty.Visibility <> mvPublished then
+        Continue;
+      LTitle := LProperty.Name;
+      LWidth := -1;
+      LColAttr := nil;
+      for LAttribute in LProperty.GetAttributes do
+        if LAttribute is Janus.Binder.Attributes.BindGridColumn then
+        begin
+          LColAttr := Janus.Binder.Attributes.BindGridColumn(LAttribute);
+          Break;
+        end;
+      if Assigned(LColAttr) then
+      begin
+        if not LColAttr.Visible then
+          Continue;
+        LTitle := LColAttr.Title;
+        LWidth := LColAttr.Width;
+      end;
+      LGrid.Cells[LColIndex, 0] := LTitle;
+      if LWidth >= 0 then
+        LGrid.ColWidths[LColIndex] := LWidth;
+      Inc(LColIndex);
+    end;
+  finally
+    LContext.Free;
+  end;
 end;
 
 {$ENDIF DCC}
