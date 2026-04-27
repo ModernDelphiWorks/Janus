@@ -154,24 +154,24 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
   - [x] TestJanusRESTOracleAutoView fixture (4 testes) PASS contra Oracle XE 11g Docker — delivered #158 (3982516) 2026-04-24
 - Proxima decisao: nenhuma — rodada encerrada.
 
-### R22.3 — LiveBindings DataSet backend: TBindSourceDB + grid + master-detail (commitado em develop)
+### R22.3 — LiveBindings DataSet backend: TBindSourceDB + grid + master-detail (entregue como v2.22.0)
 
 - Objetivo estrategico: estender `TJanusBinder` com backend DataSet para aplicacoes que ja usam `TContainerClientDataSet<T>`, `TContainerFDMemTable<T>` ou `TManagerDataSet`, permitindo wiring visual de grids sem a camada de adapter generica do R22.2.
-- Estado atual: commitado em develop (`62448c6`, #159) — aguarda /release.
-- Demanda ativa: nenhuma — rodada encerrada (commit em develop).
+- Estado atual: entregue como v2.22.0 — commit `62448c6` (#159) 2026-04-26.
+- Demanda ativa: nenhuma — rodada encerrada.
 - Itens da rodada:
-  - [ ] `TJanusBinder.BindDataSetGrid(ADataSet, AGridName)` — wiring via `TBindSourceDB` + `TLinkGridToDataSource` (commitado #159)
-  - [ ] `TJanusBinder.BindDataSetMasterDetail(...)` — 2-level DataSet grid binding (commitado #159)
-  - [ ] `TJanusBinder.BindDataSetMasterDetailSubdetail(...)` — 3-level DataSet grid binding (commitado #159)
-  - [ ] `Tests.Janus.LiveBindings.R223.pas` — 8 testes headless via TFDMemTable (commitado #159)
-  - [ ] `JanusLiveBindings.dpr` atualizado com fixture R223 (commitado #159)
-- Proxima decisao: apos /release, avançar para R22.4 (BindList + Column metadata + legacy facade deprecation).
+  - [x] `TJanusBinder.BindDataSetGrid(ADataSet, AGridName)` — wiring via `TBindSourceDB` + `TLinkGridToDataSource` — delivered #159 (62448c6) 2026-04-26
+  - [x] `TJanusBinder.BindDataSetMasterDetail(...)` — 2-level DataSet grid binding — delivered #159 (62448c6) 2026-04-26
+  - [x] `TJanusBinder.BindDataSetMasterDetailSubdetail(...)` — 3-level DataSet grid binding — delivered #159 (62448c6) 2026-04-26
+  - [x] `Tests.Janus.LiveBindings.R223.pas` — 8 testes headless via TFDMemTable — delivered #159 (62448c6) 2026-04-26
+  - [x] `JanusLiveBindings.dpr` atualizado com fixture R223 — delivered #159 (62448c6) 2026-04-26
+- Proxima decisao: nenhuma — rodada encerrada.
 
-### R22.4 — LiveBindings: BindList + Column metadata (demanda R22.4-Commit em pipeline)
+### R22.4 — LiveBindings: BindList + Column metadata (entregue como v2.22.0)
 
 - Objetivo estrategico: fechar lacunas entre o novo `TJanusBinder` engine e os goals AC-5/AC-6/A-5 do analyst: habilitar list controls (TListBox/TComboBox/TListView) via `BindList<TItem>`; introduzir metadata de coluna opt-in (`[BindGridColumn]` attribute + `ConfigureGridColumns`).
-- Estado atual: commitado em develop — aguarda /release.
-- Demanda ativa: nenhuma — rodada encerrada (commit em develop).
+- Estado atual: entregue como v2.22.0 — commits R22.4-Commit (374fd3a) #165 e R22.4b (f4f50b1) #164 em 2026-04-26.
+- Demanda ativa: nenhuma — rodada encerrada.
 - Itens da rodada:
   - [x] `[BindGridColumn]` attribute em `Janus.Binder.Attributes.pas` — delivered R22.4-Commit (374fd3a) #165 2026-04-26
   - [x] `TJanusBinder.BindList<TItem>` — wiring de list control via `TListBindSourceAdapter<T>` + `TAdapterBindSource` + `TLinkListControlToField` — delivered R22.4b (f4f50b1) 2026-04-26
@@ -179,11 +179,11 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
   - [x] `Tests.Janus.LiveBindings.R224.pas` — 10 testes headless — delivered R22.4-Commit (374fd3a) #165 2026-04-26
   - [x] `JanusLiveBindings.dpr` atualizado com fixture R224 — delivered R22.4-Commit (374fd3a) #165 2026-04-26
 
-### R22.4b — LiveBindings: remocao fisica do engine legado (commitado em develop)
+### R22.4b — LiveBindings: remocao fisica do engine legado (entregue como v2.22.0)
 
 - Objetivo estrategico: eliminar todos os artefatos do engine legado de uma vez, sem periodo de deprecacao (engine nunca foi usado em producao). Colapsa R22.6 completamente.
-- Estado atual: commitado em develop (f4f50b1, #164) 2026-04-26 — aguarda /release.
-- Demanda ativa: nenhuma — rodada encerrada (commit em develop).
+- Estado atual: entregue como v2.22.0 — commit f4f50b1 (#164) 2026-04-26.
+- Demanda ativa: nenhuma — rodada encerrada.
 - Itens da rodada:
   - [x] Deletar `Source/Livebindings/Janus.LiveBindings.pas` (`git rm -f`) — delivered #164 (f4f50b1) 2026-04-26
   - [x] Deletar `Source/Livebindings/Janus.Controls.Helpers.pas` (`git rm -f`) — delivered #164 (f4f50b1) 2026-04-26
@@ -192,7 +192,7 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
   - [x] Deletar `Examples/Delphi/Livebindings/FMX/Janus_LiveBindingsFMX.dpr`, `produto.pas`, `UPrincipal.pas` — delivered #164 (f4f50b1) 2026-04-26
   - [x] Renomear `FGridBindSources → FAdapterBindSources` em `Janus.Binder.pas` (R22.6 pull-forward) — delivered #164 (f4f50b1) 2026-04-26
   - [x] Remover secao "Migracao do engine legado" de `livebindings.md`; atualizar secao "FMX" — delivered #164 (f4f50b1) 2026-04-26
-- Proxima decisao: apos /release de R22.4-Commit, avançar para /release da versao corrente (v2.22.0).
+- Proxima decisao: nenhuma — rodada encerrada.
 
 ## Backlog resumido
 
