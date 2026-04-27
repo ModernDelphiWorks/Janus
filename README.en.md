@@ -8,7 +8,7 @@
   </a>
 </p>
 
-[![License](https://img.shields.io/badge/Licence-LGPL--3.0-blue.svg)](https://opensource.org/licenses/LGPL-3.0)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 **Janus** is a modern Object-Relational Mapping (ORM) framework for Delphi that bridges the gap between object-oriented programming and the relational database model. It manages object-to-database mapping, enabling you to build applications with a pure OO approach while persisting objects to relational databases.
 
@@ -196,6 +196,6 @@ end;
 
 ## License
 
-[![License](https://img.shields.io/badge/Licence-LGPL--3.0-blue.svg)](https://opensource.org/licenses/LGPL-3.0)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 Copyright © Isaque Pinheiro. All Rights Reserved.

@@ -8,7 +8,7 @@
   </a>
 </p>
 
-[![License](https://img.shields.io/badge/Licence-LGPL--3.0-blue.svg)](https://opensource.org/licenses/LGPL-3.0)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 **Janus** é um framework moderno de Mapeamento Objeto-Relacional (ORM) para Delphi que encurta a distância entre a programação orientada a objetos e o modelo de banco de dados relacional. Ele gerencia o mapeamento objeto-banco, permitindo construir aplicações com uma abordagem puramente OO enquanto persiste objetos em bancos de dados relacionais.
 
@@ -196,7 +196,7 @@ end;
 
 ## Licença
 
-[![License](https://img.shields.io/badge/Licence-LGPL--3.0-blue.svg)](https://opensource.org/licenses/LGPL-3.0)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 ## Contribuição
 

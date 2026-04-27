@@ -1,3 +1,23 @@
+{
+  ------------------------------------------------------------------------------
+  Janus
+  Modern Object-Relational Mapping (ORM) framework for Delphi.
+
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2016-2026 Isaque Pinheiro
+
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
+}
+
+{ @abstract(Janus Framework.)
+  @created(20 Jul 2016)
+  @author(Isaque Pinheiro <isaquepsp@gmail.com>)
+  @abstract(Website : http://www.Janus.com.br)
+  @abstract(Telagram : https://t.me/Janus)
+}
+
 unit TestPluginRegistry;
 
 interface
@@ -214,22 +234,25 @@ begin
   LLog := TList<Integer>.Create;
   try
     BeforeInsertMiddleware.AddEvent('TPRIORITYTEST',
-      procedure(const AContext: IJanusHookContext)
-      begin
-        LLog.Add(100);
-      end, 100);
+      TContextEvent(
+        procedure(const AContext: IJanusHookContext)
+        begin
+          LLog.Add(100);
+        end), 100);
 
     BeforeInsertMiddleware.AddEvent('TPRIORITYTEST',
-      procedure(const AContext: IJanusHookContext)
-      begin
-        LLog.Add(50);
-      end, 50);
+      TContextEvent(
+        procedure(const AContext: IJanusHookContext)
+        begin
+          LLog.Add(50);
+        end), 50);
 
     BeforeInsertMiddleware.AddEvent('TPRIORITYTEST',
-      procedure(const AContext: IJanusHookContext)
-      begin
-        LLog.Add(200);
-      end, 200);
+      TContextEvent(
+        procedure(const AContext: IJanusHookContext)
+        begin
+          LLog.Add(200);
+        end), 200);
 
     LEvents := TBeforeInsertMiddleware.GetContextEvents('TPRIORITYTEST');
     Assert.IsNotNull(LEvents);
@@ -272,7 +295,7 @@ begin
     procedure
     begin
       TJanusMiddlewares.RegisterCustomEvent('BeforeInsert',
-        procedure(const AContext: IJanusHookContext) begin end);
+        TContextEvent(procedure(const AContext: IJanusHookContext) begin end));
     end,
     Exception);
 end;
@@ -284,10 +307,11 @@ var
 begin
   LCalled := False;
   BeforeInsertMiddleware.AddEvent('TLEGACYTEST',
-    procedure(AObject: TObject)
-    begin
-      LCalled := True;
-    end);
+    TEvent(
+      procedure(AObject: TObject)
+      begin
+        LCalled := True;
+      end));
 
   LEvent := TBeforeInsertMiddleware.GetEvent('TLEGACYTEST');
   Assert.IsNotNull(TObject(@LEvent));

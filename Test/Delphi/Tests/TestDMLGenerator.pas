@@ -1,3 +1,23 @@
+{
+  ------------------------------------------------------------------------------
+  Janus
+  Modern Object-Relational Mapping (ORM) framework for Delphi.
+
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2016-2026 Isaque Pinheiro
+
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
+}
+
+{ @abstract(Janus Framework.)
+  @created(20 Jul 2016)
+  @author(Isaque Pinheiro <isaquepsp@gmail.com>)
+  @abstract(Website : http://www.Janus.com.br)
+  @abstract(Telagram : https://t.me/Janus)
+}
+
 unit TestDMLGenerator;
 
 interface
@@ -45,8 +65,21 @@ type
     function MonitorCallback: TMonitorProc;
     function Options: IOptions;
     procedure SetCommandMonitor(AMonitor: ICommandMonitor);
+    function BulkLoader: IDBBulkLoader;
+    function Cache: IDBCacheProvider;
+    function MetadataCache: IDBMetadataCache;
+    procedure SetCacheProvider(ACache: IDBCacheProvider);
+    procedure SetMetadataCacheProvider(AMetadataCache: IDBMetadataCache);
+    procedure RefreshMetadata(const ATableName: string);
+    function IsAlive: Boolean;
+    function ResiliencePolicy: IDBResiliencePolicy;
+    procedure SetResiliencePolicy(APolicy: IDBResiliencePolicy);
+    procedure AddObserver(const AObserver: IDBObserver);
+    procedure RemoveObserver(const AObserver: IDBObserver);
+    function SlowQueryThreshold: Integer;
+    procedure SetSlowQueryThreshold(const AValue: Integer);
     function _GetTransaction(const AKey: String): TComponent;
-    procedure StartTransaction;
+    procedure StartTransaction(const ALevel: TDBIsolationLevel = ilDefault);
     procedure Commit;
     procedure Rollback;
     procedure AddTransaction(const AKey: String; const ATransaction: TComponent);
@@ -232,7 +265,65 @@ procedure TFakeConnection.SetCommandMonitor(AMonitor: ICommandMonitor);
 begin
 end;
 
-procedure TFakeConnection.StartTransaction;
+procedure TFakeConnection.StartTransaction(const ALevel: TDBIsolationLevel = ilDefault);
+begin
+end;
+
+function TFakeConnection.BulkLoader: IDBBulkLoader;
+begin
+  Result := nil;
+end;
+
+function TFakeConnection.Cache: IDBCacheProvider;
+begin
+  Result := nil;
+end;
+
+function TFakeConnection.MetadataCache: IDBMetadataCache;
+begin
+  Result := nil;
+end;
+
+procedure TFakeConnection.SetCacheProvider(ACache: IDBCacheProvider);
+begin
+end;
+
+procedure TFakeConnection.SetMetadataCacheProvider(AMetadataCache: IDBMetadataCache);
+begin
+end;
+
+procedure TFakeConnection.RefreshMetadata(const ATableName: string);
+begin
+end;
+
+function TFakeConnection.IsAlive: Boolean;
+begin
+  Result := False;
+end;
+
+function TFakeConnection.ResiliencePolicy: IDBResiliencePolicy;
+begin
+  Result := nil;
+end;
+
+procedure TFakeConnection.SetResiliencePolicy(APolicy: IDBResiliencePolicy);
+begin
+end;
+
+procedure TFakeConnection.AddObserver(const AObserver: IDBObserver);
+begin
+end;
+
+procedure TFakeConnection.RemoveObserver(const AObserver: IDBObserver);
+begin
+end;
+
+function TFakeConnection.SlowQueryThreshold: Integer;
+begin
+  Result := 0;
+end;
+
+procedure TFakeConnection.SetSlowQueryThreshold(const AValue: Integer);
 begin
 end;
 

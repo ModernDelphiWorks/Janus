@@ -1,4 +1,24 @@
-﻿program JanusSmoke;
+﻿{
+  ------------------------------------------------------------------------------
+  Janus
+  Modern Object-Relational Mapping (ORM) framework for Delphi.
+
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2016-2026 Isaque Pinheiro
+
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
+}
+
+{ @abstract(Janus Framework.)
+  @created(20 Jul 2016)
+  @author(Isaque Pinheiro <isaquepsp@gmail.com>)
+  @abstract(Website : http://www.Janus.com.br)
+  @abstract(Telagram : https://t.me/Janus)
+}
+
+program JanusSmoke;
 
 {$IFNDEF TESTINSIGHT}
 {$APPTYPE CONSOLE}
@@ -47,7 +67,17 @@ uses
   TestDMLGenerator in 'Tests\TestDMLGenerator.pas',
   TestFluentSQLIntegration in 'Tests\TestFluentSQLIntegration.pas',
   /// REST/Horse Tests — ESP-002
-  TestJanusRESTQueryParse in 'Tests\TestJanusRESTQueryParse.pas';
+  TestJanusRESTQueryParse in 'Tests\TestJanusRESTQueryParse.pas',
+  /// Plugin/Middleware Tests — Demand A
+  TestPluginRegistry in 'Tests\TestPluginRegistry.pas',
+  TestPluginIntegration in 'Tests\TestPluginIntegration.pas',
+  TestCrudEndToEnd in 'Tests\TestCrudEndToEnd.pas',
+  /// CodeGen Tests — Demand A
+  TestCodeGenEngine in 'Tests\TestCodeGenEngine.pas',
+  TestCodeGenComplex in 'Tests\TestCodeGenComplex.pas',
+  TestCodeGenTemplate in 'Tests\TestCodeGenTemplate.pas',
+  /// JSON Tests — Demand A
+  TestJanusJson in 'Tests\TestJanusJson.pas';
 
 const
   EXIT_SUCCESS = 0;
