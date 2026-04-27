@@ -23,24 +23,16 @@ Framework ORM para Delphi com mapeamento por atributos, suporte multi-banco, Dat
 - Cobre: persistência ORM, mapeamento de entidades, integrações de runtime e guias técnicos do framework.
 - Não cobre: conteúdo legado removido e estrutura antiga da pasta Doc.
 
-## Release status (R18.1 formalized for handoff)
+## Release status
 
-- Most recent published version: `v2.19.14`.
-- Most recent published tag: `v2.19.14`.
-- `v2.19.14` reconciled the user-manual documentation scope for tracked diffs under `docs-src/docs/janus/user/`, closing issue `#127` without runtime/product behavior changes.
-- `v2.19.13` fixed a release-gate blockage by reconciling pre-existing tracked roadmap diff behavior, restoring deterministic release flow without changing runtime/product behavior (issue `#122`).
-- `v2.19.13` closed a smoke-evidence reliability gap for Strategy A by formalizing deterministic XML generation semantics, reducing environment variance in evidence collection (issue `#118`).
-- A issue `#81` entregou o lazy loading transparente com proxy unificado nos contextos ObjectSet, DataSet e REST, preservando o caminho explícito `LoadLazy`.
-- A issue `#88` desbloqueou os gates finais de compilação da release, com correção para `E2003 Undeclared identifier: 'Supports'` no smoke test e `F2613 Unit 'SysUtils' not found` no fluxo `JanusSmoke`.
-- A issue `#90` estabilizou os cenários funcionais remanescentes do lazy reset/reload e o contrato de entidade anotada com `[View]` sem `[Table]`.
-- A issue `#95` consolidou a baseline operacional da R17.3, revalidou nominalmente os cenários críticos (`TestProxy_ResetProducesNewLoad`, `TestProxy_ResetAllowsReload`, `TestHelperGetTable_ReturnsNilForViewEntity`) e formalizou o gate go/no-go para continuidade da R18.x sem alterar o contrato público.
-- A `v2.19.3` manteve o comportamento estabilizado em `v2.19.2` e registrou sua rastreabilidade operacional e documental.
-- A `v2.19.4` publicou apenas o refactor documental do `ROADMAP.md`, sem alterar o contrato funcional do ciclo lazy.
-- A `v2.19.5` refatorou internamente o runtime MARS para padronizar a serialização JSON via fachada `Janus.Json`, sem alterar o contrato HTTP nem assinaturas públicas.
-- A `v2.19.6` encerrou operacionalmente a validação ESP-006 com baseline de `155/155` testes aprovados, sem alteração de API pública.
-- A issue `#105` foi uma rodada process-only de release/governança; a versão publicada permaneceu `v2.19.6` e não houve mudança funcional no framework.
-- A `v2.19.7` formalizou a regra canônica de validação processual para `/test` e `/release` (Path A/Path B), reforçando a auditabilidade da pipeline sem alteração funcional do framework.
-- A `v2.19.8` formalizou a demanda R18.1 (ESP-002) para handoff de execução, com atualização de roadmap e critérios auditáveis sem alteração do contrato funcional do framework.
-- A `v2.19.9` atualizou estrategicamente o `ROADMAP.md` para consolidar a demanda candidata R18.1 (ESP-002) para handoff, sem impacto no contrato funcional do framework.
-- A `v2.19.10` consolidou editorialmente o milestone R18.1 no `ROADMAP.md` em item único rastreável da issue `#110`, mantendo a release como rodada documental/processual sem alteração funcional.
-- A `v2.19.11` normalizou a redação da origem textual de R18.1 no `ROADMAP.md` (de "proxiam demanda" para "proxima demanda"), sem alterar classificação ESP-002, escopo funcional ou handoff planejado (issue `#113`).
+- Most recent published version: `v2.22.3`.
+- Most recent published tag: `v2.22.3`.
+- `v2.22.3` refreshed the knowledge-base reference files, replacing the stale "131 tests" claim with 300+ DUnitX tests across 4 executors; per-executor breakdown in `support-matrix.md` (issue #180).
+- `v2.22.2` wired 7 orphan DUnitX fixtures into `JanusSmoke.dpr` (issue #170); fixed `TFakeConnection` mock contract (issue #171); prepended MIT license headers to 255 source artifacts (issue #175); replaced remaining LGPL badge with MIT (issue #178).
+- `v2.22.1` replaced LGPL header with MIT in all 134 `Source/` `.pas` files (issue #168); consolidated ROADMAP post-v2.22.0 (issue #167).
+- `v2.22.0` delivered R22.4 LiveBindings fixture (`Tests.Janus.LiveBindings.R224`, 10 tests, `BindGridColumn` attribute binding); removed legacy `TJanusLiveBindings` engine units (issue #164/#165).
+- `v2.21.0` delivered `TJanusBinder` engine (R22.1–R22.3): adapter-based live-bindings with `[Bind]`/`[BindGrid]`/`[BindGridDetail]`/`[BindListControl]`/`[BindGridColumn]` attributes; Oracle REST Horse example; `TRESTViewManager` AutoView; `JanusRESTHorseConsole.dpr` demo (issues #152–#161).
+- `v2.20.2` fixed filter-based DELETE in REST/Horse, DataEngine FireDAC row iteration, and OData URL-encoded filter parsing (issues #145/#147/#149).
+- `v2.20.1` added REST/Horse driver test suite (`TestJanusRESTHorseDriver`, 8 tests) and HTTP verb access control attributes `[RESTAllowGET/POST/PUT/DELETE]` with 405 guard (issues #134/#137).
+- `v2.20.0` added `[RESTReadOnly]`, `TRESTViewManager`, OData parser rewrite, `JanusRestHorse.dpr` executor, and documentation pages `odata-reference`, `rest-readonly`, `rest-join-strategy` (issue #130).
+- `v2.19.14` reconciled user-manual documentation scope without runtime/product behavior changes (issue #127).

@@ -7,7 +7,7 @@ Janus is a Delphi ORM framework that maps classes to persisted entities and gene
 
 For daily usage, this means less manual SQL, less repetitive persistence code, and one consistent usage model across visual DataSet screens, object-oriented lists, and REST integration.
 
-The public end-user usage contract remained stable across releases `v2.19.5` through `v2.19.14`.
+The public end-user usage contract remained stable across releases `v2.19.5` through `v2.19.14`. Releases `v2.20.x` through `v2.22.x` extended the framework with REST/Horse integration, LiveBindings `TJanusBinder`, and Oracle AutoView — none of these changes broke the existing DataSet/ObjectSet persistence contract.
 
 ## What Janus solves
 
