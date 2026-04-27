@@ -163,6 +163,13 @@
         <DCCReference Include="Tests\TestDMLGenerator.pas"/>
         <DCCReference Include="Tests\TestFluentSQLIntegration.pas"/>
         <DCCReference Include="Tests\TestJanusRESTQueryParse.pas"/>
+        <DCCReference Include="Tests\TestPluginRegistry.pas"/>
+        <DCCReference Include="Tests\TestPluginIntegration.pas"/>
+        <DCCReference Include="Tests\TestCrudEndToEnd.pas"/>
+        <DCCReference Include="Tests\TestCodeGenEngine.pas"/>
+        <DCCReference Include="Tests\TestCodeGenComplex.pas"/>
+        <DCCReference Include="Tests\TestCodeGenTemplate.pas"/>
+        <DCCReference Include="Tests\TestJanusJson.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
