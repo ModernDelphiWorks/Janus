@@ -7,6 +7,18 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.22.2](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.22.2) — 2026-04-27
+
+### Fixed
+- Refresh `TFakeConnection` mock to satisfy `IDBConnection`/`IDBTransaction` contract; broken stub was silently skipping interface methods ([#171](https://github.com/ModernDelphiWorks/Janus/issues/171))
+- Wrap five anonymous procedure literals with `TContextEvent`/`TEvent` explicit casts in `TestPluginRegistry` to resolve compiler type-inference ambiguity ([#174](https://github.com/ModernDelphiWorks/Janus/issues/174))
+
+### Changed
+- Wire 7 orphan DUnitX fixtures into `JanusSmoke.dpr`/`.dproj`; fixtures were compiled but not registered in the test runner ([#170](https://github.com/ModernDelphiWorks/Janus/issues/170))
+- Prepend canonical MIT license header to 255 Delphi source artifacts outside `Source/` (`Examples/`, `Test/`, `Components/Packages/Delphi/`, `Projects/Wizard/`) ([#175](https://github.com/ModernDelphiWorks/Janus/issues/175))
+- Replace remaining LGPL header and `cJANUSSOBRELICENCA = 'LGPL'` with MIT in `Projects/Wizard/Janus.Reg.pas` ([#176](https://github.com/ModernDelphiWorks/Janus/issues/176))
+- Replace LGPL badge with MIT badge (`License-MIT-blue.svg`) in `README.md` and `README.en.md`; closes last visible LGPL footprint in Janus-owned territory ([#178](https://github.com/ModernDelphiWorks/Janus/issues/178))
+
 ## [v2.22.1](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.22.1) — 2026-04-26
 
 ### Changed
