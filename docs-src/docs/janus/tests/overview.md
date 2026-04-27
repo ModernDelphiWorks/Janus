@@ -5,64 +5,115 @@ title: Testes
 
 ## Estratégia
 
-- **DUnitX** — suite principal em `Test/Delphi/JanusSmoke.dpr`
-- **FPCUnit** — compatibilidade Lazarus em `Test/Lazarus/`
-- Cobertura: geração SQL (FluentSQL), bind, lazy/proxy, middleware, plugins, CodeGen
-- A partir de v2.18.6, o legado `Source/Criteria/*.pas` foi removido; as queries usam exclusivamente `TCQ()` via FluentSQL.
-- A partir de v2.18.16, `TestMappingCache` cobre regressao para entidade anotada apenas com `[View]`, validando os caminhos de `GetTable` e `GetMappingView`.
-- A partir de v2.19.0, a suíte inclui validação dedicada do lazy transparente em ObjectSet, DataSet e REST, além de multiplicidades e retrocompatibilidade do `LoadLazy` explícito.
-- A v2.19.1 corrigiu os gates finais de compilação da suíte (`Supports` e `SysUtils`) sem alteração de contrato público da API.
-- A v2.19.2 estabilizou os cenarios funcionais de reset/reload lazy e o contrato `[View]` sem `[Table]`.
-- A v2.19.3 consolidou a baseline operacional dessa estabilizacao com nova validacao dirigida em execucao completa da suite, sem alterar a API publica.
-- A v2.19.4 publicou apenas o refactor documental do `ROADMAP.md`; a baseline validada da suíte permanece a mesma da rodada `v2.19.3`.
-- A v2.19.5 refatorou internamente o runtime MARS para padronizar a serializacao JSON via fachada `Janus.Json`, sem alterar contrato HTTP nem assinaturas publicas; a baseline de 155/155 permanece inalterada.
-- A v2.19.6 encerrou operacionalmente a validacao ESP-006: build/smoke confirmados com `155/155` aprovados; dívida técnica anterior fechada; contrato de suite sem alteracao.
-- A issue `#103` (ESP-004) foi uma rodada processual de governanca da pipeline; nao houve alteracao na suite de produto nem nova baseline funcional publicada.
-- A issue `#105` foi release process-only e manteve o mesmo contrato de validacao: sem mudancas na suite de produto e sem nova baseline funcional alem da rodada `v2.19.6`.
-- A v2.19.7 formalizou o contrato canônico de validacao processual para `/test` e `/release` (Path A/Path B), sem alterar a suite de produto, baseline funcional ou cobertura publicada.
-- A v2.19.8 formalizou documentalmente a demanda R18.1 (ESP-002) para handoff operacional, sem alterar a suite de produto, baseline funcional ou cobertura publicada.
-- A v2.19.9 atualizou estrategicamente o `ROADMAP.md` para consolidar a demanda candidata R18.1, mantendo o mesmo contrato de suite e baseline funcional publicada.
-- A v2.19.10 consolidou editorialmente o milestone R18.1 em item unico no `ROADMAP.md` (issue `#110`), sem alteracao de suite, cobertura ou baseline funcional.
-- A v2.19.11 normalizou editorialmente a redacao da origem de R18.1 no `ROADMAP.md` (de "proxiam demanda" para "proxima demanda"), sem alterar classificacao ESP-002, escopo funcional ou baseline de testes (issue `#113`).
-- A v2.19.13 reforcou a confiabilidade da evidencia smoke para Strategy A com semantica deterministica de geracao XML e corrigiu o bloqueio de release no gate de develop, sem alteracao na suite de produto, cobertura publicada ou baseline funcional (issues `#118` e `#122`).
-- A v2.19.14 publicou reconciliacao de escopo documental do manual do usuario (issue `#127`) sem alteracao na suite de produto, cobertura publicada ou baseline funcional.
+A suite de testes DUnitX está dividida em quatro executores independentes. Cada executor compila e executa um conjunto específico de fixtures; o NUnit XML produzido por cada `.exe` é a fonte de verdade em tempo de execução para a contagem real de `[Test]`.
 
-## Suíte DUnitX — arquivos de teste
+- **JanusSmoke.dpr** — suite unitária rápida: mapeamento, lazy, middleware, plugins, CodeGen, JSON, DML, FluentSQL, REST QueryParse
+- **JanusRestHorse.dpr** — integração REST/Horse: CRUD sobre HTTP, endpoints read-only, join views, driver prefix, controle de verbo
+- **JanusLiveBindings.dpr** — LiveBindings R22.x: TJanusBinder com atributos [Bind]/[BindGrid]/[BindGridColumn]
+- **JanusRESTHorseOracle.dpr** — Oracle AutoView: integração REST com Oracle XE (requer infraestrutura local)
+- **FPCUnit** — compatibilidade Lazarus em `Test/Lazarus/` (fora do escopo DUnitX)
 
-| Arquivo | Foco |
-|---------|------|
-| `TestDMLGenerator` | Geração SQL para todos os drivers |
-| `TestFluentSQLIntegration` | Integração FluentSQL ↔ Janus (baseline de drivers prioritários) |
-| `TestCriteriaAdvanced` | Queries complexas via FluentSQL (`TCQ`) — AND/OR, LIKE, IN, BETWEEN, OrderBy, GroupBy, IS NULL |
-| `TestLazyMapping` | Mapeamento de propriedades `[Lazy]` |
-| `TestLazyProxy` | Proxy transparente e ciclo de vida |
-| `TestSmokeLazyLoading` | Baseline de segurança para infraestrutura lazy sem conexão real |
-| `TestDataSetLazyProxy` | Contrato de injeção lazy no contexto DataSet |
-| `TestRestLazyProxy` | Contrato de injeção lazy no contexto REST |
-| `TestLazyProxyMultiplicity` | Multiplicidades `OneToOne`/`OneToMany`/`ManyToOne`/`ManyToMany` e retrocompatibilidade |
-| `TestLazyWrapper` | `Lazy<T>` / `ILazy<T>` |
-| `TestMiddlewarePipeline` | Ciclo Before/After eventos |
-| `TestPluginRegistry` / `TestPluginIntegration` | Sistema de plugins |
-| `TestCrudEndToEnd` | Fluxo completo DataSet ↔ banco |
-| `TestDataSetAutoLazy` | Lazy automático no DataSet |
-| `TestQueryCache` | Cache de queries |
-| `TestMappingCache` | Cache de mapeamento RTTI |
-| `TestNullable` | `Nullable<T>` |
-| `TestCodeGenEngine` / `TestCodeGenComplex` | Geração de código |
-| `TestGetDictionary` | `GetDictionary` na sessão |
-| `TestJanusJson` | Serialização JSON |
-| `TestRttiSingleton` | Singleton RTTI |
+Aggregate pré-`#170`: 300 atributos `[Test]` executados (217 + 48 + 31 + 4). Alvo pós-`#170` após rebuild CI: ≥289 em `JanusSmoke.exe` (7 fixtures recém-vinculadas); total ≥372 nos 4 executores.
+
+Os arquivos XML de resultado (`Test/Delphi/dunitx-*.xml`) são a fonte de verdade em runtime. Inspecione-os após uma execução local ou pelo self-hosted Delphi CI.
+
+## JanusSmoke.dpr — suite unitária rápida
+
+| Arquivo de teste | Count | Área coberta |
+|-----------------|-------|-------------|
+| `TestMappingCache` | 11 | `TMappingExplorer`, caches lazy |
+| `TestRttiSingleton` | 3 | `RttiSingleton` unificado |
+| `TestNullable` | 3 | `Nullable<T>` |
+| `TestSmokeLazyLoading` | 10 | smoke lazy loading |
+| `TestObjectSetLazyProxy` | 4 | proxy lazy em ObjectSet |
+| `TestLazyMapping` | 4 | `TLazyMappingExplorer` |
+| `TestLazyProxy` | 7 | proxy transparente e `FillAssociation` |
+| `TestDataSetLazyProxy` | 8 | proxy lazy em DataSet |
+| `TestRestLazyProxy` | 7 | proxy lazy em REST |
+| `TestLazyProxyMultiplicity` | 9 | multiplicidades one-to-many / many-to-one |
+| `TestLazyWrapper` | 2 | `Lazy<T>` |
+| `TestGetDictionary` | 1 | overload `GetDictionary` |
+| `TestQueryCache` | 1 | crescimento limitado `TQueryCache` |
+| `TestDataSetAutoLazy` | 6 | lazy loading em fluxos DataSet |
+| `TestCriteriaAdvanced` | 11 | expressões Criteria avançadas |
+| `TestMiddlewarePipeline` | 6 | ordenação Before/After |
+| `TestDMLGenerator` | 29 | gerador DML (caminho SQLite) |
+| `TestFluentSQLIntegration` | 39 | integração FluentSQL |
+| `TestJanusRESTQueryParse` | 56 | REST QueryParse — parser OData |
+| `TestPluginRegistry` | 10 | plugins, hooks, abort, eventos customizados — *wired #170* |
+| `TestPluginIntegration` | 6 | abort em insert, update e delete — *wired #170* |
+| `TestCrudEndToEnd` | 8 | hooks middleware Before/After CRUD — *wired #170* |
+| `TestCodeGenEngine` | 21 | engine CodeGen — *wired #170* |
+| `TestCodeGenComplex` | 6 | FKs compostas e múltiplos indexes — *wired #170* |
+| `TestCodeGenTemplate` | 6 | template engine — *wired #170* |
+| `TestJanusJson` | 15 | wrapper `TJanusJson` — *wired #170* |
+
+As 7 fixtures marcadas *wired #170* foram compiladas mas não estavam registradas no runner antes do commit `26256a8` (issue #170, v2.22.2).
+
+## JanusRestHorse.dpr — integração REST/Horse
+
+| Arquivo de teste | Count | Área coberta |
+|-----------------|-------|-------------|
+| `TestJanusRESTHorseIntegration` | 12 | integração REST/Horse (CRUD sobre HTTP) |
+| `TestJanusRESTReadOnly` | 6 | endpoints `[RESTReadOnly]` |
+| `TestJanusRESTJoinView` | 6 | join views via REST |
+| `TestJanusRESTHorseDriver` | 8 | driver com prefixo `api/Janus` |
+| `TestJanusRESTMethodGrant` | 16 | controle de verbo por `[RESTAllowGET/POST/PUT/DELETE]` |
+
+Requer SQLite FireDAC disponível no ambiente; o servidor Horse sobe no fixture-setup e encerra no fixture-teardown.
+
+## JanusLiveBindings.dpr — LiveBindings R22.x
+
+| Arquivo de teste | Count | Área coberta |
+|-----------------|-------|-------------|
+| `Tests.Janus.LiveBindings.R221` | 4 | R22.1 — `TJanusBinder` básico |
+| `Tests.Janus.LiveBindings.R222` | 9 | R22.2 — `BindGrid<T>` e master-detail |
+| `Tests.Janus.LiveBindings.R223` | 8 | R22.3 — backend DataSet (`BindSourceDB`) |
+| `Tests.Janus.LiveBindings.R224` | 10 | R22.4 — `BindGridColumn`, regressão R22.1–R22.3 |
+
+## JanusRESTHorseOracle.dpr — Oracle AutoView
+
+| Arquivo de teste | Count | Área coberta |
+|-----------------|-------|-------------|
+| `TestJanusRESTOracleAutoView` | 4 | AutoView com Oracle XE (requer Oracle XE em localhost:1521) |
+
+Requer Oracle Instant Client 11.2 (32-bit) em `Test/Delphi/` e `tnsnames.ora` com entrada `XE`.
 
 ## Como executar
 
-Abrir `Test/Delphi/JanusSmoke.dpr` no Delphi e executar a suíte DUnitX (F9).
+**JanusSmoke** (suite padrão):
+```
+cd Test/Delphi
+JanusSmoke.exe --exitbehavior:Continue --xmlfile:dunitx-results.xml
+```
 
-Saida esperada: todos os testes verdes. A validacao publicada com execucao completa mais recente registrou `155/155` testes aprovados em `Test/Delphi/JanusSmoke.exe --hidebanner --exit:Continue` na rodada `v2.19.6` (issue `#101`).
+**JanusRestHorse** (integração REST/Horse):
+```
+cd Test/Delphi
+JanusRestHorse.exe --exitbehavior:Continue --xmlfile:dunitx-rest-horse-results.xml
+```
 
-Evidencias nominais revalidadas nessa rodada:
+**JanusLiveBindings** (LiveBindings R22.x):
+```
+cd Test/Delphi
+JanusLiveBindings.exe --exitbehavior:Continue --xmlfile:dunitx-livebindings-results.xml
+```
 
-- `TestSmokeLazyLoading.TestProxy_ResetAllowsReload`
-- `TestDataSetLazyProxy.TestProxy_ResetProducesNewLoad`
-- `TestMappingCache.TestHelperGetTable_ReturnsNilForViewEntity`
+**JanusRESTHorseOracle** (Oracle — requer infraestrutura):
+```
+cd Test/Delphi
+TNS_ADMIN="<abs-path-to-Test/Delphi>" JanusRESTHorseOracle.exe --exitbehavior:Continue --xmlfile:dunitx-oracle-results.xml
+```
 
-Relatório XML é gerado em `output/` quando configurado.
+Saída esperada: todos os testes verdes em cada executor. Os arquivos XML de resultado são gerados no diretório de trabalho.
+
+## Notas de versão
+
+- A partir de v2.18.6, o legado `Source/Criteria/*.pas` foi removido; queries usam exclusivamente `TCQ()` via FluentSQL.
+- A partir de v2.18.16, `TestMappingCache` cobre regressão para entidade anotada apenas com `[View]`.
+- A partir de v2.19.0, a suite inclui lazy transparente em ObjectSet, DataSet e REST com validação de multiplicidades.
+- A partir de v2.20.0, `JanusRestHorse.dpr` cobre CRUD REST/Horse, OData parser, `[RESTReadOnly]` e join views.
+- A partir de v2.20.1, `TestJanusRESTMethodGrant` cobre controle de acesso por verbo HTTP.
+- A partir de v2.21.0, `JanusLiveBindings.dpr` cobre `TJanusBinder` (R22.1–R22.3) e Oracle AutoView.
+- A partir de v2.22.0, R22.4 (`BindGridColumn`) integrada em `JanusLiveBindings.dpr`.
+- A partir de v2.22.2, 7 fixtures previamente não registradas foram vinculadas ao `JanusSmoke.dpr` (#170).

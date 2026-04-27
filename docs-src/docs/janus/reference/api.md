@@ -16,6 +16,28 @@ title: API — Referência
 | `[Lazy]` | Property `Lazy<T>` | — (carga adiada via proxy) |
 | `[View('nome', 'schema')]` | Classe | nome da view, schema (opcional) |
 
+## Atributos REST
+
+| Atributo | Alvo | Efeito |
+|----------|------|--------|
+| `[RESTReadOnly]` | Controller / Classe | bloqueia escrita (INSERT/UPDATE/DELETE) com resposta JSON de erro; GET continua funcionando |
+| `[RESTAllowGET]` | Controller | permite verbo GET; ausente → HTTP 405 para GET |
+| `[RESTAllowPOST]` | Controller | permite verbo POST (INSERT) |
+| `[RESTAllowPUT]` | Controller | permite verbo PUT (UPDATE) |
+| `[RESTAllowDELETE]` | Controller | permite verbo DELETE |
+
+Quando nenhum `[RESTAllow*]` é declarado, todos os verbos são permitidos (comportamento padrão). Declare pelo menos um para ativar o guard; verbos ausentes retornam 405.
+
+## Atributos LiveBindings
+
+| Atributo | Alvo | Parâmetros |
+|----------|------|-----------|
+| `[Bind]` | Property | — (binding simples campo ↔ controle) |
+| `[BindGrid]` | Property / Classe | — (binding de lista em TDBGrid/TStringGrid) |
+| `[BindGridDetail]` | Property | — (binding de detalhe em grid master-detail) |
+| `[BindListControl]` | Property | — (binding de lista em controles TListBox/TComboBox) |
+| `[BindGridColumn]` | Property | nome da coluna (opcional) — coluna individual em grid |
+
 ## Interfaces principais
 
 | Interface | Arquivo | Papel |
@@ -42,6 +64,13 @@ TDMLCommandFactory.Create(AClass, cmd, session) // → TDMLCommandExecutor
 TCQ(driver)                                     // → IFluentSQL (FluentSQL entry point)
 TJanusQueryResultSet.New                        // → IJanusQueryResultSet
 TJanusQueryObject<M>.New                        // → IJanusQueryObject<M>
+
+TJanusBinder.Create(AOwner)                     // → TJanusBinder (LiveBindings engine)
+TJanusBinder.Bind(entity)                       // vincula entidade a controles declarados
+TJanusBinder.Refresh                            // atualiza controles com estado atual da entidade
+TJanusBinder.Free                               // libera adapters e bindings
+
+TRESTViewManager.Instance                       // → TRESTViewManager (AutoView registry singleton)
 ```
 
 ## Drivers DML
@@ -83,3 +112,5 @@ Ver guia: [Middleware](../guides/middleware)
 - O proxy respeita multiplicidade: `OneToOne`/`ManyToOne` retornam objeto único; `OneToMany`/`ManyToMany` retornam coleção.
 - O caminho explícito `LoadLazy` permanece compatível com o proxy transparente.
 - Quando o framework executa `ILazyProxyResettable.Reset`, `IsValueCreated` volta para `False` e o próximo `Invoke` deve usar a nova factory, produzindo novo carregamento em vez de reutilizar o valor antigo.
+- `[RESTReadOnly]` e `[RESTAllow*]` são avaliados em `TAppResourceBase` antes de cada operação de escrita; `[RESTReadOnly]` tem precedência sobre qualquer `[RESTAllow*]`.
+- `TJanusBinder` não requer herança de `TJanusLiveBindings`; o binding é configurado inteiramente por atributos e pelo ciclo `Bind → Refresh → Free`.

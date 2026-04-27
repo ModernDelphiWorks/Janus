@@ -5,9 +5,12 @@ displayed_sidebar: janusSidebar
 
 User manual for Janus in Delphi, focused on installation, first-use workflows, and day-to-day framework operations.
 
-Current manual status: aligned with release `v2.19.14`, including transparent lazy loading in ObjectSet, DataSet, and REST.
-Releases from `v2.19.5` to `v2.19.14` did not change the public usage contract of the framework.
-The latest release (`v2.19.14`) preserved runtime behavior for end users.
+Current manual status: aligned with release `v2.22.3`.
+
+- `v2.22.x` introduced no public API changes for end users beyond license header normalization and knowledge-base refresh.
+- `v2.21.0` introduced `TJanusBinder` as the new LiveBindings engine, replacing the legacy `TJanusLiveBindings`. The `[Bind]`, `[BindGrid]`, `[BindGridDetail]`, `[BindListControl]`, and `[BindGridColumn]` attributes are the canonical binding API.
+- `v2.20.x` introduced REST/Horse integration with OData filter support, `[RESTReadOnly]` for write guards, join views via `TRESTViewManager`, and HTTP verb access control attributes (`[RESTAllowGET]`, `[RESTAllowPOST]`, `[RESTAllowPUT]`, `[RESTAllowDELETE]`).
+- Releases `v2.19.5` to `v2.19.14` did not change the public usage contract.
 
 ## Who this manual is for
 
@@ -33,7 +36,7 @@ The latest release (`v2.19.14`) preserved runtime behavior for end users.
 - [Lazy Loading](./guides/lazy-loading) - deferred loading with transparent proxy and `LoadLazy` compatibility
 
 ### UI and binding
-- [LiveBindings VCL/FMX](./guides/livebindings) - automatic binding via attributes
+- [LiveBindings VCL/FMX](./guides/livebindings) - automatic binding via attributes (`TJanusBinder`)
 - [Monitor SQL](./guides/monitor-sql) - real-time SQL diagnostics
 
 ### Advanced features
