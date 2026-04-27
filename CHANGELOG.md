@@ -7,6 +7,11 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.22.3](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.22.3) — 2026-04-27
+
+### Changed
+- Refresh test inventory in knowledge-base reference files: replace stale "131 tests" claim with 300+ DUnitX tests across 4 executors; rewrite `## Test guardrails` in `support-matrix.md` with per-executor subsections (JanusSmoke 26 fixtures / 7 `wired #170`, JanusRestHorse 5, JanusLiveBindings 4, JanusRESTHorseOracle 1); update `conventions.md` and `project-overview.md` accordingly ([#180](https://github.com/ModernDelphiWorks/Janus/issues/180))
+
 ## [v2.22.2](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.22.2) — 2026-04-27
 
 ### Fixed
