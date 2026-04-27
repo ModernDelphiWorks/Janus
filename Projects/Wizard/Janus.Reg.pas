@@ -1,28 +1,21 @@
 {
-      Janus Framework - ORM simples e descomplicado para quem utiliza Delphi
+  ------------------------------------------------------------------------------
+  Janus
+  Modern Object-Relational Mapping (ORM) framework for Delphi.
 
-                   Copyright (c) 2016, Isaque Pinheiro
-                          All rights reserved.
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2016-2026 Isaque Pinheiro
 
-                    GNU Lesser General Public License
-                      Vers�o 3, 29 de junho de 2007
-
-       Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
-       A todos � permitido copiar e distribuir c�pias deste documento de
-       licen�a, mas mud�-lo n�o � permitido.
-
-       Esta vers�o da GNU Lesser General Public License incorpora
-       os termos e condi��es da vers�o 3 da GNU General Public License
-       Licen�a, complementado pelas permiss�es adicionais listadas no
-       arquivo LICENSE na pasta principal.
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
 }
 
 { @abstract(Janus Framework.)
   @created(20 Jul 2016)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
-  @author(Skype : ispinheiro)
-
-  Janus Framework - ORM simples e descomplicado para quem utiliza Delphi.
+  @abstract(Website : http://www.Janus.com.br)
+  @abstract(Telagram : https://t.me/Janus)
 }
 
 unit Janus.Reg;
@@ -44,7 +37,7 @@ const
   cJANUSSOBREDESCRICAO = 'Janus Framework http://www.Janus.com.br/' + sLineBreak +
                                'Path Library ' + sLineBreak +
                                'Version : ' + cJANUSVERSION + '.' + cJANUSRELEASE;
-  cJANUSSOBRELICENCA = 'LGPL Version 3';
+  cJANUSSOBRELICENCA = 'MIT';
 
 var
  GAboutBoxServices: IOTAAboutBoxServices = nil;
