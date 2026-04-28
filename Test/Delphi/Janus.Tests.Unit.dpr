@@ -48,6 +48,7 @@ uses
   Janus.Model.Master in '..\..\Examples\Delphi\Data\Models\Janus.Model.Master.pas',
   Janus.DML.Generator.SQLite in '..\..\Source\Core\Janus.DML.Generator.SQLite.pas',
   /// Tests
+  Test.Janus.Driver.Register in 'Unit\Core\Test.Janus.Driver.Register.pas',
   Test.Janus.Mapping.Cache   in 'Unit\Core\Test.Janus.Mapping.Cache.pas',
   Test.Janus.RTTI.Singleton  in 'Unit\Core\Test.Janus.RTTI.Singleton.pas',
   Test.Janus.Types.Nullable       in 'Unit\Core\Test.Janus.Types.Nullable.pas',

@@ -204,7 +204,7 @@ Esta fase consolida pendências surgidas no roadmap auditado de 8 demandas (roun
 - Monitor fixtures (candidata — direção a confirmar)
 - ObjectSet CRUD fixtures (candidata — direção a confirmar)
 - QueryScope direct fixtures (candidata — direção a confirmar)
-- Driver Register fixtures (candidata — direção a confirmar)
+- Driver Register fixtures (resolved — fixture added, demand 2/8)
 - Examples regrouping into `00.GettingStarted/01.Data/...` families (P3, ~1 day) (candidata — direção a confirmar)
 - Console (#153) parked-binary disposition decision (resolved — physically deleted, demand 1/8)
 - 4 carry-forward compile failures (PJson, SQLite Native, MetaDbDiff VCL, Horse RESTFul-via-Driver Server) (candidata — direção a confirmar)
@@ -248,4 +248,6 @@ Esta fase consolida pendências surgidas no roadmap auditado de 8 demandas (roun
 *Ultima atualizacao: 2026-04-28 — Gap-Fixtures-Era: audit roadmap (round 61..68) CLOSED; 12 deferred candidates listed; next wave opens in new /architect opening protocol when owner approves*
 
 *Ultima atualizacao: 2026-04-28 — Gap-Fixtures-Era wave opened: 8 demands; Console #153 disposition resolved as physical delete (demand 1/8)*
+
+*Ultima atualizacao: 2026-04-28 — Gap-Fixtures-Era demand 2/8: Driver Register fixtures landed*
 
