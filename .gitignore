@@ -45,7 +45,6 @@ Lib/
 /docs-src/npm-debug.log*
 /docs-src/yarn-error.log*
 /docs-src/pnpm-debug.log*
-/docs-src/package-lock.json
 
 DISCUSSIONS.md
 PLAN_LOAD_LAZY.md
@@ -76,3 +75,18 @@ Test/Lazarus/output/
 # Compiled DLL Framework object/static-lib artifacts
 Projects/Janus DLL Framework/*.o
 Projects/Janus DLL Framework/*.a
+
+# Delphi compile artifacts (object files, version-resources, manifests)
+*.obj
+*.vrc
+*.$manifest
+
+# Cygwin/MSYS crash dumps
+**/bash.exe.stackdump
+
+# Local test result and coverage output directories
+Test/Delphi/results_*/
+/coverage_*/
+
+# Per-machine Oracle network config
+Test/Delphi/tnsnames.ora
