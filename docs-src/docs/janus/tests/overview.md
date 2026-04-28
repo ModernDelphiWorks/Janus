@@ -79,6 +79,59 @@ Requer SQLite FireDAC disponível no ambiente; o servidor Horse sobe no fixture-
 
 Requer Oracle Instant Client 11.2 (32-bit) em `Test/Delphi/` e `tnsnames.ora` com entrada `XE`.
 
+## Infraestrutura compartilhada de runner
+
+A partir de v2.22.4, a lógica de bootstrap e execução dos executores foi extraída para dois arquivos em `Test/Delphi/Common/`:
+
+| Arquivo | Responsabilidade |
+|---------|-----------------|
+| `Janus.Test.Runner.pas` | Inicialização do runner DUnitX, configuração de listeners XML e console |
+| `Janus.Test.Bootstrap.pas` | Setup de ambiente compartilhado (conexão, diretórios, teardown global) |
+
+Os quatro executores (`JanusSmoke`, `JanusRestHorse`, `JanusLiveBindings`, `JanusRESTHorseOracle`) importam esses arquivos via `uses` clause em vez de duplicar o código de runner internamente.
+
+## Detecção de orphan fixtures
+
+O script `.claude/scripts/audit/detect-orphan-fixtures.sh` detecta fixtures presentes em disco mas ausentes da cláusula `uses` em algum dos 4 `.dpr`. Ele é executado automaticamente no gate `/verify` antes de cada commit.
+
+```bash
+bash .claude/scripts/audit/detect-orphan-fixtures.sh
+```
+
+- **Saída 0** — nenhuma fixture órfã; suite está sincronizada.
+- **Saída 1** — lista de arquivos `.pas` não registrados em nenhum executor.
+- **Saída 2** — inputs faltando (glob vazio ou executor ausente).
+
+Fixtures com `// orphan-detect: ignore` nas primeiras 5 linhas são excluídas da verificação.
+
+## Examples Build Gate
+
+A partir de v2.22.4, os 49 projetos de exemplo em `Examples/Delphi/` são verificados por um gate CI dedicado:
+
+| Arquivo | Função |
+|---------|--------|
+| `Examples/Delphi/auto-validable.txt` | Manifesto TSV com modo por projeto (`compile`/`run`/`defer`/`exclude`) |
+| `Examples/Delphi/scripts/build_auto_validable.cmd` | Driver msbuild Windows com `--dry-run` e drift check |
+| `Examples/Delphi/scripts/build_auto_validable.sh` | Skeleton POSIX (delega ao `.cmd` no Git Bash; no-op em Linux/macOS) |
+| `.github/workflows/examples.yml` | Workflow CI separado de `tests.yml`; mesmo runner `[self-hosted, delphi]` |
+
+Distribuição de modos (v2.22.4):
+
+| Modo | Count | Significado |
+|------|-------|-------------|
+| `compile` | 24 | Compilação headless via msbuild esperada passar |
+| `run` | 0 | Reservado para versão futura |
+| `defer` | 4 | Falhas pré-existentes; aguardam correção em demanda 8/8 |
+| `exclude` | 21 | Drivers externos ou projetos com dependências externas |
+
+Para verificar localmente sem invocar o msbuild:
+```
+cd Examples/Delphi/scripts
+build_auto_validable.cmd --dry-run
+```
+
+Saída esperada: `compile=24 run=0 defer=4 exclude=21` + `[dry-run] manifest valid; no msbuild invoked`.
+
 ## Como executar
 
 **JanusSmoke** (suite padrão):
@@ -117,3 +170,4 @@ Saída esperada: todos os testes verdes em cada executor. Os arquivos XML de res
 - A partir de v2.21.0, `JanusLiveBindings.dpr` cobre `TJanusBinder` (R22.1–R22.3) e Oracle AutoView.
 - A partir de v2.22.0, R22.4 (`BindGridColumn`) integrada em `JanusLiveBindings.dpr`.
 - A partir de v2.22.2, 7 fixtures previamente não registradas foram vinculadas ao `JanusSmoke.dpr` (#170).
+- A partir de v2.22.4, lógica de runner extraída para `Janus.Test.Runner.pas` e `Janus.Test.Bootstrap.pas` em `Test/Delphi/Common/`; `DCC_UnitSearchPath` padronizado nos 49 exemplos; Examples Build Gate adicionado com manifesto `auto-validable.txt` e workflow `examples.yml` (#185–#188).
