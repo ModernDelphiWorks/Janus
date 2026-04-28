@@ -1,0 +1,8 @@
+{
+  "label": "Manual do Usuario",
+  "position": 2,
+  "link": {
+    "type": "doc",
+    "id": "janus/user/index"
+  }
+}
