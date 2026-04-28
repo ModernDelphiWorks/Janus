@@ -52,7 +52,7 @@
         <Base>true</Base>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base)'!=''">
-        <DCC_UnitSearchPath>..\..\..\Source\Core;..\..\..\Source\DataEngine\Core;..\..\..\Source\DataEngine\Drivers;..\..\..\Source\Dataset;..\..\..\Source\Objectset;..\..\..\Source\MetaDbDiff\Core;..\..\..\Source\Criteria;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_UnitSearchPath>..\..\..\..\Source\Core;..\..\..\..\Source\Dataset;..\..\..\..\Source\Objectset;..\..\..\..\Source\Metadata;..\..\..\..\Source\Middleware;..\..\..\..\Source\Middleware-Horse;..\..\..\..\Source\Livebindings;..\..\..\..\Source\Monitor;..\..\..\..\Source\CodeGen;..\..\..\..\Source\RESTful\Client;..\..\..\..\Source\RESTful\Common;..\..\..\..\Source\RESTful\Server;..\..\..\..\Source\Dependencies\MetaDbDiff\Source\Core;..\..\..\..\Source\Dependencies\MetaDbDiff\Source\Drivers;..\..\..\..\Source\Dependencies\DataEngine\Source\Core;..\..\..\..\Source\Dependencies\DataEngine\Source\Drivers;..\..\..\..\Source\Dependencies\DataEngine\Source\Integrations;..\..\..\..\Source\Dependencies\FluentSQL\Source\Core;..\..\..\..\Source\Dependencies\FluentSQL\Source\Drivers;..\..\..\..\Source\Dependencies\JsonFlow\Source\Core;..\..\..\..\Source\Dependencies\JsonFlow\Source\JSON\Core;..\..\..\..\Source\Dependencies\JsonFlow\Source\Reader;..\..\..\..\Source\Dependencies\JsonFlow\Source\Writer;..\..\..\..\Source\Dependencies\ModernSyntax\Source;..\..\..\..\Source\Dependencies\Horse\src;..\..\..\..\Source\External\SQLite3;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_N>false</DCC_N>
         <DCC_S>false</DCC_S>
         <DCC_E>false</DCC_E>
@@ -115,14 +115,10 @@
         <DCCReference Include="uMainFormORM.pas">
             <Form>Form3</Form>
         </DCCReference>
-        <DCCReference Include="..\..\..\Source\RESTful\Client\Janus.RestDataSet.FDMemTable.pas"/>
-        <DCCReference Include="..\..\..\Source\RESTful\Client\Janus.RestDataSet.Adapter.pas"/>
-        <DCCReference Include="..\..\..\Source\RESTful\Client\Janus.Client.DataSnap.pas"/>
         <DCCReference Include="..\..\Data\Models\Janus.Model.Client.pas"/>
         <DCCReference Include="..\..\Data\Models\Janus.Model.Detail.pas"/>
         <DCCReference Include="..\..\Data\Models\Janus.Model.Lookup.pas"/>
         <DCCReference Include="..\..\Data\Models\Janus.Model.Master.pas"/>
-        <DCCReference Include="..\..\..\Source\RESTful\Client\Janus.Session.RESTful.pas"/>
         <None Include="ModelSupport_JanusFireDAC\default.txaPackage"/>
         <None Include="ModelSupport_JanusFireDAC\default.txvpck"/>
         <None Include="ModelSupport_JanusFireDAC\Janus\default.txvpck"/>

@@ -37,7 +37,7 @@
         <Base>true</Base>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base)'!=''">
-        <DCC_UnitSearchPath>..\..\..\Source\Controller;..\..\..\Source\Core;..\..\..\Source\Dataset;..\..\..\Source\Drivers;..\..\..\Source\Objectset;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_UnitSearchPath>..\..\..\..\Source\Core;..\..\..\..\Source\Dataset;..\..\..\..\Source\Objectset;..\..\..\..\Source\Metadata;..\..\..\..\Source\Middleware;..\..\..\..\Source\Middleware-Horse;..\..\..\..\Source\Livebindings;..\..\..\..\Source\Monitor;..\..\..\..\Source\CodeGen;..\..\..\..\Source\RESTful\Client;..\..\..\..\Source\RESTful\Common;..\..\..\..\Source\RESTful\Server;..\..\..\..\Source\Dependencies\MetaDbDiff\Source\Core;..\..\..\..\Source\Dependencies\MetaDbDiff\Source\Drivers;..\..\..\..\Source\Dependencies\DataEngine\Source\Core;..\..\..\..\Source\Dependencies\DataEngine\Source\Drivers;..\..\..\..\Source\Dependencies\DataEngine\Source\Integrations;..\..\..\..\Source\Dependencies\FluentSQL\Source\Core;..\..\..\..\Source\Dependencies\FluentSQL\Source\Drivers;..\..\..\..\Source\Dependencies\JsonFlow\Source\Core;..\..\..\..\Source\Dependencies\JsonFlow\Source\JSON\Core;..\..\..\..\Source\Dependencies\JsonFlow\Source\Reader;..\..\..\..\Source\Dependencies\JsonFlow\Source\Writer;..\..\..\..\Source\Dependencies\ModernSyntax\Source;..\..\..\..\Source\Dependencies\Horse\src;..\..\..\..\Source\External\SQLite3;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <SanitizedProjectName>JanusUniDAC</SanitizedProjectName>
         <VerInfo_Locale>1046</VerInfo_Locale>
@@ -73,62 +73,10 @@
         <DCCReference Include="..\Models\Janus.Model.Detail.pas"/>
         <DCCReference Include="..\Models\Janus.Model.Lookup.pas"/>
         <DCCReference Include="..\Models\Janus.Model.Master.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Command.Abstract.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Command.Deleter.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Command.Factory.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Command.Inserter.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Command.Selecter.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Command.Updater.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.DML.Generator.Firebird.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.DML.Generator.InterBase.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.DML.Generator.MSSQL.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.DML.Generator.MySQL.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.DML.Generator.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.DML.Generator.PostgreSQL.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.DML.Generator.SQLite.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.DML.Interfaces.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Driver.Register.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Json.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.mapping.attributes.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.mapping.classes.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.mapping.exceptions.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.mapping.explorer.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.mapping.explorerstrategy.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.mapping.popular.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.mapping.register.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.mapping.repository.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.mapping.rttiutils.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Objects.Helper.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.objects.manager.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.RTTI.Helper.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.types.database.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Types.Lazy.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.types.mapping.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Types.Nullable.pas"/>
-        <DCCReference Include="..\..\..\Source\Drivers\Janus.driver.connection.pas"/>
-        <DCCReference Include="..\..\..\Source\Drivers\Janus.factory.connection.pas"/>
-        <DCCReference Include="..\..\..\Source\Drivers\Janus.factory.interfaces.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Utils.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.DML.Generator.Oracle.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.Types.Blob.pas"/>
-        <DCCReference Include="..\..\..\Source\Core\Janus.encddecd.pas"/>
-        <DCCReference Include="..\..\..\Source\Dataset\Janus.Container.ClientDataSet.pas"/>
-        <DCCReference Include="..\..\..\Source\Dataset\Janus.Container.DataSet.Interfaces.pas"/>
-        <DCCReference Include="..\..\..\Source\Dataset\Janus.Container.DataSet.pas"/>
-        <DCCReference Include="..\..\..\Source\Dataset\Janus.DataSet.Abstract.pas"/>
-        <DCCReference Include="..\..\..\Source\Dataset\Janus.DataSet.Adapter.pas"/>
-        <DCCReference Include="..\..\..\Source\Dataset\Janus.dataset.bind.pas"/>
-        <DCCReference Include="..\..\..\Source\Dataset\Janus.DataSet.ClientDataSet.pas"/>
-        <DCCReference Include="..\..\..\Source\Dataset\Janus.DataSet.Events.pas"/>
-        <DCCReference Include="..\..\..\Source\Dataset\Janus.DataSet.Fields.pas"/>
-        <DCCReference Include="..\..\..\Source\Drivers\Janus.driver.unidac.pas"/>
-        <DCCReference Include="..\..\..\Source\Drivers\Janus.driver.unidac.transaction.pas"/>
-        <DCCReference Include="..\..\..\Source\Drivers\Janus.factory.unidac.pas"/>
         <DCCReference Include="..\..\..\Source\Monitor\Janus.Form.Monitor.pas">
             <Form>CommandMonitor</Form>
             <FormType>dfm</FormType>
         </DCCReference>
-        <DCCReference Include="..\..\..\Source\Monitor\Janus.monitor.pas"/>
         <BuildConfiguration Include="Debug">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>
