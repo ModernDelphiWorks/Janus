@@ -15,7 +15,7 @@ See `.claude/skills/references/output-style.md`.
 
 Final response must end with the mandatory closing line — see "Cycle status — pipeline-wide closing line" in `.claude/skills/references/pipeline-contract.md`.
 
-- All gates PASSED, `verify-report.md` written → `▎ Cycle status: closed for handoff — demanda N/X.`
+- All gates PASSED, `verify-report.md` written → `▎ Cycle status: closed for handoff — next: /develop — demanda N/X.`
 - Any gate FAILED (returns to `/implement`) → `▎ Cycle status: blocked — rejected — demanda N/X.`
 - Anti-loop detected (second consecutive FAILED) → `▎ Cycle status: blocked — anti-loop — demanda N/X.`
 - Skill invoked without `pipeline/test-report.md` (APPROVED) → `▎ Cycle status: blocked — meta query (no new demand to formalize) — demanda 0/0.`
@@ -27,7 +27,7 @@ Read `N/X` from `pipeline/task-input.md`. Single demand → `1/1`. Do not paraph
 - After `/test` approves, before `/develop`.
 - Inside `/hotfix` — only the `static` layer, inline (see hotfix skill).
 - Never rerun inside the `/review` ↔ `/implement` rejection loop.
-- Per-task: `/verify` → `/develop`. Per-batch (release-pending >= threshold): `/verify` → `/audit` → `/gate` → `/develop`.
+- Per-task and per-batch: `/verify` → `/develop`.
 
 ## Mandatory reading
 
@@ -158,32 +158,10 @@ Rerun project's coverage command from `.claude/SKILL.md` / `verify-tools-matrix.
 
 Below threshold → FAILED.
 
-### 4.5. Orphan-fixture audit (Delphi only)
-
-Active stack includes `delphi` → run the orphan-fixture detector as a non-blocking gate:
-
-```bash
-bash .claude/scripts/audit/detect-orphan-fixtures.sh
-```
-
-| Gate | Command | Severity | Output destination |
-|---|---|---|---|
-| Orphan fixtures | `bash .claude/scripts/audit/detect-orphan-fixtures.sh` | `WARN` | `verify-report.md → Orphan-fixture audit` |
-
-Semantics:
-- Exit `0` → `PASSED` for this gate (record `0 orphans`).
-- Exit `1` → `WARN` (record orphan list; do **not** flip the aggregate verdict to FAILED).
-- Exit `2` → `WARN` with `inputs missing` note (executor file absent or fixture glob empty).
-
-Opt-out marker: a `.pas` file with `// orphan-detect: ignore` in its first 5 lines is excluded from the candidate set (see `.claude/scripts/audit/detect-orphan-fixtures.sh` header).
-
-This gate is non-blocking for the current cycle. Severity will flip to blocking after one verified clean run (separate demand).
-
 ### 5. Aggregate verdict
 
 - All three PASSED → verdict `PASSED`.
 - Any FAILED → verdict `FAILED`.
-- Orphan-fixture audit is `WARN`-only and never affects the aggregate verdict this cycle.
 
 ### 6. Report in `.claude/pipeline/verify-report.md`
 
@@ -193,9 +171,7 @@ Use the `verify-report.md` template in `.claude/skills/references/report-templat
 
 State the verdict and the gate that failed (if any). FAILED → leave actionable prompt for `/implement`.
 
-PASSED → suggest next step based on release-pending count (from `/develop`'s `RELEASE_PENDING` semantics, threshold 5):
-- release-pending < threshold → suggest `/develop` directly (per-task fast path; skip `/audit` and `/gate`).
-- release-pending >= threshold or user explicit → suggest `/audit` next; full chain runs only on batch close (`/audit` → `/gate` → `/develop`).
+PASSED → next step is `/develop`.
 
 ## Anti-loop
 

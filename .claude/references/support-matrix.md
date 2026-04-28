@@ -50,7 +50,7 @@ The audited public material does not define internal permission profiles or ACL 
 
 The DUnitX suite is split across 4 executors. Compile-time references in each `.dpr` define which fixtures run; the NUnit XML produced by each `.exe` (`Test/Delphi/dunitx-*.xml`) is the runtime source-of-truth for the actual `[Test]` count.
 
-### JanusSmoke.dpr — fast/unit suite
+### Janus.Tests.Unit.dpr — fast/unit suite
 
 | Test file | Count | Covered area |
 |---|---|---|
@@ -81,7 +81,7 @@ The DUnitX suite is split across 4 executors. Compile-time references in each `.
 | `TestCodeGenTemplate` | 6 | template engine — wired #170 |
 | `TestJanusJson` | 15 | `TJanusJson` wrapper — wired #170 |
 
-### JanusRestHorse.dpr — REST/Horse integration
+### Janus.Tests.RESTHorse.dpr — REST/Horse integration
 
 | Test file | Count | Covered area |
 |---|---|---|
@@ -91,22 +91,21 @@ The DUnitX suite is split across 4 executors. Compile-time references in each `.
 | `TestJanusRESTHorseDriver` | 8 | Horse driver |
 | `TestJanusRESTMethodGrant` | 16 | REST method grants |
 
-### JanusLiveBindings.dpr — LiveBindings R22.x
+### Janus.Tests.LiveBindings.dpr — LiveBindings R22.x
 
 | Test file | Count | Covered area |
 |---|---|---|
-| `Tests.Janus.LiveBindings.R221` | 4 | LiveBindings release R22.1 |
-| `Tests.Janus.LiveBindings.R222` | 9 | LiveBindings release R22.2 |
-| `Tests.Janus.LiveBindings.R223` | 8 | LiveBindings release R22.3 |
-| `Tests.Janus.LiveBindings.R224` | 10 | LiveBindings release R22.4 |
+| `Test.Janus.LiveBindings.Base` | 13 | Object backend Bind + BindGrid + master-detail (`[Category('R22.1')]` + `[Category('R22.2')]`) |
+| `Test.Janus.LiveBindings.DataSet` | 8 | DataSet backend (`[Category('R22.3')]`) |
+| `Test.Janus.LiveBindings.GridColumn` | 10 | BindList + ColumnMetadata (`[Category('R22.4')]`) |
 
-### JanusRESTHorseOracle.dpr — Oracle integration
+### Janus.Tests.RESTOracle.dpr — Oracle integration
 
 | Test file | Count | Covered area |
 |---|---|---|
 | `TestJanusRESTOracleAutoView` | 4 | Oracle AutoView (requires Oracle XE) |
 
-Pre-`#170` aggregate: 217 + 48 + 31 + 4 = 300 executed `[Test]` attributes (audit §4.1, 2026-04-26). Post-`#170` target after CI rebuild: ≥289 in `JanusSmoke.exe` (217 baseline + 72 newly-wired fixtures); aggregate ≥372 across the 4 executors. Confirm by inspecting `Test/Delphi/dunitx-*.xml` after a self-hosted Delphi CI run.
+Pre-`#170` aggregate: 217 + 48 + 31 + 4 = 300 executed `[Test]` attributes (audit §4.1, 2026-04-26). Post-`#170` target after CI rebuild: ≥289 in `Janus.Tests.Unit.exe` (217 baseline + 72 newly-wired fixtures); aggregate ≥372 across the 4 executors. Confirm by inspecting `Test/Delphi/dunitx-*.xml` after a self-hosted Delphi CI run.
 
 Drift detection: `bash .claude/scripts/audit/detect-orphan-fixtures.sh` reports any fixture present on disk but absent from the 4 `.dpr` `uses` clauses (zero orphans expected after `#170`).
 
