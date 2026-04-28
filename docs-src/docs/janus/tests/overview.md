@@ -7,17 +7,32 @@ title: Testes
 
 A suite de testes DUnitX está dividida em quatro executores independentes. Cada executor compila e executa um conjunto específico de fixtures; o NUnit XML produzido por cada `.exe` é a fonte de verdade em tempo de execução para a contagem real de `[Test]`.
 
-- **JanusSmoke.dpr** — suite unitária rápida: mapeamento, lazy, middleware, plugins, CodeGen, JSON, DML, FluentSQL, REST QueryParse
-- **JanusRestHorse.dpr** — integração REST/Horse: CRUD sobre HTTP, endpoints read-only, join views, driver prefix, controle de verbo
-- **JanusLiveBindings.dpr** — LiveBindings R22.x: TJanusBinder com atributos [Bind]/[BindGrid]/[BindGridColumn]
-- **JanusRESTHorseOracle.dpr** — Oracle AutoView: integração REST com Oracle XE (requer infraestrutura local)
+- **Janus.Tests.Unit.dpr** — suite unitária rápida: mapeamento, lazy, middleware, plugins, CodeGen, JSON, DML, FluentSQL, REST QueryParse
+- **Janus.Tests.RESTHorse.dpr** — integração REST/Horse: CRUD sobre HTTP, endpoints read-only, join views, driver prefix, controle de verbo
+- **Janus.Tests.LiveBindings.dpr** — LiveBindings R22.x: `TJanusBinder` com atributos `[Bind]`/`[BindGrid]`/`[BindGridColumn]`
+- **Janus.Tests.RESTOracle.dpr** — Oracle AutoView: integração REST com Oracle XE (requer infraestrutura local)
 - **FPCUnit** — compatibilidade Lazarus em `Test/Lazarus/` (fora do escopo DUnitX)
 
-Aggregate pré-`#170`: 300 atributos `[Test]` executados (217 + 48 + 31 + 4). Alvo pós-`#170` após rebuild CI: ≥289 em `JanusSmoke.exe` (7 fixtures recém-vinculadas); total ≥372 nos 4 executores.
+Aggregate pré-`#170`: 300 atributos `[Test]` executados (217 + 48 + 31 + 4). Alvo pós-`#170` após rebuild CI: ≥289 em `Janus.Tests.Unit.exe` (7 fixtures recém-vinculadas); total ≥372 nos 4 executores.
 
 Os arquivos XML de resultado (`Test/Delphi/dunitx-*.xml`) são a fonte de verdade em runtime. Inspecione-os após uma execução local ou pelo self-hosted Delphi CI.
 
-## JanusSmoke.dpr — suite unitária rápida
+## Layout de fixtures
+
+A partir de v2.22.5, as fixtures DUnitX estão organizadas em uma árvore em camadas sob `Test/Delphi/`:
+
+| Pasta | Conteúdo |
+|-------|----------|
+| `Common/` | Infraestrutura compartilhada (`Janus.Test.Runner.pas`, `Janus.Test.Bootstrap.pas`) |
+| `Unit/{Core,Mapping.Lazy,Container,Middleware,CodeGen,Criteria}/` | 22 fixtures unitárias canonicalizadas como `Test.Janus.<area>.<subject>.pas` |
+| `Integration/` | 3 fixtures de integração |
+| `RESTHorse/` (+ `Support/`) | 6 fixtures + 2 utilitários |
+| `RESTOracle/` (+ `Support/`) | 1 fixture + 1 utilitário |
+| `LiveBindings/` | 3 unidades release-agnostic (Base/DataSet/GridColumn) |
+
+A pasta plana `Test/Delphi/Tests/` foi dissolvida em #191 (demanda 6/8 do audit-driven roadmap).
+
+## Janus.Tests.Unit.dpr — suite unitária rápida
 
 | Arquivo de teste | Count | Área coberta |
 |-----------------|-------|-------------|
@@ -50,7 +65,7 @@ Os arquivos XML de resultado (`Test/Delphi/dunitx-*.xml`) são a fonte de verdad
 
 As 7 fixtures marcadas *wired #170* foram compiladas mas não estavam registradas no runner antes do commit `26256a8` (issue #170, v2.22.2).
 
-## JanusRestHorse.dpr — integração REST/Horse
+## Janus.Tests.RESTHorse.dpr — integração REST/Horse
 
 | Arquivo de teste | Count | Área coberta |
 |-----------------|-------|-------------|
@@ -62,16 +77,17 @@ As 7 fixtures marcadas *wired #170* foram compiladas mas não estavam registrada
 
 Requer SQLite FireDAC disponível no ambiente; o servidor Horse sobe no fixture-setup e encerra no fixture-teardown.
 
-## JanusLiveBindings.dpr — LiveBindings R22.x
+## Janus.Tests.LiveBindings.dpr — LiveBindings R22.x
+
+A partir de v2.22.5, as quatro fixtures release-específicas (`Tests.Janus.LiveBindings.R221`/`R222`/`R223`/`R224`) foram consolidadas em três unidades release-agnostic. As tags de release sobrevivem como atributos `[Category('R22.x')]` em nível de classe.
 
 | Arquivo de teste | Count | Área coberta |
 |-----------------|-------|-------------|
-| `Tests.Janus.LiveBindings.R221` | 4 | R22.1 — `TJanusBinder` básico |
-| `Tests.Janus.LiveBindings.R222` | 9 | R22.2 — `BindGrid<T>` e master-detail |
-| `Tests.Janus.LiveBindings.R223` | 8 | R22.3 — backend DataSet (`BindSourceDB`) |
-| `Tests.Janus.LiveBindings.R224` | 10 | R22.4 — `BindGridColumn`, regressão R22.1–R22.3 |
+| `Test.Janus.LiveBindings.Base` | 13 | Object backend `Bind` + `BindGrid` + master-detail (`[Category('R22.1')]` + `[Category('R22.2')]`) |
+| `Test.Janus.LiveBindings.DataSet` | 8 | DataSet backend (`TBindSourceDB`, master-detail-subdetail) (`[Category('R22.3')]`) |
+| `Test.Janus.LiveBindings.GridColumn` | 10 | `BindList<T>` + `BindGridColumn` metadata (`[Category('R22.4')]`) |
 
-## JanusRESTHorseOracle.dpr — Oracle AutoView
+## Janus.Tests.RESTOracle.dpr — Oracle AutoView
 
 | Arquivo de teste | Count | Área coberta |
 |-----------------|-------|-------------|
@@ -88,7 +104,7 @@ A partir de v2.22.4, a lógica de bootstrap e execução dos executores foi extr
 | `Janus.Test.Runner.pas` | Inicialização do runner DUnitX, configuração de listeners XML e console |
 | `Janus.Test.Bootstrap.pas` | Setup de ambiente compartilhado (conexão, diretórios, teardown global) |
 
-Os quatro executores (`JanusSmoke`, `JanusRestHorse`, `JanusLiveBindings`, `JanusRESTHorseOracle`) importam esses arquivos via `uses` clause em vez de duplicar o código de runner internamente.
+Os quatro executores (`Janus.Tests.Unit`, `Janus.Tests.RESTHorse`, `Janus.Tests.LiveBindings`, `Janus.Tests.RESTOracle`) importam esses arquivos via `uses` clause em vez de duplicar o código de runner internamente.
 
 ## Detecção de orphan fixtures
 
@@ -121,7 +137,7 @@ Distribuição de modos (v2.22.4):
 |------|-------|-------------|
 | `compile` | 24 | Compilação headless via msbuild esperada passar |
 | `run` | 0 | Reservado para versão futura |
-| `defer` | 4 | Falhas pré-existentes; aguardam correção em demanda 8/8 |
+| `defer` | 4 | Falhas pré-existentes; documentadas para correção em ciclo separado |
 | `exclude` | 21 | Drivers externos ou projetos com dependências externas |
 
 Para verificar localmente sem invocar o msbuild:
@@ -134,28 +150,28 @@ Saída esperada: `compile=24 run=0 defer=4 exclude=21` + `[dry-run] manifest val
 
 ## Como executar
 
-**JanusSmoke** (suite padrão):
+**Janus.Tests.Unit** (suite padrão):
 ```
 cd Test/Delphi
-JanusSmoke.exe --exitbehavior:Continue --xmlfile:dunitx-results.xml
+Janus.Tests.Unit.exe --exitbehavior:Continue --xmlfile:dunitx-results.xml
 ```
 
-**JanusRestHorse** (integração REST/Horse):
+**Janus.Tests.RESTHorse** (integração REST/Horse):
 ```
 cd Test/Delphi
-JanusRestHorse.exe --exitbehavior:Continue --xmlfile:dunitx-rest-horse-results.xml
+Janus.Tests.RESTHorse.exe --exitbehavior:Continue --xmlfile:dunitx-rest-horse-results.xml
 ```
 
-**JanusLiveBindings** (LiveBindings R22.x):
+**Janus.Tests.LiveBindings** (LiveBindings R22.x):
 ```
 cd Test/Delphi
-JanusLiveBindings.exe --exitbehavior:Continue --xmlfile:dunitx-livebindings-results.xml
+Janus.Tests.LiveBindings.exe --exitbehavior:Continue --xmlfile:dunitx-livebindings-results.xml
 ```
 
-**JanusRESTHorseOracle** (Oracle — requer infraestrutura):
+**Janus.Tests.RESTOracle** (Oracle — requer infraestrutura):
 ```
 cd Test/Delphi
-TNS_ADMIN="<abs-path-to-Test/Delphi>" JanusRESTHorseOracle.exe --exitbehavior:Continue --xmlfile:dunitx-oracle-results.xml
+TNS_ADMIN="<abs-path-to-Test/Delphi>" Janus.Tests.RESTOracle.exe --exitbehavior:Continue --xmlfile:dunitx-oracle-results.xml
 ```
 
 Saída esperada: todos os testes verdes em cada executor. Os arquivos XML de resultado são gerados no diretório de trabalho.
@@ -171,3 +187,4 @@ Saída esperada: todos os testes verdes em cada executor. Os arquivos XML de res
 - A partir de v2.22.0, R22.4 (`BindGridColumn`) integrada em `JanusLiveBindings.dpr`.
 - A partir de v2.22.2, 7 fixtures previamente não registradas foram vinculadas ao `JanusSmoke.dpr` (#170).
 - A partir de v2.22.4, lógica de runner extraída para `Janus.Test.Runner.pas` e `Janus.Test.Bootstrap.pas` em `Test/Delphi/Common/`; `DCC_UnitSearchPath` padronizado nos 49 exemplos; Examples Build Gate adicionado com manifesto `auto-validable.txt` e workflow `examples.yml` (#185–#188).
+- A partir de v2.22.5, `Test/Delphi/Tests/` reorganizada em árvore em camadas (`Common`/`Unit`/`Integration`/`RESTHorse`/`RESTOracle`/`LiveBindings`) com 35 fixtures renomeadas para `Test.Janus.<area>.<subject>.pas` (#191); os quatro executores renomeados para `Janus.Tests.{Unit,RESTHorse,LiveBindings,RESTOracle}.dpr`; quatro fixtures `Tests.Janus.LiveBindings.R22N.pas` consolidadas em três unidades release-agnostic com `[Category('R22.x')]` (#192).

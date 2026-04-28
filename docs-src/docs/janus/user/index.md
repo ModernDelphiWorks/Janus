@@ -5,9 +5,9 @@ displayed_sidebar: janusSidebar
 
 User manual for Janus in Delphi, focused on installation, first-use workflows, and day-to-day framework operations.
 
-Current manual status: aligned with release `v2.22.3`.
+Current manual status: aligned with release `v2.22.5`.
 
-- `v2.22.x` introduced no public API changes for end users beyond license header normalization and knowledge-base refresh.
+- `v2.22.x` introduced no public API changes for end users. v2.22.5 reorganized the test tree and renamed the four DUnitX executors to canonical `Janus.Tests.{Unit,RESTHorse,LiveBindings,RESTOracle}.dpr`; usage instructions and troubleshooting steps were updated accordingly.
 - `v2.21.0` introduced `TJanusBinder` as the new LiveBindings engine, replacing the legacy `TJanusLiveBindings`. The `[Bind]`, `[BindGrid]`, `[BindGridDetail]`, `[BindListControl]`, and `[BindGridColumn]` attributes are the canonical binding API.
 - `v2.20.x` introduced REST/Horse integration with OData filter support, `[RESTReadOnly]` for write guards, join views via `TRESTViewManager`, and HTTP verb access control attributes (`[RESTAllowGET]`, `[RESTAllowPOST]`, `[RESTAllowPUT]`, `[RESTAllowDELETE]`).
 - Releases `v2.19.5` to `v2.19.14` did not change the public usage contract.

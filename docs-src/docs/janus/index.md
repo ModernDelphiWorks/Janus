@@ -25,8 +25,10 @@ Framework ORM para Delphi com mapeamento por atributos, suporte multi-banco, Dat
 
 ## Release status
 
-- Most recent published version: `v2.22.3`.
-- Most recent published tag: `v2.22.3`.
+- Most recent published version: `v2.22.5`.
+- Most recent published tag: `v2.22.5`.
+- `v2.22.5` closed the 8-demand audit-driven roadmap (round 61..68): reorganized `Test/Delphi/Tests/` into a layered tree (`Common`/`Unit`/`Integration`/`RESTHorse`/`RESTOracle`/`LiveBindings`) with 35 fixtures renamed to `Test.Janus.<area>.<subject>.pas` (issue #191); renamed the four DUnitX executors to canonical `Janus.Tests.{Unit,RESTHorse,LiveBindings,RESTOracle}.dpr` and consolidated four `Tests.Janus.LiveBindings.R22N.pas` into three release-agnostic units (`Test.Janus.LiveBindings.{Base,DataSet,GridColumn}`) with `[Category('R22.x')]` attributes (issue #192); ROADMAP "Gap Fixtures Era" phase added with 12 deferred candidates (issue #193).
+- `v2.22.4` extracted DUnitX runner/bootstrap to `Test/Delphi/Common/`; standardized `DCC_UnitSearchPath` across 49 example `.dproj`; added Examples Build Gate workflow with TSV manifest (issues #185–#188).
 - `v2.22.3` refreshed the knowledge-base reference files, replacing the stale "131 tests" claim with 300+ DUnitX tests across 4 executors; per-executor breakdown in `support-matrix.md` (issue #180).
 - `v2.22.2` wired 7 orphan DUnitX fixtures into `JanusSmoke.dpr` (issue #170); fixed `TFakeConnection` mock contract (issue #171); prepended MIT license headers to 255 source artifacts (issue #175); replaced remaining LGPL badge with MIT (issue #178).
 - `v2.22.1` replaced LGPL header with MIT in all 134 `Source/` `.pas` files (issue #168); consolidated ROADMAP post-v2.22.0 (issue #167).

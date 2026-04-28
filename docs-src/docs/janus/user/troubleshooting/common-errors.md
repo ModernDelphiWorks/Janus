@@ -120,7 +120,7 @@ initialization
 
 1. Revise o `uses` da unit que referencia `Supports`.
 2. Inclua `SysUtils` quando necessario.
-3. Recompile `Test/Delphi/JanusSmoke.dpr`.
+3. Recompile `Test/Delphi/Janus.Tests.Unit.dpr`.
 
 ## Erro F2613: Unit `SysUtils` not found
 
@@ -136,4 +136,4 @@ initialization
 
 1. Reexecute o fluxo oficial de build/smoke do projeto.
 2. Garanta que o ambiente do compilador Delphi esteja inicializado antes da compilacao.
-3. Valide novamente o `JanusSmoke.dpr` apos ajustar o ambiente.
+3. Valide novamente o `Janus.Tests.Unit.dpr` apos ajustar o ambiente.

@@ -56,4 +56,4 @@ DB_PASSWORD=<YOUR_VALUE>
 5. Registrar todas as entidades utilizadas.
 6. Validar abertura de container e persistencia com teste simples.
 7. Se usar `[Lazy]`, validar o primeiro acesso a `.Value` antes de encerrar a sessao.
-8. Se seu fluxo inclui smoke/local CI, compilar `Test/Delphi/JanusSmoke.dpr` para detectar problemas de ambiente antes de publicar.
+8. Se seu fluxo inclui smoke/local CI, compilar `Test/Delphi/Janus.Tests.Unit.dpr` para detectar problemas de ambiente antes de publicar.
