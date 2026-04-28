@@ -24,7 +24,7 @@
   CA-010 (deprecated directives) verified by /review static check.
 }
 
-unit Tests.Janus.LiveBindings.R224;
+unit Test.Janus.LiveBindings.GridColumn;
 
 interface
 
@@ -56,6 +56,7 @@ type
     property Observacao: string read FObservacao write FObservacao;
   end;
 
+  [Category('R22.4')]
   [TestFixture]
   TTestJanusBinderR224 = class
   private

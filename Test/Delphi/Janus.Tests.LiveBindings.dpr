@@ -18,7 +18,7 @@
   @abstract(Telagram : https://t.me/Janus)
 }
 
-program JanusRESTHorseOracle;
+program Janus.Tests.LiveBindings;
 
 {$IFNDEF TESTINSIGHT}
 {$APPTYPE CONSOLE}
@@ -29,36 +29,21 @@ uses
   System.Classes,
   System.SysUtils,
   System.IOUtils,
-  // Oracle driver registration — initialization registers the OCI factory
-  FireDAC.Phys.Oracle,
-  FireDAC.Phys.OracleDef,
-  FireDAC.Stan.Def,
-  FireDAC.Stan.Intf,
-  FireDAC.Phys,
-  FireDAC.Stan.Async,
-  FireDAC.Comp.DataSet,
   {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX,
   {$ENDIF}
   DUnitX.TestFramework,
   DUnitX.Loggers.Console,
   DUnitX.Loggers.Xml.NUnit,
-  Janus.Test.Bootstrap in 'Common\Janus.Test.Bootstrap.pas',
   Janus.Test.Runner in 'Common\Janus.Test.Runner.pas',
-  // Oracle DML generator — registers factory with TDriverRegister
-  Janus.DML.Generator.Oracle,
-  // Entity registration support
-  MetaDbDiff.Mapping.Register,
-  // Oracle test infrastructure
-  RestHorseOracleTest.Base in 'RESTOracle\Support\RestHorseOracleTest.Base.pas',
-  // Oracle auto-view test fixture
-  Test.Janus.REST.Oracle.AutoView in 'RESTOracle\Test.Janus.REST.Oracle.AutoView.pas';
+  Test.Janus.LiveBindings.Base       in 'LiveBindings\Test.Janus.LiveBindings.Base.pas',
+  Test.Janus.LiveBindings.DataSet    in 'LiveBindings\Test.Janus.LiveBindings.DataSet.pas',
+  Test.Janus.LiveBindings.GridColumn in 'LiveBindings\Test.Janus.LiveBindings.GridColumn.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX.RunRegisteredTests;
   Exit;
 {$ENDIF}
-  TJanusTestBootstrap.RegisterFireDACSilent;
-  System.ExitCode := TJanusTestRunner.Execute('', False);
+  System.ExitCode := TJanusTestRunner.Execute('.janus_livebindings_write_probe.tmp', True);
 end.

@@ -23,7 +23,7 @@
   Covers CA-001..CA-008, CA-010: TBindSourceDB wiring, master-detail, Unbind, Destroy, regression.
 }
 
-unit Tests.Janus.LiveBindings.R223;
+unit Test.Janus.LiveBindings.DataSet;
 
 interface
 
@@ -63,6 +63,7 @@ type
     property Name: string read FName write FName;
   end;
 
+  [Category('R22.3')]
   [TestFixture]
   TTestJanusBinderR223 = class
   private

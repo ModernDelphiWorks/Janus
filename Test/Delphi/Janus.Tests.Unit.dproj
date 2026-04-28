@@ -1,10 +1,10 @@
 ﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
         <ProjectGuid>{F84FEA1F-CC54-4EEE-84B0-74EFF0DD1C72}</ProjectGuid>
-        <MainSource>JanusSmoke.dpr</MainSource>
+        <MainSource>Janus.Tests.Unit.dpr</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Debug</Config>
-        <ProjectName Condition="'$(ProjectName)'==''">JanusSmoke</ProjectName>
+        <ProjectName Condition="'$(ProjectName)'==''">Janus.Tests.Unit</ProjectName>
         <TargetedPlatforms>660609</TargetedPlatforms>
         <AppType>Console</AppType>
         <FrameworkType>None</FrameworkType>
@@ -56,7 +56,7 @@
         <DCC_N>false</DCC_N>
         <DCC_S>false</DCC_S>
         <DCC_ImageBase>00400000</DCC_ImageBase>
-        <SanitizedProjectName>JanusSmoke</SanitizedProjectName>
+        <SanitizedProjectName>Janus.Tests.Unit</SanitizedProjectName>
         <VerInfo_Locale>1046</VerInfo_Locale>
         <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=;CFBundleName=</VerInfo_Keys>
         <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;$(DCC_Namespace)</DCC_Namespace>
@@ -188,7 +188,7 @@
         <BorlandProject>
             <Delphi.Personality>
                 <Source>
-                    <Source Name="MainSource">JanusSmoke.dpr</Source>
+                    <Source Name="MainSource">Janus.Tests.Unit.dpr</Source>
                 </Source>
             </Delphi.Personality>
             <Platforms>

@@ -5,7 +5,7 @@ title: Testes
 
 ## Estratégia
 
-- **DUnitX** — suite principal em `Test/Delphi/JanusSmoke.dpr`
+- **DUnitX** — suite principal em `Test/Delphi/Janus.Tests.Unit.dpr`
 - **FPCUnit** — compatibilidade Lazarus em `Test/Lazarus/`
 - Cobertura: geração SQL (FluentSQL), bind, lazy/proxy, middleware, plugins, CodeGen
 - A partir de v2.18.6, o legado `Source/Criteria/*.pas` foi removido; as queries usam exclusivamente `TCQ()` via FluentSQL.
@@ -55,9 +55,9 @@ title: Testes
 
 ## Como executar
 
-Abrir `Test/Delphi/JanusSmoke.dpr` no Delphi e executar a suíte DUnitX (F9).
+Abrir `Test/Delphi/Janus.Tests.Unit.dpr` no Delphi e executar a suíte DUnitX (F9).
 
-Saida esperada: todos os testes verdes. A validacao publicada com execucao completa mais recente registrou `155/155` testes aprovados em `Test/Delphi/JanusSmoke.exe --hidebanner --exit:Continue` na rodada `v2.19.6` (issue `#101`).
+Saida esperada: todos os testes verdes. A validacao publicada com execucao completa mais recente registrou `155/155` testes aprovados em `Test/Delphi/Janus.Tests.Unit.exe --hidebanner --exit:Continue` na rodada `v2.19.6` (issue `#101`).
 
 Evidencias nominais revalidadas nessa rodada:
 

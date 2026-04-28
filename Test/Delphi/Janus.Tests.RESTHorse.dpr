@@ -18,7 +18,7 @@
   @abstract(Telagram : https://t.me/Janus)
 }
 
-program JanusRestHorse;
+program Janus.Tests.RESTHorse;
 
 {$IFNDEF TESTINSIGHT}
 {$APPTYPE CONSOLE}
