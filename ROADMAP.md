@@ -199,7 +199,7 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 Esta fase consolida pendências surgidas no roadmap auditado de 8 demandas (round 61..68). Itens listados como candidatas; nenhuma execução compromissada — owner aprova nova rodada via `/architect` opening protocol.
 
 - DML-per-database fixtures (12 tests gap from §3.1) (candidata — direção a confirmar)
-- Metadata Compare fixtures (candidata — direção a confirmar)
+- Metadata Compare fixtures (resolved — fixture added, demand 3/8)
 - Bind fixtures (candidata — direção a confirmar)
 - Monitor fixtures (candidata — direção a confirmar)
 - ObjectSet CRUD fixtures (candidata — direção a confirmar)
@@ -250,4 +250,6 @@ Esta fase consolida pendências surgidas no roadmap auditado de 8 demandas (roun
 *Ultima atualizacao: 2026-04-28 — Gap-Fixtures-Era wave opened: 8 demands; Console #153 disposition resolved as physical delete (demand 1/8)*
 
 *Ultima atualizacao: 2026-04-28 — Gap-Fixtures-Era demand 2/8: Driver Register fixtures landed*
+
+*Ultima atualizacao: 2026-04-28 — Gap-Fixtures-Era demand 3/8: Metadata Compare fixtures landed*
 

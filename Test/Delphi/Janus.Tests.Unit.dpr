@@ -62,6 +62,7 @@ uses
   Test.Janus.Types.Lazy    in 'Unit\Core\Test.Janus.Types.Lazy.pas',
   Test.Janus.Mapping.Dictionary  in 'Unit\Core\Test.Janus.Mapping.Dictionary.pas',
   Test.Janus.Mapping.QueryCache     in 'Unit\Core\Test.Janus.Mapping.QueryCache.pas',
+  Test.Janus.Metadata.Compare in 'Unit\Core\Test.Janus.Metadata.Compare.pas',
   Test.Janus.Container.DataSet.AutoLazy in 'Unit\Container\Test.Janus.Container.DataSet.AutoLazy.pas',
   /// Advanced Tests — SPRINT-14
   Test.Janus.Criteria.Advanced in 'Unit\Criteria\Test.Janus.Criteria.Advanced.pas',
