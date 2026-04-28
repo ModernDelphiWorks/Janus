@@ -18,7 +18,7 @@
   @abstract(Telagram : https://t.me/Janus)
 }
 
-program JanusLiveBindings;
+program Janus.Tests.RESTOracle;
 
 {$IFNDEF TESTINSIGHT}
 {$APPTYPE CONSOLE}
@@ -29,26 +29,36 @@ uses
   System.Classes,
   System.SysUtils,
   System.IOUtils,
+  // Oracle driver registration — initialization registers the OCI factory
+  FireDAC.Phys.Oracle,
+  FireDAC.Phys.OracleDef,
+  FireDAC.Stan.Def,
+  FireDAC.Stan.Intf,
+  FireDAC.Phys,
+  FireDAC.Stan.Async,
+  FireDAC.Comp.DataSet,
   {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX,
   {$ENDIF}
   DUnitX.TestFramework,
   DUnitX.Loggers.Console,
   DUnitX.Loggers.Xml.NUnit,
+  Janus.Test.Bootstrap in 'Common\Janus.Test.Bootstrap.pas',
   Janus.Test.Runner in 'Common\Janus.Test.Runner.pas',
-  /// LiveBindings Tests — ESP-004 / R22.1
-  Tests.Janus.LiveBindings.R221 in 'LiveBindings\Tests.Janus.LiveBindings.R221.pas',
-  /// LiveBindings Tests — ESP-004 / R22.2
-  Tests.Janus.LiveBindings.R222 in 'LiveBindings\Tests.Janus.LiveBindings.R222.pas',
-  /// LiveBindings Tests — ESP-002 / R22.3
-  Tests.Janus.LiveBindings.R223 in 'LiveBindings\Tests.Janus.LiveBindings.R223.pas',
-  /// LiveBindings Tests — ESP-002 / R22.4
-  Tests.Janus.LiveBindings.R224 in 'LiveBindings\Tests.Janus.LiveBindings.R224.pas';
+  // Oracle DML generator — registers factory with TDriverRegister
+  Janus.DML.Generator.Oracle,
+  // Entity registration support
+  MetaDbDiff.Mapping.Register,
+  // Oracle test infrastructure
+  RestHorseOracleTest.Base in 'RESTOracle\Support\RestHorseOracleTest.Base.pas',
+  // Oracle auto-view test fixture
+  Test.Janus.REST.Oracle.AutoView in 'RESTOracle\Test.Janus.REST.Oracle.AutoView.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX.RunRegisteredTests;
   Exit;
 {$ENDIF}
-  System.ExitCode := TJanusTestRunner.Execute('.janus_livebindings_write_probe.tmp', True);
+  TJanusTestBootstrap.RegisterFireDACSilent;
+  System.ExitCode := TJanusTestRunner.Execute('', False);
 end.
