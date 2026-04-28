@@ -46,6 +46,7 @@
         <Base>true</Base>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base)'!=''">
+        <DCC_UnitSearchPath>..\..\..\..\..\..\Source\Core;..\..\..\..\..\..\Source\Dataset;..\..\..\..\..\..\Source\Objectset;..\..\..\..\..\..\Source\Metadata;..\..\..\..\..\..\Source\Middleware;..\..\..\..\..\..\Source\Middleware-Horse;..\..\..\..\..\..\Source\Livebindings;..\..\..\..\..\..\Source\Monitor;..\..\..\..\..\..\Source\CodeGen;..\..\..\..\..\..\Source\RESTful\Client;..\..\..\..\..\..\Source\RESTful\Common;..\..\..\..\..\..\Source\RESTful\Server;..\..\..\..\..\..\Source\Dependencies\MetaDbDiff\Source\Core;..\..\..\..\..\..\Source\Dependencies\MetaDbDiff\Source\Drivers;..\..\..\..\..\..\Source\Dependencies\DataEngine\Source\Core;..\..\..\..\..\..\Source\Dependencies\DataEngine\Source\Drivers;..\..\..\..\..\..\Source\Dependencies\DataEngine\Source\Integrations;..\..\..\..\..\..\Source\Dependencies\FluentSQL\Source\Core;..\..\..\..\..\..\Source\Dependencies\FluentSQL\Source\Drivers;..\..\..\..\..\..\Source\Dependencies\JsonFlow\Source\Core;..\..\..\..\..\..\Source\Dependencies\JsonFlow\Source\JSON\Core;..\..\..\..\..\..\Source\Dependencies\JsonFlow\Source\Reader;..\..\..\..\..\..\Source\Dependencies\JsonFlow\Source\Writer;..\..\..\..\..\..\Source\Dependencies\ModernSyntax\Source;..\..\..\..\..\..\Source\Dependencies\Horse\src;..\..\..\..\..\..\Source\External\SQLite3;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <DCC_DcuOutput>.\$(Platform)\$(Config)</DCC_DcuOutput>
         <DCC_ExeOutput>.\$(Platform)\$(Config)</DCC_ExeOutput>
         <DCC_E>false</DCC_E>
@@ -112,9 +113,6 @@
         <DCCReference Include="..\Janus.Model.Detail.pas"/>
         <DCCReference Include="..\Janus.Model.Lookup.pas"/>
         <DCCReference Include="..\Janus.Model.Master.pas"/>
-        <DCCReference Include="..\..\..\..\Source\RESTful Components\Client\Janus.Client.DMVC.pas"/>
-        <DCCReference Include="..\..\..\..\Source\RESTful Components\Client\Janus.driver.rest.dmvc.pas"/>
-        <DCCReference Include="..\..\..\..\Source\RESTful Components\Client\Janus.factory.rest.dmvc.pas"/>
         <BuildConfiguration Include="Release">
             <Key>Cfg_2</Key>
             <CfgParent>Base</CfgParent>

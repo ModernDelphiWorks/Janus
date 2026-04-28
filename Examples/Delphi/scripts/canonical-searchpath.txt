@@ -1,0 +1,70 @@
+# Canonical DCC_UnitSearchPath for Examples/Delphi/**/*.dproj
+#
+# Owner: round 64, demand 4/8 (issue #187)
+# Source of truth for the 26 relative roots that every Examples/Delphi `.dproj`
+# must add to its `<DCC_UnitSearchPath>` element. Future restructures of
+# `Source/` update THIS file plus a regenerate-script run; individual `.dproj`
+# files are never hand-edited again.
+#
+# Consumers:
+#   - .local-readonly/update_examples_searchpath.py (rewrite tool, untracked)
+#   - demand 5/8 — auto-validable manifest + CI gate (next wave)
+#
+# Format
+#   * One canonical entry per line below the marker `BEGIN_CANONICAL`.
+#   * Order matches audit `.local-readonly/janus_features_tests_examples_audit.md` §6.3.
+#   * Each entry is RELATIVE to the repo root and uses Windows backslashes
+#     (Delphi convention). Forward slashes also accepted by dcc32.
+#   * The rewrite script prepends each entry with N copies of `..\` where N
+#     equals the directory depth of the `.dproj` from the repo root, and joins
+#     with `;`, then appends `;$(DCC_UnitSearchPath)` so the IDE library path
+#     is preserved.
+#
+# Depth table (number of `..\` to prepend)
+#   3  →  Examples/Delphi/<area>/file.dproj                                    (e.g. JSON/PJson.dproj)
+#   4  →  Examples/Delphi/<area>/<project>/file.dproj                          (Data/*, Datasnap/*, Livebindings/VCL/*, Middlewares/*, RESTful/Horse/*)
+#   5  →  Examples/Delphi/<area>/<sub>/<project>/file.dproj                    (Metadata/FireDAC/*, NoSQL/MongoDB/*, RESTful/RESTFul via Driver/WebService/*)
+#   6  →  Examples/Delphi/<area>/<sub>/<framework>/<role>/file.dproj           (RESTful/RESTFul via Driver/<framework>/Client|Server/*)
+#
+# Worked example for depth 4 (e.g. Examples/Delphi/Data/SQLite Native/Janus_SQLite.dproj):
+#   ..\..\..\..\Source\Core;..\..\..\..\Source\Dataset;...;$(DCC_UnitSearchPath)
+#
+# Notes
+#   * Adding 26 entries is non-destructive for third-party Server projects
+#     (MARS, WiRL, DelphiMVC, Datasnap) — the entries are simply unused when
+#     the project does not consume Janus units. Pre-existing third-party
+#     SearchPath entries are preserved by prepending the canonical block in
+#     front of `$(DCC_UnitSearchPath)`.
+#   * Paths use the post-DataEngine-relocation layout
+#     (`Source\Dependencies\DataEngine\Source\Core`, not `Source\DataEngine\Core`).
+#   * SQLite header lives under `Source\External\SQLite3` — single shared
+#     location across drivers.
+
+BEGIN_CANONICAL
+Source\Core
+Source\Dataset
+Source\Objectset
+Source\Metadata
+Source\Middleware
+Source\Middleware-Horse
+Source\Livebindings
+Source\Monitor
+Source\CodeGen
+Source\RESTful\Client
+Source\RESTful\Common
+Source\RESTful\Server
+Source\Dependencies\MetaDbDiff\Source\Core
+Source\Dependencies\MetaDbDiff\Source\Drivers
+Source\Dependencies\DataEngine\Source\Core
+Source\Dependencies\DataEngine\Source\Drivers
+Source\Dependencies\DataEngine\Source\Integrations
+Source\Dependencies\FluentSQL\Source\Core
+Source\Dependencies\FluentSQL\Source\Drivers
+Source\Dependencies\JsonFlow\Source\Core
+Source\Dependencies\JsonFlow\Source\JSON\Core
+Source\Dependencies\JsonFlow\Source\Reader
+Source\Dependencies\JsonFlow\Source\Writer
+Source\Dependencies\ModernSyntax\Source
+Source\Dependencies\Horse\src
+Source\External\SQLite3
+END_CANONICAL
