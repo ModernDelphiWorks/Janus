@@ -1,0 +1,73 @@
+# Janus Framework — CI Examples Build Gate
+#
+# Compiles every .dproj under Examples/Delphi/ classified as `compile` (or
+# `run`) in Examples/Delphi/auto-validable.txt. `defer` and `exclude` rows
+# are skipped (see ADR-002 / ADR-004). Runs on the same self-hosted Delphi
+# runner used by tests.yml; see tests.yml header for runner setup.
+#
+# Owner: round 65 / demand 5/8 / GitHub issue #188.
+
+name: Janus Examples
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  examples-build:
+    name: Examples Build Gate
+    runs-on: [self-hosted, delphi]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (Boss)
+        run: |
+          if (Get-Command boss -ErrorAction SilentlyContinue) {
+            boss install
+          } else {
+            Write-Host "Boss not found — skipping dependency install. Ensure dependencies are available."
+          }
+        shell: pwsh
+
+      - name: Locate Delphi environment
+        id: delphi-env
+        run: |
+          $rsvars = @(
+            "C:\Program Files (x86)\Embarcadero\Studio\23.0\bin\rsvars.bat",
+            "C:\Program Files (x86)\Embarcadero\Studio\22.0\bin\rsvars.bat",
+            "C:\Program Files (x86)\Embarcadero\Studio\21.0\bin\rsvars.bat",
+            "C:\Program Files (x86)\Embarcadero\Studio\20.0\bin\rsvars.bat"
+          )
+          foreach ($path in $rsvars) {
+            if (Test-Path $path) {
+              Write-Host "Found rsvars.bat at: $path"
+              echo "RSVARS_PATH=$path" >> $env:GITHUB_OUTPUT
+              exit 0
+            }
+          }
+          Write-Host "::warning::rsvars.bat not found. Compilation may fail."
+          echo "RSVARS_PATH=" >> $env:GITHUB_OUTPUT
+        shell: pwsh
+
+      - name: Run examples build gate
+        run: |
+          cmd /c "Examples\Delphi\scripts\build_auto_validable.cmd" 2>&1 | Tee-Object -FilePath examples-build.log
+          $rc = $LASTEXITCODE
+          if ($rc -ne 0) {
+            Write-Host "::error::examples build gate failed with exit code $rc"
+            exit $rc
+          }
+        shell: pwsh
+
+      - name: Upload examples log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: examples-build-log
+          path: |
+            examples-build.log
+          if-no-files-found: warn
