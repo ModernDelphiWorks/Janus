@@ -1,0 +1,72 @@
+# Janus — Auto-Validable Examples Manifest
+#
+# Owner:   round 65 / demand 5/8 / GitHub issue #188
+# Format:  TSV — <relative-path>\t<mode>\t<note>
+#          Tab is the only column separator. Paths are repo-root-relative,
+#          forward-slash style. Lines beginning with '#' are comments.
+#
+# Modes:
+#   compile  — msbuild Debug/Win32; ExitCode must be 0.
+#   run      — reserved keyword (ADR-002). v1: treated as compile + warning.
+#   defer    — known broken; gate prints [DEFERRED]; not counted (see 8/8).
+#   exclude  — third-party / external dep; gate prints [EXCLUDE]; not counted.
+#
+# Distribution lock (ADR-002 / CA-003):
+#   compile=24  run=0  defer=4  exclude=21  total=49
+#
+# Drift rule (ADR-006):
+#   The driver script counts tracked .dproj under Examples/Delphi/ and
+#   compares to the row count below. Mismatch -> exit 2 MANIFEST_DRIFT.
+#   Adding a new .dproj REQUIRES updating this manifest in the same PR.
+#
+# Mode classification reference: .claude/pipeline/adr.md ADR-002 appendix.
+#
+Examples/Delphi/Data/ADO/Janus_ADO.dproj	compile
+Examples/Delphi/Data/ADO Sem DataSet/Janus_ADOSemDataSet.dproj	compile
+Examples/Delphi/Data/AbsoluteDB/JanusABS.dproj	compile
+Examples/Delphi/Data/Blob/Janus_Blob.dproj	compile
+Examples/Delphi/Data/Blob Sem DataSet/Janus_BlobSemDataSet.dproj	compile
+Examples/Delphi/Data/DBExpress/Janus_DBExpress.dproj	exclude	DBExpress driver — not on default CI runner
+Examples/Delphi/Data/DBExpress Sem DataSet/Janus_DBExpressSemDataSet.dproj	exclude	DBExpress driver — not on default CI runner
+Examples/Delphi/Data/ElevateDB/JanusElevateDB.dproj	exclude	ElevateDB driver — third-party / not on default CI runner
+Examples/Delphi/Data/FireDAC/Janus_FireDAC.dproj	compile
+Examples/Delphi/Data/FireDAC Crud Simples/Janus_FireDACCrudSimples.dproj	compile
+Examples/Delphi/Data/FireDAC Sem DataSet/Janus_FireDACSemDataSet.dproj	compile
+Examples/Delphi/Data/IBExpress/Janus_IBExpress.dproj	exclude	IBExpress driver — not on default CI runner
+Examples/Delphi/Data/NexusDB/JanusElevateDB.dproj	exclude	NexusDB driver — third-party / not on default CI runner
+Examples/Delphi/Data/NexusDB/JanusNexusDB.dproj	exclude	NexusDB driver — third-party / not on default CI runner
+Examples/Delphi/Data/Object Lazy/Janus_ObjectLazy.dproj	compile
+Examples/Delphi/Data/Quatro Niveis de Dados/Janus_QuatroNiveisDeDados.dproj	compile
+Examples/Delphi/Data/SQLDirect/JanusSQLDirect.dproj	exclude	SQLDirect driver — third-party / not on default CI runner
+Examples/Delphi/Data/SQLite Native/Janus_SQLite.dproj	defer	sqlite3.inc API drift (carry-forward from #187 CA-009; closed in 8/8)
+Examples/Delphi/Data/SQLite Native Sem DataSet/Janus_SQLiteSemDataSet.dproj	compile
+Examples/Delphi/Data/UniDAC/JanusUniDAC.dproj	exclude	UniDAC driver — third-party / not on default CI runner
+Examples/Delphi/Data/UniDAC Sem DataSet/JanusUniDAC.dproj	exclude	UniDAC driver — third-party / not on default CI runner
+Examples/Delphi/Data/Usando FluentSQL/Janus_FiredacUsandoFluentSQL.dproj	compile
+Examples/Delphi/Data/Uso TManagerDataSet/Janus_FiredacManagerDataSet.dproj	compile
+Examples/Delphi/Data/Uso TManagerObjectSet/Janus_FireDACManagerObjectSet.dproj	compile
+Examples/Delphi/Data/Varios Niveis de Dados/Janus_VariosNiveisDeDados.dproj	compile
+Examples/Delphi/Data/Zeos/Janus_Zeos.dproj	exclude	Zeos driver — third-party / not on default CI runner
+Examples/Delphi/Data/Zeos Sem DataSet/Janus_ZeosSemDataSet.dproj	exclude	Zeos driver — third-party / not on default CI runner
+Examples/Delphi/JSON/PJson.dproj	defer	CarregaJson API drift / embedded JSON path (carry-forward from #187 CA-009; closed in 8/8)
+Examples/Delphi/Datasnap/Client/JanusFireDAC.dproj	exclude	Datasnap framework dependency — third-party
+Examples/Delphi/Datasnap/Server/JanusServer.dproj	exclude	Datasnap framework dependency — third-party
+Examples/Delphi/Livebindings/VCL/Janus_LivebindingsVCL.dproj	compile
+Examples/Delphi/Metadata/FireDAC/Firemonkey/JanusMetadata.dproj	compile
+Examples/Delphi/Metadata/FireDAC/VCL/MetaDbDiffMetadata.dproj	defer	missing symbol post-DataEngine relocate (carry-forward from #187 CA-009; closed in 8/8)
+Examples/Delphi/Middlewares/Events/Janus_MiddlewareEvents.dproj	compile
+Examples/Delphi/Middlewares/Where_OrderBy/Janus_MiddlewareWhereOrderBy.dproj	compile
+Examples/Delphi/NoSQL/MongoDB/FireDAC MongoDB Crud/JanusFireDAC.dproj	exclude	MongoDB external service — third-party
+Examples/Delphi/NoSQL/MongoDB/MongoWire MongoDB Crud/JanusMongoWire.dproj	exclude	MongoDB external service — third-party
+Examples/Delphi/RESTful/Horse/HorseJanus.dproj	compile
+Examples/Delphi/RESTful/RESTFul via Driver/Datasnap/Client/JanusClient.dproj	compile
+Examples/Delphi/RESTful/RESTFul via Driver/Datasnap/Server/JanusServer.dproj	exclude	Datasnap framework dependency — third-party
+Examples/Delphi/RESTful/RESTFul via Driver/DelphiMVC/Client/JanusClient.dproj	compile
+Examples/Delphi/RESTful/RESTFul via Driver/DelphiMVC/Server/JanusServer.dproj	exclude	DelphiMVC framework — third-party owner
+Examples/Delphi/RESTful/RESTFul via Driver/Horse/Client/JanusClient.dproj	compile
+Examples/Delphi/RESTful/RESTFul via Driver/Horse/Server/JanusServer.dproj	defer	missing JanusServer.ico (carry-forward from #187 CA-009; closed in 8/8)
+Examples/Delphi/RESTful/RESTFul via Driver/MARS/Client/JanusClient.dproj	exclude	MARS framework — third-party owner
+Examples/Delphi/RESTful/RESTFul via Driver/MARS/Server/JanusServer.dproj	exclude	MARS framework — third-party owner
+Examples/Delphi/RESTful/RESTFul via Driver/WebService/pViaCEP.dproj	compile
+Examples/Delphi/RESTful/RESTFul via Driver/WiRL/Client/JanusClient.dproj	exclude	WiRL framework — third-party owner
+Examples/Delphi/RESTful/RESTFul via Driver/WiRL/Server/JanusServer.dproj	exclude	WiRL framework — third-party owner

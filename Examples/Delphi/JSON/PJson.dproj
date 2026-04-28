@@ -35,7 +35,7 @@
         <DCC_DebugDCUs>true</DCC_DebugDCUs>
         <DCC_DependencyCheckOutputName>PJson.exe</DCC_DependencyCheckOutputName>
         <SanitizedProjectName>PJSON</SanitizedProjectName>
-        <DCC_UnitSearchPath>..\..\Source\Core;..\..\Source\DataEngine\Core;..\..\Source\DataEngine\Drivers;..\..\Source\Dataset;..\..\Source\Objectset;..\..\Source\MetaDbDiff\Core;..\..\Source\Criteria;..\..\Source\Dependencies\JsonFlow\Source;..\..\Source\Dependencies\JsonFlow\Source\Core;..\..\Source\Dependencies\JsonFlow\Source\Reader;..\..\Source\Dependencies\JsonFlow\Source\Writer;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_UnitSearchPath>..\..\..\Source\Core;..\..\..\Source\Dataset;..\..\..\Source\Objectset;..\..\..\Source\Metadata;..\..\..\Source\Middleware;..\..\..\Source\Middleware-Horse;..\..\..\Source\Livebindings;..\..\..\Source\Monitor;..\..\..\Source\CodeGen;..\..\..\Source\RESTful\Client;..\..\..\Source\RESTful\Common;..\..\..\Source\RESTful\Server;..\..\..\Source\Dependencies\MetaDbDiff\Source\Core;..\..\..\Source\Dependencies\MetaDbDiff\Source\Drivers;..\..\..\Source\Dependencies\DataEngine\Source\Core;..\..\..\Source\Dependencies\DataEngine\Source\Drivers;..\..\..\Source\Dependencies\DataEngine\Source\Integrations;..\..\..\Source\Dependencies\FluentSQL\Source\Core;..\..\..\Source\Dependencies\FluentSQL\Source\Drivers;..\..\..\Source\Dependencies\JsonFlow\Source\Core;..\..\..\Source\Dependencies\JsonFlow\Source\JSON\Core;..\..\..\Source\Dependencies\JsonFlow\Source\Reader;..\..\..\Source\Dependencies\JsonFlow\Source\Writer;..\..\..\Source\Dependencies\ModernSyntax\Source;..\..\..\Source\Dependencies\Horse\src;..\..\..\Source\External\SQLite3;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;$(DCC_Namespace)</DCC_Namespace>
         <Icon_MainIcon>$(BDS)\bin\delphi_PROJECTICON.ico</Icon_MainIcon>
@@ -73,12 +73,6 @@
             <FormType>dfm</FormType>
         </DCCReference>
         <DCCReference Include="Janus.model.person.pas"/>
-        <DCCReference Include="..\..\Source\Dependencies\JsonFlow\Source\Core\JsonFlow.Utils.pas"/>
-        <DCCReference Include="..\..\Source\Dependencies\JsonFlow\Source\Core\JsonFlow.Builders.pas"/>
-        <DCCReference Include="..\..\Source\Dependencies\JsonFlow\Source\Reader\JsonFlow.Reader.pas"/>
-        <DCCReference Include="..\..\Source\Dependencies\JsonFlow\Source\Writer\JsonFlow.Writer.pas"/>
-        <DCCReference Include="..\..\Source\Dependencies\JsonFlow\Source\Core\JsonFlow.Types.pas"/>
-        <DCCReference Include="..\..\Source\Dependencies\JsonFlow\Source\JsonFlow.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
