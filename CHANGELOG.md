@@ -7,6 +7,21 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.22.4](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.22.4) — 2026-04-27
+
+### Added
+- Orphan-fixture detection script (`detect-orphan-fixtures.sh`) wired into `/verify` gate; detects fixtures present on disk but absent from the 4 `.dpr` `uses` clauses ([#185](https://github.com/ModernDelphiWorks/Janus/issues/185))
+- `Janus.Test.Runner.pas` and `Janus.Test.Bootstrap.pas` extracted to `Test/Delphi/Common/`; shared runner infrastructure now reused across all 4 DUnitX executors ([#186](https://github.com/ModernDelphiWorks/Janus/issues/186))
+- `Examples/Delphi/auto-validable.txt` — TSV manifest listing all 49 example `.dproj` with compile/run/defer/exclude modes and per-row notes ([#188](https://github.com/ModernDelphiWorks/Janus/issues/188))
+- `Examples/Delphi/scripts/build_auto_validable.cmd` — Windows msbuild driver with manifest drift check and `--dry-run` mode ([#188](https://github.com/ModernDelphiWorks/Janus/issues/188))
+- `Examples/Delphi/scripts/build_auto_validable.sh` — POSIX skeleton; delegates to `.cmd` on Git Bash, no-op on Linux/macOS ([#188](https://github.com/ModernDelphiWorks/Janus/issues/188))
+- `.github/workflows/examples.yml` — separate CI workflow for example compilation gate; same self-hosted Delphi runner and trigger parity with `tests.yml` ([#188](https://github.com/ModernDelphiWorks/Janus/issues/188))
+
+### Changed
+- `DCC_UnitSearchPath` standardized across all 49 example `.dproj` files for headless `msbuild` compatibility ([#187](https://github.com/ModernDelphiWorks/Janus/issues/187))
+- `Examples/Delphi/scripts/canonical-searchpath.txt` added as single source of truth for the 26-entry search path block ([#187](https://github.com/ModernDelphiWorks/Janus/issues/187))
+- Pre-built `.res` resource files updated for FluentSQL and WebService examples
+
 ## [v2.22.3](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.22.3) — 2026-04-27
 
 ### Changed
