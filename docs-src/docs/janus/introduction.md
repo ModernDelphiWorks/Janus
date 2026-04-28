@@ -15,6 +15,9 @@ A biblioteca expõe um fluxo orientado a entidades e atributos, reduzindo SQL ma
 - **Middleware**: interceptação Before/After de operações DML.
 - **`Lazy<T>`**: carga adiada de associações via proxy transparente.
 - **`Nullable<T>`**: suporte a NULL em propriedades tipadas.
+- **`TJanusBinder`**: engine de LiveBindings adapter-based para VCL/FMX; vincula entidades a controles visuais via atributos `[Bind]`, `[BindGrid]`, `[BindGridColumn]` sem herança.
+- **REST/Horse**: integração HTTP com OData filter, endpoints `[RESTReadOnly]`, join views e controle de acesso por verbo (`[RESTAllowGET/POST/PUT/DELETE]`).
+- **`TRESTViewManager`**: registry de AutoView que emite DDL no startup do servidor para controllers com `[View]`.
 
 ## Público-alvo
 
