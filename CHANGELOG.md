@@ -7,6 +7,17 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ## [Unreleased]
 
+## [v2.22.5](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.22.5) — 2026-04-28
+
+### Changed
+- Reorganized `Test/Delphi/Tests/` into a layered tree (`Common/`, `Unit/{Core,Mapping.Lazy,Container,Middleware,CodeGen,Criteria}`, `Integration/`, `RESTHorse/`, `RESTOracle/`, `LiveBindings/`); 35 fixtures renamed to canonical `Test.Janus.<area>.<subject>.pas` and 4 R22N fixtures preserved as-is for the next consolidation step ([#191](https://github.com/ModernDelphiWorks/Janus/issues/191))
+- Renamed the four DUnitX executors to canonical `Janus.Tests.{Unit,RESTHorse,LiveBindings,RESTOracle}` form; consolidated the four `Tests.Janus.LiveBindings.R22N.pas` fixtures into three release-agnostic units (`Test.Janus.LiveBindings.{Base,DataSet,GridColumn}`) with `[Category('R22.x')]` attributes preserving release tagging ([#192](https://github.com/ModernDelphiWorks/Janus/issues/192))
+- ROADMAP `Gap Fixtures Era` phase added (12 deferred candidates listed without commitment); `architecture.md` Criteria-folder drift (DA-003) reconciled on disk; checklist round-rotation; project-evolution closure annotation. Closes the 8-demand audit-driven roadmap (round 61..68) ([#193](https://github.com/ModernDelphiWorks/Janus/issues/193))
+
+### Fixed
+- Restore `develop` branch after release-side commits accumulated only on `main` since v2.22.1 (`CHANGELOG.md` jumping from `[Unreleased]` to `[v2.22.1]`); merged 10 missing commits forward including v2.22.2/v2.22.3/v2.22.4 changelog entries, ROADMAP delivery markers, and post-release docs updates
+- Track `docs-src/package-lock.json` and force-track `docs-src/package.json` / `tsconfig.json` / `_category_.json`; the repo-wide `*.json` gitignore rule and the per-folder lockfile rule were causing every PR to fail `build-and-publish-docs-folder` with `EUSAGE`/`ENOENT`. Expanded `.gitignore` to cover Delphi build artifacts (`*.obj`, `*.vrc`, `*.$manifest`), Cygwin crash dumps, local test result/coverage directories, and per-machine Oracle config
+
 ## [v2.22.4](https://github.com/ModernDelphiWorks/Janus/releases/tag/v2.22.4) — 2026-04-27
 
 ### Added
