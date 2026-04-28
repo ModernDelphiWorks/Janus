@@ -50,9 +50,9 @@ uses
   // Entity registration support
   MetaDbDiff.Mapping.Register,
   // Oracle test infrastructure
-  RestHorseOracleTest.Base in 'Tests\RestHorseOracleTest.Base.pas',
+  RestHorseOracleTest.Base in 'RESTOracle\Support\RestHorseOracleTest.Base.pas',
   // Oracle auto-view test fixture
-  TestJanusRESTOracleAutoView in 'Tests\TestJanusRESTOracleAutoView.pas';
+  Test.Janus.REST.Oracle.AutoView in 'RESTOracle\Test.Janus.REST.Oracle.AutoView.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
