@@ -2,7 +2,7 @@
 
 Este arquivo registra apenas direcao estrategica, fase atual, milestones proximos e backlog resumido. Historico de release, status operacional por issue, evidencias de teste e reports da pipeline ficam fora deste artefato.
 
-**Ultima atualizacao:** 2026-04-26
+**Ultima atualizacao:** 2026-04-28
 
 ## Visao
 
@@ -194,6 +194,23 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
   - [x] Remover secao "Migracao do engine legado" de `livebindings.md`; atualizar secao "FMX" — delivered #164 (f4f50b1) 2026-04-26
 - Proxima decisao: apos /release de R22.4-Commit, avançar para /release da versao corrente (v2.22.0).
 
+### Gap Fixtures Era — deferred candidates pos-audit roadmap (demanda 8/8)
+
+Esta fase consolida pendências surgidas no roadmap auditado de 8 demandas (round 61..68). Itens listados como candidatas; nenhuma execução compromissada — owner aprova nova rodada via `/architect` opening protocol.
+
+- DML-per-database fixtures (12 tests gap from §3.1) (candidata — direção a confirmar)
+- Metadata Compare fixtures (candidata — direção a confirmar)
+- Bind fixtures (candidata — direção a confirmar)
+- Monitor fixtures (candidata — direção a confirmar)
+- ObjectSet CRUD fixtures (candidata — direção a confirmar)
+- QueryScope direct fixtures (candidata — direção a confirmar)
+- Driver Register fixtures (candidata — direção a confirmar)
+- Examples regrouping into `00.GettingStarted/01.Data/...` families (P3, ~1 day) (candidata — direção a confirmar)
+- Console (#153) parked-binary disposition decision (candidata — direção a confirmar)
+- 4 carry-forward compile failures (PJson, SQLite Native, MetaDbDiff VCL, Horse RESTFul-via-Driver Server) (candidata — direção a confirmar)
+- JanusMetadata Firemonkey RC2135 missing icon (candidata — direção a confirmar)
+- Rolling slot for any future audit-tracked drift surfaced before next wave opens (candidata — direção a confirmar)
+
 ## Backlog resumido
 
 - Evolucoes futuras de lazy loading permanecem como backlog exploratorio, com detalhamento tecnico fora deste roadmap.
@@ -227,4 +244,6 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 4. Se a informacao nao altera prioridade, fase ou direcao do projeto, ela nao deve aumentar o roadmap.
 
 *Ultima atualizacao: 2026-04-26 — Post-v2.22.0-Roadmap-Consolidation: refresh do estado estrategico, secoes entregue R21/R22-STUDY/R22.1/R22.2/R22.5/R23/R24 inseridas, Ciclo atual e Proximos milestones reset; develop e main alinhados via PR #166*
+
+*Ultima atualizacao: 2026-04-28 — Gap-Fixtures-Era: audit roadmap (round 61..68) CLOSED; 12 deferred candidates listed; next wave opens in new /architect opening protocol when owner approves*
 
