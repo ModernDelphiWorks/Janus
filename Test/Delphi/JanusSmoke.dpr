@@ -35,6 +35,7 @@ uses
   DUnitX.TestFramework,
   DUnitX.Loggers.Console,
   DUnitX.Loggers.Xml.NUnit,
+  Janus.Test.Runner in 'Common\Janus.Test.Runner.pas',
   /// Models
   MetaDbDiff.Mapping.Register,
   Model.Atendimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Atendimento.pas',
@@ -79,106 +80,10 @@ uses
   /// JSON Tests — Demand A
   TestJanusJson in 'Tests\TestJanusJson.pas';
 
-const
-  EXIT_SUCCESS = 0;
-  EXIT_FAILURE = 1;
-
-var
-  LRunner: ITestRunner;
-  LResults: IRunResults;
-  LLogger: ITestLogger;
-  LNunitLogger: ITestLogger;
-  LXmlOutputFile: string;
-  LXmlDir: string;
-  LProbeFile: string;
-  LProbeStream: TFileStream;
-  LRunStartTime: TDateTime;
 begin
 {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX.RunRegisteredTests;
   Exit;
 {$ENDIF}
-  // Fail-closed by default; set EXIT_SUCCESS only after all checks pass.
-  System.ExitCode := EXIT_FAILURE;
-  try
-    // Record run start time for artifact freshness validation
-    LRunStartTime := Now;
-    // Check command line options
-    TDUnitX.CheckCommandLine;
-    // Pre-create XML output directory to prevent EInOutError on relative paths
-    // (S2: relative-path directory handling fix)
-    LXmlOutputFile := TDUnitX.Options.XMLOutputFile;
-    if LXmlOutputFile <> '' then
-    begin
-      LXmlOutputFile := TPath.GetFullPath(LXmlOutputFile);
-      LXmlDir := TPath.GetDirectoryName(LXmlOutputFile);
-      if (LXmlDir <> '') and (not TDirectory.Exists(LXmlDir)) then
-        TDirectory.CreateDirectory(LXmlDir);
-      // Probe writability early to avoid false-positive runs when logger output path
-      // is invalid or not writable.
-      if LXmlDir <> '' then
-      begin
-        LProbeFile := TPath.Combine(LXmlDir, '.janus_smoke_write_probe.tmp');
-        LProbeStream := nil;
-        try
-          LProbeStream := TFileStream.Create(LProbeFile, fmCreate);
-        finally
-          FreeAndNil(LProbeStream);
-          if TFile.Exists(LProbeFile) then
-            TFile.Delete(LProbeFile);
-        end;
-      end;
-    end;
-    // Create the test runner
-    LRunner := TDUnitX.CreateRunner;
-    // Add loggers
-    LLogger := TDUnitXConsoleLogger.Create(True);
-    LRunner.AddLogger(LLogger);
-    // Generate NUnit compatible XML
-    if LXmlOutputFile <> '' then
-      LNunitLogger := TDUnitXXMLNUnitFileLogger.Create(LXmlOutputFile)
-    else
-      LNunitLogger := TDUnitXXMLNUnitFileLogger.Create(TDUnitX.Options.XMLOutputFile);
-    LRunner.AddLogger(LNunitLogger);
-    LRunner.FailsOnNoAsserts := False;
-    // Run tests
-    LResults := LRunner.Execute;
-    // S3: Artifact freshness validation — artifact must exist and timestamp must
-    // be newer than run start time; stale or missing artifact is treated as failure.
-    if LXmlOutputFile <> '' then
-    begin
-      if not TFile.Exists(LXmlOutputFile) then
-      begin
-        System.Writeln('EVIDENCE ERROR: XML artifact was not generated: ' + LXmlOutputFile);
-        System.ExitCode := EXIT_FAILURE;
-        Exit;
-      end;
-      if TFile.GetLastWriteTime(LXmlOutputFile) < LRunStartTime then
-      begin
-        System.Writeln('EVIDENCE ERROR: XML artifact is stale — timestamp predates run start. Possible reuse of prior execution artifact.');
-        System.ExitCode := EXIT_FAILURE;
-        Exit;
-      end;
-    end;
-    // Report results
-    if not LResults.AllPassed then
-      System.ExitCode := EXIT_FAILURE
-    else
-      System.ExitCode := EXIT_SUCCESS;
-    {$IFNDEF CI}
-    if TDUnitX.Options.ExitBehavior = TDUnitXExitBehavior.Pause then
-    begin
-      System.Write('Done.. press <Enter> key to quit.');
-      System.Readln;
-    end;
-    {$ENDIF}
-  except
-    on E: Exception do
-    begin
-      // S3: Ensure exceptions during setup or execution yield EXIT_FAILURE,
-      // not the default ExitCode=0 (which was the false-positive source).
-      System.Writeln(E.ClassName, ': ', E.Message);
-      System.ExitCode := EXIT_FAILURE;
-    end;
-  end;
+  System.ExitCode := TJanusTestRunner.Execute('.janus_smoke_write_probe.tmp', True);
 end.

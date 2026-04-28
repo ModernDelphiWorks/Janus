@@ -108,6 +108,8 @@ The DUnitX suite is split across 4 executors. Compile-time references in each `.
 
 Pre-`#170` aggregate: 217 + 48 + 31 + 4 = 300 executed `[Test]` attributes (audit §4.1, 2026-04-26). Post-`#170` target after CI rebuild: ≥289 in `JanusSmoke.exe` (217 baseline + 72 newly-wired fixtures); aggregate ≥372 across the 4 executors. Confirm by inspecting `Test/Delphi/dunitx-*.xml` after a self-hosted Delphi CI run.
 
+Drift detection: `bash .claude/scripts/audit/detect-orphan-fixtures.sh` reports any fixture present on disk but absent from the 4 `.dpr` `uses` clauses (zero orphans expected after `#170`).
+
 ### Lazarus (FPCUnit) — `Test/Lazarus/`
 
 | Test file | Count | Covered area |
@@ -131,5 +133,6 @@ Pre-`#170` aggregate: 217 + 48 + 31 + 4 = 300 executed `[Test]` attributes (audi
 | Metadata Compare | Mapped classes and database structure diverge → generates synchronization DDL |
 | DML Generator | On CRUD operations; generated automatically by the engine |
 | Boss Install | Install or update the project dependencies |
+| Orphan-fixture detection | Detect drift between `Test/Delphi/Tests/*.pas` and the 4 `.dpr` `uses` clauses → run before `/verify` |
 
 After expanding the framework, validate that DML generation remains correct, complete and compatible with all supported databases.
