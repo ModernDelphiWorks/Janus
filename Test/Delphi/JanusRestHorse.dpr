@@ -45,16 +45,16 @@ uses
   /// Models
   MetaDbDiff.Mapping.Register,
   /// Test Infrastructure
-  RestHorseTest.Models in 'Tests\RestHorseTest.Models.pas',
-  RestHorseTest.Base   in 'Tests\RestHorseTest.Base.pas',
+  RestHorseTest.Models in 'RESTHorse\Support\RestHorseTest.Models.pas',
+  RestHorseTest.Base   in 'RESTHorse\Support\RestHorseTest.Base.pas',
   /// Integration Test Suites — ESP-002
-  TestJanusRESTHorseIntegration in 'Tests\TestJanusRESTHorseIntegration.pas',
-  TestJanusRESTReadOnly         in 'Tests\TestJanusRESTReadOnly.pas',
-  TestJanusRESTJoinView         in 'Tests\TestJanusRESTJoinView.pas',
+  Test.Janus.REST.Horse.Integration in 'RESTHorse\Test.Janus.REST.Horse.Integration.pas',
+  Test.Janus.REST.Horse.ReadOnly         in 'RESTHorse\Test.Janus.REST.Horse.ReadOnly.pas',
+  Test.Janus.REST.Horse.JoinView         in 'RESTHorse\Test.Janus.REST.Horse.JoinView.pas',
   /// Integration Test Suites — ESP-006
-  TestJanusRESTHorseDriver      in 'Tests\TestJanusRESTHorseDriver.pas',
+  Test.Janus.REST.Horse.Driver      in 'RESTHorse\Test.Janus.REST.Horse.Driver.pas',
   /// Integration Test Suites — R20 method-level grant (#137)
-  TestJanusRESTMethodGrant      in 'Tests\TestJanusRESTMethodGrant.pas';
+  Test.Janus.REST.Horse.MethodGrant      in 'RESTHorse\Test.Janus.REST.Horse.MethodGrant.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

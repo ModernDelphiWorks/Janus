@@ -37,13 +37,13 @@ uses
   DUnitX.Loggers.Xml.NUnit,
   Janus.Test.Runner in 'Common\Janus.Test.Runner.pas',
   /// LiveBindings Tests — ESP-004 / R22.1
-  Tests.Janus.LiveBindings.R221 in 'Tests\Tests.Janus.LiveBindings.R221.pas',
+  Tests.Janus.LiveBindings.R221 in 'LiveBindings\Tests.Janus.LiveBindings.R221.pas',
   /// LiveBindings Tests — ESP-004 / R22.2
-  Tests.Janus.LiveBindings.R222 in 'Tests\Tests.Janus.LiveBindings.R222.pas',
+  Tests.Janus.LiveBindings.R222 in 'LiveBindings\Tests.Janus.LiveBindings.R222.pas',
   /// LiveBindings Tests — ESP-002 / R22.3
-  Tests.Janus.LiveBindings.R223 in 'Tests\Tests.Janus.LiveBindings.R223.pas',
+  Tests.Janus.LiveBindings.R223 in 'LiveBindings\Tests.Janus.LiveBindings.R223.pas',
   /// LiveBindings Tests — ESP-002 / R22.4
-  Tests.Janus.LiveBindings.R224 in 'Tests\Tests.Janus.LiveBindings.R224.pas';
+  Tests.Janus.LiveBindings.R224 in 'LiveBindings\Tests.Janus.LiveBindings.R224.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
