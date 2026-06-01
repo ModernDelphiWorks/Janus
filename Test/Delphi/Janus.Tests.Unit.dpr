@@ -48,6 +48,7 @@ uses
   Janus.Model.Master in '..\..\Examples\Delphi\Data\Models\Janus.Model.Master.pas',
   Janus.DML.Generator.SQLite in '..\..\Source\Core\Janus.DML.Generator.SQLite.pas',
   /// Tests
+  Test.Janus.Driver.Register in 'Unit\Core\Test.Janus.Driver.Register.pas',
   Test.Janus.Mapping.Cache   in 'Unit\Core\Test.Janus.Mapping.Cache.pas',
   Test.Janus.RTTI.Singleton  in 'Unit\Core\Test.Janus.RTTI.Singleton.pas',
   Test.Janus.Types.Nullable       in 'Unit\Core\Test.Janus.Types.Nullable.pas',
@@ -61,6 +62,7 @@ uses
   Test.Janus.Types.Lazy    in 'Unit\Core\Test.Janus.Types.Lazy.pas',
   Test.Janus.Mapping.Dictionary  in 'Unit\Core\Test.Janus.Mapping.Dictionary.pas',
   Test.Janus.Mapping.QueryCache     in 'Unit\Core\Test.Janus.Mapping.QueryCache.pas',
+  Test.Janus.Metadata.Compare in 'Unit\Core\Test.Janus.Metadata.Compare.pas',
   Test.Janus.Container.DataSet.AutoLazy in 'Unit\Container\Test.Janus.Container.DataSet.AutoLazy.pas',
   /// Advanced Tests — SPRINT-14
   Test.Janus.Criteria.Advanced in 'Unit\Criteria\Test.Janus.Criteria.Advanced.pas',

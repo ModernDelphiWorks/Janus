@@ -1,0 +1,134 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{BC320E5F-7F45-4F38-A0F3-C306157E9F6E}</ProjectGuid>
+        <MainSource>JanusLiveBindings.dpr</MainSource>
+        <Base>True</Base>
+        <Config Condition="'$(Config)'==''">Debug</Config>
+        <ProjectName Condition="'$(ProjectName)'==''">JanusLiveBindings</ProjectName>
+        <TargetedPlatforms>660609</TargetedPlatforms>
+        <AppType>Console</AppType>
+        <FrameworkType>None</FrameworkType>
+        <ProjectVersion>20.4</ProjectVersion>
+        <Platform Condition="'$(Platform)'==''">Win32</Platform>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="('$(Platform)'=='Android' and '$(Base)'=='true') or '$(Base_Android)'!=''">
+        <Base_Android>true</Base_Android>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="('$(Platform)'=='iOSDevice32' and '$(Base)'=='true') or '$(Base_iOSDevice32)'!=''">
+        <Base_iOSDevice32>true</Base_iOSDevice32>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="('$(Platform)'=='iOSDevice64' and '$(Base)'=='true') or '$(Base_iOSDevice64)'!=''">
+        <Base_iOSDevice64>true</Base_iOSDevice64>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="('$(Platform)'=='iOSSimulator' and '$(Base)'=='true') or '$(Base_iOSSimulator)'!=''">
+        <Base_iOSSimulator>true</Base_iOSSimulator>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="('$(Platform)'=='Win32' and '$(Base)'=='true') or '$(Base_Win32)'!=''">
+        <Base_Win32>true</Base_Win32>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Release' or '$(Cfg_1)'!=''">
+        <Cfg_1>true</Cfg_1>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Config)'=='Debug' or '$(Cfg_2)'!=''">
+        <Cfg_2>true</Cfg_2>
+        <CfgParent>Base</CfgParent>
+        <Base>true</Base>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Base)'!=''">
+        <DCC_E>false</DCC_E>
+        <DCC_F>false</DCC_F>
+        <DCC_K>false</DCC_K>
+        <DCC_N>false</DCC_N>
+        <DCC_S>false</DCC_S>
+        <DCC_ImageBase>00400000</DCC_ImageBase>
+        <SanitizedProjectName>JanusLiveBindings</SanitizedProjectName>
+        <VerInfo_Locale>1046</VerInfo_Locale>
+        <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=;CFBundleName=</VerInfo_Keys>
+        <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_UnitSearchPath>D:\Ecossistema-Delphi\Janus\Source\Livebindings;D:\Ecossistema-Delphi\Janus\Source\Core;D:\Ecossistema-Delphi\Janus\Source\Middleware;D:\Ecossistema-Delphi\Janus\Source\Middleware-Horse;D:\Ecossistema-Delphi\Janus\Source\CodeGen;D:\Ecossistema-Delphi\Janus\Source\RESTful\Server;D:\Ecossistema-Delphi\Janus\Source\RESTful\Common;D:\Ecossistema-Delphi\Janus\Source\RESTful\Client;D:\Ecossistema-Delphi\Janus\Source\Dataset;D:\Ecossistema-Delphi\Janus\Source\Objectset;D:\Ecossistema-Delphi\Janus\Source\Metadata;D:\Ecossistema-Delphi\Janus\Source\Monitor;D:\Ecossistema-Delphi\Janus\Source\External\SQLite3;D:\Ecossistema-Delphi\Janus\Source\Dependencies\MetaDbDiff\Source\Core;D:\Ecossistema-Delphi\Janus\Source\Dependencies\MetaDbDiff\Source\Drivers;D:\Ecossistema-Delphi\Janus\Source\Dependencies\FluentSQL\Source\Core;D:\Ecossistema-Delphi\Janus\Source\Dependencies\FluentSQL\Source\Drivers;D:\Ecossistema-Delphi\Janus\Source\Dependencies\DataEngine\Source\Core;D:\Ecossistema-Delphi\Janus\Source\Dependencies\DataEngine\Source\Drivers;D:\Ecossistema-Delphi\Janus\Source\Dependencies\DataEngine\Source\External\SQLite3;D:\Ecossistema-Delphi\Janus\Source\Dependencies\DataEngine\Source\Integrations;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Core;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\JSON\Core;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\JSON\IO;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\JSON\Composition;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\JSON\Middleware;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Reader;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Writer;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Addons\Composition;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Addons\Validation;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Schema\Core;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Schema\IO;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Schema\Composition;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Schema\Validators;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Schema\Validators\Format;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Schema\Validators\Format\Brazil;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Middleware-Horse;D:\Ecossistema-Delphi\Janus\Source\Dependencies\ModernSyntax\Source;D:\Ecossistema-Delphi\Janus\Source\Dependencies\Horse\src;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <Icon_MainIcon>$(BDS)\bin\delphi_PROJECTICON.ico</Icon_MainIcon>
+        <Icns_MainIcns>$(BDS)\bin\delphi_PROJECTICNS.icns</Icns_MainIcns>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Base_Win32)'!=''">
+        <DCC_Namespace>Vcl;Vcl.Imaging;Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_UnitSearchPath>C:\Program Files (x86)\Embarcadero\Studio\37.0\lib\win32\debug;C:\Program Files (x86)\Embarcadero\Studio\37.0\lib\win32\release;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <BT_BuildType>Debug</BT_BuildType>
+        <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
+        <VerInfo_Locale>1033</VerInfo_Locale>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Cfg_1)'!=''">
+        <DCC_Define>RELEASE;$(DCC_Define)</DCC_Define>
+        <DCC_DebugInformation>0</DCC_DebugInformation>
+        <DCC_LocalDebugSymbols>false</DCC_LocalDebugSymbols>
+        <DCC_SymbolReferenceInfo>0</DCC_SymbolReferenceInfo>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(Cfg_2)'!=''">
+        <DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
+        <DCC_Optimize>false</DCC_Optimize>
+        <DCC_GenerateStackFrames>true</DCC_GenerateStackFrames>
+        <DCC_RangeChecking>true</DCC_RangeChecking>
+        <DCC_IntegerOverflowCheck>true</DCC_IntegerOverflowCheck>
+    </PropertyGroup>
+    <ItemGroup>
+        <DelphiCompile Include="$(MainSource)">
+            <MainSource>MainSource</MainSource>
+        </DelphiCompile>
+        <DCCReference Include="LiveBindings\Tests.Janus.LiveBindings.R221.pas"/>
+        <DCCReference Include="LiveBindings\Tests.Janus.LiveBindings.R222.pas"/>
+        <DCCReference Include="LiveBindings\Tests.Janus.LiveBindings.R223.pas"/>
+        <BuildConfiguration Include="Base">
+            <Key>Base</Key>
+        </BuildConfiguration>
+        <BuildConfiguration Include="Release">
+            <Key>Cfg_1</Key>
+            <CfgParent>Base</CfgParent>
+        </BuildConfiguration>
+        <BuildConfiguration Include="Debug">
+            <Key>Cfg_2</Key>
+            <CfgParent>Base</CfgParent>
+        </BuildConfiguration>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Delphi.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Delphi.Personality>
+                <Source>
+                    <Source Name="MainSource">JanusLiveBindings.dpr</Source>
+                </Source>
+            </Delphi.Personality>
+            <Platforms>
+                <Platform value="Android">False</Platform>
+                <Platform value="iOSDevice32">False</Platform>
+                <Platform value="iOSDevice64">True</Platform>
+                <Platform value="iOSSimARM64">True</Platform>
+                <Platform value="iOSSimulator">False</Platform>
+                <Platform value="Linux64">True</Platform>
+                <Platform value="OSX32">False</Platform>
+                <Platform value="OSX64">True</Platform>
+                <Platform value="OSXARM64">True</Platform>
+                <Platform value="Win32">True</Platform>
+                <Platform value="Win64">False</Platform>
+                <Platform value="WinARM64EC">False</Platform>
+            </Platforms>
+        </BorlandProject>
+        <ProjectFileVersion>12</ProjectFileVersion>
+    </ProjectExtensions>
+    <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')"/>
+    <Import Project="$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj" Condition="Exists('$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj')"/>
+</Project>

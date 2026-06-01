@@ -199,14 +199,14 @@ Consolidar o Janus como ORM Delphi multi-contexto com evolucao previsivel do nuc
 Esta fase consolida pendências surgidas no roadmap auditado de 8 demandas (round 61..68). Itens listados como candidatas; nenhuma execução compromissada — owner aprova nova rodada via `/architect` opening protocol.
 
 - DML-per-database fixtures (12 tests gap from §3.1) (candidata — direção a confirmar)
-- Metadata Compare fixtures (candidata — direção a confirmar)
+- Metadata Compare fixtures (resolved — fixture added, demand 3/8)
 - Bind fixtures (candidata — direção a confirmar)
 - Monitor fixtures (candidata — direção a confirmar)
 - ObjectSet CRUD fixtures (candidata — direção a confirmar)
 - QueryScope direct fixtures (candidata — direção a confirmar)
-- Driver Register fixtures (candidata — direção a confirmar)
+- Driver Register fixtures (resolved — fixture added, demand 2/8)
 - Examples regrouping into `00.GettingStarted/01.Data/...` families (P3, ~1 day) (candidata — direção a confirmar)
-- Console (#153) parked-binary disposition decision (candidata — direção a confirmar)
+- Console (#153) parked-binary disposition decision (resolved — physically deleted, demand 1/8)
 - 4 carry-forward compile failures (PJson, SQLite Native, MetaDbDiff VCL, Horse RESTFul-via-Driver Server) (candidata — direção a confirmar)
 - JanusMetadata Firemonkey RC2135 missing icon (candidata — direção a confirmar)
 - Rolling slot for any future audit-tracked drift surfaced before next wave opens (candidata — direção a confirmar)
@@ -246,4 +246,10 @@ Esta fase consolida pendências surgidas no roadmap auditado de 8 demandas (roun
 *Ultima atualizacao: 2026-04-26 — Post-v2.22.0-Roadmap-Consolidation: refresh do estado estrategico, secoes entregue R21/R22-STUDY/R22.1/R22.2/R22.5/R23/R24 inseridas, Ciclo atual e Proximos milestones reset; develop e main alinhados via PR #166*
 
 *Ultima atualizacao: 2026-04-28 — Gap-Fixtures-Era: audit roadmap (round 61..68) CLOSED; 12 deferred candidates listed; next wave opens in new /architect opening protocol when owner approves*
+
+*Ultima atualizacao: 2026-04-28 — Gap-Fixtures-Era wave opened: 8 demands; Console #153 disposition resolved as physical delete (demand 1/8)*
+
+*Ultima atualizacao: 2026-04-28 — Gap-Fixtures-Era demand 2/8: Driver Register fixtures landed*
+
+*Ultima atualizacao: 2026-04-28 — Gap-Fixtures-Era demand 3/8: Metadata Compare fixtures landed*
 
