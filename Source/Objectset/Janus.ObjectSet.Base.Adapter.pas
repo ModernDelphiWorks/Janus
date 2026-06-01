@@ -1,10 +1,10 @@
 {
   ------------------------------------------------------------------------------
-  Janus
-  Modern Object-Relational Mapping (ORM) framework for Delphi.
+  Janus ORM
+  State-of-the-art Object-Relational Mapping (ORM) framework for Delphi.
 
   SPDX-License-Identifier: MIT
-  Copyright (c) 2016-2026 Isaque Pinheiro
+  Copyright (c) 2025-2026 Isaque Pinheiro
 
   Licensed under the MIT License.
   See the LICENSE file in the project root for full license information.
