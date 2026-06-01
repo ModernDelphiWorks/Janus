@@ -1,6 +1,7 @@
-# Janus Framework for Delphi
+# Janus ORM Framework for Delphi
 
-[![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Delphi XE+](https://img.shields.io/badge/Delphi-XE%20or%20superior-blue.svg)]()
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 *   [🇬🇧 English](#-english)
 *   [🇧🇷 Português](#-português)
@@ -9,64 +10,37 @@
 
 ## 🇬🇧 English
 
-**Janus** is a state-of-the-art Object-Relational Mapping (ORM) framework for Delphi that bridges the gap between object-oriented programming and relational database models. 
+**Janus** is a state-of-the-art Object-Relational Mapping (ORM) framework for Delphi designed to bridge the gap between rich object-oriented domain models and relational database structures. It transparently handles metadata mappings via RTTI attributes, reduces SQL/connection boilerplate, and provides seamless DataSet/ObjectSet containers. With built-in support for master-detail hierarchies (`TManagerDataSet`), transparent lazy loading via RTTI proxies, custom middleware pipelines, and an interactive Delphi IDE code-generation wizard, Janus is the ultimate database access toolkit for high-performance Pascal systems.
 
-It manages database mapping transparently, allowing developers to build enterprise applications with a pure object-oriented approach while persisting objects securely into relational databases.
+### 🚀 Key Features
 
-<p align="center">
-  <a href="https://www.isaquepinheiro.com.br">
-    <img src="https://github.com/HashLoad/Janus/blob/master/Images/janusbitbucket.png" alt="Janus Logo">
-  </a>
-</p>
+*   **Bidirectional Metadata Mapping:** Declare entities using clean, descriptive Pascal attributes (`[Table]`, `[PrimaryKey]`, `[Indexe]`, `[Column]`).
+*   **Dual Persist Containers:** Work with typed memory containers: `TContainerDataSet` (for visual bindings using `TClientDataSet` or `TFDMemTable`) or `TContainerObjectSet` (for typed object collections).
+*   **TManagerDataSet (Master-Detail System):** Automatically manage deep database master-detail hierarchies, lookup joins, and multi-table operations out of the box.
+*   **Performance & Lazy Loading:** Features high-precision client-side navigation caching, transparent proxy-based lazy loading, and paginated query packages (`NextPacket`).
+*   **Rich Enterprise Tools:** Standalone Model Generator CLI, DLL bridge for multi-language systems, and an interactive 4-page Delphi IDE Wizard.
 
-Janus provides built-in methods for all common database operations, such as CRUD (Create, Read, Update, Delete), handles metadata mapping via attributes, and drastically reduces connection and SQL boilerplate code — resulting in cleaner, safer, and highly maintainable systems.
+### 🏛 Compatibility Matrix
 
----
-
-### 🚀 Feature Matrix
-
-| Feature | Status |
-|---------|--------|
-| Complete CRUD Operations (Create, Read, Update, Delete) | ✅ |
-| Multi-Database DML generation | ✅ |
-| DataSet Containers (`TClientDataSet`, `TFDMemTable`) | ✅ |
-| ObjectSet Containers (Typed lists of Pascal objects) | ✅ |
-| Criteria API (Object-oriented query builder) | ✅ |
-| Middleware Pipeline (Before/After Hooks on DML) | ✅ |
-| Metadata Comparison Engine (Pascal Model ↔ DB Schema) | ✅ |
-| RESTful integration (Horse middleware) | ✅ |
-| LiveBindings support (VCL + FMX) | ✅ |
-| SQL Command execution monitor | ✅ |
-| Nullable Types Support | ✅ |
-| Blob / Stream Types Support | ✅ |
-| Transparent Lazy Loading (RTTI Proxies) | ✅ |
-| Auto-Lazy DataSet loading | ✅ |
-| Extensible Plugin System (`IJanusPlugin`, custom hooks) | ✅ |
-| CodeGen Library (DB Schema → Delphi Pascal model units) | ✅ |
-| Delphi IDE Wizard integration (4-page Wizard inside the IDE) | ✅ |
-| Standalone Model Generator CLI | ✅ |
-| DLL Bridge (Multi-language integration) | ✅ |
-| Automated Testing (DUnitX + FPCUnit coverage) | ✅ |
-| Master-Detail Hierarchy Management (`TManagerDataSet`) | ✅ |
-| Pagination (`NextPacket`) & Sequential cursor navigation | ✅ |
-
-#### 🏛 Supported Databases
-Firebird · Firebird 3 · InterBase · SQLite · MySQL · PostgreSQL · MSSQL · Oracle · MongoDB · ADS · AbsoluteDB · ElevateDB · NexusDB
-
----
+| Environment / IDE | Platform / Compiler | RTTI Proxies | CodeGen Wizard |
+| :--- | :--- | :---: | :---: |
+| **Delphi XE or superior** | VCL, FMX, Console, IDE (Win/Linux/macOS/iOS/Android) | ✅ Yes | ✅ Yes (Delphi IDE) |
 
 ### ⚙️ Installation
-To install using [`boss`]:
+
+To install using the package manager [**Boss**](https://github.com/HashLoad/boss):
+
 ```sh
 boss install "https://github.com/HashLoad/Janus"
 ```
 
 ### ⚠ Dependencies
+
 All dependencies are resolved automatically by Boss:
-*   [MetaDbDiff](https://github.com/hashload/MetaDbDiff) — Mapping & metadata comparer
-*   [DataEngine](https://github.com/hashload/DataEngine) — Connection abstraction
-*   [FluentSQL](https://github.com/hashload/FluentSQL) — SQL script generation
-*   [JsonFlow](https://github.com/hashload/JsonFlow) — JSON serialization
+*   [MetaDbDiff](https://github.com/hashload/MetaDbDiff) — Mapping & database comparison engine.
+*   [DataEngine](https://github.com/hashload/DataEngine) — Uniform connection abstraction layer.
+*   [FluentSQL](https://github.com/hashload/FluentSQL) — Fluent SQL generation library.
+*   [JsonFlow](https://github.com/hashload/JsonFlow) — Modern JSON serialization.
 
 ---
 
@@ -79,11 +53,9 @@ unit Janus.Model.Client;
 interface
 
 uses
-  Classes, DB, SysUtils, Generics.Collections,
+  Classes, DB, SysUtils,
   MetaDbDiff.Mapping.Attributes,
   Janus.Types.Nullable,
-  MetaDbDiff.Types.Mapping,
-  MetaDbDiff.Mapping.Register,
   Janus.Types.Blob;
 
 type
@@ -95,7 +67,7 @@ type
   Tclient = class
   private
     Fclient_id: Integer;
-    Fclient_name: String;
+    Fclient_name: string;
     Fclient_foto: TBlob;
   public
     [Restrictions([NoUpdate, NotNull])]
@@ -103,7 +75,7 @@ type
     property client_id: Integer read Fclient_id write Fclient_id;
 
     [Column('client_name', ftString, 40)]
-    property client_name: String read Fclient_name write Fclient_name;
+    property client_name: string read Fclient_name write Fclient_name;
 
     [Column('client_foto', ftBlob)]
     property client_foto: TBlob read Fclient_foto write Fclient_foto;
@@ -117,47 +89,45 @@ initialization
 end.
 ```
 
-#### 2. Perform CRUD using a DataSet Container (`TFDMemTable`)
+#### 2. Execute CRUD Operations (MemTable Wrapper)
 ```delphi
 uses
-  DataEngine.FactoryInterfaces,
+  DataEngine.Interfaces,
+  DataEngine.Factory.FireDAC,
   Janus.Container.DataSet.Interfaces,
   Janus.Container.FDMemTable,
-  DataEngine.FactoryFireDac,
-  Janus.DML.Generator.SQLite,
   Janus.Model.Client;
 
-procedure TForm3.FormCreate(Sender: TObject);
+var
+  FConn: IDBConnection;
+  FContainerClient: IContainerDataSet<Tclient>;
 begin
-  // Create FireDAC connection factory wrapper
+  // Establish native connection wrapper
   FConn := TFactoryFireDAC.Create(FDConnection1, dnSQLite);
   
-  // Bind typed Janus container to memory table
-  FContainerClient := TContainerFDMemTable<Tclient>.Create(FConn, FDClient);
+  // Bind Janus container directly to a standard Memory Table
+  FContainerClient := TContainerFDMemTable<Tclient>.Create(FConn, FDClientMemTable);
   FContainerClient.Open;
-end;
-
-procedure TForm3.ButtonSaveClick(Sender: TObject);
-begin
-  FContainerClient.ApplyUpdates(0); // Saves changes back to database
+  
+  // Apply changes back to physical database
+  FContainerClient.ApplyUpdates(0);
 end;
 ```
 
-#### 3. Manage Master-Detail relationships via `TManagerDataSet`
+#### 3. Master-Detail Hierarchy (`TManagerDataSet`)
 ```delphi
-procedure TForm3.FormCreate(Sender: TObject);
+var
+  FManager: TManagerDataSet;
 begin
   FConn := TFactoryFireDAC.Create(FDConnection1, dnMySQL);
-
   FManager := TManagerDataSet.Create(FConn);
-  FConn.SetCommandMonitor(TCommandMonitor.GetInstance);
   
-  // Fluidly attach adapters and manage lookups
+  // Fluidly chain master-detail-lookup structures
   FManager.AddAdapter<Tmaster>(FDMaster, 3)
           .AddAdapter<Tdetail, Tmaster>(FDDetail)
           .AddAdapter<Tclient, Tmaster>(FDClient)
           .AddAdapter<Tlookup>(FDLookup)
-          .AddLookupField<Tdetail, Tlookup>('fieldname','lookup_id','lookup_id','lookup_description','Lookup Description');
+          .AddLookupField<Tdetail, Tlookup>('lookup_id', 'lookup_id', 'description');
           
   FManager.Open<Tmaster>;
 end;
@@ -165,86 +135,54 @@ end;
 
 ---
 
-### ⛏️ Contributing
-Our team would love to receive contributions to this open-source project. Feel free to open issues or submit pull requests.
-
-### 📬 Contact & Support
-*   **Telegram**: [HashLoad Channel](https://t.me/hashload)
-*   **Website**: [isaquepinheiro.com.br](https://www.isaquepinheiro.com.br)
-
----
-
 ## 🇧🇷 Português
 
-**Janus** é um framework moderno de Mapeamento Objeto-Relacional (ORM) de alta performance para Delphi que preenche a distância entre a programação orientada a objetos e o modelo de banco de dados relacional.
+**Janus** é um ORM (Object-Relational Mapping) de última geração para Delphi projetado para aproximar o modelo de domínio orientado a objetos das estruturas relacionais de banco de dados. Ele gerencia mapeamentos estruturais de metadados transparentemente via atributos de RTTI, reduz códigos repetitivos e consultas manuais no banco de dados e oferece contêineres unificados de dados (`DataSet` e `ObjectSet`). Trazendo controle automático de hierarquias master-detail (`TManagerDataSet`), lazy loading transparente, pipelines de customização de DML e um gerador interativo de classes acoplado à IDE do Delphi, o Janus é o ecossistema perfeito para persistência corporativa em Object Pascal.
 
-Ele gerencia o mapeamento objeto-banco de forma totalmente transparente, permitindo construir aplicações corporativas complexas com uma abordagem puramente orientada a objetos enquanto persiste dados em bancos de dados relacionais.
+### 🚀 Recursos Principais
 
-O ORM fornece métodos integrados para todas as interações comuns com o banco de dados, como CRUD (Create, Read, Update, Delete), gerencia o mapeamento de metadados por atributos e reduz drasticamente a quantidade de código de conexão e SQL que você precisa escrever — resultando em aplicações limpas e fáceis de manter.
+*   **Mapeamento Bidirecional de Metadados:** Decore e estruture classes usando atributos descritivos em Pascal (`[Table]`, `[PrimaryKey]`, `[Indexe]`, `[Column]`).
+*   **Contêineres Duplos de Persistência:** Trabalhe de forma otimizada com `TContainerDataSet` (para vinculo visual nativo em tela usando `TClientDataSet`/`TFDMemTable`) ou `TContainerObjectSet` (para manipulação orientada estritamente a objetos).
+*   **TManagerDataSet (Sistema Master-Detail):** Gerenciamento fluido de profundas hierarquias master-detail, resolvendo joins de lookup e atualizações em lote de forma transparente.
+*   **Alta Performance & Lazy Loading:** Navegação indexada local com cache, carga sob demanda baseada em proxies RTTI (`Lazy Loading`) e pacotes de paginação sob demanda (`NextPacket`).
+*   **Ferramentas Avançadas:** Gerador de Modelos CLI standalone, DLL bridge de integração para sistemas escritos em outras linguagens de programação e um Wizard integrado de 4 páginas na IDE do Delphi.
 
----
+### 🏛 Matriz de Compatibilidade
 
-### 🚀 Matriz de Features
-
-| Feature | Status |
-|---------|--------|
-| CRUD completo (Create, Read, Update, Delete) | ✅ |
-| Geração de DML multi-banco | ✅ |
-| Containers DataSet (TClientDataSet, TFDMemTable) | ✅ |
-| Containers ObjectSet (listas tipadas de objetos Pascal) | ✅ |
-| Criteria API (consultas puramente orientadas a objetos) | ✅ |
-| Middleware Pipeline (Hooks Before/After em DML) | ✅ |
-| Engine de Comparação de Metadata (Modelo Pascal ↔ Base de Dados) | ✅ |
-| Integração RESTful (middleware Horse) | ✅ |
-| LiveBindings (VCL + FMX) | ✅ |
-| Monitor de Comandos SQL Executados | ✅ |
-| Suporte a Tipos Nullable | ✅ |
-| Suporte a Tipos Blob / Stream | ✅ |
-| Lazy Loading Transparente (Proxies RTTI) | ✅ |
-| DataSet Auto-Lazy | ✅ |
-| Sistema de Plugins Extensível (`IJanusPlugin`, hooks) | ✅ |
-| Biblioteca CodeGen (Schema DB ↔ units de modelo Delphi) | ✅ |
-| IDE Wizard (wizard de 4 páginas dentro do Delphi IDE) | ✅ |
-| Gerador de Modelos Standalone | ✅ |
-| DLL Bridge (integração multi-linguagem) | ✅ |
-| Testes Automatizados (DUnitX + FPCUnit) | ✅ |
-| Hierarquia Master-Detail (TManagerDataSet) | ✅ |
-| Paginação (NextPacket) & Navegação Sequencial | ✅ |
-
-#### 🏛 Bancos de Dados Suportados
-Firebird · Firebird 3 · InterBase · SQLite · MySQL · PostgreSQL · MSSQL · Oracle · MongoDB · ADS · AbsoluteDB · ElevateDB · NexusDB
-
----
+| Ambiente / IDE | Plataforma / Compilador | Proxies RTTI | Wizard na IDE |
+| :--- | :--- | :---: | :---: |
+| **Delphi XE ou superior** | VCL, FMX, Console, IDE (Win/Linux/macOS/iOS/Android) | ✅ Sim | ✅ Sim (Delphi IDE) |
 
 ### ⚙️ Instalação
-Para instalar usando o [`boss`]:
+
+Para instalar usando o gerenciador de pacotes [**Boss**](https://github.com/HashLoad/boss):
+
 ```sh
 boss install "https://github.com/HashLoad/Janus"
 ```
 
 ### ⚠ Dependências
+
 Todas as dependências são resolvidas de forma totalmente automática pelo Boss:
-*   [MetaDbDiff](https://github.com/hashload/MetaDbDiff) — Mapeamento & metadata
-*   [DataEngine](https://github.com/hashload/DataEngine) — Abstração de conexão
-*   [FluentSQL](https://github.com/hashload/FluentSQL) — Geração de SQL
-*   [JsonFlow](https://github.com/hashload/JsonFlow) — Serialização JSON
+*   [MetaDbDiff](https://github.com/hashload/MetaDbDiff) — Motor de mapeamento e comparação estrutural.
+*   [DataEngine](https://github.com/hashload/DataEngine) — Abstração unificada de conexão.
+*   [FluentSQL](https://github.com/hashload/FluentSQL) — Geração fluente de SQL.
+*   [JsonFlow](https://github.com/hashload/JsonFlow) — Serialização JSON de alta performance.
 
 ---
 
 ### ⚡️ Início Rápido
 
-#### 1. Defina um Modelo de Entidade
+#### 1. Defina o seu Modelo de Entidade
 ```delphi
 unit Janus.Model.Client;
 
 interface
 
 uses
-  Classes, DB, SysUtils, Generics.Collections,
+  Classes, DB, SysUtils,
   MetaDbDiff.Mapping.Attributes,
   Janus.Types.Nullable,
-  MetaDbDiff.Types.Mapping,
-  MetaDbDiff.Mapping.Register,
   Janus.Types.Blob;
 
 type
@@ -256,7 +194,7 @@ type
   Tclient = class
   private
     Fclient_id: Integer;
-    Fclient_name: String;
+    Fclient_name: string;
     Fclient_foto: TBlob;
   public
     [Restrictions([NoUpdate, NotNull])]
@@ -264,7 +202,7 @@ type
     property client_id: Integer read Fclient_id write Fclient_id;
 
     [Column('client_name', ftString, 40)]
-    property client_name: String read Fclient_name write Fclient_name;
+    property client_name: string read Fclient_name write Fclient_name;
 
     [Column('client_foto', ftBlob)]
     property client_foto: TBlob read Fclient_foto write Fclient_foto;
@@ -278,60 +216,49 @@ initialization
 end.
 ```
 
-#### 2. Executando operações CRUD usando um Container DataSet (`TFDMemTable`)
+#### 2. Operações CRUD Rápidas (Wrapper de MemTable)
 ```delphi
 uses
-  DataEngine.FactoryInterfaces,
+  DataEngine.Interfaces,
+  DataEngine.Factory.FireDAC,
   Janus.Container.DataSet.Interfaces,
   Janus.Container.FDMemTable,
-  DataEngine.FactoryFireDac,
-  Janus.DML.Generator.SQLite,
   Janus.Model.Client;
 
-procedure TForm3.FormCreate(Sender: TObject);
+var
+  FConn: IDBConnection;
+  FContainerClient: IContainerDataSet<Tclient>;
 begin
-  // Cria a conexão via FireDAC wrapper
+  // Estabelece a conexão usando o wrapper do FireDAC
   FConn := TFactoryFireDAC.Create(FDConnection1, dnSQLite);
   
-  // Vincula o container Janus ao MemTable
-  FContainerClient := TContainerFDMemTable<Tclient>.Create(FConn, FDClient);
+  // Associa o container Janus diretamente a uma tabela em memória
+  FContainerClient := TContainerFDMemTable<Tclient>.Create(FConn, FDClientMemTable);
   FContainerClient.Open;
-end;
-
-procedure TForm3.ButtonSaveClick(Sender: TObject);
-begin
-  FContainerClient.ApplyUpdates(0); // Persiste as modificações no banco de dados
+  
+  // Persiste todas as alterações no banco de dados físico
+  FContainerClient.ApplyUpdates(0);
 end;
 ```
 
-#### 3. Controle Master-Detail com `TManagerDataSet`
+#### 3. Controle Hierárquico Master-Detail (`TManagerDataSet`)
 ```delphi
-procedure TForm3.FormCreate(Sender: TObject);
+var
+  FManager: TManagerDataSet;
 begin
   FConn := TFactoryFireDAC.Create(FDConnection1, dnMySQL);
-
   FManager := TManagerDataSet.Create(FConn);
-  FConn.SetCommandMonitor(TCommandMonitor.GetInstance);
   
-  // Vincula adaptadores de forma fluida
+  // Associa tabelas master-detail e lookup de forma encadeada
   FManager.AddAdapter<Tmaster>(FDMaster, 3)
           .AddAdapter<Tdetail, Tmaster>(FDDetail)
           .AddAdapter<Tclient, Tmaster>(FDClient)
           .AddAdapter<Tlookup>(FDLookup)
-          .AddLookupField<Tdetail, Tlookup>('fieldname','lookup_id','lookup_id','lookup_description','Descrição Lookup');
+          .AddLookupField<Tdetail, Tlookup>('lookup_id', 'lookup_id', 'description');
           
   FManager.Open<Tmaster>;
 end;
 ```
-
----
-
-### ⛏️ Contribuição
-Adoramos contribuições! Sinta-se à vontade para abrir issues ou enviar pull requests.
-
-### 📬 Contato & Suporte
-*   **Telegram**: [Canal HashLoad](https://t.me/hashload)
-*   **Website**: [isaquepinheiro.com.br](https://www.isaquepinheiro.com.br)
 
 ---
 *Copyright © 2025-2026 Isaque Pinheiro. Licensed under MIT License.*
