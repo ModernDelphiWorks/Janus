@@ -1,0 +1,14 @@
+{
+  "name": "Janus",
+  "description": "Janus Framework for Delphi",
+  "version": "2.20.2",
+  "homepage": "https://github.com/ModernDelphiWorks/Janus",
+  "mainsrc": "Source/",
+  "projects": [],
+  "dependencies": {
+    "github.com/ModernDelphiWorks/MetaDbDiff": "",
+    "github.com/ModernDelphiWorks/DataEngine": "",
+    "github.com/ModernDelphiWorks/FluentSQL": "",
+    "github.com/ModernDelphiWorks/JsonFlow": ""
+  }
+}
