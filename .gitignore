@@ -90,3 +90,7 @@ Test/Delphi/results_*/
 
 # Per-machine Oracle network config
 Test/Delphi/tnsnames.ora
+
+# Boss package manager files
+!boss.json
+!boss-lock.json
