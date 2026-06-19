@@ -1,0 +1,14 @@
+{
+  "$schema": "https://www.pubdelphi.dev/schema/pubdelphi.schema.json",
+  "name": "Janus",
+  "version": "2.20.2",
+  "kind": "runtime",
+  "sources": ["Source/"],
+  "platforms": ["Win32", "Win64"],
+  "dependencies": {
+    "ModernDelphiWorks/MetaDbDiff": "",
+    "ModernDelphiWorks/DataEngine": "",
+    "ModernDelphiWorks/FluentSQL": "",
+    "ModernDelphiWorks/JsonFlow": ""
+  }
+}
