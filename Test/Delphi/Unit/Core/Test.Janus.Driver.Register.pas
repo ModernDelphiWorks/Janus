@@ -62,15 +62,15 @@ implementation
 const
   // Enum value never registered by production code in Janus.Tests.Unit.dpr
   // (no Janus.DML.Generator.DB2.pas exists). Used as the "missing" key.
-  CMissingDriver: TDBEngineDriver = dnDB2;
+  CMissingDriver: TDriverName = dnDB2;
 
   // Enum value used as scratch space for register/overwrite/invocation tests.
   // No Janus.DML.Generator.Informix.pas exists, so no production code registers it.
-  CScratchDriver: TDBEngineDriver = dnInformix;
+  CScratchDriver: TDriverName = dnInformix;
 
   // Enum value registered by Janus.DML.Generator.SQLite (already in dpr uses).
   // Used read-only to verify production registration is preserved.
-  CProductionDriver: TDBEngineDriver = dnSQLite;
+  CProductionDriver: TDriverName = dnSQLite;
 
 { TTestJanusDriverRegister }
 

@@ -44,9 +44,9 @@ uses
 type
   TFakeConnection = class(TInterfacedObject, IDBConnection)
   private
-    FDriver: TDBEngineDriver;
+    FDriver: TDriverName;
   public
-    constructor Create(ADriver: TDBEngineDriver);
+    constructor Create(ADriver: TDriverName);
     procedure Connect;
     procedure Disconnect;
     procedure ExecuteDirect(const ASQL: String); overload;
@@ -60,7 +60,7 @@ type
     function CreateDataSet(const ASQL: String = ''): IDBDataSet;
     function GetSQLScripts: String;
     function RowsAffected: UInt32;
-    function GetDriver: TDBEngineDriver;
+    function GetDriver: TDriverName;
     function CommandMonitor: ICommandMonitor;
     function MonitorCallback: TMonitorProc;
     function Options: IOptions;
@@ -160,7 +160,7 @@ type
 
 implementation
 
-constructor TFakeConnection.Create(ADriver: TDBEngineDriver);
+constructor TFakeConnection.Create(ADriver: TDriverName);
 begin
   inherited Create;
   FDriver := ADriver;
@@ -222,7 +222,7 @@ procedure TFakeConnection.ExecuteScripts;
 begin
 end;
 
-function TFakeConnection.GetDriver: TDBEngineDriver;
+function TFakeConnection.GetDriver: TDriverName;
 begin
   Result := FDriver;
 end;

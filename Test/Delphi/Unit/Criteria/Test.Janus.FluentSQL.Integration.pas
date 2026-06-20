@@ -35,7 +35,7 @@ uses
 type
   TDMLGeneratorAccess = class(TDMLGeneratorAbstract)
   public
-    class function MapDriver(const AGeneratorDriver: TDBEngineDriver): TFluentSQLDriver;
+    class function MapDriver(const AGeneratorDriver: TDriverName): TFluentSQLDriver;
     function GeneratorSelectAll(AClass: TClass; APageSize: Integer;
       AID: TValue): String; override;
     function GeneratorSelectWhere(AClass: TClass; AWhere: String;
@@ -95,7 +95,7 @@ implementation
 { TDMLGeneratorAccess }
 
 class function TDMLGeneratorAccess.MapDriver(
-  const AGeneratorDriver: TDBEngineDriver): TFluentSQLDriver;
+  const AGeneratorDriver: TDriverName): TFluentSQLDriver;
 begin
   Result := ResolveFluentSQLDriver(AGeneratorDriver);
 end;
