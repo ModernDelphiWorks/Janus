@@ -1,4 +1,4 @@
-# Janus ORM Framework for Delphi
+# Janus — High-Performance ORM for Delphi
 
 [![Delphi XE+](https://img.shields.io/badge/Delphi-XE%20or%20superior-blue.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -6,7 +6,7 @@
 
 > 🔒 **Supply-chain transparency (CRA-ready):** a machine-readable **SBOM** (CycloneDX) is published on the package portal — [pubpascal.dev/packages/janus](https://www.pubpascal.dev/packages/janus) · security disclosure policy in **[SECURITY.md](SECURITY.md)** · changes tracked in **[CHANGELOG.md](CHANGELOG.md)**.
 
-📚 **[Documentation](https://moderndelphiworks.github.io/Janus/)**
+📚 **[Documentation](https://moderndelphiworks.github.io/Janus/)** · ⬇️ **[Download](../../releases)** · 🐛 **[Issues](../../issues)**
 
 *   [🇬🇧 English](#-english)
 *   [🇧🇷 Português](#-português)
@@ -15,14 +15,14 @@
 
 ## 🇬🇧 English
 
-**Janus** is a state-of-the-art Object-Relational Mapping (ORM) framework for Delphi designed to bridge the gap between rich object-oriented domain models and relational database structures. It transparently handles metadata mappings via RTTI attributes, reduces SQL/connection boilerplate, and provides seamless DataSet/ObjectSet containers. With built-in support for master-detail hierarchies (`TManagerDataSet`), transparent lazy loading via RTTI proxies, custom middleware pipelines, and an interactive Delphi IDE code-generation wizard, Janus is the ultimate database access toolkit for high-performance Pascal systems.
+**Janus** is a high-performance Object-Relational Mapping (ORM) framework for Delphi — the evolution and successor of the **ORMBr** framework — designed to bridge rich object-oriented domain models and relational database structures. It transparently handles metadata mappings via RTTI attributes, eliminates SQL/connection boilerplate, and provides seamless DataSet/ObjectSet containers. With built-in support for master-detail hierarchies (`TManagerDataSet`), transparent lazy loading via RTTI proxies, custom middleware pipelines, and an interactive Delphi IDE code-generation wizard, Janus is the ultimate database-access toolkit for high-performance Object Pascal systems.
 
 ### 🚀 Key Features
 
 *   **Bidirectional Metadata Mapping:** Declare entities using clean, descriptive Pascal attributes (`[Table]`, `[PrimaryKey]`, `[Indexe]`, `[Column]`).
 *   **Dual Persist Containers:** Work with typed memory containers: `TContainerDataSet` (for visual bindings using `TClientDataSet` or `TFDMemTable`) or `TContainerObjectSet` (for typed object collections).
 *   **TManagerDataSet (Master-Detail System):** Automatically manage deep database master-detail hierarchies, lookup joins, and multi-table operations out of the box.
-*   **Performance & Lazy Loading:** Features high-precision client-side navigation caching, transparent proxy-based lazy loading, and paginated query packages (`NextPacket`).
+*   **Performance & Lazy Loading:** High-precision client-side navigation caching, transparent proxy-based lazy loading, and paginated query packages (`NextPacket`).
 *   **Rich Enterprise Tools:** Standalone Model Generator CLI, DLL bridge for multi-language systems, and an interactive 4-page Delphi IDE Wizard.
 
 ### 🏛 Compatibility Matrix
@@ -41,15 +41,18 @@
 
 ### ⚙️ Installation
 
-To install using the package manager [**Boss**](https://github.com/HashLoad/boss):
+Install via the [**Boss**](https://github.com/HashLoad/boss) package manager:
 
 ```sh
 boss install "https://github.com/HashLoad/Janus"
 ```
 
+Or via [**PubPascal**](https://www.pubpascal.dev/packages/janus) (see the portal for the current registry command).
+
 ### ⚠ Dependencies
 
 All dependencies are resolved automatically by Boss:
+
 *   [MetaDbDiff](https://github.com/hashload/MetaDbDiff) — Mapping & database comparison engine.
 *   [DataEngine](https://github.com/hashload/DataEngine) — Uniform connection abstraction layer.
 *   [FluentSQL](https://github.com/hashload/FluentSQL) — Fluent SQL generation library.
@@ -60,6 +63,7 @@ All dependencies are resolved automatically by Boss:
 ### ⚡️ Quick Start
 
 #### 1. Define your Entity Model
+
 ```delphi
 unit Janus.Model.Client;
 
@@ -103,6 +107,7 @@ end.
 ```
 
 #### 2. Execute CRUD Operations (MemTable Wrapper)
+
 ```delphi
 uses
   DataEngine.Interfaces,
@@ -117,31 +122,32 @@ var
 begin
   // Establish native connection wrapper
   FConn := TFactoryFireDAC.Create(FDConnection1, dnSQLite);
-  
+
   // Bind Janus container directly to a standard Memory Table
   FContainerClient := TContainerFDMemTable<Tclient>.Create(FConn, FDClientMemTable);
   FContainerClient.Open;
-  
+
   // Apply changes back to physical database
   FContainerClient.ApplyUpdates(0);
 end;
 ```
 
 #### 3. Master-Detail Hierarchy (`TManagerDataSet`)
+
 ```delphi
 var
   FManager: TManagerDataSet;
 begin
   FConn := TFactoryFireDAC.Create(FDConnection1, dnMySQL);
   FManager := TManagerDataSet.Create(FConn);
-  
+
   // Fluidly chain master-detail-lookup structures
   FManager.AddAdapter<Tmaster>(FDMaster, 3)
           .AddAdapter<Tdetail, Tmaster>(FDDetail)
           .AddAdapter<Tclient, Tmaster>(FDClient)
           .AddAdapter<Tlookup>(FDLookup)
           .AddLookupField<Tdetail, Tlookup>('lookup_id', 'lookup_id', 'description');
-          
+
   FManager.Open<Tmaster>;
 end;
 ```
@@ -150,15 +156,15 @@ end;
 
 ## 🇧🇷 Português
 
-**Janus** é um ORM (Object-Relational Mapping) de última geração para Delphi projetado para aproximar o modelo de domínio orientado a objetos das estruturas relacionais de banco de dados. Ele gerencia mapeamentos estruturais de metadados transparentemente via atributos de RTTI, reduz códigos repetitivos e consultas manuais no banco de dados e oferece contêineres unificados de dados (`DataSet` e `ObjectSet`). Trazendo controle automático de hierarquias master-detail (`TManagerDataSet`), lazy loading transparente, pipelines de customização de DML e um gerador interativo de classes acoplado à IDE do Delphi, o Janus é o ecossistema perfeito para persistência corporativa em Object Pascal.
+**Janus** é um framework ORM (Object-Relational Mapping) de alta performance para Delphi — evolução e sucessor do framework **ORMBr** — projetado para aproximar o modelo de domínio orientado a objetos das estruturas relacionais de banco de dados. Ele gerencia mapeamentos de metadados transparentemente via atributos de RTTI, elimina código repetitivo de SQL/conexão e oferece contêineres unificados de dados (`DataSet` e `ObjectSet`). Com controle automático de hierarquias master-detail (`TManagerDataSet`), lazy loading transparente via proxies RTTI, pipelines de customização de DML e um gerador interativo de classes acoplado à IDE do Delphi, o Janus é o ecossistema completo para persistência corporativa em Object Pascal.
 
 ### 🚀 Recursos Principais
 
 *   **Mapeamento Bidirecional de Metadados:** Decore e estruture classes usando atributos descritivos em Pascal (`[Table]`, `[PrimaryKey]`, `[Indexe]`, `[Column]`).
-*   **Contêineres Duplos de Persistência:** Trabalhe de forma otimizada com `TContainerDataSet` (para vinculo visual nativo em tela usando `TClientDataSet`/`TFDMemTable`) ou `TContainerObjectSet` (para manipulação orientada estritamente a objetos).
+*   **Contêineres Duplos de Persistência:** Trabalhe de forma otimizada com `TContainerDataSet` (para vínculo visual nativo em tela usando `TClientDataSet`/`TFDMemTable`) ou `TContainerObjectSet` (para manipulação orientada estritamente a objetos).
 *   **TManagerDataSet (Sistema Master-Detail):** Gerenciamento fluido de profundas hierarquias master-detail, resolvendo joins de lookup e atualizações em lote de forma transparente.
 *   **Alta Performance & Lazy Loading:** Navegação indexada local com cache, carga sob demanda baseada em proxies RTTI (`Lazy Loading`) e pacotes de paginação sob demanda (`NextPacket`).
-*   **Ferramentas Avançadas:** Gerador de Modelos CLI standalone, DLL bridge de integração para sistemas escritos em outras linguagens de programação e um Wizard integrado de 4 páginas na IDE do Delphi.
+*   **Ferramentas Avançadas:** Gerador de Modelos CLI standalone, DLL bridge de integração para sistemas escritos em outras linguagens e um Wizard integrado de 4 páginas na IDE do Delphi.
 
 ### 🏛 Matriz de Compatibilidade
 
@@ -176,15 +182,18 @@ O `HAS_VCL` — e os helpers de blob↔imagem do `Janus.Types.Blob` (`ToPicture`
 
 ### ⚙️ Instalação
 
-Para instalar usando o gerenciador de pacotes [**Boss**](https://github.com/HashLoad/boss):
+Instale usando o gerenciador de pacotes [**Boss**](https://github.com/HashLoad/boss):
 
 ```sh
 boss install "https://github.com/HashLoad/Janus"
 ```
 
+Ou via [**PubPascal**](https://www.pubpascal.dev/packages/janus) (consulte o portal para o comando de registro atual).
+
 ### ⚠ Dependências
 
 Todas as dependências são resolvidas de forma totalmente automática pelo Boss:
+
 *   [MetaDbDiff](https://github.com/hashload/MetaDbDiff) — Motor de mapeamento e comparação estrutural.
 *   [DataEngine](https://github.com/hashload/DataEngine) — Abstração unificada de conexão.
 *   [FluentSQL](https://github.com/hashload/FluentSQL) — Geração fluente de SQL.
@@ -195,6 +204,7 @@ Todas as dependências são resolvidas de forma totalmente automática pelo Boss
 ### ⚡️ Início Rápido
 
 #### 1. Defina o seu Modelo de Entidade
+
 ```delphi
 unit Janus.Model.Client;
 
@@ -238,6 +248,7 @@ end.
 ```
 
 #### 2. Operações CRUD Rápidas (Wrapper de MemTable)
+
 ```delphi
 uses
   DataEngine.Interfaces,
@@ -252,34 +263,74 @@ var
 begin
   // Estabelece a conexão usando o wrapper do FireDAC
   FConn := TFactoryFireDAC.Create(FDConnection1, dnSQLite);
-  
+
   // Associa o container Janus diretamente a uma tabela em memória
   FContainerClient := TContainerFDMemTable<Tclient>.Create(FConn, FDClientMemTable);
   FContainerClient.Open;
-  
+
   // Persiste todas as alterações no banco de dados físico
   FContainerClient.ApplyUpdates(0);
 end;
 ```
 
 #### 3. Controle Hierárquico Master-Detail (`TManagerDataSet`)
+
 ```delphi
 var
   FManager: TManagerDataSet;
 begin
   FConn := TFactoryFireDAC.Create(FDConnection1, dnMySQL);
   FManager := TManagerDataSet.Create(FConn);
-  
+
   // Associa tabelas master-detail e lookup de forma encadeada
   FManager.AddAdapter<Tmaster>(FDMaster, 3)
           .AddAdapter<Tdetail, Tmaster>(FDDetail)
           .AddAdapter<Tclient, Tmaster>(FDClient)
           .AddAdapter<Tlookup>(FDLookup)
           .AddLookupField<Tdetail, Tlookup>('lookup_id', 'lookup_id', 'description');
-          
+
   FManager.Open<Tmaster>;
 end;
 ```
 
 ---
-*Copyright © 2025-2026 Isaque Pinheiro. Licensed under MIT License.*
+
+## ⛏️ Contributing / Contribuição
+
+**EN** — Contributions are welcome! Whether it's a bug report, a feature request, or a pull request, every collaboration makes Janus better for the entire Object Pascal community.
+
+**PT** — Contribuições são bem-vindas! Seja um relatório de bug, uma sugestão de feature ou um pull request, toda colaboração torna o Janus melhor para toda a comunidade Object Pascal.
+
+[![Issues](https://img.shields.io/badge/Issues-channel-orange)](../../issues)
+
+**How to contribute / Como contribuir:**
+
+1. Fork the repository / Faça um fork do repositório.
+2. Create a branch for your change / Crie uma branch para a sua alteração: `git checkout -b feature/my-feature`.
+3. Commit your changes / Faça o commit das suas alterações: `git commit -m "feat: my feature"`.
+4. Push to your fork / Faça push para o seu fork: `git push origin feature/my-feature`.
+5. Open a Pull Request / Abra um Pull Request descrevendo o que foi feito.
+
+---
+
+## 📬 Contact / Contato
+
+[![Email](https://img.shields.io/badge/Email-isaquesp%40gmail.com-D14836?logo=gmail&logoColor=white)](mailto:isaquesp@gmail.com)
+
+---
+
+## 💲 Donation / Doação
+
+**EN** — If Janus saves you time on your projects, consider supporting its continued development.
+
+**PT** — Se o Janus economiza tempo nos seus projetos, considere apoiar o desenvolvimento contínuo.
+
+[![Doação](https://img.shields.io/badge/PagSeguro-contribua-green)](https://pag.ae/bglQrWD)
+
+---
+
+## 📄 License / Licença
+
+This project is licensed under the **MIT License** — see [LICENSE](LICENSE) for details.
+
+*Copyright © 2025-2026 Isaque Pinheiro.*
