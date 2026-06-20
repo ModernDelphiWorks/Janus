@@ -26,6 +26,14 @@
 | :--- | :--- | :---: | :---: |
 | **Delphi XE or superior** | VCL, FMX, Console, IDE (Win/Linux/macOS/iOS/Android) | ✅ Yes | ✅ Yes (Delphi IDE) |
 
+### 🐧 Cross-Platform Build — Win32 / Win64 / Linux64 (verified)
+
+> **✅ Verified 2026-06-20** in a real production backend: Janus compiles as a dependency on **Win32, Win64 and Linux64** (`dcclinux64`), and the Linux server boots and serves routes/ORM. macOS/iOS/Android follow from the Delphi RTL but are **not build-verified** here yet.
+
+`HAS_VCL` — and the `Janus.Types.Blob` image-blob helpers (`ToPicture`/`ToBitmap` over `Vcl.Imaging`) — is now enabled only under `{$IFDEF MSWINDOWS}`. It was being defined unconditionally, which pulled VCL `Graphics`/`JPEG`/`PngImage` on Linux; image-blob conversion is a desktop-only feature, while the rest of the ORM is platform-neutral. Windows behaviour is unchanged.
+
+**Building a consumer app for Linux64:** install the Linux 64-bit platform (RAD Studio GetIt / `GetItCmd -if=delphi_linux -ae`), provide a Linux SDK (RAD Studio SDK Manager + PAServer, **or** a sysroot assembled from a WSL/Linux toolchain passed to `dcclinux64` via `--syslibroot` / `--libpath`), then compile with `dcclinux64`.
+
 ### ⚙️ Installation
 
 To install using the package manager [**Boss**](https://github.com/HashLoad/boss):
@@ -152,6 +160,14 @@ end;
 | Ambiente / IDE | Plataforma / Compilador | Proxies RTTI | Wizard na IDE |
 | :--- | :--- | :---: | :---: |
 | **Delphi XE ou superior** | VCL, FMX, Console, IDE (Win/Linux/macOS/iOS/Android) | ✅ Sim | ✅ Sim (Delphi IDE) |
+
+### 🐧 Build Multiplataforma — Win32 / Win64 / Linux64 (verificado)
+
+> **✅ Verificado em 2026-06-20** num backend real em produção: o Janus compila como dependência em **Win32, Win64 e Linux64** (`dcclinux64`), e o servidor Linux sobe e serve rotas/ORM. macOS/iOS/Android seguem da RTL Delphi, mas **ainda não foram verificados** em build aqui.
+
+O `HAS_VCL` — e os helpers de blob↔imagem do `Janus.Types.Blob` (`ToPicture`/`ToBitmap` sobre `Vcl.Imaging`) — agora só ficam ativos sob `{$IFDEF MSWINDOWS}`. Ele estava sendo definido incondicionalmente, o que puxava `Graphics`/`JPEG`/`PngImage` (VCL) no Linux; a conversão blob↔imagem é uma feature desktop-only, enquanto o resto do ORM é neutro de plataforma. O comportamento no Windows não muda.
+
+**Para buildar um app consumidor no Linux64:** instale a plataforma Linux 64-bit (RAD Studio GetIt / `GetItCmd -if=delphi_linux -ae`), forneça um SDK Linux (SDK Manager do RAD Studio + PAServer, **ou** um sysroot montado de um toolchain WSL/Linux passado ao `dcclinux64` via `--syslibroot` / `--libpath`), e compile com `dcclinux64`.
 
 ### ⚙️ Instalação
 
