@@ -49,7 +49,7 @@ boss install "https://github.com/HashLoad/Janus"
 
 Or via [**PubPascal**](https://www.pubpascal.dev/packages/janus) (see the portal for the current registry command).
 
-### ⚠ Dependencies
+### ⚠️ Dependencies
 
 All dependencies are resolved automatically by Boss:
 
@@ -190,7 +190,7 @@ boss install "https://github.com/HashLoad/Janus"
 
 Ou via [**PubPascal**](https://www.pubpascal.dev/packages/janus) (consulte o portal para o comando de registro atual).
 
-### ⚠ Dependências
+### ⚠️ Dependências
 
 Todas as dependências são resolvidas de forma totalmente automática pelo Boss:
 
@@ -295,7 +295,7 @@ end;
 
 ---
 
-## ⛏️ Contributing / Contribuição
+## ⛏️ Contributing/Contribuição
 
 **EN** — Contributions are welcome! Whether it's a bug report, a feature request, or a pull request, every collaboration makes Janus better for the entire Object Pascal community.
 
@@ -313,13 +313,13 @@ end;
 
 ---
 
-## 📬 Contact / Contato
+## 📬 Contact/Contato
 
 [![Email](https://img.shields.io/badge/Email-isaquesp%40gmail.com-D14836?logo=gmail&logoColor=white)](mailto:isaquesp@gmail.com)
 
 ---
 
-## 💲 Donation / Doação
+## 💲 Donation/Doação
 
 **EN** — If Janus saves you time on your projects, consider supporting its continued development.
 
@@ -329,7 +329,7 @@ end;
 
 ---
 
-## 📄 License / Licença
+## 📄 License/Licença
 
 This project is licensed under the **MIT License** — see [LICENSE](LICENSE) for details.
 
