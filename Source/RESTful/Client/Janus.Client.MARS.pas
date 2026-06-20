@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ 
+{
   @abstract(REST Componentes)
   @created(20 Jun 2018)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
@@ -21,6 +21,8 @@
 }
 
 unit Janus.Client.MARS;
+
+{$IFDEF JANUS_REST_MARS}
 
 interface
 
@@ -52,26 +54,26 @@ type
     FRESTResource: TMARSClientResourceJSON;
     FRESTToken: TMARSClientToken;
     procedure SetProxyParamsClientValue;
-    procedure SetParamsBodyValue(var AParams: String);
+    procedure SetParamsBodyValue(var AParams: string);
     procedure SetAuthenticatorTypeValues;
     procedure SetParamValues;
-    function DoGET(const AResource, ASubResource: String): String;
-    function DoPOST(const AResource, ASubResource: String): String;
-    function DoPUT(const AResource, ASubResource: String): String;
-    function DoDELETE(const AResource, ASubResource: String): String;
-    function RemoveContextServerUse(const Value: String): String;
+    function DoGET(const AResource, ASubResource: string): string;
+    function DoPOST(const AResource, ASubResource: string): string;
+    function DoPUT(const AResource, ASubResource: string): string;
+    function DoDELETE(const AResource, ASubResource: string): string;
+    function RemoveContextServerUse(const Value: string): string;
   protected
     procedure DoAfterCommand; override;
     procedure SetBaseURL; override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    function Execute(const AResource, ASubResource: String;
+    function Execute(const AResource, ASubResource: string;
       const ARequestMethod: TRESTRequestMethodType;
-      const AParamsProc: TProc = nil): String; overload;
-    function Execute(const AURL: String;
+      const AParamsProc: TProc = nil): string; overload;
+    function Execute(const AURL: string;
       const ARequestMethod: TRESTRequestMethodType;
-      const AParamsProc: TProc = nil): String; overload;
+      const AParamsProc: TProc = nil): string; overload;
   published
     property APIContext;
     property RESTContext;
@@ -117,10 +119,10 @@ begin
   inherited;
 end;
 
-function TRESTClientMARS.DoDELETE(const AResource, ASubResource: String): String;
+function TRESTClientMARS.DoDELETE(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'DELETE';
-  // Define valores dos par�metros
+  // Define valores dos parâmetros
   SetParamValues;
   // DELETE
   FRESTResource.DELETE(nil,
@@ -150,10 +152,10 @@ begin
   Result := FResponseString;
 end;
 
-function TRESTClientMARS.DoGET(const AResource, ASubResource: String): String;
+function TRESTClientMARS.DoGET(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'GET';
-  // Define valores dos par�metros
+  // Define valores dos parâmetros
   SetParamValues;
   // GET
   Result := FRESTResource.GETAsString(nil, nil,
@@ -177,12 +179,12 @@ begin
                                       end);
 end;
 
-function TRESTClientMARS.DoPOST(const AResource, ASubResource: String): String;
+function TRESTClientMARS.DoPOST(const AResource, ASubResource: string): string;
 var
-  LParams: String;
+  LParams: string;
 begin
   FRequestMethod := 'POST';
-  // Define valores dos par�metros
+  // Define valores dos parâmetros
   SetParamsBodyValue(LParams);
   // POST
   FRESTResource.POST(procedure(AContent: TMemoryStream)
@@ -223,12 +225,12 @@ begin
   Result := FResponseString;
 end;
 
-function TRESTClientMARS.DoPUT(const AResource, ASubResource: String): String;
+function TRESTClientMARS.DoPUT(const AResource, ASubResource: string): string;
 var
-  LParams: String;
+  LParams: string;
 begin
   FRequestMethod := 'PUT';
-  // Define valores dos par�metros
+  // Define valores dos parâmetros
   SetParamsBodyValue(LParams);
   // PUT
   FRESTResource.PUT(procedure(AContent: TMemoryStream)
@@ -269,9 +271,9 @@ begin
   Result := FResponseString;
 end;
 
-function TRESTClientMARS.Execute(const AURL: String;
+function TRESTClientMARS.Execute(const AURL: string;
   const ARequestMethod: TRESTRequestMethodType;
-  const AParamsProc: TProc): String;
+  const AParamsProc: TProc): string;
 var
   LFor: Integer;
 
@@ -285,14 +287,14 @@ var
 
 begin
   Result := '';
-  // Executa a procedure de adi��o dos par�metros
+  // Executa a procedure de adição dos parâmetros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autentica��o
+  // Define valores de autenticação
   SetAuthenticatorTypeValues;
   try
     // DoBeforeCommand
@@ -317,11 +319,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poder� ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que poderá ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou n�o no evento AfterCommand
+    // Pega de volta o JSON manipulado ou não no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -331,9 +333,9 @@ begin
   end;
 end;
 
-function TRESTClientMARS.Execute(const AResource, ASubResource: String;
+function TRESTClientMARS.Execute(const AResource, ASubResource: string;
   const ARequestMethod: TRESTRequestMethodType;
-  const AParamsProc: TProc): String;
+  const AParamsProc: TProc): string;
 var
   LFor: Integer;
 
@@ -341,7 +343,7 @@ var
   begin
     FRESTClientApp.AppName := FAPIContext;
     // Trata a URL Base caso o componente esteja para usar o servidor,
-    // mas a classe n�o.
+    // mas a classe não.
     if (FServerUse) and (FClassNotServerUse) then
       FRESTClientApp.AppName := RemoveContextServerUse(FRESTClientApp.AppName);
 
@@ -354,14 +356,14 @@ var
 
 begin
   Result := '';
-  // Executa a procedure de adi��o dos par�metros
+  // Executa a procedure de adição dos parâmetros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autentica��o
+  // Define valores de autenticação
   SetAuthenticatorTypeValues;
   try
     // DoBeforeCommand
@@ -386,11 +388,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poder� ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que poderá ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou n�o no evento AfterCommand
+    // Pega de volta o JSON manipulado ou não no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -400,7 +402,7 @@ begin
   end;
 end;
 
-function TRESTClientMARS.RemoveContextServerUse(const Value: String): String;
+function TRESTClientMARS.RemoveContextServerUse(const Value: string): string;
 begin
   Result := ReplaceStr(Value, '/Janus', '');
 end;
@@ -416,7 +418,6 @@ begin
       begin
         if Length(FAuthenticator.Token) > 0 then
         begin
-//          FRESTClient.Request.HeaderFields.AddPair('Authorization', 'Bearer ' + FAuthenticator.Token);
           Exit;
         end;
       end;
@@ -443,12 +444,12 @@ begin
     FRESTResource.QueryParams.Add(FQueryParams.Items[LFor].AsString);
 end;
 
-procedure TRESTClientMARS.SetParamsBodyValue(var AParams: String);
+procedure TRESTClientMARS.SetParamsBodyValue(var AParams: string);
 var
   LFor: Integer;
 begin
   if FBodyParams.Count = 0 then
-    raise Exception.Create('N�o foi passado o par�metro com os dados do insert!');
+    raise Exception.Create('Não foi passado o parâmetro com os dados do insert!');
 
   for LFor := 0 to FBodyParams.Count -1 do
     AParams := AParams + FBodyParams.Items[LFor].AsString;
@@ -462,5 +463,10 @@ begin
   FRESTClient.HttpClient.ProxyParams.ProxyUsername := FProxyParams.ProxyUsername;
   FRESTClient.HttpClient.ProxyParams.ProxyPassword := FProxyParams.ProxyPassword;
 end;
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.

@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ 
+{
   @abstract(REST Componentes)
   @created(20 Jun 2018)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
@@ -22,13 +22,15 @@
 
 unit Janus.Server.DataSnap;
 
+{$IFDEF JANUS_REST_DATASNAP}
+
 interface
 
 uses
   Classes,
   SysUtils,
   Janus.RestComponent,
-  /// Janus Conex�o
+  /// Janus Conexão
   DataEngine.FactoryInterfaces,
   /// DataSnap
   Datasnap.DSServer,
@@ -49,7 +51,7 @@ type
     function GetDSClass: TDSClass; override;
   public
     constructor Create(AOwner: TComponent; AServer: TDSCustomServer;
-      AClass: TPersistentClass; ALifeCycle: String); reintroduce; overload;
+      AClass: TPersistentClass; ALifeCycle: string); reintroduce; overload;
   end;
 
   TRESTServerDataSnap = class(TJanusComponent)
@@ -130,7 +132,7 @@ end;
 { TSimpleServerClass }
 
 constructor TSimpleServerClass.Create(AOwner: TComponent;
-  AServer: TDSCustomServer; AClass: TPersistentClass; ALifeCycle: String);
+  AServer: TDSCustomServer; AClass: TPersistentClass; ALifeCycle: string);
 begin
   inherited Create(AOwner);
   FPersistentClass := AClass;
@@ -142,5 +144,10 @@ function TSimpleServerClass.GetDSClass: TDSClass;
 begin
   Result := TDSClass.Create(FPersistentClass, False);
 end;
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.

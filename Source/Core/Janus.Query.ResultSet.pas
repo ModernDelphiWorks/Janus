@@ -42,7 +42,7 @@ type
   IJanusQueryObject<M: class, constructor> = interface
     ['{E1AA571D-E8BC-4A79-8B67-D7E77680F29C}']
     function SetConnection(AConnection: IDBConnection): IJanusQueryObject<M>;
-    function SQL(ASQL: String): IJanusQueryObject<M>;
+    function SQL(const ASQL: string): IJanusQueryObject<M>;
     function AsList: TObjectList<M>;
     function AsValue: M;
   end;
@@ -54,7 +54,7 @@ type
   public
     class function New: IJanusQueryObject<M>;
     function SetConnection(AConnection: IDBConnection): IJanusQueryObject<M>;
-    function SQL(ASQL: String): IJanusQueryObject<M>;
+    function SQL(const ASQL: string): IJanusQueryObject<M>;
     function AsList: TObjectList<M>;
     function AsValue: M;
   end;

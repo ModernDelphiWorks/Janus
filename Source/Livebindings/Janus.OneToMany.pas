@@ -24,6 +24,8 @@ unit Janus.OneToMany;
 
 interface
 
+{$IF DEFINED(DCC) AND DEFINED(MSWINDOWS)}
+
 uses
   Classes,
   Generics.Collections,
@@ -101,9 +103,11 @@ type
     property ChildArray: TSyncChildLinkArray read FChildArray write SetDetailsArray;
   end;
 
+{$ENDIF} // DCC AND MSWINDOWS
+
 implementation
 
-uses Dialogs;
+{$IF DEFINED(DCC) AND DEFINED(MSWINDOWS)}
 
 { TSyncMasterList<M> }
 
@@ -348,5 +352,7 @@ begin
 
   FChildArray := AValue;
 end;
+
+{$ENDIF} // DCC AND MSWINDOWS
 
 end.

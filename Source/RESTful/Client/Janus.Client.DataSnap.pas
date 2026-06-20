@@ -24,6 +24,8 @@
 
 unit Janus.Client.DataSnap;
 
+{$IFDEF JANUS_REST_DATASNAP}
+
 interface
 
 uses
@@ -54,11 +56,11 @@ type
     procedure SetParamsBodyValue;
     procedure SetAuthenticatorTypeValues;
     procedure SetParamValues;
-    function DoGET(const AResource, ASubResource: String): String;
-    function DoPOST(const AResource, ASubResource: String): String;
-    function DoPUT(const AResource, ASubResource: String): String;
-    function DoDELETE(const AResource, ASubResource: String): String;
-    function RemoveContextServerUse(const Value: String): String;
+    function DoGET(const AResource, ASubResource: string): string;
+    function DoPOST(const AResource, ASubResource: string): string;
+    function DoPUT(const AResource, ASubResource: string): string;
+    function DoDELETE(const AResource, ASubResource: string): string;
+    function RemoveContextServerUse(const Value: string): string;
   protected
     procedure DoAfterCommand; override;
     procedure SetBaseURL; override;
@@ -66,13 +68,13 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    procedure AddQueryParam(AValue: String); override;
-    function Execute(const AResource, ASubResource: String;
+    procedure AddQueryParam(AValue: string); override;
+    function Execute(const AResource, ASubResource: string;
       const ARequestMethod: TRESTRequestMethodType;
-      const AParamsProc: TProc = nil): String; overload;
-    function Execute(const AURL: String;
+      const AParamsProc: TProc = nil): string; overload;
+    function Execute(const AURL: string;
       const ARequestMethod: TRESTRequestMethodType;
-      const AParamsProc: TProc = nil): String; overload;
+      const AParamsProc: TProc = nil): string; overload;
   published
     property APIContext;
     property RESTContext;
@@ -86,7 +88,7 @@ uses
 
 { TRESTClientDataSnap }
 
-procedure TRESTClientDataSnap.AddQueryParam(AValue: String);
+procedure TRESTClientDataSnap.AddQueryParam(AValue: string);
 var
   LPos: Integer;
 begin
@@ -133,11 +135,11 @@ begin
   inherited;
 end;
 
-function TRESTClientDataSnap.DoDELETE(const AResource, ASubResource: String): String;
+function TRESTClientDataSnap.DoDELETE(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'DELETE';
   FRESTRequest.Method := TRESTRequestMethod.rmDELETE;
-  // Define valores dos par�metros
+  // Define valores dos parâmetros
   SetParamValues;
   // DELETE
   try
@@ -166,11 +168,11 @@ begin
   end;
 end;
 
-function TRESTClientDataSnap.DoGET(const AResource, ASubResource: String): String;
+function TRESTClientDataSnap.DoGET(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'GET';
   FRESTRequest.Method := TRESTRequestMethod.rmGET;
-  // Define valores dos par�metros
+  // Define valores dos parâmetros
   SetParamValues;
   // DELETE
   try
@@ -200,11 +202,11 @@ begin
 
 end;
 
-function TRESTClientDataSnap.DoPOST(const AResource, ASubResource: String): String;
+function TRESTClientDataSnap.DoPOST(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'POST';
   FRESTRequest.Method := TRESTRequestMethod.rmPUT;
-  // Define valores dos par�metros
+  // Define valores dos parâmetros
   SetParamsBodyValue;
   // POST
   try
@@ -233,11 +235,11 @@ begin
   end;
 end;
 
-function TRESTClientDataSnap.DoPUT(const AResource, ASubResource: String): String;
+function TRESTClientDataSnap.DoPUT(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'PUT';
   FRESTRequest.Method := TRESTRequestMethod.rmPOST;
-  // Define valores dos par�metros
+  // Define valores dos parâmetros
   SetParamsBodyValue;
   // PUT
   try
@@ -265,9 +267,9 @@ begin
   end;
 end;
 
-function TRESTClientDataSnap.Execute(const AURL: String;
+function TRESTClientDataSnap.Execute(const AURL: string;
   const ARequestMethod: TRESTRequestMethodType;
-  const AParamsProc: TProc): String;
+  const AParamsProc: TProc): string;
 var
   LFor: Integer;
 
@@ -282,14 +284,14 @@ var
 
 begin
   Result := '';
-  // Executa a procedure de adi��o dos par�metros
+  // Executa a procedure de adição dos parâmetros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autentica��o
+  // Define valores de autenticação
   SetAuthenticatorTypeValues;
 
   for LFor := 0 to FParams.Count -1 do
@@ -318,11 +320,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poder� ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que poderá ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou n�o no evento AfterCommand
+    // Pega de volta o JSON manipulado ou não no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -332,9 +334,9 @@ begin
   end;
 end;
 
-function TRESTClientDataSnap.Execute(const AResource, ASubResource: String;
+function TRESTClientDataSnap.Execute(const AResource, ASubResource: string;
       const ARequestMethod: TRESTRequestMethodType;
-      const AParamsProc: TProc = nil): String;
+      const AParamsProc: TProc = nil): string;
 var
   LFor: Integer;
 
@@ -342,7 +344,7 @@ var
   begin
     FRESTClient.BaseURL := GetBaseURL;
     // Trata a URL Base caso o componente esteja para usar o servidor,
-    // mas a classe n�o.
+    // mas a classe não.
     if (FServerUse) and (FClassNotServerUse) then
       FRESTClient.BaseURL := RemoveContextServerUse(FRESTClient.BaseURL);
 
@@ -354,14 +356,14 @@ var
 
 begin
   Result := '';
-  // Executa a procedure de adi��o dos par�metros
+  // Executa a procedure de adição dos parâmetros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autentica��o
+  // Define valores de autenticação
   SetAuthenticatorTypeValues;
 
   for LFor := 0 to FParams.Count -1 do
@@ -390,11 +392,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poder� ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que poderá ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou n�o no evento AfterCommand
+    // Pega de volta o JSON manipulado ou não no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -405,7 +407,7 @@ begin
 end;
 
 function TRESTClientDataSnap.RemoveContextServerUse(
-  const Value: String): String;
+  const Value: string): string;
 begin
   Result := ReplaceStr(Value, '/Janus/app', '');
 end;
@@ -461,7 +463,7 @@ var
   LFor: Integer;
 begin
   if FBodyParams.Count = 0 then
-    raise Exception.Create('N�o foi passado o par�metro com os dados do insert!');
+    raise Exception.Create('Não foi passado o parâmetro com os dados do insert!');
 
   for LFor := 0 to FBodyParams.Count -1 do
     FRESTRequest.Body.Add(FBodyParams.Items[LFor].AsString, ContentTypeFromString('application/json'));
@@ -486,5 +488,10 @@ begin
     FRESTContext := FRESTContext + '/Janus/app';
   SetBaseURL;
 end;
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.

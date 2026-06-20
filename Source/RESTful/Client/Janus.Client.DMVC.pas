@@ -22,6 +22,8 @@
 
 unit Janus.Client.DMVC;
 
+{$IFDEF JANUS_REST_DMVC}
+
 interface
 
 uses
@@ -46,26 +48,26 @@ type
     procedure SetAuthenticatorTypeValues;
     procedure SetParamsBodyValue;
     procedure SetParamValues(AParams: PClientParam);
-    function DoGET(const AURL, AResource, ASubResource: String;
-      const AParams: array of String): String;
-    function DoPOST(const AURL, AResource, ASubResource: String;
-      const AParams: array of String): String;
-    function DoPUT(const AURL, AResource, ASubResource: String;
-      const AParams: array of String): String;
-    function DoDELETE(const AURL, AResource, ASubResource: String;
-      const AParams: array of String): String;
-    function RemoveContextServerUse(const Value: String): String;
+    function DoGET(const AURL, AResource, ASubResource: string;
+      const AParams: array of string): string;
+    function DoPOST(const AURL, AResource, ASubResource: string;
+      const AParams: array of string): string;
+    function DoPUT(const AURL, AResource, ASubResource: string;
+      const AParams: array of string): string;
+    function DoDELETE(const AURL, AResource, ASubResource: string;
+      const AParams: array of string): string;
+    function RemoveContextServerUse(const Value: string): string;
   protected
     procedure DoAfterCommand; override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    function Execute(const AResource, ASubResource: String;
+    function Execute(const AResource, ASubResource: string;
       const ARequestMethod: TRESTRequestMethodType;
-      const AParamsProc: TProc = nil): String; overload;
-    function Execute(const AURL: String;
+      const AParamsProc: TProc = nil): string; overload;
+    function Execute(const AURL: string;
       const ARequestMethod: TRESTRequestMethodType;
-      const AParamsProc: TProc = nil): String; overload;
+      const AParamsProc: TProc = nil): string; overload;
   published
     property APIContext;
     property JanusServerUse;
@@ -100,7 +102,7 @@ begin
 end;
 
 function TRESTClientDelphiMVC.DoDELETE(const AURL, AResource,
-  ASubResource: String; const AParams: array of String): String;
+  ASubResource: string; const AParams: array of string): string;
 begin
   FRequestMethod := 'DELETE';
   try
@@ -129,8 +131,8 @@ begin
   end;
 end;
 
-function TRESTClientDelphiMVC.DoGET(const AURL, AResource, ASubResource: String;
-      const AParams: array of String): String;
+function TRESTClientDelphiMVC.DoGET(const AURL, AResource, ASubResource: string;
+      const AParams: array of string): string;
 begin
   FRequestMethod := 'GET';
   try
@@ -161,10 +163,10 @@ begin
 end;
 
 function TRESTClientDelphiMVC.DoPOST(const AURL, AResource,
-  ASubResource: String; const AParams: array of String): String;
+  ASubResource: string; const AParams: array of string): string;
 begin
   FRequestMethod := 'POST';
-  // Define valores dos par�metros
+  // Define valores dos parâmetros
   SetParamsBodyValue;
   // POST
   try
@@ -194,11 +196,11 @@ begin
   end;
 end;
 
-function TRESTClientDelphiMVC.DoPUT(const AURL, AResource, ASubResource: String;
-  const AParams: array of String): String;
+function TRESTClientDelphiMVC.DoPUT(const AURL, AResource, ASubResource: string;
+  const AParams: array of string): string;
 begin
   FRequestMethod := 'PUT';
-  // Define valores dos par�metros
+  // Define valores dos parâmetros
   SetParamsBodyValue;
   // PUT
   try
@@ -228,25 +230,25 @@ begin
   end;
 end;
 
-function TRESTClientDelphiMVC.Execute(const AURL: String;
+function TRESTClientDelphiMVC.Execute(const AURL: string;
   const ARequestMethod: TRESTRequestMethodType;
-  const AParamsProc: TProc): String;
+  const AParamsProc: TProc): string;
 var
-  LURL: String;
+  LURL: string;
   LParams: TClientParam;
 begin
   Result := '';
   // Passa os dados de acesso para o RESTClient do Delphi MVC
   if not Assigned(FRESTClient) then
     FRESTClient := TRESTClient.Create(FHost, FPort);
-  // Define valores de autentica��o
+  // Define valores de autenticação
   SetAuthenticatorTypeValues;
-  // Executa a procedure de adi��o dos par�metros
+  // Executa a procedure de adição dos parâmetros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define dados do proxy
   SetProxyParamsClientValues;
-  // Define valores dos par�metros
+  // Define valores dos parâmetros
   SetParamValues(@LParams);
   try
     // DoBeforeCommand
@@ -271,11 +273,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para VAR que poder� ser manipulada no evento AfterCommand
+    // Passao JSON para VAR que poderá ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta JSON manipulado ou n�o no evento AfterCommand
+    // Pega de volta JSON manipulado ou não no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -286,19 +288,19 @@ begin
   end;
 end;
 
-function TRESTClientDelphiMVC.Execute(const AResource, ASubResource: String;
+function TRESTClientDelphiMVC.Execute(const AResource, ASubResource: string;
   const ARequestMethod: TRESTRequestMethodType;
-  const AParamsProc: TProc): String;
+  const AParamsProc: TProc): string;
 var
-  LURL: String;
+  LURL: string;
   LParams: TClientParam;
 
   procedure SetURLValue;
   var
-    LResource: String;
-    LSubResource: String;
+    LResource: string;
+    LSubResource: string;
   begin
-    // Trata URL Base caso componente esteja usando servidor, mas a classe n�o.
+    // Trata URL Base caso componente esteja usando servidor, mas a classe não.
     if (FServerUse) and (not FClassNotServerUse) then
       LResource := FAPIContext;
     // Nome do recurso
@@ -315,16 +317,16 @@ begin
   // Passa os dados de acesso para o RESTClient do Delphi MVC
   if not Assigned(FRESTClient) then
     FRESTClient := TRESTClient.Create(FHost, FPort);
-  // Define valores de autentica��o
+  // Define valores de autenticação
   SetAuthenticatorTypeValues;
-  // Executa a procedure de adi��o dos par�metros
+  // Executa a procedure de adição dos parâmetros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValues;
-  // Define valores dos par�metros
+  // Define valores dos parâmetros
   SetParamValues(@LParams);
   try
     // DoBeforeCommand
@@ -349,11 +351,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para VAR que poder� ser manipulada no evento AfterCommand
+    // Passao JSON para VAR que poderá ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta JSON manipulado ou n�o no evento AfterCommand
+    // Pega de volta JSON manipulado ou não no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -369,18 +371,6 @@ var
   LAuthorized: Boolean;
 begin
   LAuthorized := False;
-  /// <summary> Dispara evento OnAuthentication </summary>
-//  if Assigned(FAuthentication) and (not FPerformingAuthentication) then
-//  begin
-//    FPerformingAuthentication := True;
-//    try
-//      FAuthentication(LAuthorized);
-//      if not LAuthorized then
-//        raise Exception.Create('Unauthorized Authentication');
-//    finally
-//      FPerformingAuthentication := False;
-//    end
-//  end;
   case FAuthenticator.AuthenticatorType of
     atNoAuth:;
     atBasicAuth:
@@ -401,11 +391,9 @@ begin
   end;
   FRESTClient.UserName := FAuthenticator.Username;
   FRESTClient.Password := FAuthenticator.Password;
-//  FRESTClient.Header('username', FAuthenticator.Username);
-//  FRESTClient.Header('password', FAuthenticator.Password);
 end;
 
-function TRESTClientDelphiMVC.RemoveContextServerUse(const Value: String): String;
+function TRESTClientDelphiMVC.RemoveContextServerUse(const Value: string): string;
 begin
   Result := '';
 end;
@@ -423,7 +411,7 @@ procedure TRESTClientDelphiMVC.SetParamValues(AParams: PClientParam);
 var
   LFor: Integer;
 begin
-  // Define o parametro do tipo array necess�rio para o Delphi MVC
+  // Define o parametro do tipo array necessário para o Delphi MVC
   if FParams.Count > 0 then
   begin
     SetLength(AParams^, FParams.Count);
@@ -443,5 +431,10 @@ begin
   FRESTClient.Username := FProxyParams.ProxyUsername;
   FRESTClient.Password := FProxyParams.ProxyPassword;
 end;
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.

@@ -20,7 +20,7 @@ unit Janus.Binder;
 
 interface
 
-{$IFDEF DCC}
+{$IF DEFINED(DCC) AND DEFINED(MSWINDOWS)}
 
 uses
   System.Classes,
@@ -114,7 +114,7 @@ type
 
 implementation
 
-{$IFDEF DCC}
+{$IF DEFINED(DCC) AND DEFINED(MSWINDOWS)}
 
 { TJanusScrollBridge<M, D> }
 

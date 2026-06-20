@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ 
+{
   @abstract(REST Componentes)
   @created(20 Jun 2018)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
@@ -21,6 +21,8 @@
 }
 
 unit Janus.Server.Resource.DataSnap;
+
+{$IFDEF JANUS_REST_DATASNAP}
 
 interface
 
@@ -50,10 +52,10 @@ type
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    function app(resource: String): TJSONValue;
-    function acceptapp(resource: String; value: TJSONValue): TJSONValue;
-    function updateapp(resource: String; value: TJSONValue): TJSONValue;
-    function cancelapp(resource: String): TJSONValue;
+    function app(resource: string): TJSONValue;
+    function acceptapp(resource: string; value: TJSONValue): TJSONValue;
+    function updateapp(resource: string; value: TJSONValue): TJSONValue;
+    function cancelapp(resource: string): TJSONValue;
   end;
 {$METHODINFO OFF}
 
@@ -78,18 +80,18 @@ begin
   inherited;
 end;
 
-function Janus.app(resource: String): TJSONValue;
+function Janus.app(resource: string): TJSONValue;
 var
   LQuery: TRESTQueryParse;
   LQueryParams: TStringList;
-  LQueryText: String;
+  LQueryText: string;
   LFor: Integer;
 begin
   LQuery := TRESTQueryParse.Create;
   LQueryParams := TStringList.Create;
   LQueryParams.Assign(GetInvocationMetadata().QueryParams);
   try
-    //Monta a URL com a Query Param completa, necess�rio no parse interno
+    //Monta a URL com a Query Param completa, necessário no parse interno
     LQueryText := resource + cDELIM_QUERY;
     for LFor := 0 to LQueryParams.Count -1 do
     begin
@@ -104,8 +106,6 @@ begin
       // Retorno JSON
       Result := TJanusJson
                   .JSONStringToJSONValue(FAppResource.ParseFind(LQuery));
-      // Add Count Record no JSON Result
-//      if LQuery.Count then
     end
     else
       raise Exception.Create('Class ' + LQuery.ResourceName + 'not found!');
@@ -115,30 +115,30 @@ begin
   end;
 end;
 
-function Janus.acceptapp(resource: String; value: TJSONValue): TJSONValue;
+function Janus.acceptapp(resource: string; value: TJSONValue): TJSONValue;
 begin
   Result := TJanusJson
               .JSONStringToJSONValue(FAppResource.insert(resource, value.ToJSON));
 end;
 
-function Janus.updateapp(resource: String; value: TJSONValue): TJSONValue;
+function Janus.updateapp(resource: string; value: TJSONValue): TJSONValue;
 begin
   Result := TJanusJson
               .JSONStringToJSONValue(FAppResource.update(resource, value.ToJSON));
 end;
 
-function Janus.cancelapp(resource: String): TJSONValue;
+function Janus.cancelapp(resource: string): TJSONValue;
 var
   LQuery: TRESTQueryParse;
   LQueryParams: TStringList;
-  LQueryText: String;
+  LQueryText: string;
   LFor: Integer;
 begin
   LQuery := TRESTQueryParse.Create;
   LQueryParams := TStringList.Create;
   LQueryParams.Assign(GetInvocationMetadata().QueryParams);
   try
-    // Monta a URL com a Query Param completa, necess�rio no parse interno
+    // Monta a URL com a Query Param completa, necessário no parse interno
     LQueryText := resource + cDELIM_QUERY;
     for LFor := 0 to LQueryParams.Count -1 do
     begin
@@ -161,5 +161,10 @@ begin
     LQuery.Free;
   end;
 end;
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.

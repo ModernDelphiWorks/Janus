@@ -22,6 +22,8 @@
 
 unit Janus.Client.WiRL;
 
+{$IFDEF JANUS_REST_WIRL}
+
 interface
 
 uses
@@ -51,26 +53,26 @@ type
     FRESTSubResource: TWiRLClientSubResourceJSON;
     FRESTToken: TWiRLClientToken;
     procedure SetProxyParamsClientValue;
-    procedure SetProxyParamsBodyValue(var AParams: String);
+    procedure SetProxyParamsBodyValue(var AParams: string);
     procedure SetAuthenticatorTypeValues;
     procedure SetParamValues;
-    function DoGET(const AResource, ASubResource: String): String;
-    function DoPOST(const AResource, ASubResource: String): String;
-    function DoPUT(const AResource, ASubResource: String): String;
-    function DoDELETE(const AResource, ASubResource: String): String;
-    function RemoveContextServerUse(const Value: String): String;
+    function DoGET(const AResource, ASubResource: string): string;
+    function DoPOST(const AResource, ASubResource: string): string;
+    function DoPUT(const AResource, ASubResource: string): string;
+    function DoDELETE(const AResource, ASubResource: string): string;
+    function RemoveContextServerUse(const Value: string): string;
   protected
     procedure DoAfterCommand; override;
     procedure SetBaseURL; override;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
-    function Execute(const AResource, ASubResource: String;
+    function Execute(const AResource, ASubResource: string;
       const ARequestMethod: TRESTRequestMethodType;
-      const AParamsProc: TProc = nil): String; overload;
-    function Execute(const AURL: String;
+      const AParamsProc: TProc = nil): string; overload;
+    function Execute(const AURL: string;
       const ARequestMethod: TRESTRequestMethodType;
-      const AParamsProc: TProc = nil): String; overload;
+      const AParamsProc: TProc = nil): string; overload;
   published
     property APIContext;
     property RESTContext;
@@ -90,7 +92,6 @@ begin
   inherited Create(AOwner);
   FRESTFactory := TRESTFactoryWiRL.Create(Self);
   FRESTClient := TWiRLClient.Create(Self);
-//  FRESTClient.ClientVendor := 'TIdHttp (Indy)';
   FRESTClientApp := TWiRLClientApplication.Create(Self);
   FRESTClientApp.Client := FRESTClient;
   FRESTResource := TWiRLClientResourceJSON.Create(Self);
@@ -121,10 +122,10 @@ begin
   inherited;
 end;
 
-function TRESTClientWiRL.DoDELETE(const AResource, ASubResource: String): String;
+function TRESTClientWiRL.DoDELETE(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'DELETE';
-  /// <summary> Define valores dos par�metros </summary>
+  /// <summary> Define valores dos parâmetros </summary>
   SetParamValues;
   /// <summary> DELETE </summary>
   FRESTSubResource.DELETE(nil,
@@ -151,13 +152,12 @@ begin
                                               FRESTClient.Response.StatusCode);
                           end );
   Result := FResponseString;
-  //          FRESTClient.Response.ReasonString;
 end;
 
-function TRESTClientWiRL.DoGET(const AResource, ASubResource: String): String;
+function TRESTClientWiRL.DoGET(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'GET';
-  /// <summary> Define valores dos par�metros </summary>
+  /// <summary> Define valores dos parâmetros </summary>
   SetParamValues;
   /// <summary> GET </summary>
   Result := FRESTSubResource.GETAsString(nil, nil,
@@ -181,12 +181,12 @@ begin
                                          end );
 end;
 
-function TRESTClientWiRL.DoPOST(const AResource, ASubResource: String): String;
+function TRESTClientWiRL.DoPOST(const AResource, ASubResource: string): string;
 var
-  LParams: String;
+  LParams: string;
 begin
   FRequestMethod := 'POST';
-  /// <summary> Define valores dos par�metros </summary>
+  /// <summary> Define valores dos parâmetros </summary>
   SetProxyParamsBodyValue(LParams);
   /// <summary> POST </summary>
   FRESTSubResource.POST(procedure(AContent: TMemoryStream)
@@ -227,12 +227,12 @@ begin
   Result := FResponseString;
 end;
 
-function TRESTClientWiRL.DoPUT(const AResource, ASubResource: String): String;
+function TRESTClientWiRL.DoPUT(const AResource, ASubResource: string): string;
 var
-  LParams: String;
+  LParams: string;
 begin
   FRequestMethod := 'PUT';
-  /// <summary> Define valores dos par�metros </summary>
+  /// <summary> Define valores dos parâmetros </summary>
   SetProxyParamsBodyValue(LParams);
   /// <summary> PUT </summary>
   FRESTSubResource.PUT(procedure(AContent: TMemoryStream)
@@ -273,9 +273,9 @@ begin
   Result := FResponseString;
 end;
 
-function TRESTClientWiRL.Execute(const AURL: String;
+function TRESTClientWiRL.Execute(const AURL: string;
   const ARequestMethod: TRESTRequestMethodType;
-  const AParamsProc: TProc): String;
+  const AParamsProc: TProc): string;
 
   procedure SetURLValue;
   begin
@@ -289,14 +289,14 @@ function TRESTClientWiRL.Execute(const AURL: String;
 
 begin
   Result := '';
-  // Executa a procedure de adi��o dos par�metros
+  // Executa a procedure de adição dos parâmetros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autentica��o
+  // Define valores de autenticação
   SetAuthenticatorTypeValues;
   try
     // DoBeforeCommand
@@ -321,11 +321,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poder� ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que poderá ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou n�o no evento AfterCommand
+    // Pega de volta o JSON manipulado ou não no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -335,15 +335,15 @@ begin
   end;
 end;
 
-function TRESTClientWiRL.Execute(const AResource, ASubResource: String;
+function TRESTClientWiRL.Execute(const AResource, ASubResource: string;
   const ARequestMethod: TRESTRequestMethodType;
-  const AParamsProc: TProc): String;
+  const AParamsProc: TProc): string;
 
   procedure SetURLValue;
   begin
     FRESTClientApp.AppName := FAPIContext;
     // Trata a URL Base caso o componente esteja para usar o servidor,
-    // mas a classe n�o.
+    // mas a classe não.
     if (FServerUse) and (FClassNotServerUse) then
       FRESTClientApp.AppName := RemoveContextServerUse(FRESTClientApp.AppName);
 
@@ -356,14 +356,14 @@ function TRESTClientWiRL.Execute(const AResource, ASubResource: String;
 
 begin
   Result := '';
-  // Executa a procedure de adi��o dos par�metros
+  // Executa a procedure de adição dos parâmetros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autentica��o
+  // Define valores de autenticação
   SetAuthenticatorTypeValues;
   try
     // DoBeforeCommand
@@ -388,11 +388,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poder� ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que poderá ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou n�o no evento AfterCommand
+    // Pega de volta o JSON manipulado ou não no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -403,7 +403,7 @@ begin
 end;
 
 function TRESTClientWiRL.RemoveContextServerUse(
-  const Value: String): String;
+  const Value: string): string;
 begin
   Result := ReplaceStr(Value, '/Janus', '');
 end;
@@ -446,12 +446,12 @@ begin
     FRESTSubResource.QueryParams.Add(FQueryParams.Items[LFor].AsString);
 end;
 
-procedure TRESTClientWiRL.SetProxyParamsBodyValue(var AParams: String);
+procedure TRESTClientWiRL.SetProxyParamsBodyValue(var AParams: string);
 var
   LFor: Integer;
 begin
   if FBodyParams.Count = 0 then
-    raise Exception.Create('N�o foi passado o par�metro com os dados do insert!');
+    raise Exception.Create('Não foi passado o parâmetro com os dados do insert!');
 
   for LFor := 0 to FBodyParams.Count -1 do
     AParams := AParams + FBodyParams.Items[LFor].AsString;
@@ -465,5 +465,10 @@ begin
   FRESTClient.ProxyParams.ProxyUsername := FProxyParams.ProxyUsername;
   FRESTClient.ProxyParams.ProxyPassword := FProxyParams.ProxyPassword;
 end;
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.

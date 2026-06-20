@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ 
+{
   @abstract(REST Componentes)
   @created(20 Jun 2018)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
@@ -22,6 +22,8 @@
 
 unit Janus.Server.MARS;
 
+{$IFDEF JANUS_REST_MARS}
+
 interface
 
 uses
@@ -29,7 +31,7 @@ uses
   SysUtils,
   Generics.Collections,
   Janus.RestComponent,
-  /// Janus Conex�o
+  /// Janus Conexão
   Janus.Factory.Interfaces,
   /// MARS
   MARS.Core.Engine,
@@ -64,7 +66,7 @@ uses
 
 procedure TRESTServerMARS.AddResource;
 var
-  LPair: TPair<String, TMARSApplication>;
+  LPair: TPair<string, TMARSApplication>;
 begin
   if FMARSEngine = nil then
     Exit;
@@ -105,5 +107,9 @@ begin
   AddResource;
 end;
 
-end.
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
+end.

@@ -98,7 +98,7 @@ begin
   FJsonBuilder.OnGetValue := DoGetValue;
   FJsonBuilder.OnSetValue := DoSetValue;
   FJsonBuilder.UseISO8601DateFormat := True;
-  FormatSettings := GJsonBrFormatSettings;
+  FormatSettings := GJsonFlowFormatSettings;
 end;
 
 class destructor TJanusJson.Destroy;
@@ -310,7 +310,7 @@ end;
 
 class procedure TJanusJson.SetFormatSettings(const Value: TFormatSettings);
 begin
-  GJsonBrFormatSettings := Value;
+  GJsonFlowFormatSettings := Value;
 end;
 
 class procedure TJanusJson.SetUseISO8601DateFormat(const Value: Boolean);
@@ -320,7 +320,7 @@ end;
 
 class function TJanusJson.GetFormatSettings: TFormatSettings;
 begin
-  Result := GJsonBrFormatSettings;
+  Result := GJsonFlowFormatSettings;
 end;
 
 class function TJanusJson.GetUseISO8601DateFormat: Boolean;

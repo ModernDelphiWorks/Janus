@@ -22,6 +22,8 @@
 
 unit Janus.Client.RestDriver.DataSnap;
 
+{$IFDEF JANUS_REST_DATASNAP}
+
 interface
 
 uses
@@ -33,7 +35,7 @@ uses
 
 type
   /// <summary>
-  /// Classe de conex�o concreta com dbExpress
+  /// Classe de conexão concreta com dbExpress
   /// </summary>
   TRESTDriverDatasnap = class(TRESTDriver)
   protected
@@ -41,42 +43,42 @@ type
   public
     constructor Create(AConnection: TComponent); override;
     destructor Destroy; override;
-    function GetBaseURL: String; override;
-    function GetMethodGET: String; override;
-    function GetMethodGETId: String; override;
-    function GetMethodGETWhere: String; override;
-    function GetMethodPOST: String; override;
-    function GetMethodPUT: String; override;
-    function GetMethodDELETE: String; override;
-    function GetMethodGETNextPacket: String; override;
-    function GetMethodGETNextPacketWhere: String; override;
+    function GetBaseURL: string; override;
+    function GetMethodGET: string; override;
+    function GetMethodGETId: string; override;
+    function GetMethodGETWhere: string; override;
+    function GetMethodPOST: string; override;
+    function GetMethodPUT: string; override;
+    function GetMethodDELETE: string; override;
+    function GetMethodGETNextPacket: string; override;
+    function GetMethodGETNextPacketWhere: string; override;
     function GetServerUse: Boolean; override;
-    function Execute(const AResource, ASubResource: String;
+    function Execute(const AResource, ASubResource: string;
       const ARequestMethod: TRESTRequestMethodType;
-      const AParams: TProc = nil): String; overload; override;
+      const AParams: TProc = nil): string; overload; override;
     procedure SetClassNotServerUse(const Value: Boolean); override;
-    procedure AddParam(const AValue: String); override;
-    procedure AddQueryParam(const AValue: String); override;
-    procedure AddBodyParam(const AValue: String); override;
+    procedure AddParam(const AValue: string); override;
+    procedure AddQueryParam(const AValue: string); override;
+    procedure AddBodyParam(const AValue: string); override;
   end;
 
 implementation
 
 { TDriverRestDatasnap }
 
-procedure TRESTDriverDatasnap.AddBodyParam(const AValue: String);
+procedure TRESTDriverDatasnap.AddBodyParam(const AValue: string);
 begin
   inherited;
   FConnection.AddBodyParam(AValue);
 end;
 
-procedure TRESTDriverDatasnap.AddParam(const AValue: String);
+procedure TRESTDriverDatasnap.AddParam(const AValue: string);
 begin
   inherited;
   FConnection.AddParam(AValue);
 end;
 
-procedure TRESTDriverDatasnap.AddQueryParam(const AValue: String);
+procedure TRESTDriverDatasnap.AddQueryParam(const AValue: string);
 begin
   inherited;
   FConnection.AddQueryParam(AValue);
@@ -94,54 +96,54 @@ begin
   inherited;
 end;
 
-function TRESTDriverDatasnap.Execute(const AResource, ASubResource: String;
-  const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): String;
+function TRESTDriverDatasnap.Execute(const AResource, ASubResource: string;
+  const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): string;
 begin
   Result := FConnection
               .Execute(AResource, ASubResource, ARequestMethod, AParams);
 end;
 
-function TRESTDriverDatasnap.GetBaseURL: String;
+function TRESTDriverDatasnap.GetBaseURL: string;
 begin
   Result := FConnection.BaseURL;
 end;
 
-function TRESTDriverDatasnap.GetMethodDELETE: String;
+function TRESTDriverDatasnap.GetMethodDELETE: string;
 begin
   Result := FConnection.MethodDelete;
 end;
 
-function TRESTDriverDatasnap.GetMethodPOST: String;
+function TRESTDriverDatasnap.GetMethodPOST: string;
 begin
   Result := FConnection.MethodPOST;
 end;
 
-function TRESTDriverDatasnap.GetMethodGETNextPacket: String;
+function TRESTDriverDatasnap.GetMethodGETNextPacket: string;
 begin
   Result := FConnection.MethodGETNextPacket;
 end;
 
-function TRESTDriverDatasnap.GetMethodGETNextPacketWhere: String;
+function TRESTDriverDatasnap.GetMethodGETNextPacketWhere: string;
 begin
   Result := FConnection.MethodGETNextPacketWhere;
 end;
 
-function TRESTDriverDatasnap.GetMethodGET: String;
+function TRESTDriverDatasnap.GetMethodGET: string;
 begin
   Result := FConnection.MethodGET;
 end;
 
-function TRESTDriverDatasnap.GetMethodGETId: String;
+function TRESTDriverDatasnap.GetMethodGETId: string;
 begin
   Result := FConnection.MethodGETId;
 end;
 
-function TRESTDriverDatasnap.GetMethodGETWhere: String;
+function TRESTDriverDatasnap.GetMethodGETWhere: string;
 begin
   Result := FConnection.MethodGETWhere;
 end;
 
-function TRESTDriverDatasnap.GetMethodPUT: String;
+function TRESTDriverDatasnap.GetMethodPUT: string;
 begin
   Result := FConnection.MethodPUT;
 end;
@@ -155,5 +157,10 @@ procedure TRESTDriverDatasnap.SetClassNotServerUse(const Value: Boolean);
 begin
   FConnection.SetClassNotServerUse(Value);
 end;
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.

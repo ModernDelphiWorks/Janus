@@ -22,6 +22,8 @@
 
 unit Janus.Client.RestDriver.DMVC;
 
+{$IFDEF JANUS_REST_DMVC}
+
 interface
 
 uses
@@ -33,7 +35,7 @@ uses
 
 type
   /// <summary>
-  /// Classe de conex�o concreta com Delphi MVC
+  /// Classe de conexão concreta com Delphi MVC
   /// </summary>
   TRESTDriverDMVC = class(TRESTDriver)
   protected
@@ -41,41 +43,41 @@ type
   public
     constructor Create(AConnection: TComponent); override;
     destructor Destroy; override;
-    function GetBaseURL: String; override;
-    function GetMethodGET: String; override;
-    function GetMethodGETId: String; override;
-    function GetMethodGETWhere: String; override;
-    function GetMethodPOST: String; override;
-    function GetMethodPUT: String; override;
-    function GetMethodDELETE: String; override;
-    function GetMethodGETNextPacket: String; override;
-    function GetMethodGETNextPacketWhere: String; override;
+    function GetBaseURL: string; override;
+    function GetMethodGET: string; override;
+    function GetMethodGETId: string; override;
+    function GetMethodGETWhere: string; override;
+    function GetMethodPOST: string; override;
+    function GetMethodPUT: string; override;
+    function GetMethodDELETE: string; override;
+    function GetMethodGETNextPacket: string; override;
+    function GetMethodGETNextPacketWhere: string; override;
     function GetServerUse: Boolean; override;
-    function Execute(const AResource, ASubResource: String;
-      const ARequestMethod: TRESTRequestMethodType; const AParams: TProc = nil): String; overload; override;
+    function Execute(const AResource, ASubResource: string;
+      const ARequestMethod: TRESTRequestMethodType; const AParams: TProc = nil): string; overload; override;
     procedure SetClassNotServerUse(const Value: Boolean); override;
-    procedure AddParam(const AValue: String); override;
-    procedure AddQueryParam(const AValue: String); override;
-    procedure AddBodyParam(const AValue: String); override;
+    procedure AddParam(const AValue: string); override;
+    procedure AddQueryParam(const AValue: string); override;
+    procedure AddBodyParam(const AValue: string); override;
   end;
 
 implementation
 
 { TDriverRestDMVC }
 
-procedure TRESTDriverDMVC.AddBodyParam(const AValue: String);
+procedure TRESTDriverDMVC.AddBodyParam(const AValue: string);
 begin
   inherited;
   FConnection.AddBodyParam(AValue);
 end;
 
-procedure TRESTDriverDMVC.AddParam(const AValue: String);
+procedure TRESTDriverDMVC.AddParam(const AValue: string);
 begin
   inherited;
   FConnection.AddParam(AValue);
 end;
 
-procedure TRESTDriverDMVC.AddQueryParam(const AValue: String);
+procedure TRESTDriverDMVC.AddQueryParam(const AValue: string);
 begin
   inherited;
   FConnection.AddQueryParam(AValue);
@@ -93,54 +95,54 @@ begin
   inherited;
 end;
 
-function TRESTDriverDMVC.Execute(const AResource, ASubResource: String;
-  const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): String;
+function TRESTDriverDMVC.Execute(const AResource, ASubResource: string;
+  const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): string;
 begin
   Result := FConnection
               .Execute(AResource, ASubResource, ARequestMethod, AParams);
 end;
 
-function TRESTDriverDMVC.GetBaseURL: String;
+function TRESTDriverDMVC.GetBaseURL: string;
 begin
   Result := FConnection.BaseURL;
 end;
 
-function TRESTDriverDMVC.GetMethodDELETE: String;
+function TRESTDriverDMVC.GetMethodDELETE: string;
 begin
   Result := FConnection.MethodDelete;
 end;
 
-function TRESTDriverDMVC.GetMethodPOST: String;
+function TRESTDriverDMVC.GetMethodPOST: string;
 begin
   Result := FConnection.MethodPOST;
 end;
 
-function TRESTDriverDMVC.GetMethodGETNextPacket: String;
+function TRESTDriverDMVC.GetMethodGETNextPacket: string;
 begin
   Result := FConnection.MethodGETNextPacket;
 end;
 
-function TRESTDriverDMVC.GetMethodGETNextPacketWhere: String;
+function TRESTDriverDMVC.GetMethodGETNextPacketWhere: string;
 begin
   Result := FConnection.MethodGETNextPacketWhere;
 end;
 
-function TRESTDriverDMVC.GetMethodGET: String;
+function TRESTDriverDMVC.GetMethodGET: string;
 begin
   Result := FConnection.MethodGET;
 end;
 
-function TRESTDriverDMVC.GetMethodGETId: String;
+function TRESTDriverDMVC.GetMethodGETId: string;
 begin
   Result := FConnection.MethodGETId;
 end;
 
-function TRESTDriverDMVC.GetMethodGETWhere: String;
+function TRESTDriverDMVC.GetMethodGETWhere: string;
 begin
   Result := FConnection.MethodGETWhere;
 end;
 
-function TRESTDriverDMVC.GetMethodPUT: String;
+function TRESTDriverDMVC.GetMethodPUT: string;
 begin
   Result := FConnection.MethodPUT;
 end;
@@ -155,5 +157,9 @@ begin
   FConnection.SetClassNotServerUse(Value);
 end;
 
-end.
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
+end.

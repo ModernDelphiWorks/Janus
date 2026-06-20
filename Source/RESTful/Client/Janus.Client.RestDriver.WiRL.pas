@@ -22,6 +22,8 @@
 
 unit Janus.Client.RestDriver.WiRL;
 
+{$IFDEF JANUS_REST_WIRL}
+
 interface
 
 uses
@@ -38,45 +40,45 @@ type
   public
     constructor Create(AConnection: TComponent); override;
     destructor Destroy; override;
-    function GetBaseURL: String; override;
-    function GetMethodGET: String; override;
-    function GetMethodGETId: String; override;
-    function GetMethodGETWhere: String; override;
-    function GetMethodPOST: String; override;
-    function GetMethodPUT: String; override;
-    function GetMethodDELETE: String; override;
-    function GetMethodGETNextPacket: String; override;
-    function GetMethodGETNextPacketWhere: String; override;
+    function GetBaseURL: string; override;
+    function GetMethodGET: string; override;
+    function GetMethodGETId: string; override;
+    function GetMethodGETWhere: string; override;
+    function GetMethodPOST: string; override;
+    function GetMethodPUT: string; override;
+    function GetMethodDELETE: string; override;
+    function GetMethodGETNextPacket: string; override;
+    function GetMethodGETNextPacketWhere: string; override;
     function GetServerUse: Boolean; override;
-    function GetUsername: String; override;
-    function GetPassword: String; override;
-    function GetMethodToken: String; override;
-    function Execute(const AResource, ASubResource: String;
+    function GetUsername: string; override;
+    function GetPassword: string; override;
+    function GetMethodToken: string; override;
+    function Execute(const AResource, ASubResource: string;
       const ARequestMethod: TRESTRequestMethodType;
-      const AParams: TProc = nil): String; overload; override;
+      const AParams: TProc = nil): string; overload; override;
     procedure SetClassNotServerUse(const Value: Boolean); override;
-    procedure AddParam(const AValue: String); override;
-    procedure AddQueryParam(const AValue: String); override;
-    procedure AddBodyParam(const AValue: String); override;
+    procedure AddParam(const AValue: string); override;
+    procedure AddQueryParam(const AValue: string); override;
+    procedure AddBodyParam(const AValue: string); override;
   end;
 
 implementation
 
 { TDriverRestWiRL }
 
-procedure TRESTDriverWiRL.AddBodyParam(const AValue: String);
+procedure TRESTDriverWiRL.AddBodyParam(const AValue: string);
 begin
   inherited;
   FConnection.AddBodyParam(AValue);
 end;
 
-procedure TRESTDriverWiRL.AddParam(const AValue: String);
+procedure TRESTDriverWiRL.AddParam(const AValue: string);
 begin
   inherited;
   FConnection.AddParam(AValue);
 end;
 
-procedure TRESTDriverWiRL.AddQueryParam(const AValue: String);
+procedure TRESTDriverWiRL.AddQueryParam(const AValue: string);
 begin
   inherited;
   FConnection.AddQueryParam(AValue);
@@ -94,64 +96,64 @@ begin
   inherited;
 end;
 
-function TRESTDriverWiRL.Execute(const AResource, ASubResource: String;
-  const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): String;
+function TRESTDriverWiRL.Execute(const AResource, ASubResource: string;
+  const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): string;
 begin
   Result := FConnection
               .Execute(AResource, ASubResource, ARequestMethod, AParams);
 end;
 
-function TRESTDriverWiRL.GetBaseURL: String;
+function TRESTDriverWiRL.GetBaseURL: string;
 begin
   Result := FConnection.BaseURL;
 end;
 
-function TRESTDriverWiRL.GetMethodDELETE: String;
+function TRESTDriverWiRL.GetMethodDELETE: string;
 begin
   Result := FConnection.MethodDelete;
 end;
 
-function TRESTDriverWiRL.GetMethodPOST: String;
+function TRESTDriverWiRL.GetMethodPOST: string;
 begin
   Result := FConnection.MethodPOST;
 end;
 
-function TRESTDriverWiRL.GetMethodGETNextPacket: String;
+function TRESTDriverWiRL.GetMethodGETNextPacket: string;
 begin
   Result := FConnection.MethodGETNextPacket;
 end;
 
-function TRESTDriverWiRL.GetMethodGETNextPacketWhere: String;
+function TRESTDriverWiRL.GetMethodGETNextPacketWhere: string;
 begin
   Result := FConnection.MethodGETNextPacketWhere;
 end;
 
-function TRESTDriverWiRL.GetMethodGET: String;
+function TRESTDriverWiRL.GetMethodGET: string;
 begin
   Result := FConnection.MethodGET;
 end;
 
-function TRESTDriverWiRL.GetMethodGETId: String;
+function TRESTDriverWiRL.GetMethodGETId: string;
 begin
   Result := FConnection.MethodGETId;
 end;
 
-function TRESTDriverWiRL.GetMethodGETWhere: String;
+function TRESTDriverWiRL.GetMethodGETWhere: string;
 begin
   Result := FConnection.MethodGETWhere;
 end;
 
-function TRESTDriverWiRL.GetMethodPUT: String;
+function TRESTDriverWiRL.GetMethodPUT: string;
 begin
   Result := FConnection.MethodPUT;
 end;
 
-function TRESTDriverWiRL.GetMethodToken: String;
+function TRESTDriverWiRL.GetMethodToken: string;
 begin
 
 end;
 
-function TRESTDriverWiRL.GetPassword: String;
+function TRESTDriverWiRL.GetPassword: string;
 begin
 
 end;
@@ -161,7 +163,7 @@ begin
   Result := FConnection.JanusServerUse;
 end;
 
-function TRESTDriverWiRL.GetUsername: String;
+function TRESTDriverWiRL.GetUsername: string;
 begin
 
 end;
@@ -171,5 +173,9 @@ begin
   FConnection.SetClassNotServerUse(Value);
 end;
 
-end.
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
+end.

@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ 
+{
   @abstract(REST Componentes)
   @created(20 Jun 2018)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
@@ -21,6 +21,8 @@
 }
 
 unit Janus.Server.Resource.WiRL;
+
+{$IFDEF JANUS_REST_WIRL}
 
 interface
 
@@ -44,30 +46,30 @@ type
     [GET, Path('/{resource}?')]
     [Produces(TMediaType.TEXT_PLAIN)]
     [Produces(TMediaType.APPLICATION_JSON)]
-    function select([PathParam] resource: String;
-                    [QueryParam('$filter')] filter: String;
-                    [QueryParam('$orderby')] orderby: String;
-                    [QueryParam('$top')] top: String;
-                    [QueryParam('$skip')] skip: String;
-                    [QueryParam('$count')] count: String): String; overload;
+    function select([PathParam] resource: string;
+                    [QueryParam('$filter')] filter: string;
+                    [QueryParam('$orderby')] orderby: string;
+                    [QueryParam('$top')] top: string;
+                    [QueryParam('$skip')] skip: string;
+                    [QueryParam('$count')] count: string): string; overload;
 
     [POST, Path('/{resource}')]
     [Produces(TMediaType.TEXT_PLAIN)]
     [Produces(TMediaType.APPLICATION_JSON)]
-    function insert([PathParam] resource: String;
-                    [BodyParam] value: String): String; overload;
+    function insert([PathParam] resource: string;
+                    [BodyParam] value: string): string; overload;
 
     [PUT, Path('/{resource}')]
     [Produces(TMediaType.TEXT_PLAIN)]
     [Produces(TMediaType.APPLICATION_JSON)]
-    function update([PathParam] resource: String;
-                    [BodyParam] value: String): String; overload;
+    function update([PathParam] resource: string;
+                    [BodyParam] value: string): string; overload;
 
     [DELETE, Path('/{resource}?')]
     [Produces(TMediaType.TEXT_PLAIN)]
     [Produces(TMediaType.APPLICATION_JSON)]
-    function delete([PathParam] resource: String;
-                    [QueryParam('$filter')] filter: String): String; overload;
+    function delete([PathParam] resource: string;
+                    [QueryParam('$filter')] filter: string): string; overload;
   end;
 
 implementation
@@ -88,12 +90,12 @@ begin
   inherited;
 end;
 
-function TAppResource.select(resource: String;
-                             filter: String;
-                             orderby: String;
-                             top: String;
-                             skip: String;
-                             count: String): String;
+function TAppResource.select(resource: string;
+                             filter: string;
+                             orderby: string;
+                             top: string;
+                             skip: string;
+                             count: string): string;
 var
   LQuery: TRESTQueryParse;
 begin
@@ -110,8 +112,6 @@ begin
       LQuery.SetCount(count);
       // Retorno JSON
       Result := ParseFind(LQuery);
-      // Add Count Record no JSON Result
-//      if LQuery.Count then
     end
     else
       raise Exception.Create('Class ' + LQuery.ResourceName + 'not found!');
@@ -120,18 +120,18 @@ begin
   end;
 end;
 
-function TAppResource.insert(resource: String; value: String): String;
+function TAppResource.insert(resource: string; value: string): string;
 begin
   Result := inherited;
 end;
 
-function TAppResource.update(resource: String; value: String): String;
+function TAppResource.update(resource: string; value: string): string;
 begin
   Result := inherited;
 end;
 
-function TAppResource.delete(resource: String;
-                             filter: String): String;
+function TAppResource.delete(resource: string;
+                             filter: string): string;
 var
   LQuery: TRESTQuery;
 begin
@@ -154,5 +154,10 @@ end;
 
 initialization
   TWiRLResourceRegistry.Instance.RegisterResource<TAppResource>;
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.

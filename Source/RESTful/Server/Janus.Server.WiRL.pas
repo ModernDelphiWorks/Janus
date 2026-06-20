@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ 
+{
   @abstract(REST Componentes)
   @created(20 Jun 2018)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
@@ -22,13 +22,15 @@
 
 unit Janus.Server.WiRL;
 
+{$IFDEF JANUS_REST_WIRL}
+
 interface
 
 uses
   Classes,
   SysUtils,
   Janus.RestComponent,
-  /// Janus Conex�o
+  /// Janus Conexão
   Janus.Factory.Interfaces,
   /// WiRL
   WiRL.Core.Engine;
@@ -101,5 +103,9 @@ begin
   AddResource;
 end;
 
-end.
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
+end.

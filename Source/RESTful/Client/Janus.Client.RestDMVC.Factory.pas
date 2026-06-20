@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ 
+{
   @abstract(REST Componentes)
   @created(20 Jun 2018)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
@@ -21,6 +21,8 @@
 }
 
 unit Janus.Client.RestDMVC.Factory;
+
+{$IFDEF JANUS_REST_DMVC}
 
 interface
 
@@ -33,14 +35,14 @@ uses
 
 type
   /// <summary>
-  /// F�brica de conex�es abstratas
+  ///   Fábrica de conexões abstratas
   /// </summary>
   TRESTFactoryDMVC = class (TRESTFactoryConnection)
   public
     constructor Create(AConnection: TComponent); override;
     destructor Destroy; override;
-    function Execute(const AResource, ASubResource: String;
-      const ARequestMethod: TRESTRequestMethodType; const AParams: TProc = nil): String; overload; override;
+    function Execute(const AResource, ASubResource: string;
+      const ARequestMethod: TRESTRequestMethodType; const AParams: TProc = nil): string; overload; override;
   end;
 
 implementation
@@ -58,11 +60,16 @@ begin
   inherited;
 end;
 
-function TRESTFactoryDMVC.Execute(const AResource, ASubResource: String;
-  const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): String;
+function TRESTFactoryDMVC.Execute(const AResource, ASubResource: string;
+  const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): string;
 begin
   Result := FDriverConnection
               .Execute(AResource, ASubResource, ARequestMethod, AParams);
 end;
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.

@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ 
+{
   @abstract(REST Componentes)
   @created(20 Jun 2018)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
@@ -22,13 +22,15 @@
 
 unit Janus.Server.DMVC;
 
+{$IFDEF JANUS_REST_DMVC}
+
 interface
 
 uses
   Classes,
   SysUtils,
   Janus.RestComponent,
-  /// Janus Conex�o
+  /// Janus Conexão
   Janus.Factory.Interfaces,
   /// WiRL
   MVCFramework;
@@ -94,5 +96,9 @@ begin
   AddResource;
 end;
 
-end.
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
+end.

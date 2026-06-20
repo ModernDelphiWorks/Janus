@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ 
+{
   @abstract(REST Componentes)
   @created(20 Jun 2018)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
@@ -21,6 +21,8 @@
 }
 
 unit Janus.Server.Resource.MARS;
+
+{$IFDEF JANUS_REST_MARS}
 
 interface
 
@@ -48,30 +50,30 @@ type
     [GET, Path('/{resource}?')]
     [Produces(TMediaType.TEXT_PLAIN)]
     [Produces(TMediaType.APPLICATION_JSON)]
-    function select([PathParam] resource: String;
-                    [QueryParam('$filter')] filter: String;
-                    [QueryParam('$orderby')] orderby: String;
-                    [QueryParam('$top')] top: String;
-                    [QueryParam('$skip')] skip: String;
-                    [QueryParam('$count')] count: String): TJSONValue; overload;
+    function select([PathParam] resource: string;
+                    [QueryParam('$filter')] filter: string;
+                    [QueryParam('$orderby')] orderby: string;
+                    [QueryParam('$top')] top: string;
+                    [QueryParam('$skip')] skip: string;
+                    [QueryParam('$count')] count: string): TJSONValue; overload;
 
     [POST, Path('/{resource}')]
     [Produces(TMediaType.TEXT_PLAIN)]
     [Produces(TMediaType.APPLICATION_JSON)]
-    function insert([PathParam] resource: String;
-                    [BodyParam] value: String): TJSONValue; overload;
+    function insert([PathParam] resource: string;
+                    [BodyParam] value: string): TJSONValue; overload;
 
     [PUT, Path('/{resource}')]
     [Produces(TMediaType.TEXT_PLAIN)]
     [Produces(TMediaType.APPLICATION_JSON)]
-    function update([PathParam] resource: String;
-                    [BodyParam] value: String): TJSONValue; overload;
+    function update([PathParam] resource: string;
+                    [BodyParam] value: string): TJSONValue; overload;
 
     [DELETE, Path('/{resource}')]
     [Produces(TMediaType.TEXT_PLAIN)]
     [Produces(TMediaType.APPLICATION_JSON)]
-    function delete([PathParam] resource: String;
-                    [QueryParam('$filter')] filter: String): TJSONValue; overload;
+    function delete([PathParam] resource: string;
+                    [QueryParam('$filter')] filter: string): TJSONValue; overload;
   end;
 
 implementation
@@ -93,12 +95,12 @@ begin
   inherited;
 end;
 
-function TAppResource.select(resource: String;
-                             filter: String;
-                             orderby: String;
-                             top: String;
-                             skip: String;
-                             count: String): TJSONValue;
+function TAppResource.select(resource: string;
+                             filter: string;
+                             orderby: string;
+                             top: string;
+                             skip: string;
+                             count: string): TJSONValue;
 var
   LQuery: TRESTQueryParse;
 begin
@@ -116,8 +118,6 @@ begin
       // Retorno JSON
       Result := TJanusJson
                   .JSONStringToJSONValue(FAppResource.ParseFind(LQuery));
-      // Add Count Record no JSON Result
-//      if LQuery.Count then
     end
     else
       raise Exception.Create('Class ' + LQuery.ResourceName + 'not found!');
@@ -126,20 +126,20 @@ begin
   end;
 end;
 
-function TAppResource.insert(resource: String; value: String): TJSONValue;
+function TAppResource.insert(resource: string; value: string): TJSONValue;
 begin
   Result := TJanusJson
               .JSONStringToJSONValue(FAppResource.insert(resource, value));
 end;
 
-function TAppResource.update(resource: String; value: String): TJSONValue;
+function TAppResource.update(resource: string; value: string): TJSONValue;
 begin
   Result := TJanusJson
               .JSONStringToJSONValue(FAppResource.update(resource, value));
 end;
 
-function TAppResource.delete(resource: String;
-                             filter: String): TJSONValue;
+function TAppResource.delete(resource: string;
+                             filter: string): TJSONValue;
 var
   LQuery: TRESTQuery;
 begin
@@ -164,5 +164,9 @@ end;
 initialization
   TMARSResourceRegistry.Instance.RegisterResource<TAppResource>;
 
-end.
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
+end.

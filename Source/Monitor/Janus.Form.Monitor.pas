@@ -25,6 +25,8 @@ unit Janus.Form.Monitor;
 
 interface
 
+{$IF DEFINED(DCC) AND DEFINED(MSWINDOWS)}
+
 uses
   DB,
   Forms,
@@ -57,7 +59,11 @@ type
     class function GetInstance: ICommandMonitor;
   end;
 
+{$ENDIF} // DCC AND MSWINDOWS
+
 implementation
+
+{$IF DEFINED(DCC) AND DEFINED(MSWINDOWS)}
 
 {$R *.dfm}
 
@@ -108,5 +114,7 @@ begin
     FInstance := TCommandMonitor.Create(nil);
   Result := FInstance;
 end;
+
+{$ENDIF} // DCC AND MSWINDOWS
 
 end.

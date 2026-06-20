@@ -13,6 +13,8 @@
 
 unit Janus.Server.Swagger.Horse;
 
+{$IFDEF JANUS_SWAGGER}
+
 interface
 
 uses
@@ -87,5 +89,10 @@ initialization
 // http://localhost:9000/api/Janus/master?$skip=2&$top=1
 
 finalization
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.

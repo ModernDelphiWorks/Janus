@@ -22,6 +22,8 @@
 
 unit Janus.Server.Resource.DMVC;
 
+{$IFDEF JANUS_REST_DMVC}
+
 interface
 
 uses
@@ -65,7 +67,7 @@ procedure TAppResource.select(Context: TWebContext);
 var
   LAppResource: TAppResourceBase;
   LQuery: TRESTQueryParse;
-  LResult: String;
+  LResult: string;
 begin
   LQuery := TRESTQueryParse.Create;
   LAppResource := TAppResourceBase.Create(TRESTServerDMVC.GetConnection);
@@ -82,8 +84,6 @@ begin
       // Retorno JSON
       LResult := LAppResource.ParseFind(LQuery);
       Render(LResult);
-      // Add Count Record no JSON Result
-//      if LQuery.Count then
     end
     else
       raise Exception.Create('Class ' + LQuery.ResourceName + 'not found!');
@@ -96,7 +96,7 @@ end;
 procedure TAppResource.insert(Context: TWebContext);
 var
   LAppResource: TAppResourceBase;
-  LResult: String;
+  LResult: string;
 begin
   LAppResource := TAppResourceBase.Create(TRESTServerDMVC.GetConnection);
   try
@@ -111,7 +111,7 @@ end;
 procedure TAppResource.update(Context: TWebContext);
 var
   LAppResource: TAppResourceBase;
-  LResult: String;
+  LResult: string;
 begin
   LAppResource := TAppResourceBase.Create(TRESTServerDMVC.GetConnection);
   try
@@ -127,7 +127,7 @@ procedure TAppResource.delete(Context: TWebContext);
 var
   LAppResource: TAppResourceBase;
   LQuery: TRESTQuery;
-  LResult: String;
+  LResult: string;
 begin
   LQuery := TRESTQuery.Create;
   LAppResource := TAppResourceBase.Create(TRESTServerDMVC.GetConnection);
@@ -149,5 +149,10 @@ begin
     LQuery.Free;
   end;
 end;
+
+{$ELSE}
+interface
+implementation
+{$ENDIF}
 
 end.
