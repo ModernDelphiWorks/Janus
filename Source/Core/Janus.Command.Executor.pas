@@ -204,7 +204,7 @@ var
   LAssociation: TAssociationMapping;
 begin
   // Em bancos NoSQL o atributo Association deve ser ignorado.
-  if FConnection.GetDriver = TDBEngineDriver.dnMongoDB then
+  if FConnection.GetDriver = TDriverName.dnMongoDB then
     Exit;
   if Assigned(AObject) then
   begin
@@ -235,7 +235,7 @@ var
   LAssociation: TAssociationMapping;
 begin
   // Em bancos NoSQL o atributo Association deve ser ignorado.
-  if FConnection.GetDriver = TDBEngineDriver.dnMongoDB then
+  if FConnection.GetDriver = TDriverName.dnMongoDB then
     Exit;
   LAssociationList := TMappingExplorer.GetMappingAssociation(AOwner.ClassType);
   if LAssociationList = nil then
@@ -301,7 +301,7 @@ var
   LAssociationList: TAssociationMappingList;
   LAssociation: TAssociationMapping;
 begin
-  if FConnection.GetDriver = TDBEngineDriver.dnMongoDB then
+  if FConnection.GetDriver = TDriverName.dnMongoDB then
     Exit;
   if AObject = nil then
     Exit;

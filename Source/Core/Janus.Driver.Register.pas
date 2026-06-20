@@ -33,21 +33,21 @@ type
 
   TDriverRegister = class
   strict private
-    class var FDriver: TDictionary<TDBEngineDriver, TDMLGeneratorFactory>;
+    class var FDriver: TDictionary<TDriverName, TDMLGeneratorFactory>;
   private
     class constructor Create;
     class destructor Destroy;
   public
-    class procedure RegisterDriver(const ADriverName: TDBEngineDriver;
+    class procedure RegisterDriver(const ADriverName: TDriverName;
       const ADriverFactory: TDMLGeneratorFactory);
-    class function GetDriver(const ADriverName: TDBEngineDriver): IDMLGeneratorCommand;
+    class function GetDriver(const ADriverName: TDriverName): IDMLGeneratorCommand;
   end;
 
 implementation
 
 class constructor TDriverRegister.Create;
 begin
-  FDriver := TDictionary<TDBEngineDriver, TDMLGeneratorFactory>.Create;
+  FDriver := TDictionary<TDriverName, TDMLGeneratorFactory>.Create;
 end;
 
 class destructor TDriverRegister.Destroy;
@@ -57,19 +57,19 @@ begin
   inherited;
 end;
 
-class function TDriverRegister.GetDriver(const ADriverName: TDBEngineDriver): IDMLGeneratorCommand;
+class function TDriverRegister.GetDriver(const ADriverName: TDriverName): IDMLGeneratorCommand;
 var
   LFactory: TDMLGeneratorFactory;
 begin
   if not FDriver.ContainsKey(ADriverName) then
     raise Exception
-            .Create('O driver ' + TStrDBEngineDriver[ADriverName] + ' n�o est� registrado, adicione a unit "Janus.DML.Generator.???.pas" onde ??? nome do driver, na cl�usula USES do seu projeto!');
+            .Create('O driver ' + TStrDriverName[ADriverName] + ' n�o est� registrado, adicione a unit "Janus.DML.Generator.???.pas" onde ??? nome do driver, na cl�usula USES do seu projeto!');
 
   LFactory := FDriver[ADriverName];
   Result := LFactory();
 end;
 
-class procedure TDriverRegister.RegisterDriver(const ADriverName: TDBEngineDriver;
+class procedure TDriverRegister.RegisterDriver(const ADriverName: TDriverName;
   const ADriverFactory: TDMLGeneratorFactory);
 begin
   FDriver.AddOrSetValue(ADriverName, ADriverFactory);

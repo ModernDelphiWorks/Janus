@@ -174,7 +174,7 @@ begin
 end;
 
 initialization
-  TDriverRegister.RegisterDriver(TDBEngineDriver.dnSQLite,
+  TDriverRegister.RegisterDriver(TDriverName.dnSQLite,
     function: IDMLGeneratorCommand
     begin
       Result := TDMLGeneratorSQLite.Create;

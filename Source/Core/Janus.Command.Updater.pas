@@ -50,7 +50,7 @@ type
     function _GetParamValue(AInstance: TObject; AProperty: TRttiProperty;
       AFieldType: TFieldType): Variant;
   public
-    constructor Create(AConnection: IDBConnection; ADriverName: TDBEngineDriver;
+    constructor Create(AConnection: IDBConnection; ADriverName: TDriverName;
       AObject: TObject); override;
     function GenerateUpdate(AObject: TObject;
       AModifiedFields: TDictionary<String, String>): String;
@@ -64,7 +64,7 @@ uses
 { TCommandUpdater }
 
 constructor TCommandUpdater.Create(AConnection: IDBConnection;
-  ADriverName: TDBEngineDriver; AObject: TObject);
+  ADriverName: TDriverName; AObject: TObject);
 var
   LColumns: TPrimaryKeyColumnsMapping;
   LColumn: TColumnMapping;
@@ -143,7 +143,7 @@ begin
         DataType := LFieldType.FieldType;
         ParamType := ptInput;
         Value := _GetParamValue(AObject, LProperty, DataType);
-        if FConnection.GetDriver = TDBEngineDriver.dnPostgreSQL then
+        if FConnection.GetDriver = TDriverName.dnPostgreSQL then
           Continue;
     	  // Tratamento para o tipo ftBoolean nativo, indo como Integer
         // para gravar no banco.

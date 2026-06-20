@@ -36,11 +36,11 @@ type
   private
     FPageSize: Integer;
     FPageNext: Integer;
-    FRequestedDriver: TDBEngineDriver;
+    FRequestedDriver: TDriverName;
     FSelectCommand: String;
     function NormalizeFirebirdPagination(const ASQL: String): String;
   public
-    constructor Create(AConnection: IDBConnection; ADriverName: TDBEngineDriver;
+    constructor Create(AConnection: IDBConnection; ADriverName: TDriverName;
       AObject: TObject); override;
     procedure SetPageSize(const APageSize: Integer);
     function GenerateSelectAll(const AClass: TClass): String;
@@ -64,7 +64,7 @@ implementation
 { TCommandSelecter }
 
 constructor TCommandSelecter.Create(AConnection: IDBConnection;
-  ADriverName: TDBEngineDriver; AObject: TObject);
+  ADriverName: TDriverName; AObject: TObject);
 begin
   FRequestedDriver := ADriverName;
   if ADriverName in [dnFirebird, dnFirebird3] then

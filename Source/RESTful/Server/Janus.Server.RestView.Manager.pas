@@ -43,8 +43,8 @@ type
     class var FViewDefinitionRegistry: TDictionary<string, TFunc<IFluentSQL>>;
     class var FViewEnsuredCache: TDictionary<string, Boolean>;
     class function _GetViewName(const AClassType: TClass): string;
-    class function _MapDriverToFluent(const ADriver: TDBEngineDriver): TFluentSQLDriver;
-    class function _SupportsCreateOrReplace(const ADriver: TDBEngineDriver): Boolean;
+    class function _MapDriverToFluent(const ADriver: TDriverName): TFluentSQLDriver;
+    class function _SupportsCreateOrReplace(const ADriver: TDriverName): Boolean;
     class procedure _ExecuteDDL(const ASQL: string; const AConnection: IDBConnection);
   public
     class procedure EnsureView(const AClassType: TClass; const ASelect: IFluentSQL;
@@ -79,7 +79,7 @@ begin
 end;
 
 class function TRESTViewManager._MapDriverToFluent(
-  const ADriver: TDBEngineDriver): TFluentSQLDriver;
+  const ADriver: TDriverName): TFluentSQLDriver;
 begin
   case ADriver of
     dnMySQL, dnMariaDB:     Result := dbnMySQL;
@@ -97,7 +97,7 @@ end;
 
 // Returns True for databases that natively support CREATE OR REPLACE VIEW.
 class function TRESTViewManager._SupportsCreateOrReplace(
-  const ADriver: TDBEngineDriver): Boolean;
+  const ADriver: TDriverName): Boolean;
 begin
   Result := ADriver in [dnMySQL, dnMariaDB, dnPostgreSQL, dnOracle];
 end;
@@ -114,7 +114,7 @@ class procedure TRESTViewManager.EnsureView(const AClassType: TClass;
   const ASelect: IFluentSQL; const AConnection: IDBConnection);
 var
   LViewName: string;
-  LDriver: TDBEngineDriver;
+  LDriver: TDriverName;
   LDialect: TFluentSQLDriver;
   LCreateSQL: string;
   LDropSQL: string;

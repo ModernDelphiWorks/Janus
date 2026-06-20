@@ -322,7 +322,7 @@ begin
       if TDataSetState(FOrmDataSet.Fields[FInternalIndex].AsInteger) in [dsEdit] then
       begin
         if (FSession.ModifiedFields.Items[M.ClassName].Count > 0) or
-           (FConnection.GetDriver in [TDBEngineDriver.dnMongoDB]) then
+           (FConnection.GetDriver in [TDriverName.dnMongoDB]) then
         begin
           LObject := M.Create;
           try

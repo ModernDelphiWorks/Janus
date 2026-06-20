@@ -51,7 +51,7 @@ type
     function _GetParamValue(AInstance: TObject; AProperty: TRttiProperty;
       AFieldType: TFieldType): Variant;
   public
-    constructor Create(AConnection: IDBConnection; ADriverName: TDBEngineDriver;
+    constructor Create(AConnection: IDBConnection; ADriverName: TDriverName;
       AObject: TObject); override;
     destructor Destroy; override;
     function GenerateInsert(AObject: TObject): String;
@@ -63,7 +63,7 @@ implementation
 { TCommandInserter }
 
 constructor TCommandInserter.Create(AConnection: IDBConnection;
-  ADriverName: TDBEngineDriver; AObject: TObject);
+  ADriverName: TDriverName; AObject: TObject);
 begin
   inherited Create(AConnection, ADriverName, AObject);
   FDMLAutoInc := TDMLCommandAutoInc.Create;
@@ -175,7 +175,7 @@ begin
           Value := _GetParamValue(AObject,
                                  LColumn.ColumnProperty,
                                  LColumn.FieldType);
-          if FConnection.GetDriver = TDBEngineDriver.dnPostgreSQL then
+          if FConnection.GetDriver = TDriverName.dnPostgreSQL then
             Continue;
           if DataType in [ftBoolean] then
           begin

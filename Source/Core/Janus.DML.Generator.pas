@@ -64,8 +64,8 @@ type
     FTimeFormat: String;
       FFluentSQLDriver: TFluentSQLDriver;
       class function ResolveFluentSQLDriver(
-        const AGeneratorDriver: TDBEngineDriver): TFluentSQLDriver; static;
-      procedure ConfigureFluentSQLDriver(const AGeneratorDriver: TDBEngineDriver);
+        const AGeneratorDriver: TDriverName): TFluentSQLDriver; static;
+      procedure ConfigureFluentSQLDriver(const AGeneratorDriver: TDriverName);
       function CreateFluentSQL: IFluentSQL;
       function _BuildSelectSQL(AClass: TClass; AID: TValue): IFluentSQL; virtual;
       function GetGeneratorSelect(const ASQL: String;
@@ -620,7 +620,7 @@ begin
 end;
 
 class function TDMLGeneratorAbstract.ResolveFluentSQLDriver(
-  const AGeneratorDriver: TDBEngineDriver): TFluentSQLDriver;
+  const AGeneratorDriver: TDriverName): TFluentSQLDriver;
 begin
   case AGeneratorDriver of
     dnADS:
@@ -648,12 +648,12 @@ begin
       Result := dbnSQLite;
   else
     raise Exception.CreateFmt('FluentSQL driver mapping not found for generator [%s].',
-      [GetEnumName(TypeInfo(TDBEngineDriver), Ord(AGeneratorDriver))]);
+      [GetEnumName(TypeInfo(TDriverName), Ord(AGeneratorDriver))]);
   end;
 end;
 
 procedure TDMLGeneratorAbstract.ConfigureFluentSQLDriver(
-  const AGeneratorDriver: TDBEngineDriver);
+  const AGeneratorDriver: TDriverName);
 begin
   FFluentSQLDriver := ResolveFluentSQLDriver(AGeneratorDriver);
 end;

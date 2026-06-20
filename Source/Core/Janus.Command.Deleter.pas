@@ -35,7 +35,7 @@ uses
 type
   TCommandDeleter = class(TDMLCommandAbstract)
   public
-    constructor Create(AConnection: IDBConnection; ADriverName: TDBEngineDriver;
+    constructor Create(AConnection: IDBConnection; ADriverName: TDriverName;
       AObject: TObject); override;
     function GenerateDelete(AObject: TObject): String;
   end;
@@ -51,7 +51,7 @@ uses
 { TCommandDeleter }
 
 constructor TCommandDeleter.Create(AConnection: IDBConnection;
-  ADriverName: TDBEngineDriver; AObject: TObject);
+  ADriverName: TDriverName; AObject: TObject);
 begin
   inherited Create(AConnection, ADriverName, AObject);
 end;

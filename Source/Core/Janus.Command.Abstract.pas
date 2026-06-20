@@ -38,7 +38,7 @@ type
     FParams: TParams;
     FResultCommand: String;
   public
-    constructor Create(AConnection: IDBConnection; ADriverName: TDBEngineDriver;
+    constructor Create(AConnection: IDBConnection; ADriverName: TDriverName;
       AObject: TObject); virtual;
     destructor Destroy; override;
     function GetDMLCommand: String;
@@ -50,7 +50,7 @@ implementation
 { TDMLCommandAbstract }
 
 constructor TDMLCommandAbstract.Create(AConnection: IDBConnection;
-  ADriverName: TDBEngineDriver; AObject: TObject);
+  ADriverName: TDriverName; AObject: TObject);
 begin
   // Driver de conexao
   FConnection := AConnection;

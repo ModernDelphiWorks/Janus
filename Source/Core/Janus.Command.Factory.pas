@@ -41,7 +41,7 @@ type
     FDMLCommand: String;
   public
     constructor Create(const AObject: TObject; const AConnection: IDBConnection;
-      const ADriverName: TDBEngineDriver); virtual; abstract;
+      const ADriverName: TDriverName); virtual; abstract;
     function GeneratorSelectAll(AClass: TClass;
       APageSize: Integer): IDBDataSet; virtual; abstract;
     function GeneratorSelectID(AClass: TClass;
@@ -81,7 +81,7 @@ type
     FCommandDeleter: TCommandDeleter;
   public
     constructor Create(const AObject: TObject; const AConnection: IDBConnection;
-      const ADriverName: TDBEngineDriver); override;
+      const ADriverName: TDriverName); override;
     destructor Destroy; override;
     function GeneratorSelectAll(AClass: TClass;
       APageSize: Integer): IDBDataSet; override;
@@ -120,7 +120,7 @@ uses
 { TDMLCommandFactory }
 
 constructor TDMLCommandFactory.Create(const AObject: TObject;
-  const AConnection: IDBConnection; const ADriverName: TDBEngineDriver);
+  const AConnection: IDBConnection; const ADriverName: TDriverName);
 begin
   inherited;
   FConnection := AConnection;
