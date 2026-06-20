@@ -6,6 +6,8 @@
 
 > 🔒 **Supply-chain transparency (CRA-ready):** a machine-readable **SBOM** (CycloneDX) is published on the package portal — [pubpascal.dev/packages/janus](https://www.pubpascal.dev/packages/janus) · security disclosure policy in **[SECURITY.md](SECURITY.md)** · changes tracked in **[CHANGELOG.md](CHANGELOG.md)**.
 
+📚 **[Documentation](https://moderndelphiworks.github.io/Janus/)**
+
 *   [🇬🇧 English](#-english)
 *   [🇧🇷 Português](#-português)
 
