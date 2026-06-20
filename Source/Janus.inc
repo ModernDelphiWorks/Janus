@@ -64,7 +64,9 @@
   {$DEFINE HAS_FMX}
 {$ENDIF}
 {$IFDEF VCL}
+  {$IFDEF MSWINDOWS}   // Epic 25: VCL / HAS_VCL graphics (Vcl.Imaging) is Windows-only
   {$DEFINE HAS_VCL}
+  {$ENDIF}
 {$ENDIF}
 
 {$IFDEF USEFDMEMTABLE}
