@@ -376,6 +376,9 @@ begin
       Bind.SetFieldToProperty(ADBResultSet, TObject(Result.Last));
       // Alimenta registros das associa��es existentes 1:1 ou 1:N
       FCommandExecutor.FillAssociation(Result.Last);
+      // Avan�a o cursor: sem isso o la�o nunca atinge Eof e popula a mesma
+      // linha infinitamente at� esgotar a heap (EOutOfMemory no binding).
+      ADBResultSet.Next;
     end;
     if Result.Count > 0 then
       Exit;
