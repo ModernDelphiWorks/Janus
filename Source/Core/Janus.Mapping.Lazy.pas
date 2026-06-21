@@ -282,12 +282,12 @@ begin
       if (LExistingIntf <> nil) and
          Supports(LExistingIntf, ILazyProxyResettable, LResettable) then
       begin
-        LResettable.Reset(ALoadFunc, AToken);
+        LResettable.Reset(TFunc<TObject>(ALoadFunc), AToken);
         Break;
       end;
     end;
 
-    LProxy := TLazyProxyLoader.Create(ALoadFunc, AToken);
+    LProxy := TLazyProxyLoader.Create(TFunc<TObject>(ALoadFunc), AToken);
     LRawPtr := Pointer(LProxy);
     TValue.Make(@LRawPtr, LFLazySubField.FieldType.Handle, LInterfaceValue);
     LFLazySubField.SetValue(LRecordPtr, LInterfaceValue);
