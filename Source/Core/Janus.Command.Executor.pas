@@ -342,6 +342,9 @@ begin
       Bind.SetFieldToProperty(LResultSet, LObjectValue);
       // Alimenta registros das associa��es existentes 1:1 ou 1:N
       FillAssociation(LObjectValue);
+      // Avanca o cursor: sem isso o laco nunca atinge Eof e repopula o mesmo
+      // objeto infinitamente (loop infinito / hang).
+      LResultSet.Next;
     end;
   finally
     LResultSet.Close;
@@ -377,6 +380,9 @@ begin
       LObjectList := AProperty.GetNullableValue(AObject).AsObject;
       if LObjectList <> nil then
         LObjectList.MethodCall('Add', [LObjectCreate]);
+      // Avanca o cursor: sem isso o laco nunca atinge Eof e adiciona a mesma
+      // linha infinitamente (loop infinito / OOM).
+      LResultSet.Next;
     end;
   finally
     LResultSet.Close;
