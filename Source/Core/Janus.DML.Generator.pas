@@ -152,6 +152,7 @@ var
   LOrderBy: TOrderByMapping;
   LOrderByList: TStringList;
   LFor: Integer;
+  LValue: Variant;
 begin
   if not FQueryCache.TryGetValue(AClass.ClassName, Result) then
   begin
@@ -163,9 +164,16 @@ begin
   // Association Multi-Columns
   for LFor := 0 to AAssociation.ColumnsNameRef.Count -1 do
   begin
-    Result := Result + ' WHERE '
-                     + LTable.Name + '.' + AAssociation.ColumnsNameRef[LFor]
-                     + ' = ' + GetValue(LFor);
+    LValue := GetValue(LFor);
+    Result := Result + ifThen(LFor = 0, ' WHERE ', ' AND ');
+    // Guard de FK nula (associacao OneToOne/ManyToOne opcional): um RHS vazio
+    // gerava '... col = ' e estourava o Firebird (-104, fim inesperado de
+    // comando). '1 = 0' e SQL valido que casa zero linhas (sem pai/sem dono).
+    if VarIsNull(LValue) or VarIsEmpty(LValue) or (VarToStr(LValue) = '') then
+      Result := Result + '1 = 0'
+    else
+      Result := Result + LTable.Name + '.' + AAssociation.ColumnsNameRef[LFor]
+                       + ' = ' + VarToStr(LValue);
   end;
   // OrderBy
   LOrderBy := TMappingExplorer.GetMappingOrderBy(AClass);
@@ -209,6 +217,7 @@ var
   LOrderBy: TOrderByMapping;
   LOrderByList: TStringList;
   LFor: Integer;
+  LValue: Variant;
 begin
   if not FQueryCache.TryGetValue(AClass.ClassName, Result) then
   begin
@@ -220,10 +229,15 @@ begin
   // Association Multi-Columns
   for LFor := 0 to AAssociation.ColumnsNameRef.Count -1 do
   begin
+    LValue := GetValue(LFor);
     Result := Result + ifThen(LFor = 0, ' WHERE ', ' AND ');
-    Result := Result + LTable.Name
-                     + '.' + AAssociation.ColumnsNameRef[LFor]
-                     + ' = ' + GetValue(LFor)
+    // Guard de FK nula (associacao opcional): evita '... col = ' (FB -104).
+    if VarIsNull(LValue) or VarIsEmpty(LValue) or (VarToStr(LValue) = '') then
+      Result := Result + '1 = 0'
+    else
+      Result := Result + LTable.Name
+                       + '.' + AAssociation.ColumnsNameRef[LFor]
+                       + ' = ' + VarToStr(LValue);
   end;
   // OrderBy
   LOrderBy := TMappingExplorer.GetMappingOrderBy(AClass);
