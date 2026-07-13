@@ -236,7 +236,14 @@ begin
         if FObjectState.TryGetValue(LKey, LObjectKey) then
         begin
           FSession.ModifyFieldsCompare(LKey, LObjectKey, AObject);
-          FSession.Update(AObject, LKey);
+          // Guard the no-op / keys-only Update: when ModifyFieldsCompare found no
+          // changed column the per-row key (ClassName-<pk>) is never inserted into
+          // ModifiedFields, so FSession.Update -> ModifiedFields.Items[AKey] would
+          // raise EListError 'Item not found'. Skip the Update (nothing to persist),
+          // mirroring the DataSet path guard in TObjectSetBaseAdapter._UpdateInternal.
+          if FSession.ModifiedFields.ContainsKey(LKey) and
+             (FSession.ModifiedFields.Items[LKey].Count > 0) then
+            FSession.Update(AObject, LKey);
           FObjectState.Remove(LKey);
           FObjectState.TrimExcess;
         end;

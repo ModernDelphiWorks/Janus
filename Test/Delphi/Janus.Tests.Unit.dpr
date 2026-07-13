@@ -38,6 +38,7 @@ uses
   Janus.Test.Runner in 'Common\Janus.Test.Runner.pas',
   /// Models
   MetaDbDiff.Mapping.Register,
+  Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
   Model.Atendimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Atendimento.pas',
   Model.Exame       in '..\..\Examples\Delphi\Data\Object Lazy\Model.Exame.pas',
   Model.Procedimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Procedimento.pas',
