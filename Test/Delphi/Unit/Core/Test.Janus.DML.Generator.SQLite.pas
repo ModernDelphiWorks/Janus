@@ -37,9 +37,12 @@ uses
   Janus.Command.Deleter,
   Janus.Command.Selecter,
   Janus.DML.Generator.SQLite,
+  Janus.Container.ObjectSet,
+  Janus.Container.ObjectSet.Interfaces,
   Janus.Model.Client,
   Janus.Model.Master,
-  Janus.Model.Detail;
+  Janus.Model.Detail,
+  Test.Janus.Model.KeyOnly;
 
 type
   TFakeConnection = class(TInterfacedObject, IDBConnection)
@@ -156,6 +159,13 @@ type
     procedure TestGenerateSelectOneToMany_UsesAssociationColumns;
     [Test]
     procedure TestGenerateSelectAll_MasterIncludesJoinAndScope;
+    // Regression: a no-op / keys-only ObjectSet Update (Modify + Update with no
+    // changed column) must NOT raise EListError 'Item not found'. Before the fix,
+    // ModifyFieldsCompare never inserts the per-row key (ClassName-<pk>) when
+    // nothing changed, so TSessionAbstract.Update -> ModifiedFields.Items[AKey]
+    // raised. The DataSet path already guarded this; the ObjectSet path did not.
+    [Test]
+    procedure TestObjectSetUpdate_NoModifiedFields_DoesNotRaiseItemNotFound;
   end;
 
 implementation
@@ -1023,6 +1033,37 @@ begin
     end;
   finally
     LMaster.Free;
+  end;
+end;
+
+procedure TTestDMLGenerator.TestObjectSetUpdate_NoModifiedFields_DoesNotRaiseItemNotFound;
+var
+  LContainer: IContainerObjectSet<TKeyOnly>;
+  LEntity: TKeyOnly;
+begin
+  // Canonical KEY-ONLY entity (all columns are the NoUpdate composite PK, declared
+  // with a single ';'-separated [PrimaryKey]). Snapshot it (Modify) then Update
+  // with zero changed columns: ModifyFieldsCompare adds no field, so the per-row
+  // key (ClassName-<pk>) is never inserted into ModifiedFields. Before the fix,
+  // TSessionAbstract.Update did ModifiedFields.Items[AKey] -> EListError
+  // 'Item not found'. The framework must treat a no-op Update as a graceful no-op,
+  // mirroring the DataSet path guard. Repro of the live E13_F01/EPV_F02/R01_F01
+  // failure — independent of any [Association].
+  LContainer := TContainerObjectSet<TKeyOnly>.Create(FConnection);
+  LEntity := TKeyOnly.Create;
+  try
+    LEntity.k1 := 7;
+    LEntity.k2 := 42;
+    LContainer.Modify(LEntity);
+    Assert.WillNotRaise(
+      procedure
+      begin
+        LContainer.Update(LEntity);
+      end,
+      Exception,
+      'No-op key-only ObjectSet Update must not raise "Item not found"');
+  finally
+    LEntity.Free;
   end;
 end;
 
