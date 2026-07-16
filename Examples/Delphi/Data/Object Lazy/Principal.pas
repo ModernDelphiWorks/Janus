@@ -42,7 +42,6 @@ uses
   MetaDbDiff.DDL.Generator.Firebird,
   MetaDbDiff.Metadata.Firebird,
 
-  Janus.ModelDB.Compare,
   Janus.Manager.ObjectSet,
 
   Model.Exame,
@@ -70,7 +69,9 @@ type
   private
     { Private declarations }
     FConn: IDBConnection;
-    FManager: TModelDbCompare;
+    // frente-8 (16 Jul 2026): removed FManager: TModelDbCompare - it was
+    // declared but never assigned/used anywhere in this form; this example
+    // only exercises TManagerObjectSet's lazy-loading, not the schema diff.
     FManagedObject: TManagerObjectSet;
   public
     { Public declarations }

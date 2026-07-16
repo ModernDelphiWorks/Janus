@@ -87,6 +87,16 @@ var
 begin
   oManager := TModelDbCompare.Create(oConnection);
 //  oManager := TDatabaseCompare.Create(oConnection, oConnection);
+  // CommandsAutoExecute now DEFAULTS TO FALSE (frente-8: generation is
+  // decoupled from execution in MetaDbDiff's TDatabaseFactory.BuildDatabase),
+  // so this assignment is only kept here as documentation of intent - preview
+  // only, nothing gets executed against oConnection. Also note oManager's
+  // Policy defaults to TComparePolicy.JanusOrmProfile (set by TModelDbCompare's
+  // constructor): the command list below will only ever contain CREATE TABLE /
+  // CREATE COLUMN / CREATE PRIMARY KEY / CREATE FOREIGN KEY, never a DROP or
+  // ALTER - see Janus.ModelDB.Compare.pas' header for how to opt back into
+  // TComparePolicy.FullProfile, and oManager.SuppressedCommands for what the
+  // restricted policy blocked.
   oManager.CommandsAutoExecute := False;
   oManager.BuildDatabase;
   for cDDL in oManager.GetCommandList do
