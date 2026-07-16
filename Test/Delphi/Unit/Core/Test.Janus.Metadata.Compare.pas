@@ -16,6 +16,23 @@
   @created(20 Jul 2016)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
   @author(Skype : ispinheiro)
+
+  Retargeted (frente-8, 16 Jul 2026): this fixture used to exercise
+  Janus.Metadata.Classe.Factory.TMetadataClasseFactory, which is now a thin,
+  deprecated, empty subclass of MetaDbDiff.Metadata.Model.Factory.
+  TMetadataModelFactory (see that unit's header for why). Testing the
+  deprecated alias here would add indirection with no extra coverage - and
+  would emit a deprecation warning inside Janus' own test build for nothing -
+  so this fixture now exercises TMetadataModelFactory directly, the real,
+  canonical implementation both the Janus alias and TModelDbCompare rely on.
+  Behaviour under test (constructor allocation, ModelMetadata reference
+  stability, ExtractMetadata(nil) raising with a CatalogMetadata-mentioning
+  message, create/free lifecycle) is unchanged - only the type under test
+  moved. One assert DID change as a direct consequence: MetaDbDiff's ported
+  ExtractMetadata raise message is in English ("Before extracting the
+  metadata, assign the catalog...") where the old Janus message was PT-BR
+  ("Antes de executar a extração do metadata...") - see
+  ExtractMetadata_RaisesWhenCatalogNil below for the updated regex.
 }
 
 unit Test.Janus.Metadata.Compare;
@@ -25,7 +42,8 @@ interface
 uses
   SysUtils,
   DUnitX.TestFramework,
-  Janus.Metadata.Classe.Factory,
+  MetaDbDiff.Metadata.Model.Factory,
+  MetaDbDiff.Metadata.Extract, // TModelMetadataAbstract (declared here, not re-exported by MetaDbDiff.metadata.model)
   MetaDbDiff.metadata.model;
 
 type
@@ -73,9 +91,9 @@ end;
 
 procedure TTestJanusMetadataCompare.Create_AllocatesModelMetadata;
 var
-  LFactory: TMetadataClasseFactory;
+  LFactory: TMetadataModelFactory;
 begin
-  LFactory := TMetadataClasseFactory.Create(nil);
+  LFactory := TMetadataModelFactory.Create(nil);
   try
     Assert.IsNotNull(LFactory.ModelMetadata,
       'Constructor must allocate ModelMetadata regardless of owner');
@@ -86,9 +104,9 @@ end;
 
 procedure TTestJanusMetadataCompare.Create_WithNilOwner_StillInitializesModel;
 var
-  LFactory: TMetadataClasseFactory;
+  LFactory: TMetadataModelFactory;
 begin
-  LFactory := TMetadataClasseFactory.Create(nil);
+  LFactory := TMetadataModelFactory.Create(nil);
   try
     Assert.IsNotNull(LFactory.ModelMetadata,
       'ModelMetadata must be initialised when owner is nil');
@@ -99,11 +117,11 @@ end;
 
 procedure TTestJanusMetadataCompare.ModelMetadata_ReturnsSameReferenceAcrossReads;
 var
-  LFactory: TMetadataClasseFactory;
+  LFactory: TMetadataModelFactory;
   LFirst: TModelMetadataAbstract;
   LSecond: TModelMetadataAbstract;
 begin
-  LFactory := TMetadataClasseFactory.Create(nil);
+  LFactory := TMetadataModelFactory.Create(nil);
   try
     LFirst := LFactory.ModelMetadata;
     LSecond := LFactory.ModelMetadata;
@@ -116,18 +134,23 @@ end;
 
 procedure TTestJanusMetadataCompare.ExtractMetadata_RaisesWhenCatalogNil;
 var
-  LFactory: TMetadataClasseFactory;
+  LFactory: TMetadataModelFactory;
 begin
-  LFactory := TMetadataClasseFactory.Create(nil);
+  LFactory := TMetadataModelFactory.Create(nil);
   try
+    // MetaDbDiff.Metadata.Model.Factory.TMetadataModelFactory.ExtractMetadata
+    // raises in English ("Before extracting the metadata, assign the catalog
+    // to be filled in..."), unlike the old Janus.Metadata.Classe.Factory
+    // message this test used to assert on ("Antes de executar a extração do
+    // metadata..."). Regex updated accordingly (frente-8).
     Assert.WillRaiseWithMessageRegex(
       procedure
       begin
         LFactory.ExtractMetadata(nil);
       end,
       Exception,
-      'extra.{0,3}o do metadata',
-      'ExtractMetadata(nil) must raise PT-BR contract message about metadata extraction');
+      'extract.{0,3} the metadata',
+      'ExtractMetadata(nil) must raise a message about extracting the metadata');
   finally
     LFactory.Free;
   end;
@@ -135,9 +158,9 @@ end;
 
 procedure TTestJanusMetadataCompare.ExtractMetadata_RaiseMessageMentionsCatalogMetadataProperty;
 var
-  LFactory: TMetadataClasseFactory;
+  LFactory: TMetadataModelFactory;
 begin
-  LFactory := TMetadataClasseFactory.Create(nil);
+  LFactory := TMetadataModelFactory.Create(nil);
   try
     Assert.WillRaiseWithMessageRegex(
       procedure
@@ -155,11 +178,11 @@ end;
 procedure TTestJanusMetadataCompare.Lifecycle_RepeatedCreateFree_DoesNotLeak;
 var
   LFor: Integer;
-  LFactory: TMetadataClasseFactory;
+  LFactory: TMetadataModelFactory;
 begin
   for LFor := 1 to CLifecycleCycles do
   begin
-    LFactory := TMetadataClasseFactory.Create(nil);
+    LFactory := TMetadataModelFactory.Create(nil);
     try
       Assert.IsNotNull(LFactory.ModelMetadata,
         'Cycle must produce a fully constructed factory');
