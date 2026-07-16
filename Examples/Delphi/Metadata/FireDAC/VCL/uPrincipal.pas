@@ -38,6 +38,18 @@ uses
   DataEngine.FactoryInterfaces, // TJanusConnectionFireDAC
   DataEngine.FactoryFireDac,
 
+  // BUG FIX (frente-8, 16 Jul 2026): this example connects both sides with
+  // dnFirebird (see FormCreate below) but never referenced the two units
+  // whose `initialization` sections register the Firebird driver into
+  // TSQLDriverRegister/TMetadataRegister. With them absent from every uses
+  // clause in this project, the linker drops them entirely, so at runtime
+  // TDatabaseAbstract.Create raised "driver not registered" the first time
+  // Button1Click ran. The sibling FMX example (Examples\Delphi\Metadata\
+  // FireDAC\Firemonkey\uPrincipal.pas) already included them correctly - this
+  // was a copy/paste gap between the two examples, not a MetaDbDiff bug.
+  MetaDbDiff.DDL.Generator.Firebird,
+  MetaDbDiff.Metadata.Firebird,
+
   MetaDbDiff.Database.Compare,  // TJanusDatabaseCompareLink
   MetaDbDiff.Database.Interfaces, // TJanusDatabaseCompareLink
 
@@ -91,14 +103,26 @@ end;
 
 procedure TForm1.Button1Click(Sender: TObject);
 var
-cDDL: TDDLCommand;
+  cDDL: TDDLCommand;
+  sSuppressed: String;
 begin
   oManager := TDatabaseCompare.Create(oConnMaster, oConnTarget);
-  // Se False s� mostra n�o executando os scripts gerados.
-  oManager.CommandsAutoExecute := False;
+  // CommandsAutoExecute now DEFAULTS TO FALSE (frente-8: generation is
+  // decoupled from execution in MetaDbDiff's TDatabaseFactory.BuildDatabase),
+  // so no explicit assignment is needed anymore to get preview-only behaviour
+  // - BuildDatabase below always generates+builds the command text, it just
+  // won't run any of it against oConnTarget. Set oManager.CommandsAutoExecute
+  // := True before BuildDatabase (or call oManager.ExecuteCommands afterwards)
+  // to actually apply the reviewed commands.
   oManager.BuildDatabase;
   for cDDL in oManager.GetCommandList do
       Memo1.Lines.Add(cDDL.Command);
+  // oManager.SuppressedCommands lists every mutation the diff wanted to make
+  // but the active Policy blocked (TDatabaseCompare defaults to
+  // TComparePolicy.FullProfile, so nothing is suppressed here unless Policy
+  // was narrowed - e.g. oManager.Policy := TComparePolicy.JanusOrmProfile).
+  for sSuppressed in oManager.SuppressedCommands do
+    Memo1.Lines.Add('(suppressed by policy) ' + sSuppressed);
 end;
 
 end.
