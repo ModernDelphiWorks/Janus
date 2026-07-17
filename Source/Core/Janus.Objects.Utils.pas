@@ -26,6 +26,7 @@ interface
 uses
   Classes,
   SysUtils,
+  SyncObjs,
   Rtti,
   DB,
   TypInfo,
@@ -53,8 +54,11 @@ type
   TRttiSingleton = class(TInterfacedObject, IRttiSingleton)
   private
     class var FInstance: IRttiSingleton;
+    class var FInstanceLock: TCriticalSection;
   private
     FContext: TRttiContext;
+    FTypeCache: TDictionary<TClass, TRttiType>;
+    FCacheLock: TCriticalSection;
   protected
     constructor Create;
   public
@@ -87,10 +91,14 @@ end;
 constructor TRttiSingleton.Create;
 begin
   FContext := TRttiContext.Create;
+  FTypeCache := TDictionary<TClass, TRttiType>.Create;
+  FCacheLock := TCriticalSection.Create;
 end;
 
 destructor TRttiSingleton.Destroy;
 begin
+  FCacheLock.Free;
+  FTypeCache.Free;
   FContext.Free;
   inherited;
 end;
@@ -114,7 +122,7 @@ begin
   if not Assigned(AObject) then
     Exit;
 
-  LRttiType := FContext.GetType(AObject.ClassType);
+  LRttiType := GetRttiType(AObject.ClassType);
   LCloned := CreateObject(LRttiType);
   for LProperty in LRttiType.GetProperties do
   begin
@@ -196,7 +204,7 @@ begin
   if not Assigned(ATargetObject) then
     Exit;
 
-  LRttiType := FContext.GetType(ASourceObject.ClassType);
+  LRttiType := GetRttiType(ASourceObject.ClassType);
   LCopied := ATargetObject;
   for LProperty in LRttiType.GetProperties do
   begin
@@ -285,14 +293,46 @@ end;
 
 function TRttiSingleton.GetRttiType(AClass: TClass): TRttiType;
 begin
-  Result := FContext.GetType(AClass);
+  { Thread-safe, class-keyed RTTI cache. The RTL's TRttiContext.GetType funnels
+    into a process-global refcounted RTTI pool whose dictionaries are mutated on
+    first resolution of each class/member. Under concurrent per-row binds this
+    lazy population races (residual AV after warm-up). We resolve each class once
+    under the lock, eagerly materialize its member arrays (GetFields/Properties/
+    Methods) so no further lazy population can happen off the RTL, then serve the
+    cached immutable TRttiType with zero RTL calls on the hot path. The cached
+    pointers stay valid because the singleton's FContext keeps the pool alive for
+    the whole process lifetime. }
+  FCacheLock.Enter;
+  try
+    if not FTypeCache.TryGetValue(AClass, Result) then
+    begin
+      Result := FContext.GetType(AClass);
+      if Result <> nil then
+      begin
+        Result.GetFields;
+        Result.GetProperties;
+        Result.GetMethods;
+      end;
+      FTypeCache.Add(AClass, Result);
+    end;
+  finally
+    FCacheLock.Leave;
+  end;
 end;
 
 class function TRttiSingleton.GetInstance: IRttiSingleton;
 begin
   if not Assigned(FInstance) then
-    FInstance := TRttiSingleton.Create;
-   Result := FInstance;
+  begin
+    FInstanceLock.Enter;
+    try
+      if not Assigned(FInstance) then
+        FInstance := TRttiSingleton.Create;
+    finally
+      FInstanceLock.Leave;
+    end;
+  end;
+  Result := FInstance;
 end;
 
 function TRttiSingleton.RunValidade(AObject: TObject): Boolean;
@@ -340,6 +380,13 @@ begin
   end;
   Result := True;
 end;
+
+initialization
+  TRttiSingleton.FInstanceLock := TCriticalSection.Create;
+
+finalization
+  TRttiSingleton.FInstance := nil;
+  TRttiSingleton.FInstanceLock.Free;
 
 end.
 

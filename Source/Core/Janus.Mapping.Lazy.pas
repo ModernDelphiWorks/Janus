@@ -25,6 +25,7 @@ uses
   DB,
   Rtti,
   SysUtils,
+  SyncObjs,
   Generics.Collections,
   Janus.Command.Factory,
   DataEngine.FactoryInterfaces,
@@ -81,7 +82,9 @@ type
   strict private
     class var FInstance: TLazyMappingExplorer;
   private
+    class var FInstanceLock: TCriticalSection;
     FLazyFieldsCache: TObjectDictionary<String, TObjectList<TLazyMapping>>;
+    FCacheLock: TCriticalSection;
     procedure _PopulateLazyFields(const AClass: TClass;
       const AList: TObjectList<TLazyMapping>);
   public
@@ -372,10 +375,12 @@ end;
 constructor TLazyMappingExplorer.Create;
 begin
   FLazyFieldsCache := TObjectDictionary<String, TObjectList<TLazyMapping>>.Create([doOwnsValues]);
+  FCacheLock := TCriticalSection.Create;
 end;
 
 destructor TLazyMappingExplorer.Destroy;
 begin
+  FCacheLock.Free;
   FLazyFieldsCache.Free;
   inherited;
 end;
@@ -383,7 +388,15 @@ end;
 class function TLazyMappingExplorer.GetInstance: TLazyMappingExplorer;
 begin
   if not Assigned(FInstance) then
-    FInstance := TLazyMappingExplorer.Create;
+  begin
+    FInstanceLock.Enter;
+    try
+      if not Assigned(FInstance) then
+        FInstance := TLazyMappingExplorer.Create;
+    finally
+      FInstanceLock.Leave;
+    end;
+  end;
   Result := FInstance;
 end;
 
@@ -394,13 +407,26 @@ end;
 
 function TLazyMappingExplorer.GetLazyFields(
   const AClass: TClass): TObjectList<TLazyMapping>;
+var
+  LKey: String;
 begin
-  if FLazyFieldsCache.ContainsKey(AClass.ClassName) then
-    Exit(FLazyFieldsCache[AClass.ClassName]);
-
-  Result := TObjectList<TLazyMapping>.Create(True);
-  _PopulateLazyFields(AClass, Result);
-  FLazyFieldsCache.Add(AClass.ClassName, Result);
+  { Serialize the ContainsKey/populate/Add sequence: concurrent misses would
+    otherwise both populate and both Add the same key (EListError) and/or leak
+    the loser's list. Populate happens under the lock (cold path only, once per
+    class); once warm every caller reads the already-materialized list, and
+    reading an immutable, fully-populated TObjectList concurrently is safe. }
+  LKey := AClass.ClassName;
+  FCacheLock.Enter;
+  try
+    if not FLazyFieldsCache.TryGetValue(LKey, Result) then
+    begin
+      Result := TObjectList<TLazyMapping>.Create(True);
+      _PopulateLazyFields(AClass, Result);
+      FLazyFieldsCache.Add(LKey, Result);
+    end;
+  finally
+    FCacheLock.Leave;
+  end;
 end;
 
 procedure TLazyMappingExplorer._PopulateLazyFields(const AClass: TClass;
@@ -421,8 +447,10 @@ begin
 end;
 
 initialization
+  TLazyMappingExplorer.FInstanceLock := TCriticalSection.Create;
 
 finalization
   TLazyMappingExplorer.ReleaseInstance;
+  TLazyMappingExplorer.FInstanceLock.Free;
 
 end.

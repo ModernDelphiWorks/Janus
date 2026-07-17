@@ -52,6 +52,7 @@ uses
   Test.Janus.Driver.Register in 'Unit\Core\Test.Janus.Driver.Register.pas',
   Test.Janus.Mapping.Cache   in 'Unit\Core\Test.Janus.Mapping.Cache.pas',
   Test.Janus.RTTI.Singleton  in 'Unit\Core\Test.Janus.RTTI.Singleton.pas',
+  Test.Janus.RTTI.Singleton.Concurrency in 'Unit\Core\Test.Janus.RTTI.Singleton.Concurrency.pas',
   Test.Janus.Types.Nullable       in 'Unit\Core\Test.Janus.Types.Nullable.pas',
   Test.Janus.Lazy.Smoke in 'Unit\Mapping.Lazy\Test.Janus.Lazy.Smoke.pas',
   Test.Janus.Container.ObjectSet.LazyProxy in 'Unit\Container\Test.Janus.Container.ObjectSet.LazyProxy.pas',
