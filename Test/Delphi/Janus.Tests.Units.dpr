@@ -36,6 +36,7 @@ uses
   DUnitX.Loggers.Console,
   DUnitX.Loggers.Xml.NUnit,
   Janus.Test.Runner in 'Common\Janus.Test.Runner.pas',
+  Test.Janus.Cursor.Double in 'Common\Test.Janus.Cursor.Double.pas',
   /// Models
   MetaDbDiff.Mapping.Register,
   Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
@@ -82,7 +83,9 @@ uses
   Test.Janus.CodeGen.Schemas in 'Unit\CodeGen\Test.Janus.CodeGen.Schemas.pas',
   Test.Janus.CodeGen.Template in 'Unit\CodeGen\Test.Janus.CodeGen.Template.pas',
   /// JSON Tests — Demand A
-  Test.Janus.Json in 'Unit\Core\Test.Janus.Json.pas';
+  Test.Janus.Json in 'Unit\Core\Test.Janus.Json.pas',
+  /// Cursor advance regression — sibling of 1ad296b
+  Test.Janus.Cursor.Advance in 'Unit\Core\Test.Janus.Cursor.Advance.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

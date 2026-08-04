@@ -447,6 +447,9 @@ begin
       Bind.SetFieldToProperty(LResultSet, TObject(AObjectList.Last));
       // Alimenta registros das associa��es existentes 1:1 ou 1:N
       FillAssociation(AObjectList.Last);
+      // Avanca o cursor: sem isso o laco nunca atinge Eof e adiciona a mesma
+      // linha infinitamente (loop infinito / OOM).
+      LResultSet.Next;
     end;
   finally
     // Essa tag � controlada pela session, mas como esse m�todo fornece
@@ -471,6 +474,9 @@ begin
       Bind.SetFieldToProperty(LResultSet, TObject(AObjectList.Last));
       // Alimenta registros das associa��es existentes 1:1 ou 1:N
       FillAssociation(AObjectList.Last);
+      // Avanca o cursor: sem isso o laco nunca atinge Eof e adiciona a mesma
+      // linha infinitamente (loop infinito / OOM).
+      LResultSet.Next;
     end;
   finally
     // Essa tag � controlada pela session, mas como esse m�todo fornece

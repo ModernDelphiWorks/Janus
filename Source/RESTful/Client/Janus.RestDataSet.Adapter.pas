@@ -519,8 +519,19 @@ begin
           LDataSetChild.FOrmDataSet.FieldByName(LAssociation.ColumnsNameRef[LFor]).Value :=
                         FOrmDataSet.FieldByName(LAssociation.ColumnsName[LFor]).Value;
           LDataSetChild.FOrmDataSet.Post;
-          // N�o deve executar o NEXT aqui, o dataset est� com filtro
-          // que faz a navega��o ao mudar o valor do campo.
+          // Avanca o cursor. O comentario que estava aqui afirmava que o
+          // NEXT era desnecessario porque um filtro faria a navegacao ao
+          // mudar o valor do campo. Medido: falso nas duas metades - o
+          // corpo grava a coluna de FK, nao o campo de controle interno, e
+          // nenhum dataset filho recebe Filter/Filtered em Source. O
+          // vinculo real e master-detail (MasterSource/MasterFields, ver
+          // Janus.RestDataSet.FDMemTable.pas:206,217,218) e o Post NAO move
+          // o cursor: com o vinculo ativo e o valor do master ja alterado o
+          // conjunto filho esta VAZIO e o corpo nem roda; sem o vinculo, ou
+          // com o valor inalterado, o registro permanece e o laco e
+          // INFINITO. Gemeo correto na classe base:
+          // Janus.DataSet.Base.Adapter.pas:852.
+          LDataSetChild.FOrmDataSet.Next;
         end;
       finally
         LDataSetChild.FOrmDataSet.First;

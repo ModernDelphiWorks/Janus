@@ -187,6 +187,9 @@ begin
                                   AProcessingObjects,
                                   AProcessLoadedObject);
           Result := LObjectValue;
+          // Avanca o cursor: sem isso o laco nunca atinge Eof e recria o mesmo
+          // objeto infinitamente (loop infinito / OOM).
+          LResultSet.Next;
         end;
       finally
         LResultSet.Close;
@@ -231,6 +234,9 @@ begin
                                   AProcessingObjects,
                                   AProcessLoadedObject);
           LObjectList.MethodCall('Add', [LObjectCreate]);
+          // Avanca o cursor: sem isso o laco nunca atinge Eof e adiciona a mesma
+          // linha infinitamente (loop infinito / OOM).
+          LResultSet.Next;
         end;
       finally
         LResultSet.Close;
