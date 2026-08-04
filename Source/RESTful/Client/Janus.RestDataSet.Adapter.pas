@@ -62,7 +62,6 @@ type
     procedure PopularDataSet(const AObject: TObject);
     procedure PopularDataSetList(const AObjectList: TObjectList<M>);
     procedure DeleteDataSetChilds; virtual;
-    procedure SetAutoIncValueChilds; override;
     procedure OpenDataSetChilds; override;
     procedure LoadLazy(const AOwner: M); override;
   public
@@ -485,59 +484,6 @@ begin
       _PopularDataSetChilds(AObject);
   finally
     FOrmDataSet.EnableControls;
-  end;
-end;
-
-procedure TRESTDataSetAdapter<M>.SetAutoIncValueChilds;
-var
-  LAssociation: TAssociationMapping;
-  LAssociations: TAssociationMappingList;
-  LDataSetChild: TDataSetBaseAdapter<M>;
-  LFor: Integer;
-begin
-  // Association
-  LAssociations := TMappingExplorer.GetMappingAssociation(FCurrentInternal.ClassType);
-  if LAssociations = nil then
-    Exit;
-  for LAssociation in LAssociations do
-  begin
-    if not (TCascadeAction.CascadeAutoInc in LAssociation.CascadeActions) then
-      Continue;
-    LDataSetChild := FMasterObject.Items[LAssociation.ClassNameRef];
-    if LDataSetChild = nil then
-      Continue;
-    for LFor := 0 to LAssociation.ColumnsName.Count -1 do
-    begin
-      if LDataSetChild.FOrmDataSet.FindField(LAssociation.ColumnsNameRef[LFor]) = nil then
-        Continue;
-      LDataSetChild.FOrmDataSet.DisableControls;
-      LDataSetChild.FOrmDataSet.First;
-      try
-        while not LDataSetChild.FOrmDataSet.Eof do
-        begin
-          LDataSetChild.FOrmDataSet.Edit;
-          LDataSetChild.FOrmDataSet.FieldByName(LAssociation.ColumnsNameRef[LFor]).Value :=
-                        FOrmDataSet.FieldByName(LAssociation.ColumnsName[LFor]).Value;
-          LDataSetChild.FOrmDataSet.Post;
-          // Avanca o cursor. O comentario que estava aqui afirmava que o
-          // NEXT era desnecessario porque um filtro faria a navegacao ao
-          // mudar o valor do campo. Medido: falso nas duas metades - o
-          // corpo grava a coluna de FK, nao o campo de controle interno, e
-          // nenhum dataset filho recebe Filter/Filtered em Source. O
-          // vinculo real e master-detail (MasterSource/MasterFields, ver
-          // Janus.RestDataSet.FDMemTable.pas:206,217,218) e o Post NAO move
-          // o cursor: com o vinculo ativo e o valor do master ja alterado o
-          // conjunto filho esta VAZIO e o corpo nem roda; sem o vinculo, ou
-          // com o valor inalterado, o registro permanece e o laco e
-          // INFINITO. Gemeo correto na classe base:
-          // Janus.DataSet.Base.Adapter.pas:852.
-          LDataSetChild.FOrmDataSet.Next;
-        end;
-      finally
-        LDataSetChild.FOrmDataSet.First;
-        LDataSetChild.FOrmDataSet.EnableControls;
-      end;
-    end;
   end;
 end;
 

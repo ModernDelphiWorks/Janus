@@ -44,7 +44,7 @@
     Janus.Mapping.Lazy.pas      CreateLazySingleAssociationLoadFunc
     Janus.Query.ResultSet.pas   TJanusQueryObject<M>.AsList
 
-  Fixed but NOT covered by any test, and why:
+  Sites this fixture does NOT drive directly, and why:
 
   1) Janus.Mapping.Lazy.pas  CreateLazyManyAssociationLoadFunc
      No test can reach that loop. The function instantiates the list property
@@ -62,10 +62,17 @@
      property feeding both paths. Pinned in CI by
      LazyManyAssociation_CannotRun_KNOWN_DEFECT below.
 
-  2) Janus.RestDataSet.Adapter.pas  TRESTDataSetAdapter<M>.SetAutoIncValueChilds
-     Reaching it needs a live REST client session with master-detail children.
-     The reason the .Next was added there is measured instead by
+  2) HISTORICAL - no longer open. The ninth loop lived in
+     TRESTDataSetAdapter<M>.SetAutoIncValueChilds, which could not be reached
+     from here without a live REST client session, so the reason its .Next was
+     added was measured indirectly by
      MasterDetailPost_DoesNotAdvanceCursor_ASSUMPTION below.
+     That override has since been deleted: it was a copy of
+     TDataSetBaseAdapter<M>.SetAutoIncValueChilds that had lost the multi-level
+     recursion, and the whole REST family now runs the base implementation. The
+     base implementation IS driven directly, by Test.Janus.AutoInc.Childs, which
+     also shows what the empty child set below actually costs: zero children
+     updated.
 }
 
 unit Test.Janus.Cursor.Advance;
@@ -652,8 +659,11 @@ end;
 
 procedure TTestCursorAdvance.MasterDetailPost_DoesNotAdvanceCursor_ASSUMPTION;
 
-  // 0 = master-detail ligado E valor do master ALTERADO (o caso real de
-  //     SetAutoIncValueChilds); 1 = SEM vinculo; 2 = ligado, valor INALTERADO.
+  // 0 = master-detail ligado E valor do master ALTERADO; 1 = SEM vinculo;
+  //     2 = ligado, valor INALTERADO. O cenario 0 ERA o que
+  //     SetAutoIncValueChilds enfrentava de frente; hoje o metodo desliga o
+  //     vinculo antes de escrever, precisamente PORQUE o cenario 0 mede o que
+  //     mede aqui.
   function Iterations(const AScenario: Integer): Integer;
   var
     LMaster, LDetail: TFDMemTable;
@@ -694,8 +704,9 @@ procedure TTestCursorAdvance.MasterDetailPost_DoesNotAdvanceCursor_ASSUMPTION;
       if AScenario <> 2 then
         LMaster.FieldByName('pid').AsInteger := 500;
 
-      // espelho do corpo do laco de SetAutoIncValueChilds, com teto rigido
-      // para esta sonda jamais travar a suite.
+      // espelho do corpo que SetAutoIncValueChilds TINHA - Edit/Post sobre a
+      // linha corrente -, com teto rigido para esta sonda jamais travar a
+      // suite.
       LDetail.First;
       Result := 0;
       while (not LDetail.Eof) and (Result < 50) do
@@ -721,9 +732,15 @@ begin
   // comportamento REAL do vinculo master-detail do FireDAC, que e a premissa
   // de que aquele codigo depende. Se a Embarcadero um dia mudar isso, este
   // teste fica vermelho e avisa - em vez de o ERP travar em producao.
+  //
+  // ELE CONTINUA VALIDO DEPOIS DO CONSERTO DO AUTOINC, e por construcao: nao
+  // descreve o comportamento do Janus, descreve o do FireDAC, que e a premissa
+  // que o conserto CONTORNA desligando o vinculo antes de escrever. O preco do
+  // cenario 0 - zero filhos atualizados - esta medido em
+  // Test.Janus.AutoInc.Childs.
   Assert.AreEqual(0, Iterations(0),
     'com o vinculo ativo e o valor do master ja alterado, o conjunto filho ' +
-    'fica VAZIO antes do laco: o corpo nem chega a rodar');
+    'fica VAZIO: qualquer laco sobre ele visita zero linhas');
   Assert.AreEqual(50, Iterations(1),
     'SEM vinculo master-detail o Post NAO move o cursor - o laco bateu no ' +
     'teto da sonda, ou seja, em producao seria INFINITO sem o .Next');

@@ -52,6 +52,11 @@ type
     function _GetAutoNextPacket: Boolean;
     procedure _SetAutoNextPacket(const Value: Boolean);
     procedure _ValideFieldEvents(const AFieldEvents: TFieldEventsMappingList);
+    function _DetachMasterLink(const ADataSet: TDataSet): TObject;
+    procedure _RestoreMasterLink(const ADataSet: TDataSet; const ASource: TObject);
+    function _IsPendingInsertRow(const ADataSet: TDataSet): Boolean;
+    procedure _AutoIncToChildRows(const AMaster, AChild: TDataSet;
+      const AAssociation: TAssociationMapping);
   protected
     FDataSetEvents: TDataSetEvents;
     FOwnerMasterObject: TObject;
@@ -816,12 +821,136 @@ begin
   end
 end;
 
+/// <summary> Desliga o vinculo master-detail do dataset filho e devolve o
+///  TDataSource que estava la, para ser restaurado depois.
+///  POR QUE ISTO EXISTE: o vinculo restringe o filho as linhas cuja FK e igual
+///  a chave CORRENTE do master. Quando SetAutoIncValueChilds roda, o master ja
+///  carrega a chave NOVA e os filhos ainda carregam a ANTIGA, de modo que o
+///  conjunto filho fica com ZERO linhas visiveis: o metodo cujo trabalho e
+///  atualizar os filhos nao enxerga nenhum. Medido em TFDMemTable e em
+///  TClientDataSet. A propriedade e publicada nos dois, e e por ela que
+///  TRESTFDMemTableAdapter<M>._FilterDataSetChilds e
+///  TRESTClientDataSetAdapter<M>.FilterDataSetChilds amarram cada filho ao seu
+///  master. </summary>
+function TDataSetBaseAdapter<M>._DetachMasterLink(
+  const ADataSet: TDataSet): TObject;
+const
+  cMASTERSOURCEPROP = 'MasterSource';
+begin
+  Result := nil;
+  if ADataSet = nil then
+    Exit;
+  if not IsPublishedProp(ADataSet, cMASTERSOURCEPROP) then
+    Exit;
+  Result := GetObjectProp(ADataSet, cMASTERSOURCEPROP);
+  if Result <> nil then
+    SetObjectProp(ADataSet, cMASTERSOURCEPROP, nil);
+end;
+
+procedure TDataSetBaseAdapter<M>._RestoreMasterLink(const ADataSet: TDataSet;
+  const ASource: TObject);
+const
+  cMASTERSOURCEPROP = 'MasterSource';
+begin
+  if (ADataSet = nil) or (ASource = nil) then
+    Exit;
+  if not IsPublishedProp(ADataSet, cMASTERSOURCEPROP) then
+    Exit;
+  SetObjectProp(ADataSet, cMASTERSOURCEPROP, ASource);
+end;
+
+/// <summary> Diz se a linha corrente do dataset filho esta PENDENTE DE
+///  INSERCAO. Somente essas podem ser reapontadas para a chave nova: uma linha
+///  ja gravada pertence a outro master - no cliente REST o dataset filho guarda
+///  os filhos de TODOS os masters que a listagem trouxe - e carimbar nela a
+///  chave recem-gerada re-parentaria dado alheio em silencio. O marcador e o
+///  mesmo campo interno que ApplyInserter filtra. </summary>
+function TDataSetBaseAdapter<M>._IsPendingInsertRow(
+  const ADataSet: TDataSet): Boolean;
+var
+  LField: TField;
+begin
+  LField := ADataSet.FindField(cInternalField);
+  Result := (LField = nil) or (LField.AsInteger = Integer(dsInsert));
+end;
+
+/// <summary> Escreve a chave do master em cada linha elegivel do dataset filho.
+///  Percorre por BOOKMARK de proposito: quando o filho esta indexado pela
+///  propria coluna que esta sendo reescrita - o que
+///  TFDMemTableAdapter<M>._GetIndexFieldNames produz para uma entidade cujo
+///  [OrderBy] e a sua FK - o Post REORDENA a linha, e um laco Post+Next cai
+///  fora do conjunto depois da primeira. Bookmark identifica a LINHA, nao a
+///  posicao. Medido: Post+Next atualiza 1 de 3; por bookmark, 3 de 3. </summary>
+procedure TDataSetBaseAdapter<M>._AutoIncToChildRows(const AMaster,
+  AChild: TDataSet; const AAssociation: TAssociationMapping);
+var
+  LMasterFields: TList<TField>;
+  LChildFields: TList<TField>;
+  LMarks: TList<TBookmark>;
+  LSource: TObject;
+  LMasterField: TField;
+  LChildField: TField;
+  LFor: Integer;
+  LCol: Integer;
+begin
+  if (AMaster = nil) or (AChild = nil) then
+    Exit;
+  if not AChild.Active then
+    Exit;
+  LMasterFields := TList<TField>.Create;
+  LChildFields := TList<TField>.Create;
+  LMarks := TList<TBookmark>.Create;
+  try
+    for LFor := 0 to AAssociation.ColumnsName.Count -1 do
+    begin
+      if LFor > AAssociation.ColumnsNameRef.Count -1 then
+        Break;
+      LMasterField := AMaster.FindField(AAssociation.ColumnsName[LFor]);
+      LChildField := AChild.FindField(AAssociation.ColumnsNameRef[LFor]);
+      if (LMasterField = nil) or (LChildField = nil) then
+        Continue;
+      LMasterFields.Add(LMasterField);
+      LChildFields.Add(LChildField);
+    end;
+    if LMasterFields.Count = 0 then
+      Exit;
+    LSource := _DetachMasterLink(AChild);
+    AChild.DisableControls;
+    try
+      // 1a passada: marca as linhas elegiveis ANTES de escrever qualquer uma.
+      AChild.First;
+      while not AChild.Eof do
+      begin
+        if _IsPendingInsertRow(AChild) then
+          LMarks.Add(AChild.GetBookmark);
+        AChild.Next;
+      end;
+      // 2a passada: carimba a chave nova em cada linha marcada.
+      for LFor := 0 to LMarks.Count -1 do
+      begin
+        AChild.GotoBookmark(LMarks[LFor]);
+        AChild.Edit;
+        for LCol := 0 to LMasterFields.Count -1 do
+          LChildFields[LCol].Value := LMasterFields[LCol].Value;
+        AChild.Post;
+      end;
+    finally
+      _RestoreMasterLink(AChild, LSource);
+      AChild.First;
+      AChild.EnableControls;
+    end;
+  finally
+    LMarks.Free;
+    LChildFields.Free;
+    LMasterFields.Free;
+  end;
+end;
+
 procedure TDataSetBaseAdapter<M>.SetAutoIncValueChilds;
 var
   LAssociation: TAssociationMapping;
   LAssociations: TAssociationMappingList;
   LDataSetChild: TDataSetBaseAdapter<M>;
-  LFor: Integer;
 begin
   LAssociations := TMappingExplorer
                      .GetMappingAssociation(FCurrentInternal.ClassType);
@@ -831,33 +960,26 @@ begin
   begin
     if not (TCascadeAction.CascadeAutoInc in LAssociation.CascadeActions) then
       Continue;
-    LDataSetChild := FMasterObject.Items[LAssociation.ClassNameRef];
-    if LDataSetChild <> nil then
-    begin
-      for LFor := 0 to LAssociation.ColumnsName.Count -1 do
-      begin
-        if LDataSetChild.FOrmDataSet
-                        .FindField(LAssociation.ColumnsNameRef[LFor]) = nil then
-          Continue;
-        LDataSetChild.FOrmDataSet.DisableControls;
-        LDataSetChild.FOrmDataSet.First;
-        try
-          while not LDataSetChild.FOrmDataSet.Eof do
-          begin
-            LDataSetChild.FOrmDataSet.Edit;
-            LDataSetChild.FOrmDataSet
-                         .FieldByName(LAssociation.ColumnsNameRef[LFor]).Value
-              := FOrmDataSet.FieldByName(LAssociation.ColumnsName[LFor]).Value;
-            LDataSetChild.FOrmDataSet.Post;
-            LDataSetChild.FOrmDataSet.Next;
-          end;
-        finally
-          LDataSetChild.FOrmDataSet.First;
-          LDataSetChild.FOrmDataSet.EnableControls;
-        end;
-      end;
+    // TryGetValue, nao Items[]: TDictionary.Items[] LEVANTA EListError quando a
+    // chave nao existe, de modo que o teste de nil que vinha logo abaixo era
+    // inalcancavel. Um model que declara CascadeAutoInc para uma classe cujo
+    // dataset filho nunca foi criado derrubava a insercao do master.
+    if not FMasterObject.TryGetValue(LAssociation.ClassNameRef,
+                                     LDataSetChild) then
+      Continue;
+    if LDataSetChild = nil then
+      Continue;
+    // Eventos do filho desligados durante a escrita: o AfterScroll do adapter
+    // filho chama OpenDataSetChilds, que RE-ABRE os netos a partir do banco.
+    // Percorrer o filho com os eventos ligados apagaria os netos ainda nao
+    // gravados antes que a recursao logo abaixo pudesse carimba-los.
+    LDataSetChild.DisableDataSetEvents;
+    try
+      _AutoIncToChildRows(FOrmDataSet, LDataSetChild.FOrmDataSet, LAssociation);
+    finally
+      LDataSetChild.EnableDataSetEvents;
     end;
-    // Populando em hierarquia de v�rios n�veis
+    // Populando em hierarquia de varios niveis: netos, bisnetos...
     if LDataSetChild.FMasterObject.Count > 0 then
       LDataSetChild.SetAutoIncValueChilds;
   end;
