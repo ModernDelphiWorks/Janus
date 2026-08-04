@@ -85,7 +85,9 @@ uses
   /// JSON Tests — Demand A
   Test.Janus.Json in 'Unit\Core\Test.Janus.Json.pas',
   /// Cursor advance regression — sibling of 1ad296b
-  Test.Janus.Cursor.Advance in 'Unit\Core\Test.Janus.Cursor.Advance.pas';
+  Test.Janus.Cursor.Advance in 'Unit\Core\Test.Janus.Cursor.Advance.pas',
+  /// RESTful\Common property/getter wiring — first coverage of that folder
+  Test.Janus.RestFactory.MethodToken in 'Unit\RESTful\Test.Janus.RestFactory.MethodToken.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

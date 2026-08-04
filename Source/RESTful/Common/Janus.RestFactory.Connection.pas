@@ -77,7 +77,7 @@ type
     property MethodDELETE: String read GetMethodDELETE;
     property MethodGETNextPacket: String read GetMethodGETNextPacket;
     property MethodGETNextPacketWhere: String read GetMethodGETNextPacketWhere;
-    property MethodToken: String read GetMethodGETNextPacketWhere;
+    property MethodToken: String read GetMethodToken;
     property ServerUse: Boolean read GetServerUse;
   end;
 
