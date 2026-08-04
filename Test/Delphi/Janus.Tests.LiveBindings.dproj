@@ -1,10 +1,10 @@
 <Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
         <ProjectGuid>{BC320E5F-7F45-4F38-A0F3-C306157E9F6E}</ProjectGuid>
-        <MainSource>JanusLiveBindings.dpr</MainSource>
+        <MainSource>Janus.Tests.LiveBindings.dpr</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Debug</Config>
-        <ProjectName Condition="'$(ProjectName)'==''">JanusLiveBindings</ProjectName>
+        <ProjectName Condition="'$(ProjectName)'==''">Janus.Tests.LiveBindings</ProjectName>
         <TargetedPlatforms>660609</TargetedPlatforms>
         <AppType>Console</AppType>
         <FrameworkType>None</FrameworkType>
@@ -56,17 +56,17 @@
         <DCC_N>false</DCC_N>
         <DCC_S>false</DCC_S>
         <DCC_ImageBase>00400000</DCC_ImageBase>
-        <SanitizedProjectName>JanusLiveBindings</SanitizedProjectName>
+        <SanitizedProjectName>Janus_Tests_LiveBindings</SanitizedProjectName>
         <VerInfo_Locale>1046</VerInfo_Locale>
         <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=;CFBundleName=</VerInfo_Keys>
         <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;$(DCC_Namespace)</DCC_Namespace>
-        <DCC_UnitSearchPath>D:\Ecossistema-Delphi\Janus\Source\Livebindings;D:\Ecossistema-Delphi\Janus\Source\Core;D:\Ecossistema-Delphi\Janus\Source\Middleware;D:\Ecossistema-Delphi\Janus\Source\Middleware-Horse;D:\Ecossistema-Delphi\Janus\Source\CodeGen;D:\Ecossistema-Delphi\Janus\Source\RESTful\Server;D:\Ecossistema-Delphi\Janus\Source\RESTful\Common;D:\Ecossistema-Delphi\Janus\Source\RESTful\Client;D:\Ecossistema-Delphi\Janus\Source\Dataset;D:\Ecossistema-Delphi\Janus\Source\Objectset;D:\Ecossistema-Delphi\Janus\Source\Metadata;D:\Ecossistema-Delphi\Janus\Source\Monitor;D:\Ecossistema-Delphi\Janus\Source\External\SQLite3;D:\Ecossistema-Delphi\Janus\Source\Dependencies\MetaDbDiff\Source\Core;D:\Ecossistema-Delphi\Janus\Source\Dependencies\MetaDbDiff\Source\Drivers;D:\Ecossistema-Delphi\Janus\Source\Dependencies\FluentSQL\Source\Core;D:\Ecossistema-Delphi\Janus\Source\Dependencies\FluentSQL\Source\Drivers;D:\Ecossistema-Delphi\Janus\Source\Dependencies\DataEngine\Source\Core;D:\Ecossistema-Delphi\Janus\Source\Dependencies\DataEngine\Source\Drivers;D:\Ecossistema-Delphi\Janus\Source\Dependencies\DataEngine\Source\External\SQLite3;D:\Ecossistema-Delphi\Janus\Source\Dependencies\DataEngine\Source\Integrations;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Core;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\JSON\Core;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\JSON\IO;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\JSON\Composition;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\JSON\Middleware;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Reader;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Writer;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Addons\Composition;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Addons\Validation;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Schema\Core;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Schema\IO;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Schema\Composition;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Schema\Validators;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Schema\Validators\Format;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Schema\Validators\Format\Brazil;D:\Ecossistema-Delphi\Janus\Source\Dependencies\JsonFlow\Source\Middleware-Horse;D:\Ecossistema-Delphi\Janus\Source\Dependencies\ModernSyntax\Source;D:\Ecossistema-Delphi\Janus\Source\Dependencies\Horse\src;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_UnitSearchPath>..\..\Source\Livebindings;..\..\Source\Core;..\..\Source\Middleware;..\..\Source\Middleware-Horse;..\..\Source\CodeGen;..\..\Source\RESTful\Server;..\..\Source\RESTful\Common;..\..\Source\RESTful\Client;..\..\Source\Dataset;..\..\Source\Objectset;..\..\Source\Metadata;..\..\Source\Monitor;..\..\Source\External\SQLite3;..\..\Source\Dependencies\MetaDbDiff\Source\Core;..\..\Source\Dependencies\MetaDbDiff\Source\Drivers;..\..\Source\Dependencies\FluentSQL\Source\Core;..\..\Source\Dependencies\FluentSQL\Source\Drivers;..\..\Source\Dependencies\DataEngine\Source\Core;..\..\Source\Dependencies\DataEngine\Source\Drivers;..\..\Source\Dependencies\DataEngine\Source\External\SQLite3;..\..\Source\Dependencies\DataEngine\Source\Integrations;..\..\Source\Dependencies\JsonFlow\Source\Core;..\..\Source\Dependencies\JsonFlow\Source\JSON\Core;..\..\Source\Dependencies\JsonFlow\Source\JSON\IO;..\..\Source\Dependencies\JsonFlow\Source\JSON\Composition;..\..\Source\Dependencies\JsonFlow\Source\JSON\Middleware;..\..\Source\Dependencies\JsonFlow\Source\Reader;..\..\Source\Dependencies\JsonFlow\Source\Writer;..\..\Source\Dependencies\JsonFlow\Source\Addons\Composition;..\..\Source\Dependencies\JsonFlow\Source\Addons\Validation;..\..\Source\Dependencies\JsonFlow\Source\Schema\Core;..\..\Source\Dependencies\JsonFlow\Source\Schema\IO;..\..\Source\Dependencies\JsonFlow\Source\Schema\Composition;..\..\Source\Dependencies\JsonFlow\Source\Schema\Validators;..\..\Source\Dependencies\JsonFlow\Source\Schema\Validators\Format;..\..\Source\Dependencies\JsonFlow\Source\Schema\Validators\Format\Brazil;..\..\Source\Dependencies\JsonFlow\Source\Middleware-Horse;..\..\Source\Dependencies\ModernSyntax\Source;..\..\Source\Dependencies\Horse\src;..\..\..\MetaDbDiff\Source\Core;..\..\..\MetaDbDiff\Source\Drivers;..\..\..\FluentSQL\Source\Core;..\..\..\FluentSQL\Source\Drivers;..\..\..\DataEngine\Source\Core;..\..\..\DataEngine\Source\Drivers;..\..\..\DataEngine\Source\External\SQLite3;..\..\..\DataEngine\Source\Integrations;..\..\..\JsonFlow\Source\Core;..\..\..\JsonFlow\Source\JSON\Core;..\..\..\JsonFlow\Source\JSON\IO;..\..\..\JsonFlow\Source\JSON\Composition;..\..\..\JsonFlow\Source\JSON\Middleware;..\..\..\JsonFlow\Source\Reader;..\..\..\JsonFlow\Source\Writer;..\..\..\JsonFlow\Source\Addons\Composition;..\..\..\JsonFlow\Source\Addons\Validation;..\..\..\JsonFlow\Source\Schema\Core;..\..\..\JsonFlow\Source\Schema\IO;..\..\..\JsonFlow\Source\Schema\Composition;..\..\..\JsonFlow\Source\Schema\Validators;..\..\..\JsonFlow\Source\Schema\Validators\Format;..\..\..\JsonFlow\Source\Schema\Validators\Format\Brazil;..\..\..\JsonFlow\Source\Middleware-Horse;..\..\..\ModernSyntax\Source;..\..\..\Horse\src;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <Icon_MainIcon>$(BDS)\bin\delphi_PROJECTICON.ico</Icon_MainIcon>
         <Icns_MainIcns>$(BDS)\bin\delphi_PROJECTICNS.icns</Icns_MainIcns>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <DCC_Namespace>Vcl;Vcl.Imaging;Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
-        <DCC_UnitSearchPath>C:\Program Files (x86)\Embarcadero\Studio\37.0\lib\win32\debug;C:\Program Files (x86)\Embarcadero\Studio\37.0\lib\win32\release;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
+        <DCC_UnitSearchPath>$(BDSLIB)\$(Platform)\debug;$(BDSLIB)\$(Platform)\release;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <BT_BuildType>Debug</BT_BuildType>
         <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <VerInfo_Locale>1033</VerInfo_Locale>
@@ -88,9 +88,10 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="LiveBindings\Tests.Janus.LiveBindings.R221.pas"/>
-        <DCCReference Include="LiveBindings\Tests.Janus.LiveBindings.R222.pas"/>
-        <DCCReference Include="LiveBindings\Tests.Janus.LiveBindings.R223.pas"/>
+        <DCCReference Include="Common\Janus.Test.Runner.pas"/>
+        <DCCReference Include="LiveBindings\Test.Janus.LiveBindings.Base.pas"/>
+        <DCCReference Include="LiveBindings\Test.Janus.LiveBindings.DataSet.pas"/>
+        <DCCReference Include="LiveBindings\Test.Janus.LiveBindings.GridColumn.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
@@ -109,7 +110,7 @@
         <BorlandProject>
             <Delphi.Personality>
                 <Source>
-                    <Source Name="MainSource">JanusLiveBindings.dpr</Source>
+                    <Source Name="MainSource">Janus.Tests.LiveBindings.dpr</Source>
                 </Source>
             </Delphi.Personality>
             <Platforms>

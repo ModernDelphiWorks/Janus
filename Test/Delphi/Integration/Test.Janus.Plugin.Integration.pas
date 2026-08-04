@@ -133,14 +133,14 @@ begin
 
   // Register a plugin that aborts insert
   BeforeInsertMiddleware.AddEvent('TPLUGINABORTINSERT',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       AContext.Abort;
     end, 50);
 
   // Register a callback that simulates the insert execution
   BeforeInsertMiddleware.AddEvent('TPLUGINABORTINSERT',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       LInsertExecuted := True;
     end, 100);
@@ -176,13 +176,13 @@ begin
   LUpdateExecuted := False;
 
   BeforeUpdateMiddleware.AddEvent('TPLUGINABORTUPDATE',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       AContext.Abort;
     end, 50);
 
   BeforeUpdateMiddleware.AddEvent('TPLUGINABORTUPDATE',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       LUpdateExecuted := True;
     end, 100);
@@ -218,13 +218,13 @@ begin
   LDeleteExecuted := False;
 
   BeforeDeleteMiddleware.AddEvent('TPLUGINABORTDELETE',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       AContext.Abort;
     end, 50);
 
   BeforeDeleteMiddleware.AddEvent('TPLUGINABORTDELETE',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       LDeleteExecuted := True;
     end, 100);
@@ -261,14 +261,14 @@ begin
   try
     // Priority 10 — runs first
     BeforeInsertMiddleware.AddEvent('TPLUGINPRIORITY',
-      procedure(const AContext: IJanusHookContext)
+      procedure(AContext: IJanusHookContext)
       begin
         LLog.Add(10);
       end, 10);
 
     // Priority 50 — runs second and aborts
     BeforeInsertMiddleware.AddEvent('TPLUGINPRIORITY',
-      procedure(const AContext: IJanusHookContext)
+      procedure(AContext: IJanusHookContext)
       begin
         LLog.Add(50);
         AContext.Abort;
@@ -276,7 +276,7 @@ begin
 
     // Priority 200 — should NOT run (aborted)
     BeforeInsertMiddleware.AddEvent('TPLUGINPRIORITY',
-      procedure(const AContext: IJanusHookContext)
+      procedure(AContext: IJanusHookContext)
       begin
         LLog.Add(200);
       end, 200);
@@ -317,7 +317,7 @@ begin
   LCapturedEntity := nil;
 
   TJanusMiddlewares.RegisterCustomEvent('OnPreValidateIntegration',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       LCapturedClass := AContext.EntityClass;
       LCapturedEntity := AContext.Entity;

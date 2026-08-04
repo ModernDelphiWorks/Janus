@@ -9,6 +9,7 @@
     "github.com/ModernDelphiWorks/MetaDbDiff": "",
     "github.com/ModernDelphiWorks/DataEngine": "",
     "github.com/ModernDelphiWorks/FluentSQL": "",
-    "github.com/ModernDelphiWorks/JsonFlow": ""
+    "github.com/ModernDelphiWorks/JsonFlow": "",
+    "github.com/HashLoad/horse": "^4.0.0"
   }
 }

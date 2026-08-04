@@ -31,7 +31,7 @@ uses
   Janus.CodeGen.Schema,
   Janus.CodeGen.Engine,
   Janus.CodeGen.Options,
-  TestCodeGenEngine;
+  Test.Janus.CodeGen.Engine;
 
 type
   [TestFixture]

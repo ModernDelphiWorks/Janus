@@ -80,6 +80,7 @@ uses
   FireDAC.Stan.Async,
   FireDAC.Comp.DataSet,
   Horse.Core.RouterTree,
+  Horse.Core.Router.Contract,
   Janus.Oracle.Model.Cliente,
   Janus.Oracle.Model.Produto,
   Janus.Oracle.Model.Pedido,
@@ -227,14 +228,13 @@ end;
 
 procedure TRestHorseOracleTestBase.TearDownFixture;
 var
-  LOldRoutes: THorseRouterTree;
-  LNewRoutes: THorseRouterTree;
+  LNewRoutes: IHorseRouter;
 begin
   _StopHorse;
-  LOldRoutes := THorse.Routes;
+  // Horse 4.x: THorse.Routes is an IHorseRouter; assigning a fresh router
+  // releases the previous one by reference counting (no explicit Free).
   LNewRoutes := THorseRouterTree.Create;
   THorse.Routes := LNewRoutes;
-  LOldRoutes.Free;
   TRESTViewManager.ClearCache;
   FHorseConnection := nil;
   FHorseDConnection.Connected := False;

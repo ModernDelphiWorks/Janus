@@ -282,7 +282,7 @@ var
 begin
   LCalled := False;
   TJanusMiddlewares.RegisterCustomEvent('OnBeforeValidate',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       LCalled := True;
     end);
