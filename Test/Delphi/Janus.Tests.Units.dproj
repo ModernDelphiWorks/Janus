@@ -177,6 +177,7 @@
         <DCCReference Include="Unit\CodeGen\Test.Janus.CodeGen.Template.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Json.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Cursor.Advance.pas"/>
+        <DCCReference Include="Unit\RESTful\Test.Janus.RestFactory.MethodToken.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
