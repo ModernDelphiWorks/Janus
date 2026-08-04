@@ -137,6 +137,7 @@
         </DelphiCompile>
         <DCCReference Include="Common\Janus.Test.Runner.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.KeyOnly.pas"/>
+        <DCCReference Include="Common\Test.Janus.Cursor.Double.pas"/>
         <DCCReference Include="..\..\Examples\Delphi\Data\Object Lazy\Model.Atendimento.pas"/>
         <DCCReference Include="..\..\Examples\Delphi\Data\Object Lazy\Model.Exame.pas"/>
         <DCCReference Include="..\..\Examples\Delphi\Data\Object Lazy\Model.Procedimento.pas"/>
@@ -175,6 +176,7 @@
         <DCCReference Include="Unit\CodeGen\Test.Janus.CodeGen.Schemas.pas"/>
         <DCCReference Include="Unit\CodeGen\Test.Janus.CodeGen.Template.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Json.pas"/>
+        <DCCReference Include="Unit\Core\Test.Janus.Cursor.Advance.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

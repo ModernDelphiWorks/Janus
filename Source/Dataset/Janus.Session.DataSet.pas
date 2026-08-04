@@ -134,6 +134,9 @@ begin
     FOwner.FOrmDataSet.Edit;
     Bind.SetFieldToField(LDBResultSet, FOwner.FOrmDataSet);
     FOwner.FOrmDataSet.Post;
+    // Avanca o cursor: sem isso o laco nunca atinge Eof e reaplica a mesma
+    // linha infinitamente (loop infinito / hang).
+    LDBResultSet.Next;
   end;
 end;
 
@@ -148,6 +151,9 @@ begin
     FOwner.FOrmDataSet.Edit;
     Bind.SetFieldToField(LDBResultSet, FOwner.FOrmDataSet);
     FOwner.FOrmDataSet.Post;
+    // Avanca o cursor: sem isso o laco nunca atinge Eof e reaplica a mesma
+    // linha infinitamente (loop infinito / hang).
+    LDBResultSet.Next;
   end;
 end;
 
@@ -175,6 +181,9 @@ begin
        Bind.SetFieldToField(ADBResultSet, FOwner.FOrmDataSet);
        FOwner.FOrmDataSet.Fields[0].AsInteger := -1;
        FOwner.FOrmDataSet.Post;
+       // Avanca o cursor: sem isso o laco nunca atinge Eof e anexa a mesma
+       // linha infinitamente (loop infinito / OOM).
+       ADBResultSet.Next;
     end;
   finally
     ADBResultSet.Close;
