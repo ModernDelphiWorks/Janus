@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Erros Comuns | Janus Docs</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://example.com/janus/troubleshooting/common-errors"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Erros Comuns | Janus Docs"><meta data-rh="true" name="description" content="Entidade não reconhecida"><meta data-rh="true" property="og:description" content="Entidade não reconhecida"><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://example.com/janus/troubleshooting/common-errors"><link data-rh="true" rel="alternate" href="https://example.com/janus/troubleshooting/common-errors" hreflang="en"><link data-rh="true" rel="alternate" href="https://example.com/janus/troubleshooting/common-errors" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Janus","item":"https://example.com/janus/"},{"@type":"ListItem","position":2,"name":"Erros Comuns","item":"https://example.com/janus/troubleshooting/common-errors"}]}</script><link rel="stylesheet" href="/assets/css/styles.78e6bda1.css">
-<script src="/assets/js/runtime~main.e9d84292.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.65a0054b.js" defer="defer"></script>
 <script src="/assets/js/main.567e2257.js" defer="defer"></script>
 </head>
 <body>
@@ -57,11 +57,11 @@
 <ul>
 <li class="">Sintoma: compilação falha em <code>TestSmokeLazyLoading.pas</code> com <code>E2003 Undeclared identifier: &#x27;Supports&#x27;</code>.</li>
 <li class="">Causa provável: unit necessária para resolução de <code>Supports</code> ausente no <code>uses</code> do teste.</li>
-<li class="">Ação: incluir <code>SysUtils</code> no <code>uses</code> do teste e recompilar <code>Test/Delphi/Janus.Tests.Unit.dpr</code>.</li>
+<li class="">Ação: incluir <code>SysUtils</code> no <code>uses</code> do teste e recompilar <code>Test/Delphi/Janus.Tests.Units.dpr</code>.</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="f2613-unit-sysutils-not-found-no-gate-final">F2613 Unit <code>SysUtils</code> not found no gate final<a href="#f2613-unit-sysutils-not-found-no-gate-final" class="hash-link" aria-label="Direct link to f2613-unit-sysutils-not-found-no-gate-final" title="Direct link to f2613-unit-sysutils-not-found-no-gate-final" translate="no">​</a></h2>
 <ul>
-<li class="">Sintoma: o gate final de release falha ao compilar <code>Janus.Tests.Unit</code> com <code>F2613 Unit &#x27;SysUtils&#x27; not found</code>.</li>
+<li class="">Sintoma: o gate final de release falha ao compilar <code>Janus.Tests.Units</code> com <code>F2613 Unit &#x27;SysUtils&#x27; not found</code>.</li>
 <li class="">Causa provável: ambiente Delphi não inicializado corretamente no script de compilação.</li>
 <li class="">Ação: executar o fluxo oficial de build/smoke com os scripts de suporte da release (<code>.claude/tmp-compile-janussmoke.cmd</code> e <code>.claude/tmp/build-janussmoke.cmd</code>) para garantir resolução de paths do compilador.</li>
 </ul>
