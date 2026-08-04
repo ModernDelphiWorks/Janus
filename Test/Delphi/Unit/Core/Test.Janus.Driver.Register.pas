@@ -60,7 +60,7 @@ type
 implementation
 
 const
-  // Enum value never registered by production code in Janus.Tests.Unit.dpr
+  // Enum value never registered by production code in Janus.Tests.Units.dpr
   // (no Janus.DML.Generator.DB2.pas exists). Used as the "missing" key.
   CMissingDriver: TDriverName = dnDB2;
 
@@ -106,7 +106,7 @@ end;
 
 procedure TTestJanusDriverRegister.RegisterDriver_AddsToRegistry;
 begin
-  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA);
+  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA());
 
   TDriverRegister.GetDriver(CScratchDriver);
 
@@ -115,8 +115,8 @@ end;
 
 procedure TTestJanusDriverRegister.RegisterDriver_OverwritesExisting;
 begin
-  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA);
-  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryB);
+  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA());
+  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryB());
 
   TDriverRegister.GetDriver(CScratchDriver);
 
@@ -151,7 +151,7 @@ procedure TTestJanusDriverRegister.GetDriver_InvokesFactoryEachCall;
 var
   LFor: Integer;
 begin
-  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA);
+  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA());
 
   for LFor := 1 to 3 do
     TDriverRegister.GetDriver(CScratchDriver);
@@ -166,8 +166,8 @@ var
 begin
   LBefore := TDriverRegister.GetDriver(CProductionDriver);
 
-  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA);
-  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryB);
+  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA());
+  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryB());
   TDriverRegister.GetDriver(CScratchDriver);
 
   LAfter := TDriverRegister.GetDriver(CProductionDriver);

@@ -18,7 +18,7 @@
   @abstract(Telagram : https://t.me/Janus)
 }
 
-program Janus.Tests.Unit;
+program Janus.Tests.Units;
 
 {$IFNDEF TESTINSIGHT}
 {$APPTYPE CONSOLE}

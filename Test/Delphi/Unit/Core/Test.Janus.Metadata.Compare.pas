@@ -73,7 +73,7 @@ implementation
 
 const
   // Number of create/free cycles for the leak smoke test. ReportMemoryLeaksOnShutdown
-  // is enabled by Janus.Tests.Unit.dpr (round 63 #186), so any leaked instance
+  // is enabled by Janus.Tests.Units.dpr (round 63 #186), so any leaked instance
   // surfaces at executor shutdown.
   CLifecycleCycles = 50;
 

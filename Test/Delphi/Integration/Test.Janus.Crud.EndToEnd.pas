@@ -91,7 +91,7 @@ begin
   LOperType := onCustom;
 
   BeforeInsertMiddleware.AddEvent('TCRUDINSERTBEFORE',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       LFired := True;
       LOperType := AContext.OperationType;
@@ -124,13 +124,13 @@ begin
   LOrder := TList<String>.Create;
   try
     BeforeInsertMiddleware.AddEvent('TCRUDINSERTORDER',
-      procedure(const AContext: IJanusHookContext)
+      procedure(AContext: IJanusHookContext)
       begin
         LOrder.Add('Before');
       end, 100);
 
     AfterInsertMiddleware.AddEvent('TCRUDINSERTORDER',
-      procedure(const AContext: IJanusHookContext)
+      procedure(AContext: IJanusHookContext)
       begin
         LOrder.Add('After');
       end, 100);
@@ -180,7 +180,7 @@ begin
   LOperType := onCustom;
 
   BeforeUpdateMiddleware.AddEvent('TCRUDUPDATEBEFORE',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       LFired := True;
       LOperType := AContext.OperationType;
@@ -214,13 +214,13 @@ begin
   LAfterFired := False;
 
   BeforeUpdateMiddleware.AddEvent('TCRUDUPDATEABORT',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       AContext.Abort;
     end, 100);
 
   AfterUpdateMiddleware.AddEvent('TCRUDUPDATEABORT',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       LAfterFired := True;
     end, 100);
@@ -270,7 +270,7 @@ begin
   LOperType := onCustom;
 
   BeforeDeleteMiddleware.AddEvent('TCRUDDELETEBEFORE',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       LFired := True;
       LOperType := AContext.OperationType;
@@ -304,13 +304,13 @@ begin
   LAfterFired := False;
 
   BeforeDeleteMiddleware.AddEvent('TCRUDDELETEABORT',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       AContext.Abort;
     end, 100);
 
   AfterDeleteMiddleware.AddEvent('TCRUDDELETEABORT',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       LAfterFired := True;
     end, 100);
@@ -358,37 +358,37 @@ begin
   try
     // Register BeforeInsert
     BeforeInsertMiddleware.AddEvent('TCRUDFULLCHAIN',
-      procedure(const AContext: IJanusHookContext)
+      procedure(AContext: IJanusHookContext)
       begin
         LLog.Add('BeforeInsert');
       end, 100);
     // Register AfterInsert
     AfterInsertMiddleware.AddEvent('TCRUDFULLCHAIN',
-      procedure(const AContext: IJanusHookContext)
+      procedure(AContext: IJanusHookContext)
       begin
         LLog.Add('AfterInsert');
       end, 100);
     // Register BeforeUpdate
     BeforeUpdateMiddleware.AddEvent('TCRUDFULLCHAIN',
-      procedure(const AContext: IJanusHookContext)
+      procedure(AContext: IJanusHookContext)
       begin
         LLog.Add('BeforeUpdate');
       end, 100);
     // Register AfterUpdate
     AfterUpdateMiddleware.AddEvent('TCRUDFULLCHAIN',
-      procedure(const AContext: IJanusHookContext)
+      procedure(AContext: IJanusHookContext)
       begin
         LLog.Add('AfterUpdate');
       end, 100);
     // Register BeforeDelete
     BeforeDeleteMiddleware.AddEvent('TCRUDFULLCHAIN',
-      procedure(const AContext: IJanusHookContext)
+      procedure(AContext: IJanusHookContext)
       begin
         LLog.Add('BeforeDelete');
       end, 100);
     // Register AfterDelete
     AfterDeleteMiddleware.AddEvent('TCRUDFULLCHAIN',
-      procedure(const AContext: IJanusHookContext)
+      procedure(AContext: IJanusHookContext)
       begin
         LLog.Add('AfterDelete');
       end, 100);
@@ -463,13 +463,13 @@ begin
   LMetadataValue := '';
 
   BeforeInsertMiddleware.AddEvent('TCRUDMETADATA',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       AContext.Metadata.AddOrSetValue('source', TValue.From<String>('batch'));
     end, 50);
 
   BeforeInsertMiddleware.AddEvent('TCRUDMETADATA',
-    procedure(const AContext: IJanusHookContext)
+    procedure(AContext: IJanusHookContext)
     begin
       if AContext.Metadata.ContainsKey('source') then
         LMetadataValue := AContext.Metadata['source'].AsString;

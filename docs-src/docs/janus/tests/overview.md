@@ -7,13 +7,13 @@ title: Testes
 
 A suite de testes DUnitX está dividida em quatro executores independentes. Cada executor compila e executa um conjunto específico de fixtures; o NUnit XML produzido por cada `.exe` é a fonte de verdade em tempo de execução para a contagem real de `[Test]`.
 
-- **Janus.Tests.Unit.dpr** — suite unitária rápida: mapeamento, lazy, middleware, plugins, CodeGen, JSON, DML, FluentSQL, REST QueryParse
+- **Janus.Tests.Units.dpr** — suite unitária rápida: mapeamento, lazy, middleware, plugins, CodeGen, JSON, DML, FluentSQL, REST QueryParse
 - **Janus.Tests.RESTHorse.dpr** — integração REST/Horse: CRUD sobre HTTP, endpoints read-only, join views, driver prefix, controle de verbo
 - **Janus.Tests.LiveBindings.dpr** — LiveBindings R22.x: `TJanusBinder` com atributos `[Bind]`/`[BindGrid]`/`[BindGridColumn]`
 - **Janus.Tests.RESTOracle.dpr** — Oracle AutoView: integração REST com Oracle XE (requer infraestrutura local)
 - **FPCUnit** — compatibilidade Lazarus em `Test/Lazarus/` (fora do escopo DUnitX)
 
-Aggregate pré-`#170`: 300 atributos `[Test]` executados (217 + 48 + 31 + 4). Alvo pós-`#170` após rebuild CI: ≥289 em `Janus.Tests.Unit.exe` (7 fixtures recém-vinculadas); total ≥372 nos 4 executores.
+Aggregate pré-`#170`: 300 atributos `[Test]` executados (217 + 48 + 31 + 4). Alvo pós-`#170` após rebuild CI: ≥289 em `Janus.Tests.Units.exe` (7 fixtures recém-vinculadas); total ≥372 nos 4 executores.
 
 Os arquivos XML de resultado (`Test/Delphi/dunitx-*.xml`) são a fonte de verdade em runtime. Inspecione-os após uma execução local ou pelo self-hosted Delphi CI.
 
@@ -32,7 +32,7 @@ A partir de v2.22.5, as fixtures DUnitX estão organizadas em uma árvore em cam
 
 A pasta plana `Test/Delphi/Tests/` foi dissolvida em #191 (demanda 6/8 do audit-driven roadmap).
 
-## Janus.Tests.Unit.dpr — suite unitária rápida
+## Janus.Tests.Units.dpr — suite unitária rápida
 
 | Arquivo de teste | Count | Área coberta |
 |-----------------|-------|-------------|
@@ -104,7 +104,7 @@ A partir de v2.22.4, a lógica de bootstrap e execução dos executores foi extr
 | `Janus.Test.Runner.pas` | Inicialização do runner DUnitX, configuração de listeners XML e console |
 | `Janus.Test.Bootstrap.pas` | Setup de ambiente compartilhado (conexão, diretórios, teardown global) |
 
-Os quatro executores (`Janus.Tests.Unit`, `Janus.Tests.RESTHorse`, `Janus.Tests.LiveBindings`, `Janus.Tests.RESTOracle`) importam esses arquivos via `uses` clause em vez de duplicar o código de runner internamente.
+Os quatro executores (`Janus.Tests.Units`, `Janus.Tests.RESTHorse`, `Janus.Tests.LiveBindings`, `Janus.Tests.RESTOracle`) importam esses arquivos via `uses` clause em vez de duplicar o código de runner internamente.
 
 ## Detecção de orphan fixtures
 
@@ -150,10 +150,10 @@ Saída esperada: `compile=24 run=0 defer=4 exclude=21` + `[dry-run] manifest val
 
 ## Como executar
 
-**Janus.Tests.Unit** (suite padrão):
+**Janus.Tests.Units** (suite padrão):
 ```
 cd Test/Delphi
-Janus.Tests.Unit.exe --exitbehavior:Continue --xmlfile:dunitx-results.xml
+Janus.Tests.Units.exe --exitbehavior:Continue --xmlfile:dunitx-results.xml
 ```
 
 **Janus.Tests.RESTHorse** (integração REST/Horse):
@@ -174,6 +174,12 @@ cd Test/Delphi
 TNS_ADMIN="<abs-path-to-Test/Delphi>" Janus.Tests.RESTOracle.exe --exitbehavior:Continue --xmlfile:dunitx-oracle-results.xml
 ```
 
+> **Recurso externo.** `Janus.Tests.RESTOracle` **compila** como os demais executores, mas
+> a sua execução depende de recursos que não fazem parte do repositório: uma instância
+> Oracle XE atendendo em `localhost:1521` e o cliente OCI (`oci.dll`) alcançável pelo
+> processo. Sem esses dois itens o executor não roda — não é falha de teste. Ele fica,
+> portanto, **fora do placar** da suíte; o gate é a compilação.
+
 Saída esperada: todos os testes verdes em cada executor. Os arquivos XML de resultado são gerados no diretório de trabalho.
 
 ## Notas de versão
@@ -188,3 +194,5 @@ Saída esperada: todos os testes verdes em cada executor. Os arquivos XML de res
 - A partir de v2.22.2, 7 fixtures previamente não registradas foram vinculadas ao `JanusSmoke.dpr` (#170).
 - A partir de v2.22.4, lógica de runner extraída para `Janus.Test.Runner.pas` e `Janus.Test.Bootstrap.pas` em `Test/Delphi/Common/`; `DCC_UnitSearchPath` padronizado nos 49 exemplos; Examples Build Gate adicionado com manifesto `auto-validable.txt` e workflow `examples.yml` (#185–#188).
 - A partir de v2.22.5, `Test/Delphi/Tests/` reorganizada em árvore em camadas (`Common`/`Unit`/`Integration`/`RESTHorse`/`RESTOracle`/`LiveBindings`) com 35 fixtures renomeadas para `Test.Janus.<area>.<subject>.pas` (#191); os quatro executores renomeados para `Janus.Tests.{Unit,RESTHorse,LiveBindings,RESTOracle}.dpr`; quatro fixtures `Tests.Janus.LiveBindings.R22N.pas` consolidadas em três unidades release-agnostic com `[Category('R22.x')]` (#192).
+- O executor unitário chama-se `Janus.Tests.Units` (com `s`): `Unit` é palavra reservada em Object Pascal, e `program Janus.Tests.Unit;` não compila (`E2029 Identifier expected but 'UNIT' found`). Os `.dproj` dos quatro executores usam caminhos **relativos** ao próprio `Test/Delphi/`, cobrindo tanto as dependências vendorizadas em `Source/Dependencies/` quanto um checkout lado-a-lado dos frameworks irmãos.
+- Os executores REST assumem **Horse 4.x**: `THorse.Routes` é `IHorseRouter` (interface, contada por referência) e não mais uma instância `THorseRouterTree` liberada à mão. A dependência `github.com/HashLoad/horse` passou a ser declarada em `boss.json`.

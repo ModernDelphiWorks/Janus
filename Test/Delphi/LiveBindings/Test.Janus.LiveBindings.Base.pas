@@ -367,7 +367,7 @@ begin
   LBinder := TJanusBinder.Create(FForm);
   try
     LBinder.BindGrid<TTestProduct>(FProducts, 'GridProducts');
-    Assert.AreEqual(2, LBinder.GridBindSources[0].Adapter.ItemCount,
+    Assert.AreEqual(2, LBinder.AdapterBindSources[0].Adapter.ItemCount,
       'Adapter item count must equal list count (CA-001)');
   finally
     LBinder.Free;
@@ -400,8 +400,8 @@ begin
   try
     LBinder.BindMasterDetail<TTestProduct, TTestOrder>(
       FProducts, 'GridProducts', _GetOrders, 'GridOrders');
-    LBinder.GridBindSources[0].Next;
-    Assert.AreEqual(1, LBinder.GridBindSources[1].Adapter.ItemCount,
+    LBinder.AdapterBindSources[0].Next;
+    Assert.AreEqual(1, LBinder.AdapterBindSources[1].Adapter.ItemCount,
       'After master scroll to product[1] detail count must be 1 (CA-003)');
   finally
     LBinder.Free;
@@ -418,7 +418,7 @@ begin
   try
     LBinder.BindMasterDetail<TTestProduct, TTestOrder>(
       LEmptyList, 'GridProducts', _GetOrders, 'GridOrders');
-    Assert.AreEqual(0, LBinder.GridBindSources[0].Adapter.ItemCount,
+    Assert.AreEqual(0, LBinder.AdapterBindSources[0].Adapter.ItemCount,
       'Master grid must show 0 rows for empty list (CA-004)');
   finally
     LBinder.Free;
@@ -434,10 +434,10 @@ begin
   try
     LBinder.BindMasterDetailSubdetail<TTestProduct, TTestOrder, TTestOrderLine>(
       FProducts, 'GridProducts', _GetOrders, 'GridOrders', _GetLines, 'GridLines');
-    LBinder.GridBindSources[0].Next;    // master → product[1], detail → FOrders1 (1 order)
-    LBinder.GridBindSources[0].Prior;   // master → product[0], detail → FOrders0 (3 orders)
-    LBinder.GridBindSources[1].First;   // detail → order[0], subdetail → FLines0 (2 lines)
-    Assert.AreEqual(2, LBinder.GridBindSources[2].Adapter.ItemCount,
+    LBinder.AdapterBindSources[0].Next;    // master → product[1], detail → FOrders1 (1 order)
+    LBinder.AdapterBindSources[0].Prior;   // master → product[0], detail → FOrders0 (3 orders)
+    LBinder.AdapterBindSources[1].First;   // detail → order[0], subdetail → FLines0 (2 lines)
+    Assert.AreEqual(2, LBinder.AdapterBindSources[2].Adapter.ItemCount,
       'Subdetail adapter count must be 2 after scrolling to order[0] (CA-005)');
   finally
     LBinder.Free;
@@ -530,9 +530,9 @@ begin
   try
     LBinder1.BindGrid<TTestProduct>(FProducts, 'GridProducts');
     LBinder2.BindGrid<TTestProduct>(LProducts2, 'GridProducts');
-    Assert.AreEqual(2, LBinder1.GridBindSources[0].Adapter.ItemCount,
+    Assert.AreEqual(2, LBinder1.AdapterBindSources[0].Adapter.ItemCount,
       'Binder1 must show 2 rows for FProducts');
-    Assert.AreEqual(1, LBinder2.GridBindSources[0].Adapter.ItemCount,
+    Assert.AreEqual(1, LBinder2.AdapterBindSources[0].Adapter.ItemCount,
       'Binder2 must show 1 row independently (CA-009)');
   finally
     LBinder2.Free;

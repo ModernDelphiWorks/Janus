@@ -300,7 +300,7 @@ begin
   LBinder := TJanusBinder.Create(FForm);
   try
     LBinder.BindGrid<TLocalProduct>(FProducts, 'GridProducts');
-    Assert.AreEqual(2, LBinder.GridBindSources[0].Adapter.ItemCount,
+    Assert.AreEqual(2, LBinder.AdapterBindSources[0].Adapter.ItemCount,
       'Object backend BindGrid must still yield 2 rows after R22.3 extension (CA-008)');
   finally
     LBinder.Free;

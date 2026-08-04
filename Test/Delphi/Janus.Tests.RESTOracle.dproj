@@ -1,10 +1,10 @@
 ﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
         <ProjectGuid>{4A1912B7-5811-4377-8AEE-036B6E2CD0B0}</ProjectGuid>
-        <MainSource>JanusRESTHorseConsole.dpr</MainSource>
+        <MainSource>Janus.Tests.RESTOracle.dpr</MainSource>
         <Base>True</Base>
         <Config Condition="'$(Config)'==''">Debug</Config>
-        <ProjectName Condition="'$(ProjectName)'==''">JanusRESTHorseConsole</ProjectName>
+        <ProjectName Condition="'$(ProjectName)'==''">Janus.Tests.RESTOracle</ProjectName>
         <TargetedPlatforms>660609</TargetedPlatforms>
         <AppType>Console</AppType>
         <FrameworkType>None</FrameworkType>
@@ -56,10 +56,11 @@
         <DCC_N>false</DCC_N>
         <DCC_S>false</DCC_S>
         <DCC_ImageBase>00400000</DCC_ImageBase>
-        <SanitizedProjectName>JanusRESTHorseConsole</SanitizedProjectName>
+        <SanitizedProjectName>Janus_Tests_RESTOracle</SanitizedProjectName>
         <VerInfo_Locale>1046</VerInfo_Locale>
         <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=;CFBundleName=</VerInfo_Keys>
         <DCC_Namespace>System;Xml;Data;Datasnap;Web;Soap;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_UnitSearchPath>..\..\Source\Livebindings;..\..\Source\Core;..\..\Source\Middleware;..\..\Source\Middleware-Horse;..\..\Source\CodeGen;..\..\Source\RESTful\Server;..\..\Source\RESTful\Common;..\..\Source\RESTful\Client;..\..\Source\Dataset;..\..\Source\Objectset;..\..\Source\Metadata;..\..\Source\Monitor;..\..\Source\External\SQLite3;..\..\Source\Dependencies\MetaDbDiff\Source\Core;..\..\Source\Dependencies\MetaDbDiff\Source\Drivers;..\..\Source\Dependencies\FluentSQL\Source\Core;..\..\Source\Dependencies\FluentSQL\Source\Drivers;..\..\Source\Dependencies\DataEngine\Source\Core;..\..\Source\Dependencies\DataEngine\Source\Drivers;..\..\Source\Dependencies\DataEngine\Source\External\SQLite3;..\..\Source\Dependencies\DataEngine\Source\Integrations;..\..\Source\Dependencies\JsonFlow\Source\Core;..\..\Source\Dependencies\JsonFlow\Source\JSON\Core;..\..\Source\Dependencies\JsonFlow\Source\JSON\IO;..\..\Source\Dependencies\JsonFlow\Source\JSON\Composition;..\..\Source\Dependencies\JsonFlow\Source\JSON\Middleware;..\..\Source\Dependencies\JsonFlow\Source\Reader;..\..\Source\Dependencies\JsonFlow\Source\Writer;..\..\Source\Dependencies\JsonFlow\Source\Addons\Composition;..\..\Source\Dependencies\JsonFlow\Source\Addons\Validation;..\..\Source\Dependencies\JsonFlow\Source\Schema\Core;..\..\Source\Dependencies\JsonFlow\Source\Schema\IO;..\..\Source\Dependencies\JsonFlow\Source\Schema\Composition;..\..\Source\Dependencies\JsonFlow\Source\Schema\Validators;..\..\Source\Dependencies\JsonFlow\Source\Schema\Validators\Format;..\..\Source\Dependencies\JsonFlow\Source\Schema\Validators\Format\Brazil;..\..\Source\Dependencies\JsonFlow\Source\Middleware-Horse;..\..\Source\Dependencies\ModernSyntax\Source;..\..\Source\Dependencies\Horse\src;..\..\..\MetaDbDiff\Source\Core;..\..\..\MetaDbDiff\Source\Drivers;..\..\..\FluentSQL\Source\Core;..\..\..\FluentSQL\Source\Drivers;..\..\..\DataEngine\Source\Core;..\..\..\DataEngine\Source\Drivers;..\..\..\DataEngine\Source\External\SQLite3;..\..\..\DataEngine\Source\Integrations;..\..\..\JsonFlow\Source\Core;..\..\..\JsonFlow\Source\JSON\Core;..\..\..\JsonFlow\Source\JSON\IO;..\..\..\JsonFlow\Source\JSON\Composition;..\..\..\JsonFlow\Source\JSON\Middleware;..\..\..\JsonFlow\Source\Reader;..\..\..\JsonFlow\Source\Writer;..\..\..\JsonFlow\Source\Addons\Composition;..\..\..\JsonFlow\Source\Addons\Validation;..\..\..\JsonFlow\Source\Schema\Core;..\..\..\JsonFlow\Source\Schema\IO;..\..\..\JsonFlow\Source\Schema\Composition;..\..\..\JsonFlow\Source\Schema\Validators;..\..\..\JsonFlow\Source\Schema\Validators\Format;..\..\..\JsonFlow\Source\Schema\Validators\Format\Brazil;..\..\..\JsonFlow\Source\Middleware-Horse;..\..\..\ModernSyntax\Source;..\..\..\Horse\src;..\..\Examples\Delphi\RESTful\Horse\Oracle\models;$(DCC_UnitSearchPath)</DCC_UnitSearchPath>
         <Icon_MainIcon>$(BDS)\bin\delphi_PROJECTICON.ico</Icon_MainIcon>
         <Icns_MainIcns>$(BDS)\bin\delphi_PROJECTICNS.icns</Icns_MainIcns>
     </PropertyGroup>
@@ -112,7 +113,7 @@
         <iPad_AppIcon152>$(BDS)\bin\Artwork\iOS\iPad\FM_ApplicationIcon_152x152.png</iPad_AppIcon152>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
-        <DCC_Namespace>Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
+        <DCC_Namespace>Vcl;Vcl.Imaging;Winapi;System.Win;Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
         <BT_BuildType>Debug</BT_BuildType>
         <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProgramID=com.embarcadero.$(MSBuildProjectName);ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <VerInfo_Locale>1033</VerInfo_Locale>
@@ -134,7 +135,10 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <DCCReference Include="Tests\JanusRESTHorseConsole.Models.pas"/>
+        <DCCReference Include="Common\Janus.Test.Bootstrap.pas"/>
+        <DCCReference Include="Common\Janus.Test.Runner.pas"/>
+        <DCCReference Include="RESTOracle\Support\RestHorseOracleTest.Base.pas"/>
+        <DCCReference Include="RESTOracle\Test.Janus.REST.Oracle.AutoView.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
@@ -153,7 +157,7 @@
         <BorlandProject>
             <Delphi.Personality>
                 <Source>
-                    <Source Name="MainSource">JanusRESTHorseConsole.dpr</Source>
+                    <Source Name="MainSource">Janus.Tests.RESTOracle.dpr</Source>
                 </Source>
             </Delphi.Personality>
             <Platforms>

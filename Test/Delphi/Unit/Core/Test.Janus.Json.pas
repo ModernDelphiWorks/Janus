@@ -85,6 +85,9 @@ type
 
 implementation
 
+uses
+  DateUtils;
+
 function TTestJanusJson.CreateEntity: TSampleJsonEntity;
 begin
   Result := TSampleJsonEntity.Create;

@@ -49,11 +49,11 @@ title: Erros Comuns
 
 - Sintoma: compilação falha em `TestSmokeLazyLoading.pas` com `E2003 Undeclared identifier: 'Supports'`.
 - Causa provável: unit necessária para resolução de `Supports` ausente no `uses` do teste.
-- Ação: incluir `SysUtils` no `uses` do teste e recompilar `Test/Delphi/Janus.Tests.Unit.dpr`.
+- Ação: incluir `SysUtils` no `uses` do teste e recompilar `Test/Delphi/Janus.Tests.Units.dpr`.
 
 ## F2613 Unit `SysUtils` not found no gate final
 
-- Sintoma: o gate final de release falha ao compilar `Janus.Tests.Unit` com `F2613 Unit 'SysUtils' not found`.
+- Sintoma: o gate final de release falha ao compilar `Janus.Tests.Units` com `F2613 Unit 'SysUtils' not found`.
 - Causa provável: ambiente Delphi não inicializado corretamente no script de compilação.
 - Ação: executar o fluxo oficial de build/smoke com os scripts de suporte da release (`.claude/tmp-compile-janussmoke.cmd` e `.claude/tmp/build-janussmoke.cmd`) para garantir resolução de paths do compilador.
 
