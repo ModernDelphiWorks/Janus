@@ -22,8 +22,6 @@
 
 unit Janus.Server.WiRL;
 
-{$IFDEF JANUS_REST_WIRL}
-
 interface
 
 uses
@@ -102,10 +100,5 @@ begin
   /// <summary> Adiciona a App REST no WiRL </summary>
   AddResource;
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

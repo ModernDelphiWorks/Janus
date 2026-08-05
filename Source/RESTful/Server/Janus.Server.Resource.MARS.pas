@@ -22,8 +22,6 @@
 
 unit Janus.Server.Resource.MARS;
 
-{$IFDEF JANUS_REST_MARS}
-
 interface
 
 uses
@@ -163,10 +161,5 @@ end;
 
 initialization
   TMARSResourceRegistry.Instance.RegisterResource<TAppResource>;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

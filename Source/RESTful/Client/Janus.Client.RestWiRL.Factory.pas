@@ -22,8 +22,6 @@
 
 unit Janus.Client.RestWiRL.Factory;
 
-{$IFDEF JANUS_REST_WIRL}
-
 interface
 
 uses
@@ -66,10 +64,5 @@ begin
   Result := FDriverConnection
               .Execute(AResource, ASubResource, ARequestMethod, AParams);
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

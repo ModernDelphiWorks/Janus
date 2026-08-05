@@ -22,8 +22,6 @@
 
 unit Janus.Client.RestDriver.WiRL;
 
-{$IFDEF JANUS_REST_WIRL}
-
 interface
 
 uses
@@ -172,10 +170,5 @@ procedure TRESTDriverWiRL.SetClassNotServerUse(const Value: Boolean);
 begin
   FConnection.SetClassNotServerUse(Value);
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

@@ -22,8 +22,6 @@
 
 unit Janus.Server.Resource.DMVC;
 
-{$IFDEF JANUS_REST_DMVC}
-
 interface
 
 uses
@@ -149,10 +147,5 @@ begin
     LQuery.Free;
   end;
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

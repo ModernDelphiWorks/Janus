@@ -22,8 +22,6 @@
 
 unit Janus.Server.Resource.WiRL;
 
-{$IFDEF JANUS_REST_WIRL}
-
 interface
 
 uses
@@ -154,10 +152,5 @@ end;
 
 initialization
   TWiRLResourceRegistry.Instance.RegisterResource<TAppResource>;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

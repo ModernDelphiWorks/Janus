@@ -22,8 +22,6 @@
 
 unit Janus.Client.WiRL;
 
-{$IFDEF JANUS_REST_WIRL}
-
 interface
 
 uses
@@ -465,10 +463,5 @@ begin
   FRESTClient.ProxyParams.ProxyUsername := FProxyParams.ProxyUsername;
   FRESTClient.ProxyParams.ProxyPassword := FProxyParams.ProxyPassword;
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

@@ -22,8 +22,6 @@
 
 unit Janus.Client.RestDriver.MARS;
 
-{$IFDEF JANUS_REST_MARS}
-
 interface
 
 uses
@@ -156,10 +154,5 @@ procedure TRESTDriverMARS.SetClassNotServerUse(const Value: Boolean);
 begin
   FConnection.SetClassNotServerUse(Value);
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

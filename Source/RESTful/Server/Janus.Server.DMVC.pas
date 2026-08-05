@@ -22,8 +22,6 @@
 
 unit Janus.Server.DMVC;
 
-{$IFDEF JANUS_REST_DMVC}
-
 interface
 
 uses
@@ -95,10 +93,5 @@ begin
   /// <summary> Adiciona a App REST no Delphi MVC </summary>
   AddResource;
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.
