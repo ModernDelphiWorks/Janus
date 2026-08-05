@@ -31,7 +31,7 @@ uses
   SysUtils,
   Janus.Client.DMVC,
   Janus.Client.Methods,
-  Janus.Driver.REST;
+  Janus.Client.RestDriver;
 
 type
   /// <summary>
