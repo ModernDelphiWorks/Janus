@@ -53,6 +53,7 @@ type
     FConnection: IDBConnection;
     procedure OpenDataSetChilds; override;
     procedure RefreshDataSetOneToOneChilds(AFieldName: String); override;
+    procedure DoBeforeScroll(DataSet: TDataSet); override;
     procedure DoAfterScroll(DataSet: TDataSet); override;
     procedure DoBeforePost(DataSet: TDataSet); override;
     procedure DoBeforeDelete(DataSet: TDataSet); override;
@@ -88,6 +89,20 @@ destructor TDataSetAdapter<M>.Destroy;
 begin
   FSession.Free;
   inherited;
+end;
+
+/// <summary> The scroll contract lives HERE and not in the base class because
+///  this is the family whose DoAfterScroll calls OpenDataSetChilds, which
+///  re-reads every child from the database and therefore throws away rows that
+///  were typed and not saved. TRESTDataSetAdapter<M> descends straight from the
+///  base and its OpenDataSetChilds has an empty body, so it loses nothing and
+///  has nothing to ask about - firing there would be a false alarm.
+///  inherited runs FIRST: the consumer's own BeforeScroll keeps the position in
+///  the chain it always had, and the new question is appended after it. </summary>
+procedure TDataSetAdapter<M>.DoBeforeScroll(DataSet: TDataSet);
+begin
+  inherited;
+  DoBeforeScrollPendingChilds;
 end;
 
 procedure TDataSetAdapter<M>.DoAfterScroll(DataSet: TDataSet);
