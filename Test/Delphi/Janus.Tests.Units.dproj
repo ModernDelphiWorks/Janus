@@ -189,6 +189,7 @@
         <DCCReference Include="Common\Test.Janus.Model.AsymTree.pas"/>
         <DCCReference Include="Integration\Test.Janus.ObjectSet.CascadeUpdateList.pas"/>
         <DCCReference Include="Integration\Test.Janus.ObjectSet.UpdateMasterKey.pas"/>
+        <DCCReference Include="Unit\Container\Test.Janus.Close.VsEmpty.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

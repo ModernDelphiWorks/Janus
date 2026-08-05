@@ -106,7 +106,9 @@ uses
   /// all, and whether the master key reaches a child added on update — #242
   Test.Janus.ObjectSet.CascadeUpdateList in 'Integration\Test.Janus.ObjectSet.CascadeUpdateList.pas',
   /// Whether the MASTER key reaches a child added on update — issue #242
-  Test.Janus.ObjectSet.UpdateMasterKey in 'Integration\Test.Janus.ObjectSet.UpdateMasterKey.pas';
+  Test.Janus.ObjectSet.UpdateMasterKey in 'Integration\Test.Janus.ObjectSet.UpdateMasterKey.pas',
+  /// What a real close costs against what emptying costs — issue #246
+  Test.Janus.Close.VsEmpty in 'Unit\Container\Test.Janus.Close.VsEmpty.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
