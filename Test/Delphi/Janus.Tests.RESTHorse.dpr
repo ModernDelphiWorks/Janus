@@ -64,7 +64,17 @@ uses
   /// The same question on the LIST leg, where N children are inserted — issue #242
   Test.Janus.Server.RestObjectSet.CascadeUpdateList in 'RESTHorse\Test.Janus.Server.RestObjectSet.CascadeUpdateList.pas',
   /// Whether the MASTER key reaches a child added on update — issue #242
-  Test.Janus.Server.RestObjectSet.UpdateMasterKey in 'RESTHorse\Test.Janus.Server.RestObjectSet.UpdateMasterKey.pas';
+  Test.Janus.Server.RestObjectSet.UpdateMasterKey in 'RESTHorse\Test.Janus.Server.RestObjectSet.UpdateMasterKey.pas',
+  /// Key-only entity, no updatable column — issue #240
+  Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
+  /// The ORDER the server side cascade deletes a tree in — issue #240
+  Test.Janus.Server.RestObjectSet.CascadeDelete in 'RESTHorse\Test.Janus.Server.RestObjectSet.CascadeDelete.pas',
+  /// A single-object association that is nil — issue #240
+  Test.Janus.Server.RestObjectSet.NilBranch in 'RESTHorse\Test.Janus.Server.RestObjectSet.NilBranch.pas',
+  /// The ExistSequence guard around the cascade propagation — issue #240
+  Test.Janus.Server.RestObjectSet.SuppliedKey in 'RESTHorse\Test.Janus.Server.RestObjectSet.SuppliedKey.pas',
+  /// A key-only Update on the server side — issue #240
+  Test.Janus.Server.RestObjectSet.NoOpUpdate in 'RESTHorse\Test.Janus.Server.RestObjectSet.NoOpUpdate.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

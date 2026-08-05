@@ -1,4 +1,4 @@
-﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
     <PropertyGroup>
         <ProjectGuid>{F84FEA1F-CC54-4EEE-84B0-74EFF0DD1C72}</ProjectGuid>
         <MainSource>Janus.Tests.Units.dpr</MainSource>
@@ -189,6 +189,7 @@
         <DCCReference Include="Common\Test.Janus.Model.AsymTree.pas"/>
         <DCCReference Include="Integration\Test.Janus.ObjectSet.CascadeUpdateList.pas"/>
         <DCCReference Include="Integration\Test.Janus.ObjectSet.UpdateMasterKey.pas"/>
+        <DCCReference Include="Integration\Test.Janus.ObjectSet.CascadeDeleteOrder.pas"/>
         <DCCReference Include="Unit\Container\Test.Janus.Close.VsEmpty.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>

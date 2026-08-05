@@ -418,20 +418,33 @@ begin
       // seu proprio valor gerado e cujos filhos SetAutoIncValueChilds percorre;
       // ler a chave de AObject entrega a SetAutoIncValueOneToMany uma
       // TRttiProperty do master para ser lida contra o filho.
-      if FSession.ExistSequence then
-      begin
-        LPrimaryKey := TMappingExplorer
-                           .GetMappingPrimaryKeyColumns(LObject.ClassType);
-        if LPrimaryKey = nil then
-          raise Exception.Create(cMESSAGEPKNOTFOUND);
+      //
+      // Sem guarda de ExistSequence, como na base. Medido: aquela flag e um
+      // campo unico do TCommandInserter que TDMLCommandFactory cria UMA vez no
+      // construtor, escrito so por TCommandInserter.GenerateInsert e nunca
+      // limpo - ela diz qual foi o ULTIMO insert a entrar no ramo do gerador,
+      // nao se ESTA entidade tem autoinc. Com as chaves vindas do proprio
+      // cliente nenhum insert entra naquele ramo, a flag continua no False
+      // inicial, e a propagacao era pulada para um filho que TEM chave:
+      // os netos chegavam ao banco em zero, sem levantar nada.
+      LPrimaryKey := TMappingExplorer
+                         .GetMappingPrimaryKeyColumns(LObject.ClassType);
+      if LPrimaryKey = nil then
+        raise Exception.Create(cMESSAGEPKNOTFOUND);
 
-        for LColumn in LPrimaryKey.Columns do
-          SetAutoIncValueChilds(LObject, LColumn);
-      end;
+      for LColumn in LPrimaryKey.Columns do
+        SetAutoIncValueChilds(LObject, LColumn);
     end
     else
     if ACascadeAction = TCascadeAction.CascadeDelete then // Delete
-      FSession.Delete(LObject)
+    begin
+      // Desce ANTES de apagar, como na base. Apagar o item e alcancar os
+      // filhos DELE depois derruba a linha enquanto as linhas que apontam
+      // para ela ainda existem - que e exatamente o que uma chave estrangeira
+      // obrigatoria levanta.
+      CascadeActionsExecute(LObject, TCascadeAction.CascadeDelete);
+      FSession.Delete(LObject);
+    end
     else
     if ACascadeAction = TCascadeAction.CascadeUpdate then // Update
     begin
@@ -463,8 +476,11 @@ begin
           SetAutoIncValueChilds(LObject, LColumn);
       end;
     end;
-    // Executa comando em cascade de cada objeto da lista
-    CascadeActionsExecute(LObject, ACascadeAction);
+    // Executa comando em cascade de cada objeto da lista. O delete ja desceu
+    // no ramo acima, antes de apagar; repetir a descida aqui apagaria a
+    // subarvore uma segunda vez.
+    if not (ACascadeAction = TCascadeAction.CascadeDelete) then
+      CascadeActionsExecute(LObject, ACascadeAction);
   end;
 end;
 
@@ -484,25 +500,34 @@ begin
     Exit;
 
   LObject := LValue.AsObject;
+  // TValue reporta tkClass tambem para uma instancia nil, entao IsObject acima
+  // deixa passar um ramo opcional que nunca foi preenchido. Medido pela rota de
+  // producao: sem esta linha, inserir uma raiz cujo ramo OneToOne e nil devolve
+  // `Access violation ... Read of address 00000000` e o rollback leva junto a
+  // linha do master - o registro nao chega a ser criado.
+  if LObject = nil then
+    Exit;
   if ACascadeAction = TCascadeAction.CascadeInsert then // Insert
   begin
     FSession.Insert(LObject);
     // Popula as propriedades de relacionamento com os valores do filho recem
     // inserido. Mesma razao de OneToManyCascadeActionsExecute: quem acabou de
     // ganhar chave e LObject, e e a chave DELE que os filhos dele esperam.
-    if FSession.ExistSequence then
-    begin
-      LPrimaryKey := TMappingExplorer.GetMappingPrimaryKeyColumns(LObject.ClassType);
-      if LPrimaryKey = nil then
-        raise Exception.Create(cMESSAGEPKNOTFOUND);
+    // Sem guarda de ExistSequence, pelo mesmo motivo medido la.
+    LPrimaryKey := TMappingExplorer.GetMappingPrimaryKeyColumns(LObject.ClassType);
+    if LPrimaryKey = nil then
+      raise Exception.Create(cMESSAGEPKNOTFOUND);
 
-      for LColumn in LPrimaryKey.Columns do
-        SetAutoIncValueChilds(LObject, LColumn);
-    end;
+    for LColumn in LPrimaryKey.Columns do
+      SetAutoIncValueChilds(LObject, LColumn);
   end
   else
   if ACascadeAction = TCascadeAction.CascadeDelete then // Delete
-    FSession.Delete(LObject)
+  begin
+    // Desce ANTES de apagar, como na base - ver OneToManyCascadeActionsExecute.
+    CascadeActionsExecute(LObject, TCascadeAction.CascadeDelete);
+    FSession.Delete(LObject);
+  end
   else
   if ACascadeAction = TCascadeAction.CascadeUpdate then // Update
   begin
@@ -532,8 +557,10 @@ begin
         SetAutoIncValueChilds(LObject, LColumn);
     end;
   end;
-  // Executa comando em cascade de cada objeto da lista
-  CascadeActionsExecute(LObject, ACascadeAction);
+  // Executa comando em cascade de cada objeto da lista. O delete ja desceu no
+  // ramo acima, antes de apagar.
+  if not (ACascadeAction = TCascadeAction.CascadeDelete) then
+    CascadeActionsExecute(LObject, ACascadeAction);
 end;
 
 procedure TRESTObjectSet.SetAutoIncValueChilds(const AObject: TObject;
@@ -661,7 +688,15 @@ begin
         begin
           LObject := FObjectState.Items[LKey];
           FSession.ModifyFieldsCompare(LKey, AObject, LObject);
-          FSession.Update(AObject, LKey);
+          // Guarda o Update vazio / so-de-chave, como na base. ModifyFieldsCompare
+          // so cria a entrada da linha ao alcancar a primeira coluna que nao pula;
+          // numa entidade cujas colunas sao TODAS NoUpdate - uma tabela de ligacao
+          // ou de detalhe cujas unicas colunas sao a propria chave composta - ela
+          // nao alcanca nenhuma, a entrada nunca nasce, e FSession.Update indexa
+          // ModifiedFields.Items[AKey] direto: EListError 'Item not found'.
+          if FSession.ModifiedFields.ContainsKey(LKey) and
+             (FSession.ModifiedFields.Items[LKey].Count > 0) then
+            FSession.Update(AObject, LKey);
           FObjectState.Remove(LKey);
           FObjectState.TrimExcess;
         end;
