@@ -60,7 +60,11 @@ uses
   /// Whose primary key the server side cascade propagates — issue #225
   Test.Janus.Server.RestObjectSet.AutoInc in 'RESTHorse\Test.Janus.Server.RestObjectSet.AutoInc.pas',
   /// Whether the update leg of that cascade propagates at all — issue #239
-  Test.Janus.Server.RestObjectSet.CascadeUpdate in 'RESTHorse\Test.Janus.Server.RestObjectSet.CascadeUpdate.pas';
+  Test.Janus.Server.RestObjectSet.CascadeUpdate in 'RESTHorse\Test.Janus.Server.RestObjectSet.CascadeUpdate.pas',
+  /// The same question on the LIST leg, where N children are inserted — issue #242
+  Test.Janus.Server.RestObjectSet.CascadeUpdateList in 'RESTHorse\Test.Janus.Server.RestObjectSet.CascadeUpdateList.pas',
+  /// Whether the MASTER key reaches a child added on update — issue #242
+  Test.Janus.Server.RestObjectSet.UpdateMasterKey in 'RESTHorse\Test.Janus.Server.RestObjectSet.UpdateMasterKey.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

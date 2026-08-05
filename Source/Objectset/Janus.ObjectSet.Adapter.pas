@@ -210,6 +210,8 @@ end;
 
 procedure TObjectSetAdapter<M>.Update(const AObject: M);
 var
+  LPrimaryKey: TPrimaryKeyColumnsMapping;
+  LColumn: TColumnMapping;
   LRttiType: TRttiType;
   LProperty: TRttiProperty;
   LObjectKey: TObject;
@@ -227,6 +229,19 @@ begin
     if not LInTransaction then
       FConnection.StartTransaction;
     try
+      // Carimba a chave do master nos filhos ANTES do cascade, do mesmo jeito
+      // que Insert faz. O cascade abaixo grava os filhos, e um filho que so
+      // existe no objeto editado - a linha de detalhe que o registro gravado
+      // nao tinha - chega nele com a chave estrangeira em zero se ninguem a
+      // preencheu. Aqui a chave do master ja existe: e um update, nao ha
+      // sequence a esperar.
+      LPrimaryKey := TMappingExplorer
+                         .GetMappingPrimaryKeyColumns(AObject.ClassType);
+      if LPrimaryKey = nil then
+        raise Exception.Create(cMESSAGEPKNOTFOUND);
+
+      for LColumn in LPrimaryKey.Columns do
+        SetAutoIncValueChilds(AObject, LColumn);
       // Executa comando update em cascade
       CascadeActionsExecute(AObject, TCascadeAction.CascadeUpdate);
       // Gera a lista com as propriedades que foram alteradas

@@ -270,7 +270,9 @@ begin
     if ACascadeAction = TCascadeAction.CascadeInsert then // Insert
     begin
       FSession.Insert(LObject);
-      // Popula as propriedades de relacionamento com os valores do master
+      // Popula as propriedades de relacionamento com a chave do proprio item
+      // recem inserido - e a chave DELE que os filhos DELE esperam, e nao a do
+      // master. O carimbo roda dentro do laco, para cada item.
       LPrimaryKey := TMappingExplorer
                        .GetMappingPrimaryKeyColumns(LObject.ClassType);
       if LPrimaryKey = nil then
@@ -297,7 +299,23 @@ begin
         FObjectState.TrimExcess;
       end
       else
+      begin
         FSession.Insert(LObject);
+        // Item ausente do estado guardado por Modify: entra como INSERT, e
+        // acaba de ganhar sua propria chave. Quem espera essa chave sao os
+        // filhos DELE, gravados logo abaixo pelo CascadeActionsExecute - o que
+        // nao for carimbado aqui chega ao banco em zero, sem levantar nada.
+        // Mesma leitura do ramo de insert: a chave e lida de LObject, e o
+        // carimbo roda DENTRO do laco, para cada item, porque cada item da
+        // lista ganhou uma chave diferente da do anterior.
+        LPrimaryKey := TMappingExplorer
+                         .GetMappingPrimaryKeyColumns(LObject.ClassType);
+        if LPrimaryKey = nil then
+          raise Exception.Create(cMESSAGEPKNOTFOUND);
+
+        for LColumn in LPrimaryKey.Columns do
+          SetAutoIncValueChilds(LObject, LColumn);
+      end;
     end;
     // Executa comando em cascade de cada objeto da lista
     if not (ACascadeAction = TCascadeAction.CascadeDelete) then

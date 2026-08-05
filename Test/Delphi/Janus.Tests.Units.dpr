@@ -99,7 +99,14 @@ uses
   /// The scroll contract for unsaved child rows — issue #217
   Test.Janus.Scroll.PendingChilds in 'Unit\Core\Test.Janus.Scroll.PendingChilds.pas',
   /// Clearing a nested dataset from wherever the cursor is — issue #222
-  Test.Janus.Bind.ClearNested in 'Unit\Core\Test.Janus.Bind.ClearNested.pas';
+  Test.Janus.Bind.ClearNested in 'Unit\Core\Test.Janus.Bind.ClearNested.pas',
+  /// Three levels with every key column spelled once — issue #225
+  Test.Janus.Model.AsymTree in 'Common\Test.Janus.Model.AsymTree.pas',
+  /// Whether the update leg of the ObjectSet OneToMany cascade propagates at
+  /// all, and whether the master key reaches a child added on update — #242
+  Test.Janus.ObjectSet.CascadeUpdateList in 'Integration\Test.Janus.ObjectSet.CascadeUpdateList.pas',
+  /// Whether the MASTER key reaches a child added on update — issue #242
+  Test.Janus.ObjectSet.UpdateMasterKey in 'Integration\Test.Janus.ObjectSet.UpdateMasterKey.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

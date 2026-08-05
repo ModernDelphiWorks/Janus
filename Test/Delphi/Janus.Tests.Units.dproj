@@ -186,6 +186,9 @@
         <DCCReference Include="Unit\Core\Test.Janus.Nested.Delete.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Scroll.PendingChilds.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Bind.ClearNested.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.AsymTree.pas"/>
+        <DCCReference Include="Integration\Test.Janus.ObjectSet.CascadeUpdateList.pas"/>
+        <DCCReference Include="Integration\Test.Janus.ObjectSet.UpdateMasterKey.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
