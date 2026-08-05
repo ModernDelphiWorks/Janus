@@ -95,7 +95,9 @@ uses
   /// REST client master-detail wiring — first coverage of TRESTClientDataSetAdapter
   Test.Janus.MasterDetail.Link in 'Unit\RESTful\Test.Janus.MasterDetail.Link.pas',
   /// Nested-dataset clearing on delete — the opposite family from #207
-  Test.Janus.Nested.Delete in 'Unit\Core\Test.Janus.Nested.Delete.pas';
+  Test.Janus.Nested.Delete in 'Unit\Core\Test.Janus.Nested.Delete.pas',
+  /// The scroll contract for unsaved child rows — issue #217
+  Test.Janus.Scroll.PendingChilds in 'Unit\Core\Test.Janus.Scroll.PendingChilds.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

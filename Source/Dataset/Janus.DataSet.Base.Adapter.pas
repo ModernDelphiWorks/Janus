@@ -57,7 +57,10 @@ type
     function _IsPendingInsertRow(const ADataSet: TDataSet): Boolean;
     procedure _AutoIncToChildRows(const AMaster, AChild: TDataSet;
       const AAssociation: TAssociationMapping);
+    function _HasPendingRows(const AAdapter: TDataSetBaseAdapter<M>): Boolean;
+    function _PendingChilds: TArray<TDataSet>;
   protected
+    FBeforeScrollPendingChilds: TBeforeScrollPendingChildsEvent;
     FDataSetEvents: TDataSetEvents;
     FOwnerMasterObject: TObject;
     FCurrentInternal: M;
@@ -70,6 +73,7 @@ type
     FProxiesInjectedForCurrentRow: Boolean;
     function _GetCurrentPKAsString: String;
     procedure DoBeforeScroll(DataSet: TDataSet); virtual;
+    procedure DoBeforeScrollPendingChilds; virtual;
     procedure DoAfterScroll(DataSet: TDataSet); virtual;
     procedure DoBeforeOpen(DataSet: TDataSet); virtual;
     procedure DoAfterOpen(DataSet: TDataSet); virtual;
@@ -126,6 +130,21 @@ type
     function FindWhere(const AWhere: String; const AOrderBy: String = ''): TObjectList<M>; virtual;
     // Property
     property AutoNextPacket: Boolean read _GetAutoNextPacket write _SetAutoNextPacket;
+    /// <summary> Says what must happen to child rows that are typed in and not
+    ///  yet saved when the master is about to scroll. LEAVE IT UNASSIGNED AND
+    ///  NOTHING CHANGES: DoBeforeScrollPendingChilds returns on its first line,
+    ///  so not one child dataset is even inspected and the historical discard
+    ///  stands. Assign it and the discard stops being a side effect of the
+    ///  re-query inside TDataSetAdapter<M>.DoAfterScroll and becomes something
+    ///  somebody chose - see TPendingChildsAction.
+    ///  Reached from a consumer as IContainerDataSet<M>.This.
+    ///  FIRED ONLY BY THE TDataSetAdapter<M> FAMILY (TFDMemTableAdapter,
+    ///  TClientDataSetAdapter). TRESTDataSetAdapter<M> inherits the property
+    ///  and never fires it, because its own OpenDataSetChilds has an empty body
+    ///  and therefore discards nothing - there is no loss there to decide
+    ///  about. Measured by Test.Janus.Scroll.PendingChilds. </summary>
+    property OnBeforeScrollPendingChilds: TBeforeScrollPendingChildsEvent
+      read FBeforeScrollPendingChilds write FBeforeScrollPendingChilds;
   end;
 
 implementation
@@ -150,6 +169,7 @@ begin
   FPageSize := APageSize;
   FLastPKValue := '';
   FProxiesInjectedForCurrentRow := False;
+  FBeforeScrollPendingChilds := nil;
   FOrmDataSetEvents := TDataSetLocal.Create(nil);
   FMasterObject := TDictionary<String, TDataSetBaseAdapter<M>>.Create;
   FLookupsField := TList<TDataSetBaseAdapter<M>>.Create;
@@ -644,6 +664,133 @@ begin
     FDataSetEvents.BeforeScroll(DataSet);
 end;
 
+/// <summary> Says whether AAdapter is holding rows the operator typed and did
+///  not save. TWO markers are needed and neither one alone is enough, which is
+///  a measurement and not a reading:
+///  - the row being typed RIGHT NOW never reached DoBeforePost, so the internal
+///    column still carries its default of -1 (Bind.SetDataDictionary writes
+///    DefaultExpression '-1'); only State shows it;
+///  - rows already posted into the in-memory table carry Integer(dsInsert) or
+///    Integer(dsEdit) in that column, written by DoBeforePost and reset to -1
+///    by ApplyInserter/ApplyUpdater once the row reaches the database; State is
+///    dsBrowse by then and shows nothing.
+///  Modified is not usable: Post clears it, so it answers False on exactly the
+///  posted-but-unsaved rows this has to find - measured by
+///  Marker_APostedButUnsavedRowCarriesTheInsertMarker. ChangeCount is not
+///  usable either:
+///  TFDMemTableAdapter<M>.Create sets CachedUpdates := False and
+///  LogChanges := False, so FireDAC's own change log is empty by construction -
+///  pinned by Marker_ChangeCountIsBlindToPendingRows.
+///  THE WALK MUTES THE CHILD'S EVENTS ON PURPOSE. Advancing a child dataset
+///  fires its own AfterScroll, which calls OpenDataSetChilds and re-reads the
+///  GRANDCHILDREN from the database - merely asking whether a child is dirty
+///  would destroy its unsaved children. Same reason SetAutoIncValueChilds mutes
+///  them. Pinned by Detecting_DoesNotDestroyTheGrandchildren. </summary>
+function TDataSetBaseAdapter<M>._HasPendingRows(
+  const AAdapter: TDataSetBaseAdapter<M>): Boolean;
+var
+  LDataSet: TDataSet;
+  LField: TField;
+  LMark: TBookmark;
+begin
+  Result := False;
+  if AAdapter = nil then
+    Exit;
+  LDataSet := AAdapter.FOrmDataSet;
+  if LDataSet = nil then
+    Exit;
+  if not LDataSet.Active then
+    Exit;
+  if LDataSet.State in [dsInsert, dsEdit] then
+    Exit(True);
+  LField := LDataSet.FindField(cInternalField);
+  if LField = nil then
+    Exit;
+  if LDataSet.IsEmpty then
+    Exit;
+  AAdapter.DisableDataSetEvents;
+  LDataSet.DisableControls;
+  LMark := LDataSet.GetBookmark;
+  try
+    LDataSet.First;
+    while not LDataSet.Eof do
+    begin
+      if (LField.AsInteger = Integer(dsInsert)) or
+         (LField.AsInteger = Integer(dsEdit)) then
+        Exit(True);
+      LDataSet.Next;
+    end;
+  finally
+    if LDataSet.BookmarkValid(LMark) then
+      LDataSet.GotoBookmark(LMark);
+    LDataSet.FreeBookmark(LMark);
+    LDataSet.EnableControls;
+    AAdapter.EnableDataSetEvents;
+  end;
+end;
+
+/// <summary> The child datasets that would lose rows if the master scrolled
+///  now. Empty array when there is nothing to lose - which is the normal case
+///  and the reason the caller can leave without doing anything. </summary>
+function TDataSetBaseAdapter<M>._PendingChilds: TArray<TDataSet>;
+var
+  LChild: TDataSetBaseAdapter<M>;
+  LCount: Integer;
+begin
+  SetLength(Result, 0);
+  if not Assigned(FMasterObject) then
+    Exit;
+  LCount := 0;
+  for LChild in FMasterObject.Values do
+  begin
+    if not _HasPendingRows(LChild) then
+      Continue;
+    SetLength(Result, LCount + 1);
+    Result[LCount] := LChild.FOrmDataSet;
+    Inc(LCount);
+  end;
+end;
+
+/// <summary> Turns the discard into a decision. WITH NO HANDLER ASSIGNED THIS
+///  IS A SINGLE COMPARISON AND A RETURN - no child is inspected, no cursor is
+///  moved, no event is muted - so the default path is exactly the code that
+///  shipped before this method existed. Called from
+///  TDataSetAdapter<M>.DoBeforeScroll, the only family whose OpenDataSetChilds
+///  really re-queries. </summary>
+procedure TDataSetBaseAdapter<M>.DoBeforeScrollPendingChilds;
+var
+  LPendings: TArray<TDataSet>;
+  LAction: TPendingChildsAction;
+  LChild: TDataSetBaseAdapter<M>;
+begin
+  if not Assigned(FBeforeScrollPendingChilds) then
+    Exit;
+  LPendings := _PendingChilds;
+  if Length(LPendings) = 0 then
+    Exit;
+  // Pre-seeded with the historical behaviour: a handler that reads nothing and
+  // writes nothing leaves the framework doing what it always did.
+  LAction := pcaDiscard;
+  FBeforeScrollPendingChilds(Self, LPendings, LAction);
+  case LAction of
+    pcaPost:
+      for LChild in FMasterObject.Values do
+      begin
+        if not _HasPendingRows(LChild) then
+          Continue;
+        if LChild.FOrmDataSet.State in [dsInsert, dsEdit] then
+          LChild.FOrmDataSet.Post;
+        LChild.ApplyUpdates(0);
+      end;
+    pcaCancel:
+      // Abort, not a named exception: EAbort is the signal TDataSet already
+      // understands for "this move is not happening", it unwinds MoveBy before
+      // the cursor leaves the row, and a VCL application swallows it silently
+      // instead of showing a dialog nobody asked for.
+      Abort;
+  end;
+end;
+
 procedure TDataSetBaseAdapter<M>.DoNewRecord(DataSet: TDataSet);
 begin
   if Assigned(FDataSetEvents.OnNewRecord) then
@@ -973,6 +1120,15 @@ begin
     // filho chama OpenDataSetChilds, que RE-ABRE os netos a partir do banco.
     // Percorrer o filho com os eventos ligados apagaria os netos ainda nao
     // gravados antes que a recursao logo abaixo pudesse carimba-los.
+    // O contrato novo (OnBeforeScrollPendingChilds) NAO substitui isto, e nao
+    // ha dois mecanismos para um problema: aquele responde a uma rolagem do
+    // MASTER feita pelo usuario; aqui ninguem esta rolando nada - quem anda no
+    // cursor do filho e o proprio ApplyInserter, no meio de uma gravacao.
+    // Medido: com o contrato novo no lugar, remover este par ainda derruba
+    // Test.Janus.AutoInc.Childs.Linked_EveryGrandchildRowReceivesTheNewKey.
+    // O que os dois compartilham e a TECNICA (DisableDataSetEvents), pela mesma
+    // razao - e o detector de pendencia precisa dela tambem, medido por
+    // Test.Janus.Scroll.PendingChilds.Detecting_DoesNotDestroyTheGrandchildren.
     LDataSetChild.DisableDataSetEvents;
     try
       _AutoIncToChildRows(FOrmDataSet, LDataSetChild.FOrmDataSet, LAssociation);

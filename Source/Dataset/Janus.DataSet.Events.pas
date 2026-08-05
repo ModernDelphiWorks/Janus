@@ -29,6 +29,26 @@ uses
   TypInfo;
 
 type
+  /// <summary> What the consumer wants done with child rows that are typed in
+  ///  and not yet saved, at the moment the master is about to scroll.
+  ///  pcaDiscard is the DEFAULT and is byte-for-byte what the framework has
+  ///  always done: TDataSetAdapter<M>.DoAfterScroll re-opens the children from
+  ///  the database and whatever was typed is gone. pcaPost saves the pending
+  ///  children first. pcaCancel calls Abort, so the master never leaves the
+  ///  row. Nothing here changes on its own: the enum is only read when a
+  ///  handler is assigned to TDataSetBaseAdapter<M>.OnBeforeScrollPendingChilds
+  ///  - with no handler the framework never even looks for pending rows. </summary>
+  TPendingChildsAction = (pcaDiscard, pcaPost, pcaCancel);
+
+  /// <summary> Fired by TDataSetAdapter<M>.DoBeforeScroll when the master is
+  ///  about to move and at least one child dataset holds unsaved rows.
+  ///  APendingChilds lists exactly those child datasets. AAction arrives
+  ///  pre-seeded with pcaDiscard, so a handler that ignores it - or that only
+  ///  logs - gets the historical behaviour and nothing else. </summary>
+  TBeforeScrollPendingChildsEvent = procedure(const ASender: TObject;
+    const APendingChilds: TArray<TDataSet>;
+    var AAction: TPendingChildsAction) of object;
+
   TDataSetEvents = class abstract
   private
     FBeforeScroll: TDataSetNotifyEvent;
