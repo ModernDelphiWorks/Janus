@@ -113,8 +113,9 @@ begin
   begin
     for LAssociation in LAssociations do
     begin
-      if not (TCascadeAction.CascadeDelete in LAssociation.CascadeActions) and
-         not (LAssociation.ClassNameRef = LChild.Value.FCurrentInternal.ClassName) then
+      if not (TCascadeAction.CascadeDelete in LAssociation.CascadeActions) then
+        Continue;
+      if LAssociation.ClassNameRef <> LChild.Value.FCurrentInternal.ClassName then
         Continue;
       LDataSet := LChild.Value.FOrmDataSet;
       if not LDataSet.Active then
