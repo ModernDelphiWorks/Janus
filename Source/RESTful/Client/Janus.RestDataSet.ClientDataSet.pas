@@ -253,6 +253,11 @@ begin
   DisableDataSetEvents;
   try
     /// <summary> Limpa os registro do dataset antes de garregar os novos dados </summary>
+    /// <summary> Reabre antes de limpar: EmptyDataSet passa por
+    ///  CheckBrowseMode e, com o dataset fechado, levanta "Cannot perform this
+    ///  operation on a closed dataset" - ver
+    ///  TDataSetBaseAdapter<M>.EnsureOpen. </summary>
+    EnsureOpen;
     EmptyDataSet;
     inherited;
     LObjectList := FSession.Find;
@@ -283,6 +288,11 @@ begin
   DisableDataSetEvents;
   try
     /// <summary> Limpa os registro do dataset antes de garregar os novos dados </summary>
+    /// <summary> Reabre antes de limpar: EmptyDataSet passa por
+    ///  CheckBrowseMode e, com o dataset fechado, levanta "Cannot perform this
+    ///  operation on a closed dataset" - ver
+    ///  TDataSetBaseAdapter<M>.EnsureOpen. </summary>
+    EnsureOpen;
     EmptyDataSet;
     inherited;
     FSession.Find(AID.ToString);
@@ -312,6 +322,11 @@ begin
   DisableDataSetEvents;
   try
     /// <summary> Limpa os registro do dataset antes de garregar os novos dados </summary>
+    /// <summary> Reabre antes de limpar: EmptyDataSet passa por
+    ///  CheckBrowseMode e, com o dataset fechado, levanta "Cannot perform this
+    ///  operation on a closed dataset" - ver
+    ///  TDataSetBaseAdapter<M>.EnsureOpen. </summary>
+    EnsureOpen;
     EmptyDataSet;
     inherited;
     LObjectList := FSession.FindWhere(AWhere, AOrderBy);

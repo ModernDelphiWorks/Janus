@@ -16,20 +16,37 @@
 
   WHAT IS UNDER TEST
 
-  TContainerDataSet<M>.Close, which calls FDataSetAdapter.EmptyDataSet instead
-  of closing anything, and the protected TDataSetBaseAdapter<M>.Close, which is
-  a real TDataSet.Close. Both exist in the shipped code; only the second one
-  actually closes. This fixture runs the same scenarios through each of them and
-  records the difference.
+  TContainerDataSet<M>.Close and the protected TDataSetBaseAdapter<M>.Close.
+  This fixture runs the same scenarios through each of them and records the
+  difference.
+
+  WHAT THIS FIXTURE MEASURED FIRST, AND WHY IT NOW MEASURES SOMETHING ELSE
+
+  It was written for #246, when TContainerDataSet<M>.Close called
+  FDataSetAdapter.EmptyDataSet and closed nothing, and the protected Close was
+  the only real one. The question it answered was what a genuine close cost, and
+  the answer was: nothing except the way back. Every Open path began with an
+  EmptyDataSet that goes through CheckBrowseMode, so a closed dataset could not
+  be filled again.
+
+  #248 acted on that. TDataSetBaseAdapter<M>.EnsureOpen now reopens ahead of
+  each of those EmptyDataSet calls, and the container Close was changed to call
+  the adapter Close. The two legs of this fixture therefore CONVERGE now, and
+  the tests that used to record the divergence were rewritten to record the
+  convergence - by name, not only by assertion, so a stale name cannot claim the
+  old world. What each one used to measure is written in its own comment, and
+  the cursor accounting that justified the change lives in
+  Test.Janus.Reopen.Lazy.
 
   THIS FIXTURE MEASURES. IT DOES NOT ARGUE.
 
-  Two explanations for the current behaviour had been offered before anything
+  Two explanations for the pre-#248 behaviour had been offered before anything
   was measured, and the first one was false: it claimed that closing would
   destroy the TField objects the adapter creates at runtime. It does not - see
   Fields_SurviveARealClose. The second explanation - that a repeated FindWhere,
   or a bound control, would meet a CLOSED dataset and fail - is what
-  FindWhere_* and BoundControl_* below put on the scale.
+  FindWhere_* and BoundControl_* below put on the scale. Both answers survived
+  #248 unchanged; only the state the container Close leaves behind moved.
 
   NOTHING HERE CHANGES BEHAVIOUR. Every test drives the shipped code exactly as
   it ships; the "real close" leg reaches the protected TDataSetBaseAdapter<M>
@@ -139,12 +156,12 @@ type
     // The premise: what the two Closes actually do
     // -----------------------------------------------------------------------
 
-    /// The shipped container Close leaves the dataset OPEN and EMPTY. If this
-    /// ever goes red, the behaviour under discussion has changed.
+    /// The container Close leaves the dataset CLOSED. Until #248 it left it
+    /// OPEN and EMPTY, because it called FDataSetAdapter.EmptyDataSet.
     [Test]
-    procedure Premise_TheContainerCloseEmptiesAndDoesNotClose;
-    /// And the protected adapter Close - the one the framework itself calls -
-    /// really closes.
+    procedure Premise_TheContainerCloseNowClosesForReal;
+    /// And the protected adapter Close - the one the framework itself calls,
+    /// and the one the container now routes to - really closes.
     [Test]
     procedure Premise_TheAdapterCloseReallyCloses;
 
@@ -171,9 +188,9 @@ type
     // The SECOND explanation, leg 1: a repeated FindWhere
     // -----------------------------------------------------------------------
 
-    /// FindWhere after the shipped Close: works.
+    /// FindWhere after the container Close: works.
     [Test]
-    procedure FindWhere_RepeatsAfterTheShippedClose;
+    procedure FindWhere_RepeatsAfterTheContainerClose;
     /// FindWhere after a REAL close: measured, not deduced.
     [Test]
     procedure FindWhere_RepeatsAfterARealClose;
@@ -187,10 +204,12 @@ type
     // The SECOND explanation, leg 2: a bound control
     // -----------------------------------------------------------------------
 
-    /// With a TDataSource attached, the shipped Close is seen as an OPEN,
-    /// EMPTY dataset. The control is never told the dataset went away.
+    /// With a TDataSource attached, the container Close is now seen as
+    /// INACTIVE. Until #248 the control was never told the dataset went away,
+    /// because it never did - it saw an OPEN, EMPTY dataset. THIS IS THE ONE
+    /// PLACE WHERE THE BEHAVIOUR CHANGE IS VISIBLE TO A UI.
     [Test]
-    procedure BoundControl_SeesTheShippedCloseAsAnEmptyOpenDataSet;
+    procedure BoundControl_NowSeesTheContainerCloseAsInactive;
     /// A real close is seen as INACTIVE. What a control's read does then is
     /// what this measures.
     [Test]
@@ -200,20 +219,27 @@ type
     // What actually happens next: reopening
     // -----------------------------------------------------------------------
 
-    /// After the shipped Close, Open works.
+    /// After the container Close, Open works. IT ALWAYS DID, FOR TWO DIFFERENT
+    /// REASONS: before #248 because that Close never closed anything, and now
+    /// because TDataSetBaseAdapter<M>.EnsureOpen reopens what it did close.
+    /// A test that stayed green across a behaviour change is worth saying out
+    /// loud about, not worth trusting silently.
     [Test]
-    procedure Reopen_AfterTheShippedClose_Works;
-    /// After a real close, Open is measured.
+    procedure Reopen_AfterTheContainerClose_Works;
+    /// After a real close, Open is measured. This is the test that recorded the
+    /// one-way door in #246 - it expected
+    /// `Cannot perform this operation on a closed dataset` - and it is the test
+    /// #248 exists to turn around.
     [Test]
-    procedure Reopen_AfterARealClose_IsMeasured;
-    /// And WHY it breaks, narrowed to one missing call: put a raw
-    /// TDataSet.Open back in front of it - which is exactly what
-    /// TDataSetBaseAdapter<M>.AddLookupField already does around its own
-    /// close - and the container works again. So the cost of closing is not
-    /// that something was destroyed; it is that no Open path in the adapter
-    /// family ever reopens the dataset.
+    procedure Reopen_AfterARealClose_NowWorks;
+    /// And WHY it used to break, narrowed to one missing call: put a raw
+    /// TDataSet.Open in front of it - which is exactly what
+    /// TDataSetBaseAdapter<M>.AddLookupField already did around its own close,
+    /// and exactly what EnsureOpen now does on every Open path - and the
+    /// container works. The cost of closing was never that something got
+    /// destroyed.
     [Test]
-    procedure Reopen_ARawDataSetOpenIsTheOnlyThingMissing;
+    procedure Reopen_ARawDataSetOpenWasTheOnlyThingMissing;
 
     // -----------------------------------------------------------------------
     // The lazy, which is the owner's only reservation
@@ -221,13 +247,16 @@ type
 
     /// TDataSetAdapter<M>.LoadLazy uses FOrmDataSet.Active as its "already
     /// loaded" flag: it exits on the spot when the dataset is open. Since
-    /// TFDMemTableAdapter<M>.Create opens the dataset, and the shipped Close
-    /// leaves it open, LoadLazy is inert either way.
+    /// TFDMemTableAdapter<M>.Create opens the dataset, that gate is shut from
+    /// birth - and until #248 the container Close could not open it, which is
+    /// what made the lazy path unreachable. The cursor count on either side of
+    /// the change is measured in Test.Janus.Reopen.Lazy.
     [Test]
-    procedure Lazy_LoadLazyIsGatedOnActiveAndTheShippedCloseKeepsItInert;
-    /// A REAL close flips that gate. This measures what LoadLazy then does.
+    procedure Lazy_TheGateIsShutWhileOpenAndTheContainerCloseNowOpensIt;
+    /// A REAL close flips that gate. This measures what LoadLazy then does -
+    /// in #246 it walked into the reopen wall and raised.
     [Test]
-    procedure Lazy_ARealCloseFlipsTheGate;
+    procedure Lazy_ARealCloseFlipsTheGateAndTheLoadNowCompletes;
     /// And the shipped code DOES perform a real close on that path:
     /// LoadLazy(nil) calls the protected Close. So "the framework never really
     /// closes" is false, and the lazy is where it is false.
@@ -238,11 +267,11 @@ type
     // Master-detail: the two Closes cascade differently
     // -----------------------------------------------------------------------
 
-    /// The shipped Close empties the child through EmptyDataSetChilds; a real
-    /// close closes it through DoBeforeClose. Both reach the child - by
-    /// different routes and to a different end state.
+    /// Both Closes reach the child and both now leave it CLOSED. Until #248
+    /// the container Close reached it through EmptyDataSetChilds and left it
+    /// OPEN and empty, which is the divergence this test was written for.
     [Test]
-    procedure Cascade_BothReachTheChildButLeaveItInDifferentStates;
+    procedure Cascade_BothReachTheChildAndNowLeaveItClosed;
   end;
 
 implementation
@@ -432,7 +461,7 @@ end;
 // The premise
 // ---------------------------------------------------------------------------
 
-procedure TTestCloseVsEmpty.Premise_TheContainerCloseEmptiesAndDoesNotClose;
+procedure TTestCloseVsEmpty.Premise_TheContainerCloseNowClosesForReal;
 begin
   BuildFlat(cROWS);
   FCont.Open;
@@ -441,11 +470,12 @@ begin
 
   FCont.Close;
 
-  Assert.IsTrue(FTable.Active,
-    'TContainerDataSet<M>.Close calls FDataSetAdapter.EmptyDataSet, so the ' +
-    'dataset is still OPEN after it - the name says one thing and the body ' +
-    'does another');
-  Assert.AreEqual(0, FTable.RecordCount, 'and it is empty');
+  Assert.IsFalse(FTable.Active,
+    'TContainerDataSet<M>.Close calls FDataSetAdapter.Close, so the dataset ' +
+    'is CLOSED after it and the name finally describes the body. Until #248 ' +
+    'it called EmptyDataSet and this assertion was the other way round');
+  Assert.AreEqual(0, FTable.RecordCount,
+    'and a closed dataset counts no rows');
 end;
 
 procedure TTestCloseVsEmpty.Premise_TheAdapterCloseReallyCloses;
@@ -527,8 +557,8 @@ begin
   LAfterOpen := FieldHandles(FTable);
   Assert.IsTrue(SameHandles(LAtBirth, LAfterOpen),
     'Open does not create fields: TFDMemTableAdapter<M>.OpenSQLInternal only ' +
-    'empties and appends rows. So "closing would make Open rebuild the ' +
-    'fields" has no cost to point at');
+    'reopens (EnsureOpen), empties and appends rows. So "closing would make ' +
+    'Open rebuild the fields" has no cost to point at');
 
   FCont.Close;
   FCont.Open;
@@ -541,7 +571,7 @@ end;
 // A repeated FindWhere
 // ---------------------------------------------------------------------------
 
-procedure TTestCloseVsEmpty.FindWhere_RepeatsAfterTheShippedClose;
+procedure TTestCloseVsEmpty.FindWhere_RepeatsAfterTheContainerClose;
 var
   LFirst: TObjectList<TKeyOnly>;
   LSecond: TObjectList<TKeyOnly>;
@@ -567,7 +597,7 @@ begin
     end);
   try
     Assert.AreEqual('', LError,
-      'a second FindWhere after the SHIPPED Close must not raise');
+      'a second FindWhere after the CONTAINER Close must not raise');
     Assert.IsNotNull(LSecond);
     Assert.AreEqual(cROWS, LSecond.Count,
       'and it must find the same rows');
@@ -622,7 +652,9 @@ begin
   FCont.Open;
   Assert.AreEqual(cROWS, FTable.RecordCount);
   FCont.Close;
-  Assert.AreEqual(0, FTable.RecordCount, 'the container was emptied');
+  Assert.AreEqual(0, FTable.RecordCount,
+    'the container dataset holds nothing - since #248 because it is CLOSED, ' +
+    'before it because it had been emptied');
 
   LList := FCont.FindWhere('k1 > 0');
   try
@@ -642,7 +674,7 @@ end;
 // A bound control
 // ---------------------------------------------------------------------------
 
-procedure TTestCloseVsEmpty.BoundControl_SeesTheShippedCloseAsAnEmptyOpenDataSet;
+procedure TTestCloseVsEmpty.BoundControl_NowSeesTheContainerCloseAsInactive;
 var
   LErrorsBefore: Integer;
 begin
@@ -653,13 +685,16 @@ begin
 
   FCont.Close;
 
-  Assert.IsTrue(FLink.Active,
-    'the link is still active: from the control point of view the dataset ' +
-    'never went away');
+  Assert.IsFalse(FLink.Active,
+    'THE ONE PLACE THE #248 BEHAVIOUR CHANGE IS VISIBLE TO A UI. The container ' +
+    'Close now reaches TDataLink.ActiveChanged and the link goes inactive. ' +
+    'Before it, the control was never told anything, because nothing had ' +
+    'happened to the dataset except losing its rows');
   Assert.AreEqual(LErrorsBefore, FLink.ReadErrors,
-    'and no read raised - measured: ' + FLink.LastError);
+    'and STILL no read raised - the control is told, not broken. Measured: ' +
+    FLink.LastError);
   Assert.AreEqual('', FLink.LastValue,
-    'the control simply sees a blank row, which is what an EMPTY dataset is');
+    'it reads blank, exactly as it did off an empty open dataset');
 end;
 
 procedure TTestCloseVsEmpty.BoundControl_SeesARealCloseAsInactive;
@@ -675,8 +710,9 @@ begin
 
   Assert.IsFalse(FLink.Active,
     'a real close DOES reach the control: TDataLink.ActiveChanged fires and ' +
-    'the link goes inactive - unlike the shipped Close, which the control ' +
-    'never hears about');
+    'the link goes inactive. Since #248 the container Close arrives here too - ' +
+    'see BoundControl_NowSeesTheContainerCloseAsInactive - and before it, it ' +
+    'was the only one of the two the control ever heard about');
   // errors seen | last error text
   LOutcome := IntToStr(FLink.ReadErrors) + ' # ' + FLink.LastError;
   Assert.AreEqual('0 # ', LOutcome,
@@ -689,7 +725,7 @@ end;
 // Reopening - what an application really does after Close
 // ---------------------------------------------------------------------------
 
-procedure TTestCloseVsEmpty.Reopen_AfterTheShippedClose_Works;
+procedure TTestCloseVsEmpty.Reopen_AfterTheContainerClose_Works;
 var
   LError: string;
 begin
@@ -703,11 +739,14 @@ begin
       FCont.Open;
     end);
 
-  Assert.AreEqual('', LError, 'reopening after the shipped Close must work');
+  Assert.AreEqual('', LError,
+    'reopening after the container Close must work. IT DID BEFORE #248 TOO, ' +
+    'and for a different reason: that Close left the dataset open, so there ' +
+    'was nothing to reopen. Now there is, and EnsureOpen does it');
   Assert.AreEqual(cROWS, FTable.RecordCount, 'and it must bring the rows back');
 end;
 
-procedure TTestCloseVsEmpty.Reopen_AfterARealClose_IsMeasured;
+procedure TTestCloseVsEmpty.Reopen_AfterARealClose_NowWorks;
 var
   LError: string;
 begin
@@ -722,19 +761,18 @@ begin
       FCont.Open;
     end);
 
-  Assert.AreEqual('Exception | ' + cCLOSEDMSG, LError,
-    'THIS is where a real close hurts. TFDMemTableAdapter<M>.OpenSQLInternal ' +
-    'starts with EmptyDataSet, and TFDDataSet.EmptyDataSet opens with ' +
-    'CheckBrowseMode, which refuses a closed dataset. Nothing on the Open ' +
-    'path ever calls FOrmDataSet.Open: the three Open calls in Source are ' +
-    'the two FDMemTable constructors and the finally of AddLookupField, and ' +
-    'TClientDataSetAdapter<M> has none at all. So a container that really ' +
-    'closed could never be filled again');
-  Assert.AreEqual(0, FTable.RecordCount,
-    'and it is still empty afterwards');
+  Assert.AreEqual('', LError,
+    'THE ONE-WAY DOOR IS GONE. In #246 this assertion read ' +
+    '`Exception | ' + cCLOSEDMSG + '`: ' +
+    'TFDMemTableAdapter<M>.OpenSQLInternal started with EmptyDataSet, ' +
+    'TFDDataSet.EmptyDataSet opens with CheckBrowseMode, and CheckBrowseMode ' +
+    'refuses a closed dataset. TDataSetBaseAdapter<M>.EnsureOpen now runs ' +
+    'ahead of that EmptyDataSet, which is the whole of the fix');
+  Assert.AreEqual(cROWS, FTable.RecordCount,
+    'and the container is full again afterwards');
 end;
 
-procedure TTestCloseVsEmpty.Reopen_ARawDataSetOpenIsTheOnlyThingMissing;
+procedure TTestCloseVsEmpty.Reopen_ARawDataSetOpenWasTheOnlyThingMissing;
 var
   LError: string;
 begin
@@ -743,9 +781,10 @@ begin
   TCloseAccess<TKeyOnly>.RealClose(FCont.This);
   Assert.IsFalse(FTable.Active);
 
-  // The one call the adapter never makes on the Open path. It is not exotic:
-  // TDataSetBaseAdapter<M>.AddLookupField already closes the dataset and
-  // reopens it with exactly this, inside its own finally.
+  // The call the adapter did not make on the Open path before #248. It was
+  // never exotic: TDataSetBaseAdapter<M>.AddLookupField already closed the
+  // dataset and reopened it with exactly this, inside its own finally - and
+  // EnsureOpen is now the same call, in the one place that was missing it.
   FTable.Open;
   Assert.IsTrue(FTable.Active,
     'a closed TFDMemTable reopens on a plain TDataSet.Open - nothing was ' +
@@ -759,7 +798,8 @@ begin
 
   Assert.AreEqual('', LError,
     'and with the dataset open again the container works normally. THE HARM ' +
-    'OF CLOSING IS ONE MISSING REOPEN, NOT A LOST RESOURCE');
+    'OF CLOSING WAS ONE MISSING REOPEN, NOT A LOST RESOURCE - which is why ' +
+    'the whole of #248 is a bare Open in the right place');
   Assert.AreEqual(cROWS, FTable.RecordCount,
     'every row is back');
 end;
@@ -768,7 +808,7 @@ end;
 // The lazy
 // ---------------------------------------------------------------------------
 
-procedure TTestCloseVsEmpty.Lazy_LoadLazyIsGatedOnActiveAndTheShippedCloseKeepsItInert;
+procedure TTestCloseVsEmpty.Lazy_TheGateIsShutWhileOpenAndTheContainerCloseNowOpensIt;
 var
   LBefore: Integer;
 begin
@@ -783,20 +823,19 @@ begin
   FMid.LoadLazy(TAitMid(FRoot.This));
   Assert.AreEqual(LBefore, FRows.CreateCount,
     'LoadLazy exits on `if FOrmDataSet.Active then Exit` - not one cursor was ' +
-    'opened');
+    'opened. THIS HALF DID NOT CHANGE');
 
   FMid.Close;
-  Assert.IsTrue(FMidTable.Active,
-    'and the shipped Close does not reopen that gate, because it never closes');
 
-  LBefore := FRows.CreateCount;
-  FMid.LoadLazy(TAitMid(FRoot.This));
-  Assert.AreEqual(LBefore, FRows.CreateCount,
-    'so LoadLazy is still inert after it. WITH THE SHIPPED CLOSE, THE LAZY ' +
-    'DATASET PATH IS UNREACHABLE');
+  Assert.IsFalse(FMidTable.Active,
+    'AND THIS HALF DID. The container Close now closes, so the gate LoadLazy ' +
+    'reads finally opens. Until #248 this assertion was IsTrue and the lazy ' +
+    'dataset path had no way in at all. What LoadLazy then asks the ' +
+    'connection for is counted in Test.Janus.Reopen.Lazy - the cursor number ' +
+    'is the point of the change and belongs with the change');
 end;
 
-procedure TTestCloseVsEmpty.Lazy_ARealCloseFlipsTheGate;
+procedure TTestCloseVsEmpty.Lazy_ARealCloseFlipsTheGateAndTheLoadNowCompletes;
 var
   LBefore: Integer;
   LError: string;
@@ -813,13 +852,15 @@ begin
       FMid.LoadLazy(TAitMid(FRoot.This));
     end);
 
-  Assert.AreEqual('Exception | ' + cCLOSEDMSG, LError,
-    'MEASURED: the lazy load path is reachable ONLY through a real close, ' +
-    'and once reached it walks straight into OpenSQLInternal, which cannot ' +
-    'work on a closed dataset. The reservation about the lazy is real, and ' +
-    'it points the same way as Reopen_AfterARealClose_IsMeasured');
-  Assert.AreEqual(LBefore, FRows.CreateCount,
-    'it died before asking the connection for anything');
+  Assert.AreEqual('', LError,
+    'MEASURED: past the gate, LoadLazy walks into OpenSQLInternal, and ' +
+    'OpenSQLInternal now reopens the dataset before emptying it. In #246 this ' +
+    'assertion read `Exception | ' + cCLOSEDMSG + '` and the reservation ' +
+    'about the lazy was exactly that');
+  Assert.IsTrue(FRows.CreateCount > LBefore,
+    'and it reached the connection instead of dying in front of it: ' +
+    IntToStr(FRows.CreateCount - LBefore) + ' cursor(s), against the zero ' +
+    '#246 measured');
 end;
 
 procedure TTestCloseVsEmpty.Lazy_TheUnloadPathPerformsARealClose;
@@ -833,32 +874,40 @@ begin
 
   Assert.IsFalse(FMidTable.Active,
     'LoadLazy(nil) calls the PROTECTED Close, which is a real ' +
-    'FOrmDataSet.Close. So the shipped framework does close datasets for ' +
-    'real - on exactly one path, the lazy one');
+    'FOrmDataSet.Close. Before #248 this was the ONLY path on which the ' +
+    'framework closed a dataset for real - and it was also the path with no ' +
+    'way back, which is why the lazy was where the reopen had to be fixed');
 end;
 
 // ---------------------------------------------------------------------------
 // Master-detail
 // ---------------------------------------------------------------------------
 
-procedure TTestCloseVsEmpty.Cascade_BothReachTheChildButLeaveItInDifferentStates;
+procedure TTestCloseVsEmpty.Cascade_BothReachTheChildAndNowLeaveItClosed;
 begin
   BuildTree(cTREEROWS, True);
   FRoot.Open;
   Assert.IsTrue(FMidTable.Active);
 
   FRoot.Close;
-  Assert.IsTrue(FMidTable.Active,
-    'the shipped Close reaches the child through ' +
-    'TFDMemTableAdapter<M>.EmptyDataSetChilds and leaves it OPEN');
-  Assert.AreEqual(0, FMidTable.RecordCount, 'and empty');
+  Assert.IsFalse(FMidTable.Active,
+    'the container Close now travels down TDataSetBaseAdapter<M>' +
+    '.DoBeforeClose and leaves the child CLOSED. Until #248 it travelled down ' +
+    'TFDMemTableAdapter<M>.EmptyDataSetChilds instead and left it OPEN and ' +
+    'empty - the two routes are still distinct, the end state no longer is');
+  Assert.AreEqual(0, FMidTable.RecordCount, 'and holding nothing');
+
+  FRoot.Open;
+  Assert.IsTrue(FRootTable.Active,
+    'and the whole tree comes back, which is what makes the cascade above a ' +
+    'decision instead of a trap: in #246 a cascaded real close put every ' +
+    'child into a state nothing could recover from');
 
   TCloseAccess<TAitRoot>.RealClose(FRoot.This);
   Assert.IsFalse(FRootTable.Active, 'the master really closed');
   Assert.IsFalse(FMidTable.Active,
-    'and DoBeforeClose cascaded a real Close to the child - so a real close ' +
-    'of one container puts EVERY child of the tree into the state that ' +
-    'Reopen_AfterARealClose_IsMeasured shows cannot be recovered from');
+    'and the protected Close cascades to the child by the same DoBeforeClose ' +
+    'route - the two Closes now agree end to end');
 end;
 
 initialization
