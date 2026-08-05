@@ -343,7 +343,11 @@ begin
   if ACascadeAction = TCascadeAction.CascadeInsert then // Insert
   begin
     FSession.Insert(LObject);
-    // Popula as propriedades de relacionamento com os valores do master
+    // Popula as propriedades de relacionamento com a chave do proprio ramo
+    // recem inserido - nao com a do master. A chave lida e a de LObject, e
+    // SetAutoIncValueChilds percorre os filhos DELE. Medido no #238: procurar
+    // um nome de coluna do master contra o mapeamento do filho devolve
+    // IndexOf = -1, o walker sai sem escrever, e nada e levantado.
     LPrimaryKey := TMappingExplorer
                      .GetMappingPrimaryKeyColumns(LObject.ClassType);
     if LPrimaryKey = nil then
@@ -372,7 +376,12 @@ begin
     else
     begin
       FSession.Insert(LObject);
-      // Popula as propriedades de relacionamento com os valores do master
+      // Objeto ausente do estado guardado por Modify: entra como INSERT, e
+      // acaba de ganhar sua propria chave. Quem espera essa chave sao os
+      // filhos DELE, gravados logo abaixo pelo CascadeActionsExecute - o que
+      // nao for carimbado aqui chega ao banco em zero, sem levantar nada.
+      // Mesma leitura do ramo de insert: a chave e lida de LObject, nao do
+      // master.
       LPrimaryKey := TMappingExplorer
                        .GetMappingPrimaryKeyColumns(LObject.ClassType);
       if LPrimaryKey = nil then

@@ -149,6 +149,11 @@
         <DCCReference Include="RESTHorse\Test.Janus.Server.RestObjectSet.CascadeUpdate.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.RestObjectSet.CascadeUpdateList.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.RestObjectSet.UpdateMasterKey.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.KeyOnly.pas"/>
+        <DCCReference Include="RESTHorse\Test.Janus.Server.RestObjectSet.CascadeDelete.pas"/>
+        <DCCReference Include="RESTHorse\Test.Janus.Server.RestObjectSet.NilBranch.pas"/>
+        <DCCReference Include="RESTHorse\Test.Janus.Server.RestObjectSet.SuppliedKey.pas"/>
+        <DCCReference Include="RESTHorse\Test.Janus.Server.RestObjectSet.NoOpUpdate.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
