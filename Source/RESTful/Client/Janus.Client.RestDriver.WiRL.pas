@@ -31,7 +31,7 @@ uses
   SysUtils,
   Janus.Client.WiRL,
   Janus.Client.Methods,
-  Janus.Driver.REST;
+  Janus.Client.RestDriver;
 
 type
   TRESTDriverWiRL = class(TRESTDriver)

@@ -32,7 +32,7 @@ uses
   Generics.Collections,
   Janus.RestComponent,
   /// Janus Conexão
-  Janus.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   /// MARS
   MARS.Core.Engine,
   MARS.Core.Application;

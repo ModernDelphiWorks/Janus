@@ -31,7 +31,7 @@ uses
   SysUtils,
   Janus.RestComponent,
   /// Janus Conexão
-  Janus.Factory.Interfaces,
+  DataEngine.FactoryInterfaces,
   /// WiRL
   MVCFramework;
 
