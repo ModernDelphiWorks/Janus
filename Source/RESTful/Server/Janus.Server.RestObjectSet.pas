@@ -413,11 +413,15 @@ begin
     if ACascadeAction = TCascadeAction.CascadeInsert then // Insert
     begin
       FSession.Insert(LObject);
-      // Popula as propriedades de relacionamento com os valores do master
+      // Popula as propriedades de relacionamento com os valores do filho recem
+      // inserido. A chave lida e a de LObject, o objeto que acabou de receber
+      // seu proprio valor gerado e cujos filhos SetAutoIncValueChilds percorre;
+      // ler a chave de AObject entrega a SetAutoIncValueOneToMany uma
+      // TRttiProperty do master para ser lida contra o filho.
       if FSession.ExistSequence then
       begin
         LPrimaryKey := TMappingExplorer
-                           .GetMappingPrimaryKeyColumns(AObject.ClassType);
+                           .GetMappingPrimaryKeyColumns(LObject.ClassType);
         if LPrimaryKey = nil then
           raise Exception.Create(cMESSAGEPKNOTFOUND);
 
@@ -467,10 +471,12 @@ begin
   if ACascadeAction = TCascadeAction.CascadeInsert then // Insert
   begin
     FSession.Insert(LObject);
-    // Popula as propriedades de relacionamento com os valores do master
+    // Popula as propriedades de relacionamento com os valores do filho recem
+    // inserido. Mesma razao de OneToManyCascadeActionsExecute: quem acabou de
+    // ganhar chave e LObject, e e a chave DELE que os filhos dele esperam.
     if FSession.ExistSequence then
     begin
-      LPrimaryKey := TMappingExplorer.GetMappingPrimaryKeyColumns(AObject.ClassType);
+      LPrimaryKey := TMappingExplorer.GetMappingPrimaryKeyColumns(LObject.ClassType);
       if LPrimaryKey = nil then
         raise Exception.Create(cMESSAGEPKNOTFOUND);
 

@@ -144,6 +144,8 @@
         <DCCReference Include="RESTHorse\Test.Janus.REST.Horse.JoinView.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.REST.Horse.Driver.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.REST.Horse.MethodGrant.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.AsymTree.pas"/>
+        <DCCReference Include="RESTHorse\Test.Janus.Server.RestObjectSet.AutoInc.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
