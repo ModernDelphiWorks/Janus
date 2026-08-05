@@ -54,7 +54,12 @@ jobs:
             "C:\Program Files (x86)\Embarcadero\Studio\23.0\bin\rsvars.bat",
             "C:\Program Files (x86)\Embarcadero\Studio\22.0\bin\rsvars.bat",
             "C:\Program Files (x86)\Embarcadero\Studio\21.0\bin\rsvars.bat",
-            "C:\Program Files (x86)\Embarcadero\Studio\20.0\bin\rsvars.bat"
+            "C:\Program Files (x86)\Embarcadero\Studio\20.0\bin\rsvars.bat",
+            # Appended LAST on purpose: a runner that still has 23.0 keeps
+            # using it, exactly as before. This entry only decides anything on
+            # a runner where 37.0 is the ONLY Studio installed - which is the
+            # case on the workstation these projects are built on today.
+            "C:\Program Files (x86)\Embarcadero\Studio\37.0\bin\rsvars.bat"
           )
           foreach ($path in $rsvars) {
             if (Test-Path $path) {
@@ -67,34 +72,62 @@ jobs:
           echo "RSVARS_PATH=" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
-      - name: Compile Janus.Tests.Units.dpr
+      # ─── WHICH PROJECTS THIS JOB GATES ───
+      #
+      # Janus.Tests.Units        the default configuration - DRIVERRESTFUL OFF,
+      #                          which is what Janus.inc ships.
+      # Janus.Tests.RESTfulDriver the OPT-IN configuration - DRIVERRESTFUL ON,
+      #                          carried by its own .dproj (DCC_Define). Before
+      #                          it existed, no CI run ever compiled the ON
+      #                          branch of a single {$IFDEF DRIVERRESTFUL}, and
+      #                          Janus.Manager.DataSet / Janus.Manager.ObjectSet
+      #                          were not compiled by ANY test binary at all.
+      #
+      # Deliberately NOT here, and why:
+      #   Janus.Tests.LiveBindings, Janus.Tests.RESTHorse - they build and pass
+      #     locally but this job never ran them either; adding them is a
+      #     separate decision, not a side effect of the REST configuration.
+      #   Janus.Tests.RESTOracle - needs a live Oracle; its 12 tests error out
+      #     without one, so it cannot be a gate on a runner without a database.
+      - name: Compile and run the DUnitX projects
         run: |
           $rsvars = "${{ steps.delphi-env.outputs.RSVARS_PATH }}"
-          if ($rsvars -and (Test-Path $rsvars)) {
-            # Load Delphi environment and compile
-            cmd /c "call `"$rsvars`" && msbuild Test\Delphi\Janus.Tests.Units.dproj /t:Build /p:Config=Debug /p:Platform=Win32 /verbosity:minimal"
-          } else {
+          if (-not ($rsvars -and (Test-Path $rsvars))) {
             Write-Host "::error::Cannot compile — rsvars.bat not found"
             exit 1
           }
-        shell: pwsh
-
-      - name: Run tests
-        run: |
+          $projects = @("Janus.Tests.Units", "Janus.Tests.RESTfulDriver")
           $env:CI = "1"
-          $exe = Get-ChildItem -Path "Test\Delphi" -Filter "Janus.Tests.Units.exe" -Recurse | Select-Object -First 1
-          if (-not $exe) {
-            $exe = Get-ChildItem -Path "." -Filter "Janus.Tests.Units.exe" -Recurse | Select-Object -First 1
-          }
-          if ($exe) {
+          $failed = @()
+          foreach ($project in $projects) {
+            Write-Host "::group::$project"
+            cmd /c "call `"$rsvars`" && msbuild Test\Delphi\$project.dproj /t:Build /p:Config=Debug /p:Platform=Win32 /verbosity:minimal"
+            if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::$project failed to compile"
+              $failed += "$project (compile)"
+              Write-Host "::endgroup::"
+              continue
+            }
+            $exe = Get-ChildItem -Path "Test\Delphi" -Filter "$project.exe" -Recurse | Select-Object -First 1
+            if (-not $exe) {
+              $exe = Get-ChildItem -Path "." -Filter "$project.exe" -Recurse | Select-Object -First 1
+            }
+            if (-not $exe) {
+              Write-Host "::error::$project.exe not found"
+              $failed += "$project (missing exe)"
+              Write-Host "::endgroup::"
+              continue
+            }
             Write-Host "Running: $($exe.FullName)"
             & $exe.FullName
             if ($LASTEXITCODE -ne 0) {
-              Write-Host "::error::Tests failed with exit code $LASTEXITCODE"
-              exit $LASTEXITCODE
+              Write-Host "::error::$project tests failed with exit code $LASTEXITCODE"
+              $failed += "$project (tests)"
             }
-          } else {
-            Write-Host "::error::Janus.Tests.Units.exe not found"
+            Write-Host "::endgroup::"
+          }
+          if ($failed.Count -gt 0) {
+            Write-Host "::error::Failing projects: $($failed -join ', ')"
             exit 1
           }
         shell: pwsh
@@ -107,4 +140,5 @@ jobs:
           path: |
             **/dunitx-results.xml
             **/Janus.Tests.Units-*.xml
+            **/Janus.Tests.RESTfulDriver-*.xml
           if-no-files-found: warn
