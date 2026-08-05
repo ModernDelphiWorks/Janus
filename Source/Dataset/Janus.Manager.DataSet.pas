@@ -185,9 +185,19 @@ begin
   Resolver<T>.CancelUpdates;
 end;
 
+/// <summary> Closes the dataset - the manager's half of the same change made
+///  in TContainerDataSet<M>.Close, and for the same measured reason: closing
+///  used to be a one-way door because every open path starts with EmptyDataSet
+///  and EmptyDataSet raises on a closed dataset.
+///  TDataSetBaseAdapter<M>.EnsureOpen is what makes the way back exist.
+///  TManagerDataSet.EmptyDataSet<T> still clears without closing - measured
+///  side by side in Test.Janus.Reopen.Lazy
+///  .Close_EmptyDataSetStillClearsWithoutClosing.
+///  Pinned by Test.Janus.Reopen.Lazy
+///  .Close_TheManagerNowLeavesTheDataSetClosed. </summary>
 procedure TManagerDataSet.Close<T>;
 begin
-  Resolver<T>.EmptyDataSet;
+  Resolver<T>.Close;
 end;
 
 procedure TManagerDataSet.LoadLazy<T>(const AOwner: T);

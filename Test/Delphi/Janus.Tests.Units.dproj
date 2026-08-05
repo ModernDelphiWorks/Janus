@@ -191,6 +191,7 @@
         <DCCReference Include="Integration\Test.Janus.ObjectSet.UpdateMasterKey.pas"/>
         <DCCReference Include="Integration\Test.Janus.ObjectSet.CascadeDeleteOrder.pas"/>
         <DCCReference Include="Unit\Container\Test.Janus.Close.VsEmpty.pas"/>
+        <DCCReference Include="Unit\Container\Test.Janus.Reopen.Lazy.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

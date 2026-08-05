@@ -100,6 +100,7 @@ type
     procedure Edit; virtual;
     procedure Delete; virtual;
     procedure Close; virtual;
+    procedure EnsureOpen;
     procedure Cancel; virtual;
     procedure SetAutoIncValueChilds; virtual;
     procedure SetMasterObject(const AValue: TObject); virtual;
@@ -221,6 +222,50 @@ end;
 procedure TDataSetBaseAdapter<M>.Close;
 begin
   FOrmDataSet.Close;
+end;
+
+/// <summary> Gives the adapter back the one thing it could not do: come back
+///  from a closed dataset. It is called at the head of every Open*Internal of
+///  the four dataset adapters, AHEAD of the EmptyDataSet that opens them -
+///  EmptyDataSet goes through CheckBrowseMode, and on a closed dataset that
+///  raises "Cannot perform this operation on a closed dataset".
+///  A BARE Open IS THE WHOLE FIX, and it was measured to be enough on each of
+///  the four separately - Test.Janus.Reopen.Lazy has one Reopen_* per adapter
+///  and infers nothing from one family to another.
+///  WHAT A GENUINE CLOSE COSTS IS NOT A RESOURCE THE ADAPTER HAS TO REBUILD.
+///  The runtime TFields survive it because TFieldSingleton.AddField names them
+///  and binds them to the dataset, which makes them persistent, so
+///  DestroyFields - which only clears the automatic ones - leaves them alone.
+///  Measured on both the FDMemTable and the ClientDataSet family, and it is the
+///  SAME TField objects before the close, after it and after the reopen:
+///  Test.Janus.Reopen.Lazy
+///  .Fields_TheSameObjectsSurviveCloseAndReopen_BothFamilies.
+///  WHAT THE REOPEN DOES NOT BRING BACK IS THE ROWS, and the two families do
+///  not agree: a reopened TFDMemTable comes back with 0 records, a reopened
+///  TClientDataSet comes back with the records it had - measured by
+///  Test.Janus.Reopen.Lazy
+///  .Rows_ABareReopenBringsBackNothingOnFDMemTableAndEverythingOnClientDataSet.
+///  It costs the callers nothing because every one of them clears the dataset
+///  on the very next line, but it is the reason this is not a way to preserve
+///  data across a close.
+///  HOW EACH ADAPTER USED TO REPORT THE FAILED REOPEN IS NOT PINNED ANYWHERE,
+///  because with this method in place none of them fails. What can be read
+///  without running anything is that TFDMemTableAdapter and TClientDataSetAdapter
+///  wrap their whole open block in `on E: Exception do raise
+///  Exception.Create(E.Message)` while the two REST adapters have no except
+///  block at all; the only runtime datum that survives is #246's, on
+///  TFDMemTableAdapter, where the failure arrived already re-wrapped as a plain
+///  Exception.
+///  Not virtual on purpose: no family was found to need anything else.
+///  Pinned by Test.Janus.Reopen.Lazy - every Reopen_* test there fails without
+///  this method. </summary>
+procedure TDataSetBaseAdapter<M>.EnsureOpen;
+begin
+  if FOrmDataSet = nil then
+    Exit;
+  if FOrmDataSet.Active then
+    Exit;
+  FOrmDataSet.Open;
 end;
 
 procedure TDataSetBaseAdapter<M>.AddLookupField(const AFieldName: String;

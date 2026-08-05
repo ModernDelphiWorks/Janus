@@ -116,9 +116,35 @@ begin
   FDataSetAdapter.CancelUpdates;
 end;
 
+/// <summary> Closes the dataset. It used to CLEAR it instead - byte for byte
+///  the body TContainerDataSet<M>.EmptyDataSet still has - and the reason was
+///  never taste: a genuine close was a one-way door. Every open path begins with
+///  EmptyDataSet, EmptyDataSet goes through CheckBrowseMode, and on a closed
+///  dataset that raises, so nothing could reopen what this closed.
+///  TDataSetBaseAdapter<M>.EnsureOpen is what removed the door, and only with
+///  it in place does closing here become a decision rather than a trap.
+///  IT IS A BEHAVIOUR CHANGE and it is meant to be one: what a consumer gets
+///  back afterwards is a CLOSED dataset, not an empty open one. Whoever wanted
+///  the old shape asks for EmptyDataSet, which is still here, unchanged.
+///  WHO IS AFFECTED, counted over Source\, Test\ and Examples\: this method and
+///  TManagerDataSet.Close<T> have FOUR call sites outside the framework, all
+///  under Examples\Delphi, and they do NOT all have the same shape. The two
+///  WebService ones (TForm2.btnBuscaCEPClick and TForm2.btnBuscarClick under
+///  RESTFul via Driver) close and reopen in the same handler, so nothing there
+///  can tell the difference. The other two (TForm3.Button4Click of the ADO and
+///  the DBExpress uMainFormORM) close and STOP - their Open lives in a separate
+///  button - so whatever is bound to them stays in the post-Close state until
+///  the operator presses Open. What a bound control sees in that state changed
+///  from an open empty dataset to an inactive one - measured on the FDMemTable
+///  family by
+///  Test.Janus.Close.VsEmpty.BoundControl_NowSeesTheContainerCloseAsInactive,
+///  which also measures that the control's own reads still do not raise.
+///  Pinned by Test.Janus.Reopen.Lazy
+///  .Close_TheContainerNowLeavesTheFDMemTableClosed (and the ClientDataSet and
+///  manager siblings next to it). </summary>
 procedure TContainerDataSet<M>.Close;
 begin
-  FDataSetAdapter.EmptyDataSet;
+  FDataSetAdapter.Close;
 end;
 
 function TContainerDataSet<M>.MasterObject: TDataSetBaseAdapter<M>;

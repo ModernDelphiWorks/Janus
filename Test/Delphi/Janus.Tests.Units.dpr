@@ -110,7 +110,9 @@ uses
   /// The base adapter's cascade DELETE order under an enforced FK — issue #240
   Test.Janus.ObjectSet.CascadeDeleteOrder in 'Integration\Test.Janus.ObjectSet.CascadeDeleteOrder.pas',
   /// What a real close costs against what emptying costs — issue #246
-  Test.Janus.Close.VsEmpty in 'Unit\Container\Test.Janus.Close.VsEmpty.pas';
+  Test.Janus.Close.VsEmpty in 'Unit\Container\Test.Janus.Close.VsEmpty.pas',
+  /// The reopen, and the cursor count that shows the lazy path is alive — #248
+  Test.Janus.Reopen.Lazy in 'Unit\Container\Test.Janus.Reopen.Lazy.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

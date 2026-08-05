@@ -196,6 +196,10 @@ begin
   try
     try
       // Limpa os registro do dataset antes de garregar os novos dados
+      // Reabre antes de limpar: EmptyDataSet passa por CheckBrowseMode e, com o
+      // dataset fechado, levanta "Cannot perform this operation on a closed
+      // dataset" - ver TDataSetBaseAdapter<M>.EnsureOpen.
+      EnsureOpen;
       EmptyDataSet;
       inherited;
       FSession.OpenID(AID);
@@ -228,6 +232,10 @@ begin
   try
     try
       // Limpa os registro do dataset antes de garregar os novos dados
+      // Reabre antes de limpar: EmptyDataSet passa por CheckBrowseMode e, com o
+      // dataset fechado, levanta "Cannot perform this operation on a closed
+      // dataset" - ver TDataSetBaseAdapter<M>.EnsureOpen.
+      EnsureOpen;
       EmptyDataSet;
       inherited;
       FSession.OpenSQL(ASQL);
@@ -260,6 +268,10 @@ begin
   try
     try
       // Limpa os registro do dataset antes de garregar os novos dados
+      // Reabre antes de limpar: EmptyDataSet passa por CheckBrowseMode e, com o
+      // dataset fechado, levanta "Cannot perform this operation on a closed
+      // dataset" - ver TDataSetBaseAdapter<M>.EnsureOpen.
+      EnsureOpen;
       EmptyDataSet;
       inherited;
       FSession.OpenWhere(AWhere, AOrderBy);
