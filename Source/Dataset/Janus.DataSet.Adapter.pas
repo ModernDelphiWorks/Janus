@@ -121,9 +121,26 @@ begin
     LDataSet.DisableControls;
     LDataSet.First;
     try
-      repeat
-        LDataSet.Delete;
-      until LDataSet.Eof;
+      /// <summary> A nested dataset with no row has nothing to clear, and
+      ///  asking anyway is not harmless: TDataSet.Delete opens with
+      ///  `if FRecordCount = 0 then DatabaseError(SDataSetEmpty)`, and the body
+      ///  of a `repeat` always runs once - so the FIRST Delete on an empty
+      ///  nested dataset raised EDatabaseError and took the whole owner delete
+      ///  down with it. TDataSet.IsEmpty is `FActiveRecord >= FRecordCount`,
+      ///  not FRecordCount alone - but the First on the line above pins
+      ///  FActiveRecord to 0, so here it collapses to the very field Delete
+      ///  tests. That First is what makes this guard the exact complement of
+      ///  the raise rather than an approximation of it; move the guard away
+      ///  from the First and the claim stops holding. It guards only that:
+      ///  First still runs, so a nested dataset that is CLOSED still fails
+      ///  where it always did.
+      ///  Pinned by Test.Janus.Nested.Delete, which measures the populated case
+      ///  too - a guard that skipped more than the empty dataset would quietly
+      ///  stop clearing anything. </summary>
+      if not LDataSet.IsEmpty then
+        repeat
+          LDataSet.Delete;
+        until LDataSet.Eof;
     finally
       LDataSet.EnableControls;
     end;
