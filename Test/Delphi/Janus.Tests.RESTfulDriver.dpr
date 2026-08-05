@@ -65,6 +65,7 @@ uses
   /// Models
   MetaDbDiff.Mapping.Register,
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
+  Test.Janus.Model.AutoIncTree in 'Common\Test.Janus.Model.AutoIncTree.pas',
   /// Doubles
   Test.Janus.RestConnection.Double in 'Common\Test.Janus.RestConnection.Double.pas',
   /// Tests - the DRIVERRESTFUL branch
@@ -72,7 +73,9 @@ uses
   Test.Janus.Driver.ManagerObjectSet in 'Unit\RESTful\Test.Janus.Driver.ManagerObjectSet.pas',
   Test.Janus.Driver.HorseClientChain in 'Unit\RESTful\Test.Janus.Driver.HorseClientChain.pas',
   /// Clearing the child datasets from wherever the cursor is - issue #222
-  Test.Janus.Rest.ClearChilds in 'Unit\RESTful\Test.Janus.Rest.ClearChilds.pas';
+  Test.Janus.Rest.ClearChilds in 'Unit\RESTful\Test.Janus.Rest.ClearChilds.pas',
+  /// The cascade guard that decides WHICH child gets cleared - issue #235
+  Test.Janus.Rest.CascadeGuard in 'Unit\RESTful\Test.Janus.Rest.CascadeGuard.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
