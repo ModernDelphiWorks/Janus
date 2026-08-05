@@ -44,6 +44,8 @@ uses
   Janus.DML.Generator.SQLite,
   /// Models
   MetaDbDiff.Mapping.Register,
+  /// Three levels with every key column spelled once — issue #225
+  Test.Janus.Model.AsymTree in 'Common\Test.Janus.Model.AsymTree.pas',
   /// Test Infrastructure
   RestHorseTest.Models in 'RESTHorse\Support\RestHorseTest.Models.pas',
   RestHorseTest.Base   in 'RESTHorse\Support\RestHorseTest.Base.pas',
@@ -54,7 +56,9 @@ uses
   /// Integration Test Suites — ESP-006
   Test.Janus.REST.Horse.Driver      in 'RESTHorse\Test.Janus.REST.Horse.Driver.pas',
   /// Integration Test Suites — R20 method-level grant (#137)
-  Test.Janus.REST.Horse.MethodGrant      in 'RESTHorse\Test.Janus.REST.Horse.MethodGrant.pas';
+  Test.Janus.REST.Horse.MethodGrant      in 'RESTHorse\Test.Janus.REST.Horse.MethodGrant.pas',
+  /// Whose primary key the server side cascade propagates — issue #225
+  Test.Janus.Server.RestObjectSet.AutoInc in 'RESTHorse\Test.Janus.Server.RestObjectSet.AutoInc.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
