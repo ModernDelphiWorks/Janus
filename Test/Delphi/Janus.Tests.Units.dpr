@@ -106,7 +106,9 @@ uses
   /// all, and whether the master key reaches a child added on update — #242
   Test.Janus.ObjectSet.CascadeUpdateList in 'Integration\Test.Janus.ObjectSet.CascadeUpdateList.pas',
   /// Whether the MASTER key reaches a child added on update — issue #242
-  Test.Janus.ObjectSet.UpdateMasterKey in 'Integration\Test.Janus.ObjectSet.UpdateMasterKey.pas';
+  Test.Janus.ObjectSet.UpdateMasterKey in 'Integration\Test.Janus.ObjectSet.UpdateMasterKey.pas',
+  /// The base adapter's cascade DELETE order under an enforced FK — issue #240
+  Test.Janus.ObjectSet.CascadeDeleteOrder in 'Integration\Test.Janus.ObjectSet.CascadeDeleteOrder.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
