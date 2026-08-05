@@ -146,6 +146,7 @@
         <DCCReference Include="RESTHorse\Test.Janus.REST.Horse.MethodGrant.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AsymTree.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.RestObjectSet.AutoInc.pas"/>
+        <DCCReference Include="RESTHorse\Test.Janus.Server.RestObjectSet.CascadeUpdate.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
