@@ -898,10 +898,14 @@ begin
   Assert.AreEqual(0, FMidTable.RecordCount, 'and holding nothing');
 
   FRoot.Open;
-  Assert.IsTrue(FRootTable.Active,
-    'and the whole tree comes back, which is what makes the cascade above a ' +
-    'decision instead of a trap: in #246 a cascaded real close put every ' +
-    'child into a state nothing could recover from');
+  Assert.IsTrue(FRootTable.Active, 'the master comes back');
+  Assert.IsTrue(FMidTable.Active,
+    'AND SO DOES THE CHILD - which is the half that matters, and the half the ' +
+    'assertion above cannot see. Reopening the master runs OpenDataSetChilds, ' +
+    'which drives the child through its own Open*Internal and therefore ' +
+    'through EnsureOpen. THE WHOLE TREE COMES BACK, and that is what makes ' +
+    'the cascade above a decision instead of a trap: in #246 a cascaded real ' +
+    'close put every child into a state nothing could recover from');
 
   TCloseAccess<TAitRoot>.RealClose(FRoot.This);
   Assert.IsFalse(FRootTable.Active, 'the master really closed');

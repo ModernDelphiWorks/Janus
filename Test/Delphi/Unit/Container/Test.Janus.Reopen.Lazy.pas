@@ -33,9 +33,12 @@
 
   So every lazy test here counts cursors, through TRowsConnection.CreateCount,
   which is the number of times the ORM asked the connection for a dataset.
-  Lazy_WhileTheDataSetIsOpenNoCursorIsEverRequested pins the old number (0) and
-  Lazy_AfterTheContainerCloseLoadLazyRequestsACursor pins the new one, in the
-  same fixture, so the two can never drift apart.
+  What both pin is the DELTA across the LoadLazy call, never the running total:
+  Lazy_WhileTheDataSetIsOpenNoCursorIsEverRequested pins the old delta (0) and
+  Lazy_AfterTheContainerCloseLoadLazyRequestsACursor the new one (EXACTLY 1, by
+  equality and not by "more than before" - a lazy load that opened three cursors
+  for one child would satisfy an inequality and is a defect). Both live in this
+  same fixture, so the two numbers can never drift apart.
 
   NO SYMMETRY IS ASSUMED BETWEEN THE FOUR ADAPTERS
 
@@ -552,12 +555,17 @@ begin
     '`Cannot perform this operation on a closed dataset`, because ' +
     'OpenSQLInternal began with EmptyDataSet and nothing reopened the ' +
     'dataset first - TDataSetBaseAdapter<M>.EnsureOpen is what removed that');
-  Assert.IsTrue(LAfter > LBefore,
-    'THE NUMBER THIS WHOLE CHANGE EXISTS FOR. Cursors requested by LoadLazy: ' +
-    'was ' + IntToStr(LBefore) + ', is now ' + IntToStr(LAfter) + '. #246 ' +
-    'measured zero and only zero, because the gate never opened and, once it ' +
-    'was forced open, the reopen wall stopped the call before it reached the ' +
-    'connection');
+  Assert.AreEqual(LBefore + 1, LAfter,
+    'THE NUMBER THIS WHOLE CHANGE EXISTS FOR, and it is a NUMBER, not a sign. ' +
+    'What is counted is the DELTA across the LoadLazy call, not the running ' +
+    'total - FRoot.Open has already spent cursors before this window opens, ' +
+    'which is why the expectation is LBefore + 1 and not 1. That delta was ' +
+    'ZERO in #246, on both legs: the gate never opened, and once it was ' +
+    'forced open the reopen wall stopped the call before it reached the ' +
+    'connection. It is now EXACTLY ONE - the single select over the child ' +
+    'table. Asserting merely "more than before" would let a regression from ' +
+    'one cursor to three through, and a lazy load that opens three cursors ' +
+    'for one child is a defect wearing a green tick');
   Assert.IsTrue(Pos('aitmid', LowerCase(FRows.LastSQL)) > 0,
     'and it asked for the CHILD table, which is what a lazy load is: ' +
     FRows.LastSQL);
