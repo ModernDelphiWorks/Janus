@@ -41,6 +41,7 @@ uses
   MetaDbDiff.Mapping.Register,
   Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
   Test.Janus.Model.AutoIncTree in 'Common\Test.Janus.Model.AutoIncTree.pas',
+  Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
   Model.Atendimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Atendimento.pas',
   Model.Exame       in '..\..\Examples\Delphi\Data\Object Lazy\Model.Exame.pas',
   Model.Procedimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Procedimento.pas',
@@ -89,7 +90,9 @@ uses
   Test.Janus.Cursor.Advance in 'Unit\Core\Test.Janus.Cursor.Advance.pas',
   Test.Janus.AutoInc.Childs in 'Unit\Core\Test.Janus.AutoInc.Childs.pas',
   /// RESTful\Common property/getter wiring — first coverage of that folder
-  Test.Janus.RestFactory.MethodToken in 'Unit\RESTful\Test.Janus.RestFactory.MethodToken.pas';
+  Test.Janus.RestFactory.MethodToken in 'Unit\RESTful\Test.Janus.RestFactory.MethodToken.pas',
+  /// REST client master-detail wiring — first coverage of TRESTClientDataSetAdapter
+  Test.Janus.MasterDetail.Link in 'Unit\RESTful\Test.Janus.MasterDetail.Link.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

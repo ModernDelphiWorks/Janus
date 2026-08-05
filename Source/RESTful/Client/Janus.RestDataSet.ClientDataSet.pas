@@ -198,10 +198,27 @@ begin
     LFields := '';
     LIndexFields := '';
     TClientDataSet(LChild.FOrmDataSet).MasterSource := FOrmDataSource;
+    /// <summary> Which end of the association feeds which property is fixed by
+    ///  the VCL, not by taste: TCustomClientDataSet.GetDetailLinkFields resolves
+    ///  MasterFields against MasterSource.DataSet - the MASTER - and the index
+    ///  fields against Self - the DETAIL. So MasterFields takes ColumnsName (the
+    ///  column declared on the master entity) and IndexFieldNames takes
+    ///  ColumnsNameRef (the column of the referenced child table), which is also
+    ///  the convention TDataSetBaseAdapter<M>._AutoIncToChildRows resolves them
+    ///  by. Fed the other way round, IndexFieldNames gets a name the child has
+    ///  not got and TCustomClientDataSet.SetIndex raises 'Field ... not found'.
+    ///  This method sent them the other way round until
+    ///  Test.Janus.MasterDetail.Link was written, and never blew up because
+    ///  nothing ever reached it: the only production construction sites of this
+    ///  class are TManagerDataSet.AddAdapter (both overloads), and there it
+    ///  is selected only when DRIVERRESTFUL is defined AND USEFDMEMTABLE is not
+    ///  - a combination Janus.inc does not ship (DRIVERRESTFUL commented out,
+    ///  USEFDMEMTABLE on). Name symmetry is NOT what hid it: the tree does
+    ///  carry associations whose two ends are spelled differently. </summary>
     for LFor := 0 to LAssociation.ColumnsName.Count -1 do
     begin
-      LFields := LFields + LAssociation.ColumnsNameRef[LFor];
-      LIndexFields := LIndexFields + LAssociation.ColumnsName[LFor];
+      LFields := LFields + LAssociation.ColumnsName[LFor];
+      LIndexFields := LIndexFields + LAssociation.ColumnsNameRef[LFor];
       if LAssociation.ColumnsName.Count -1 > LFor then
       begin
         LFields := LFields + '; ';
