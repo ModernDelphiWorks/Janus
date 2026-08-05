@@ -185,6 +185,7 @@
         <DCCReference Include="Unit\RESTful\Test.Janus.MasterDetail.Link.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Nested.Delete.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Scroll.PendingChilds.pas"/>
+        <DCCReference Include="Unit\Core\Test.Janus.Bind.ClearNested.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

@@ -97,7 +97,9 @@ uses
   /// Nested-dataset clearing on delete — the opposite family from #207
   Test.Janus.Nested.Delete in 'Unit\Core\Test.Janus.Nested.Delete.pas',
   /// The scroll contract for unsaved child rows — issue #217
-  Test.Janus.Scroll.PendingChilds in 'Unit\Core\Test.Janus.Scroll.PendingChilds.pas';
+  Test.Janus.Scroll.PendingChilds in 'Unit\Core\Test.Janus.Scroll.PendingChilds.pas',
+  /// Clearing a nested dataset from wherever the cursor is — issue #222
+  Test.Janus.Bind.ClearNested in 'Unit\Core\Test.Janus.Bind.ClearNested.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

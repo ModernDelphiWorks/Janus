@@ -121,6 +121,7 @@ begin
         Continue;
       LDataSet.DisableControls;
       try
+        LDataSet.First;
         while not LDataSet.Eof do
           LDataSet.Delete;
       finally
