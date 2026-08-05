@@ -42,6 +42,7 @@ uses
   Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
   Test.Janus.Model.AutoIncTree in 'Common\Test.Janus.Model.AutoIncTree.pas',
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
+  Test.Janus.Model.Nested in 'Common\Test.Janus.Model.Nested.pas',
   Model.Atendimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Atendimento.pas',
   Model.Exame       in '..\..\Examples\Delphi\Data\Object Lazy\Model.Exame.pas',
   Model.Procedimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Procedimento.pas',
@@ -92,7 +93,9 @@ uses
   /// RESTful\Common property/getter wiring — first coverage of that folder
   Test.Janus.RestFactory.MethodToken in 'Unit\RESTful\Test.Janus.RestFactory.MethodToken.pas',
   /// REST client master-detail wiring — first coverage of TRESTClientDataSetAdapter
-  Test.Janus.MasterDetail.Link in 'Unit\RESTful\Test.Janus.MasterDetail.Link.pas';
+  Test.Janus.MasterDetail.Link in 'Unit\RESTful\Test.Janus.MasterDetail.Link.pas',
+  /// Nested-dataset clearing on delete — the opposite family from #207
+  Test.Janus.Nested.Delete in 'Unit\Core\Test.Janus.Nested.Delete.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
