@@ -189,6 +189,7 @@ begin
                         LObjectList := TObjectList<TObject>(LProperty.GetValue(AObject).AsObject);
                         if LObjectList = nil then
                           Exit;
+                        LDataSet.First;
                         while not LDataSet.Eof do
                           LDataSet.Delete;
                         for LObject in LObjectList do

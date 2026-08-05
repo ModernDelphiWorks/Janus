@@ -70,7 +70,9 @@ uses
   /// Tests - the DRIVERRESTFUL branch
   Test.Janus.Driver.ManagerDataSet in 'Unit\RESTful\Test.Janus.Driver.ManagerDataSet.pas',
   Test.Janus.Driver.ManagerObjectSet in 'Unit\RESTful\Test.Janus.Driver.ManagerObjectSet.pas',
-  Test.Janus.Driver.HorseClientChain in 'Unit\RESTful\Test.Janus.Driver.HorseClientChain.pas';
+  Test.Janus.Driver.HorseClientChain in 'Unit\RESTful\Test.Janus.Driver.HorseClientChain.pas',
+  /// Clearing the child datasets from wherever the cursor is - issue #222
+  Test.Janus.Rest.ClearChilds in 'Unit\RESTful\Test.Janus.Rest.ClearChilds.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

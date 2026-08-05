@@ -95,6 +95,7 @@
         <DCCReference Include="Unit\RESTful\Test.Janus.Driver.ManagerDataSet.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Driver.ManagerObjectSet.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Driver.HorseClientChain.pas"/>
+        <DCCReference Include="Unit\RESTful\Test.Janus.Rest.ClearChilds.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
