@@ -58,7 +58,9 @@ uses
   /// Integration Test Suites — R20 method-level grant (#137)
   Test.Janus.REST.Horse.MethodGrant      in 'RESTHorse\Test.Janus.REST.Horse.MethodGrant.pas',
   /// Whose primary key the server side cascade propagates — issue #225
-  Test.Janus.Server.RestObjectSet.AutoInc in 'RESTHorse\Test.Janus.Server.RestObjectSet.AutoInc.pas';
+  Test.Janus.Server.RestObjectSet.AutoInc in 'RESTHorse\Test.Janus.Server.RestObjectSet.AutoInc.pas',
+  /// Whether the update leg of that cascade propagates at all — issue #239
+  Test.Janus.Server.RestObjectSet.CascadeUpdate in 'RESTHorse\Test.Janus.Server.RestObjectSet.CascadeUpdate.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

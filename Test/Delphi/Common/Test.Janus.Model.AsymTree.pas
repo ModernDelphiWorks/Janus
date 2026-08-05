@@ -43,6 +43,31 @@
       atroot.rkey  --(OneToMany)-->  atmid.mparent
       atmid.mkey   --(OneToMany)-->  atleaf.lparent
 
+  A SECOND ROOT, LINKED ONE TO ONE - issue #239
+
+      atpair.pkey  --(OneToOne)-->   atmid.mparent
+      atmid.mkey   --(OneToMany)-->  atleaf.lparent   (the same mid and leaf)
+
+  The multiplicity of the TOP association is what picks the handler:
+  CascadeActionsExecute sends OneToOne and ManyToOne to
+  OneToOneCascadeActionsExecute and OneToMany / ManyToMany to
+  OneToManyCascadeActionsExecute. atroot therefore only ever reaches the
+  OneToMany handler. Measured before atpair existed: neither of the two model
+  units Janus.Tests.RESTHorse compiles - RestHorseTest.Models and this one -
+  declared a single OneToOne or ManyToOne association, so no fixture of that
+  project could reach the OneToOne handler at all.
+
+  atpair reuses atmid and atleaf verbatim rather than cloning them, so the
+  level under measurement is byte for byte the same entity in both shapes and
+  the key names stay spelled once each - pkey, mkey, lkey, mparent, lparent.
+  atmid.mparent doubles as the foreign key of both roots; only one root type
+  is ever exercised in a given test.
+
+  atpair does NOT create its `mid` in a constructor. A test that needs the
+  server's `else` branch - the one that fires when the child is absent from
+  the state snapshot - has to be able to hand Modify a root whose branch is
+  still nil.
+
   Reading the attribute: Association(AMultiplicity, AColumnsName,
   ATableNameRef, AColumnsNameRef). ColumnsName is the column on the DECLARING
   entity; ColumnsNameRef is the column on the REFERENCED table. Each level
@@ -165,6 +190,42 @@ type
     property mids: TObjectList<TAsymTreeMid> read Fmids write Fmids;
   end;
 
+  /// The OneToOne root - issue #239. Same two lower levels, a single-object
+  /// association at the top, which is what routes the cascade through
+  /// OneToOneCascadeActionsExecute instead of OneToManyCascadeActionsExecute.
+  [Entity]
+  [Table('atpair', '')]
+  [PrimaryKey('pkey', TAutoIncType.AutoInc,
+                      TGeneratorType.SequenceInc,
+                      TSortingOrder.NoSort,
+                      True, 'Primary key')]
+  [Sequence('atpair')]
+  TAsymTreeOneRoot = class
+  private
+    Fpkey: Integer;
+    Fptag: String;
+    Fmid: TAsymTreeMid;
+  public
+    destructor Destroy; override;
+
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('pkey', ftInteger)]
+    property pkey: Integer read Fpkey write Fpkey;
+
+    [Column('ptag', ftString, 20)]
+    property ptag: String read Fptag write Fptag;
+
+    /// No constructor fills this in. It starts nil on purpose: the branch under
+    /// test is the one that runs when the child is NOT in the state snapshot
+    /// Modify took, and a snapshot taken over a nil branch is exactly that.
+    [Association(TMultiplicity.OneToOne, 'pkey', 'atmid', 'mparent')]
+    [CascadeActions([TCascadeAction.CascadeAutoInc,
+                     TCascadeAction.CascadeInsert,
+                     TCascadeAction.CascadeUpdate,
+                     TCascadeAction.CascadeDelete])]
+    property mid: TAsymTreeMid read Fmid write Fmid;
+  end;
+
 implementation
 
 { TAsymTreeMid }
@@ -193,9 +254,18 @@ begin
   inherited;
 end;
 
+{ TAsymTreeOneRoot }
+
+destructor TAsymTreeOneRoot.Destroy;
+begin
+  Fmid.Free;
+  inherited;
+end;
+
 initialization
   TRegisterClass.RegisterEntity(TAsymTreeLeaf);
   TRegisterClass.RegisterEntity(TAsymTreeMid);
   TRegisterClass.RegisterEntity(TAsymTreeRoot);
+  TRegisterClass.RegisterEntity(TAsymTreeOneRoot);
 
 end.

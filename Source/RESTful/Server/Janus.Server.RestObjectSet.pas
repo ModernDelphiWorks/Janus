@@ -500,7 +500,21 @@ begin
       FObjectState.TrimExcess;
     end
     else
+    begin
       FSession.Insert(LObject);
+      // Objeto ausente do estado guardado por Modify: entra como INSERT, e
+      // acaba de ganhar sua propria chave. Quem espera essa chave sao os
+      // filhos DELE, gravados logo abaixo pelo CascadeActionsExecute - o que
+      // nao for carimbado aqui chega ao banco em zero, sem levantar nada.
+      // Mesma leitura do ramo de insert: a chave e lida de LObject.
+      LPrimaryKey := TMappingExplorer
+                         .GetMappingPrimaryKeyColumns(LObject.ClassType);
+      if LPrimaryKey = nil then
+        raise Exception.Create(cMESSAGEPKNOTFOUND);
+
+      for LColumn in LPrimaryKey.Columns do
+        SetAutoIncValueChilds(LObject, LColumn);
+    end;
   end;
   // Executa comando em cascade de cada objeto da lista
   CascadeActionsExecute(LObject, ACascadeAction);
