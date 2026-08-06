@@ -85,9 +85,14 @@
       .ApplyInternal only reaches each child's own ApplyInternal after the
       master loop has finished. So each pass re-stamps the same child rows and
       the LAST pending master row wins. Measured by
-      TwoPendingMasterRows_EveryPendingChildEndsOnTheLastMasterKey, which
-      asserts the rows are still pending on the second pass rather than
-      assuming it.
+      TwoPendingMasterRows_EveryPendingChildEndsOnTheLastMasterKey THROUGH THE
+      SHIPPED ApplyInternal - real ApplyInserter, real FSession.Insert, real
+      SetAutoIncValueChilds - not through a mirror of the loop. Two children
+      typed under the first master come out on the SECOND master's key, and the
+      probe shows why: two writes with the master on R1, then the SAME two rows
+      written again with the master on R2. That second pair is itself the proof
+      that the rows were still pending, since _IsPendingInsertRow gates the
+      write.
 
   THE OTHER FAMILY DOES NOT DO THIS, AND THAT IS THE POINT
 
@@ -115,15 +120,35 @@
   itself: an instrument that could not report a zero would make every count
   above unfalsifiable.
 
+  HOW THE CLAUSES ABOVE WERE SHOWN TO BIND
+
+  Green is not evidence that an assertion holds anything, so each was made to
+  fail on purpose. Mutating _AutoIncToChildRows' AChild.First to AChild.Last
+  reddens the two distinct-key tests and NOTHING ELSE in 470 - every one of the
+  464 tests that predate this section stays green under it, which is the measure
+  of how blind the suite was to cursor position. Inverting the expected key in
+  TwoPendingMasterRows_ reddens only itself; inverting the ObjectSet expectation
+  to the collapsed value reddens only itself, reporting `Expected [91] but got
+  [92]`; inverting the DEGENERATE and the zero-write clauses reddens exactly
+  those two. All five inversions were reverted.
+
   WHAT THIS SECTION DID NOT MEASURE
 
-  * Neither family is driven through its real ApplyInserter: that needs a live
-    FSession.Insert. As everywhere else in this fixture, the state ApplyInserter
-    creates is reproduced and the SHIPPED SetAutoIncValueChilds is called.
-  * TwoPendingMasterRows_ moves the master cursor itself, wrapped in the
-    framework's own DisableDataSetEvents, because ApplyInserter advances its
-    cursor as a side effect of marking rows saved through its filter and that
-    needs the session. What the mute buys is asserted, not assumed.
+  * The three DataSet tests that measure the RECURSION call the shipped
+    SetAutoIncValueChilds directly rather than through ApplyInserter. That is a
+    choice, not a limit - TwoPendingMasterRows_ in this same file drives the
+    real ApplyInternal, and so does
+    Test.Janus.Apply.Loops.ApplyInserter_DoesNotRepointAChildRowOfAnotherMaster.
+    The recursion tests need three mid rows carrying three DIFFERENT own keys,
+    which is a state to be arranged rather than generated, and the shape those
+    tests already had was kept.
+  * TwoPendingMasterRows_ appends its two master rows with the adapter muted and
+    writes the pending marker by hand, because the mute unhooks DoBeforePost,
+    which is what writes it. The mute is needed only because appending the
+    second master row would otherwise make DoAfterScroll re-open - and discard -
+    the child rows. That is a LOCAL-family artefact: TRESTDataSetAdapter<M>
+    .OpenDataSetChilds has an empty body and discards nothing. Everything after
+    the set-up is the shipped apply.
   * The ObjectSet test calls SetAutoIncValueChilds once per parent object the
     way OneToManyCascadeActionsExecute does, but does not run the cascade, so it
     measures the distribution step and not the call sequence that reaches it.
@@ -131,11 +156,14 @@
     recursion fires is issue #262 and is NOT answered here. This fixture writes
     those keys itself, so it can say WHICH key travels and never whether it had
     been generated.
-  * Nothing here ran against a live database or a live REST server.
-    TClientDataSetAdapter<M>.ApplyInserter and TRESTDataSetAdapter<M>
-    .ApplyInserter carry the same per-pending-master-row loop, and
-    TRESTDataSetAdapter<M>.OpenDataSetChilds has an empty body, so a master
-    scroll there discards no pending child. Both are READ, not run.
+  * Nothing here ran against a live database or a live REST server. The
+    generator is a TRowsConnection answering one `GEN` column, which is enough
+    for TDMLCommandInserter and nothing more - a walk over the master with its
+    events live re-opens the children from that same connection and fails, which
+    is why the key read-back is muted.
+  * TClientDataSetAdapter<M>.ApplyInserter and TRESTDataSetAdapter<M>
+    .ApplyInserter carry the same per-pending-master-row loop. Those two are
+    READ, not run; only the TFDMemTableAdapter one is measured here.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`. A line anchor rots on the first
   commit that inserts a line above it.
@@ -167,6 +195,7 @@ uses
   MetaDbDiff.Mapping.Explorer,
   MetaDbDiff.Types.Mapping,
   Janus.DataSet.Base.Adapter,
+  Janus.DataSet.FDMemTable,
   Janus.Container.DataSet.Interfaces,
   Janus.Container.FDMemTable,
   Janus.ObjectSet.Base.Adapter,
@@ -207,12 +236,16 @@ type
     class procedure Propagate(const AAdapter: TDataSetBaseAdapter<M>);
     class function SourceOf(const AAdapter: TDataSetBaseAdapter<M>): TDataSource;
     /// The SHIPPED mute, not a fixture imitation of it: TFDMemTableAdapter<M>
-    /// .ApplyInternal calls exactly these two around the whole apply, which is
-    /// why its ApplyInserter can walk from one pending master row to the next
-    /// without DoAfterScroll re-opening - and therefore discarding - the child
-    /// rows it is about to stamp.
+    /// .ApplyInternal calls exactly these two around the whole apply. The
+    /// fixture borrows them for SET-UP only, so that appending a second master
+    /// row does not make DoAfterScroll re-open - and therefore discard - the
+    /// child rows the test is about to hand to the real apply.
     class procedure MuteAdapter(const AAdapter: TDataSetBaseAdapter<M>);
     class procedure UnmuteAdapter(const AAdapter: TDataSetBaseAdapter<M>);
+    /// The whole shipped apply: ApplyInternal -> ApplyInserter ->
+    /// FSession.Insert -> SetAutoIncValueChilds. Nothing is simulated behind
+    /// this call.
+    class procedure ApplyAll(const AAdapter: TDataSetBaseAdapter<M>);
   end;
 
   /// <summary> Same protected-access trick for the OTHER family that ships a
@@ -262,6 +295,7 @@ type
     procedure BuildDistinctKeyTree(const ALinked: Boolean;
       const AMidRows: Integer; const ALeafRows: Integer);
     procedure AssertLeavesCollapsedOntoTheFirstMidRow;
+    procedure MarkRowPending(const ADataSet: TFDMemTable);
   public
     [Setup]
     procedure Setup;
@@ -368,10 +402,15 @@ const
   /// The leaves start on a value NO mid row carries, so "nothing was written"
   /// and "the first mid row was written" can never be read as the same result.
   cLEAFSTART    = -7;
-  /// The SECOND pending master row's generated key - cROOTKEYNEW is the first.
-  cROOTKEYB     = 600;
   /// What the probe records when the master dataset has no current row.
   cNOMASTERROW  = -999;
+  /// The state marker TDataSetBaseAdapter<M>.DoBeforePost writes and
+  /// _IsPendingInsertRow reads back.
+  cINTERNALFIELD = 'InternalField';
+  /// The generator double's single column, and how far apart two consecutive
+  /// answers are - far enough that the two master rows cannot collide.
+  cGENFIELD     = 'GEN';
+  cGENSTEP      = 100;
   cLEVELMID     = 'mid';
   cLEVELLEAF    = 'leaf';
 
@@ -421,6 +460,12 @@ class procedure TAdapterAccess<M>.UnmuteAdapter(
   const AAdapter: TDataSetBaseAdapter<M>);
 begin
   TAdapterAccess<M>(AAdapter).EnableDataSetEvents;
+end;
+
+class procedure TAdapterAccess<M>.ApplyAll(
+  const AAdapter: TDataSetBaseAdapter<M>);
+begin
+  TAdapterAccess<M>(AAdapter).ApplyInternal(0);
 end;
 
 { TObjectSetAccess<M> }
@@ -1157,74 +1202,172 @@ begin
     WriteLog);
 end;
 
-procedure TTestAutoIncChilds.TwoPendingMasterRows_EveryPendingChildEndsOnTheLastMasterKey;
+/// Marks a row of AMaster as PENDING INSERT by hand. Needed because this test
+/// appends its master rows with the adapter muted, and the marker is written by
+/// TDataSetBaseAdapter<M>.DoBeforePost - which the mute unhooks. That is the
+/// ONLY liberty the two-master test takes; everything after it is the shipped
+/// apply. Note the liberty is an artefact of the LOCAL family: in the REST one
+/// TRESTDataSetAdapter<M>.OpenDataSetChilds has an empty body, so no mute would
+/// be needed to keep the child rows alive across a master scroll.
+procedure TTestAutoIncChilds.MarkRowPending(const ADataSet: TFDMemTable);
 var
-  LFor: Integer;
-  LMid: TArray<TCascadeWrite>;
   LInternal: TField;
 begin
-  // WHY THIS IS THE SHIPPED CONFIGURATION, and not a shape invented to fail.
-  // TFDMemTableAdapter<M>.ApplyInserter filters the master on
-  // InternalField = dsInsert and loops WHILE THERE ARE ROWS LEFT, calling
-  // SetAutoIncValueChilds once per pending master row. The child rows are not
-  // marked saved in that loop - TFDMemTableAdapter<M>.ApplyInternal only
-  // reaches each child's own ApplyInternal AFTER the master loop has finished -
-  // so every iteration finds the same pending child rows again. The assertion
-  // on InternalField below is that fact measured rather than read.
-  BuildTree(False);
-  AddMasterRow(cROOTKEYOLD);
-  AddMasterRow(cROOTKEYOLD);
-  for LFor := 0 to cCHILDS - 1 do
-    AddChildRow(FMidTable, cROOTKEYOLD, 'M' + IntToStr(LFor), True,
-                cMIDKEYFIRST + LFor);
-  ArmWriteProbe(cLEVELMID, FMidTable, cKEYFIELD, FRootTable, cKEYFIELD);
+  LInternal := ADataSet.FindField(cINTERNALFIELD);
+  Assert.IsNotNull(LInternal, 'the adapter must create the internal field');
+  ADataSet.Edit;
+  LInternal.AsInteger := Integer(dsInsert);
+  ADataSet.Post;
+end;
 
-  // The shipped mute, for the same reason ApplyInternal installs it: without it
-  // moving the master cursor re-opens the children and there is nothing left to
-  // measure. This is the one liberty the fixture takes with the call sequence,
-  // and it takes it with the framework's own method.
-  TAdapterAccess<TAitRoot>.MuteAdapter(FRoot.This);
+procedure TTestAutoIncChilds.TwoPendingMasterRows_EveryPendingChildEndsOnTheLastMasterKey;
+var
+  LGenCalls: Integer;
+  LGen: IDBConnection;
+  LMasterTable: TFDMemTable;
+  LChildTable: TFDMemTable;
+  LMaster: TFDMemTableAdapter<TAitRoot>;
+  LChild: TFDMemTableAdapter<TAitMid>;
+  LMid: TArray<TCascadeWrite>;
+  LKeyA: Integer;
+  LKeyB: Integer;
+  LFor: Integer;
+  LMute: TScrollMute;
+begin
+  // THE REAL ApplyInserter, NOT A MIRROR OF IT. TAdapterAccess.ApplyAll below
+  // is TFDMemTableAdapter<M>.ApplyInternal, which runs the shipped
+  // ApplyInserter, the shipped FSession.Insert and the shipped
+  // SetAutoIncValueChilds. What makes that reachable without a database is the
+  // generator: TDMLCommandInserter only asks for a sequence - and only then
+  // sets ExistSequence, which is what gates SetAutoIncValueChilds - when the
+  // row's own key is still unset, so a connection that hands out ONE row with a
+  // `GEN` column is enough. The same recipe is already used by
+  // Test.Janus.Apply.Loops.ApplyInserter_DoesNotRepointAChildRowOfAnotherMaster.
+  // Here the answer CHANGES per call, so the two master rows receive two
+  // DIFFERENT keys and the question "which one do the children end on" has an
+  // answer at all.
+  //
+  // WHAT IS BEING SHOWN. ApplyInserter filters the master on
+  // InternalField = dsInsert and loops while rows remain, calling
+  // SetAutoIncValueChilds once per pending master row; the child rows stay
+  // pending for the whole loop, because ApplyInternal reaches each child's own
+  // ApplyInternal only AFTER the master loop ends. The probe below does not
+  // have to take that on trust: a write recorded while the master sat on the
+  // SECOND row is itself the proof that the row was still pending when the
+  // second pass reached it, since _IsPendingInsertRow is what gates the write.
+  LGenCalls := 0;
+  LGen := TRowsConnection.Create(dnSQLite, 1,
+    procedure(const ADataSet: TFDMemTable)
+    begin
+      ADataSet.FieldDefs.Add(cGENFIELD, ftInteger);
+    end,
+    procedure(const ADataSet: TFDMemTable; const AIndex: Integer)
+    begin
+      Inc(LGenCalls);
+      ADataSet.FieldByName(cGENFIELD).AsInteger := LGenCalls * cGENSTEP;
+    end,
+    'generator');
+  LMasterTable := TFDMemTable.Create(nil);
+  LChildTable := TFDMemTable.Create(nil);
   try
-    FRootTable.First;
-    FRootTable.Edit;
-    FRootTable.FieldByName(cKEYFIELD).AsInteger := cROOTKEYNEW;
-    TAdapterAccess<TAitRoot>.Propagate(FRoot.This);
-    FRootTable.Post;
+    LMaster := TFDMemTableAdapter<TAitRoot>.Create(LGen, LMasterTable, -1, nil);
+    LChild := TFDMemTableAdapter<TAitMid>.Create(LGen, LChildTable, -1, LMaster);
+    try
+      // TWO master rows whose key the database has not generated yet. Appending
+      // the second one scrolls the master, and TDataSetAdapter<M>.DoAfterScroll
+      // would re-open - and so discard - the child rows, hence the mute and the
+      // hand-written marker. See MarkRowPending.
+      TAdapterAccess<TAitRoot>.MuteAdapter(LMaster);
+      try
+        LMasterTable.Append;
+        LMasterTable.FieldByName(cKEYFIELD).AsInteger := 0;
+        LMasterTable.FieldByName('tag').AsString := 'R1';
+        LMasterTable.Post;
+        MarkRowPending(LMasterTable);
+        LMasterTable.Append;
+        LMasterTable.FieldByName(cKEYFIELD).AsInteger := 0;
+        LMasterTable.FieldByName('tag').AsString := 'R2';
+        LMasterTable.Post;
+        MarkRowPending(LMasterTable);
+      finally
+        TAdapterAccess<TAitRoot>.UnmuteAdapter(LMaster);
+      end;
 
-    LInternal := FMidTable.FindField('InternalField');
-    Assert.IsNotNull(LInternal, 'the adapter must create the internal field');
-    FMidTable.First;
-    Assert.AreEqual(Integer(dsInsert), LInternal.AsInteger,
-      'the child rows must STILL be pending after the first master row was ' +
-      'stamped - if they were not, the second pass could not touch them');
+      // Two children an operator has just typed. Their events are NOT muted, so
+      // DoBeforePost marks them pending exactly as it does in production.
+      for LFor := 0 to cGRANDS - 1 do
+      begin
+        LChildTable.Append;
+        LChildTable.FieldByName(cOWNKEYFIELD).AsInteger := 0;
+        LChildTable.FieldByName(cKEYFIELD).AsInteger := 0;
+        LChildTable.FieldByName('tag').AsString := 'C' + IntToStr(LFor);
+        LChildTable.Post;
+      end;
 
-    FRootTable.Last;
-    FRootTable.Edit;
-    FRootTable.FieldByName(cKEYFIELD).AsInteger := cROOTKEYB;
-    TAdapterAccess<TAitRoot>.Propagate(FRoot.This);
-    FRootTable.Post;
+      ArmWriteProbe(cLEVELMID, LChildTable, cKEYFIELD, LMasterTable, cKEYFIELD);
+      try
+        TAdapterAccess<TAitRoot>.ApplyAll(LMaster);
+      finally
+        DisarmWriteProbe;
+      end;
+
+      // Read the keys back rather than predict them: the inserter derives the
+      // next value from what the connection answered and that arithmetic is not
+      // what this test is about. Muted for the usual reason - walking a master
+      // with its events live makes DoAfterScroll re-open the children, and here
+      // that means re-opening them from a connection that only ever answers a
+      // one-column generator cursor.
+      LMute := MuteScroll(LMasterTable);
+      try
+        LMasterTable.First;
+        LKeyA := LMasterTable.FieldByName(cKEYFIELD).AsInteger;
+        LMasterTable.Last;
+        LKeyB := LMasterTable.FieldByName(cKEYFIELD).AsInteger;
+      finally
+        UnmuteScroll(LMasterTable, LMute);
+      end;
+      Assert.IsTrue(LKeyA > 0,
+        'PREMISE: the first master must have received a generated key, or ' +
+        'SetAutoIncValueChilds had nothing to propagate and every clause ' +
+        'below would pass for the wrong reason');
+      Assert.AreNotEqual(LKeyA, LKeyB,
+        'PREMISE: the two master rows must carry DIFFERENT keys, or this test ' +
+        'cannot tell which one the children ended on');
+
+      LMid := WritesAt(cLEVELMID);
+      Assert.AreEqual(cGRANDS * 2, Length(LMid),
+        'every child row must have been written ONCE PER PENDING MASTER ROW - ' +
+        WriteLog);
+      for LFor := 0 to cGRANDS - 1 do
+      begin
+        Assert.AreEqual('R1', LMid[LFor].MasterTag,
+          'the first pass runs with the master on its first row - ' + WriteLog);
+        Assert.AreEqual(LKeyA, LMid[LFor].Value,
+          'and parents every child on that row key - ' + WriteLog);
+      end;
+      for LFor := cGRANDS to (cGRANDS * 2) - 1 do
+      begin
+        Assert.AreEqual('R2', LMid[LFor].MasterTag,
+          'the second pass reaches the very same child rows, which is only ' +
+          'possible because they were still pending - ' + WriteLog);
+        Assert.AreEqual(LKeyB, LMid[LFor].Value,
+          'and re-parents them on the second master row - ' + WriteLog);
+      end;
+
+      Assert.AreEqual(0, CountWithKey(LChildTable, LKeyA),
+        'not one child is left on the first master key');
+      Assert.AreEqual(cGRANDS, CountWithKey(LChildTable, LKeyB),
+        'they all end up on the LAST pending master row - last writer wins, ' +
+        'measured through the shipped ApplyInserter');
+    finally
+      LChild.Free;
+      LMaster.Free;
+    end;
   finally
-    TAdapterAccess<TAitRoot>.UnmuteAdapter(FRoot.This);
+    LChildTable.Free;
+    LMasterTable.Free;
+    LGen := nil;
   end;
-  DisarmWriteProbe;
-
-  LMid := WritesAt(cLEVELMID);
-  Assert.AreEqual(cCHILDS * 2, Length(LMid),
-    'every child row must have been written ONCE PER PENDING MASTER ROW - ' +
-    WriteLog);
-  for LFor := 0 to cCHILDS - 1 do
-    Assert.AreEqual(cROOTKEYNEW, LMid[LFor].Value,
-      'the first pass parents them all on the first master row - ' + WriteLog);
-  for LFor := cCHILDS to (cCHILDS * 2) - 1 do
-    Assert.AreEqual(cROOTKEYB, LMid[LFor].Value,
-      'and the second pass re-parents the very same rows on the second - ' +
-      WriteLog);
-
-  Assert.AreEqual(0, CountWithKey(FMidTable, cROOTKEYNEW),
-    'not one child is left on the first master key');
-  Assert.AreEqual(cCHILDS, CountWithKey(FMidTable, cROOTKEYB),
-    'they all end up on the LAST pending master row - which is the answer to ' +
-    'the second half of issue #261 at this level: last writer wins');
 end;
 
 // ---------------------------------------------------------------------------
