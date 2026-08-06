@@ -301,6 +301,8 @@ end;
 
 **PT** — Contribuições são bem-vindas! Seja um relatório de bug, uma sugestão de feature ou um pull request, toda colaboração torna o Janus melhor para toda a comunidade Object Pascal.
 
+> 📋 **Read [CONTRIBUTING.md](CONTRIBUTING.md) first / Leia o [CONTRIBUTING.md](CONTRIBUTING.md) antes** — it carries the conventions a pull request is checked against, including the **source file encoding rule** (`Source/` is pure ASCII, no BOM; accents are written as `#$XXXX` escapes) which is enforced by the test suite.
+
 [![Issues](https://img.shields.io/badge/Issues-channel-orange)](../../issues)
 
 **How to contribute / Como contribuir:**

@@ -33,7 +33,7 @@ uses
 
 type
   /// <summary>
-  /// Classe de conexão concreta com MARS
+  /// Classe de conexao concreta com MARS
   /// </summary>
   TRESTDriverMARS = class(TRESTDriver)
   protected

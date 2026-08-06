@@ -29,7 +29,7 @@ uses
   SysUtils,
   Generics.Collections,
   Janus.RestComponent,
-  /// Janus Conexão
+  /// Janus Conexao
   DataEngine.FactoryInterfaces,
   /// MARS
   MARS.Core.Engine,

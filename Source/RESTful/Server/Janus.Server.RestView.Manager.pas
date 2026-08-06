@@ -19,7 +19,7 @@
 
   Administrative utility that generates or updates database VIEWs at application
   startup via FluentSQL DDL and DataEngine. Never call EnsureView inside a REST
-  request handler — it is a setup-time operation only (ADR-003).
+  request handler - it is a setup-time operation only (ADR-003).
 }
 
 unit Janus.Server.RestView.Manager;
@@ -130,7 +130,7 @@ begin
   LViewName := _GetViewName(AClassType);
   if LViewName = '' then
     raise Exception.CreateFmt(
-      'Class %s has no [Table] or [View] attribute with a name — cannot derive view name.',
+      'Class %s has no [Table] or [View] attribute with a name '#$2014' cannot derive view name.',
       [AClassType.ClassName]);
 
   LDriver  := AConnection.GetDriver;

@@ -28,7 +28,7 @@ uses
   Classes,
   SysUtils,
   Janus.RestComponent,
-  /// Janus Conexão
+  /// Janus Conexao
   DataEngine.FactoryInterfaces,
   /// DataSnap
   Datasnap.DSServer,

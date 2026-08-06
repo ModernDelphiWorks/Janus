@@ -120,7 +120,7 @@ end;
 function TRESTClientMARS.DoDELETE(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'DELETE';
-  // Define valores dos parâmetros
+  // Define valores dos parametros
   SetParamValues;
   // DELETE
   FRESTResource.DELETE(nil,
@@ -153,7 +153,7 @@ end;
 function TRESTClientMARS.DoGET(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'GET';
-  // Define valores dos parâmetros
+  // Define valores dos parametros
   SetParamValues;
   // GET
   Result := FRESTResource.GETAsString(nil, nil,
@@ -182,7 +182,7 @@ var
   LParams: string;
 begin
   FRequestMethod := 'POST';
-  // Define valores dos parâmetros
+  // Define valores dos parametros
   SetParamsBodyValue(LParams);
   // POST
   FRESTResource.POST(procedure(AContent: TMemoryStream)
@@ -228,7 +228,7 @@ var
   LParams: string;
 begin
   FRequestMethod := 'PUT';
-  // Define valores dos parâmetros
+  // Define valores dos parametros
   SetParamsBodyValue(LParams);
   // PUT
   FRESTResource.PUT(procedure(AContent: TMemoryStream)
@@ -285,14 +285,14 @@ var
 
 begin
   Result := '';
-  // Executa a procedure de adição dos parâmetros
+  // Executa a procedure de adicao dos parametros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autenticação
+  // Define valores de autenticacao
   SetAuthenticatorTypeValues;
   try
     // DoBeforeCommand
@@ -317,11 +317,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poderá ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que podera ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou não no evento AfterCommand
+    // Pega de volta o JSON manipulado ou nao no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -341,7 +341,7 @@ var
   begin
     FRESTClientApp.AppName := FAPIContext;
     // Trata a URL Base caso o componente esteja para usar o servidor,
-    // mas a classe não.
+    // mas a classe nao.
     if (FServerUse) and (FClassNotServerUse) then
       FRESTClientApp.AppName := RemoveContextServerUse(FRESTClientApp.AppName);
 
@@ -354,14 +354,14 @@ var
 
 begin
   Result := '';
-  // Executa a procedure de adição dos parâmetros
+  // Executa a procedure de adicao dos parametros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autenticação
+  // Define valores de autenticacao
   SetAuthenticatorTypeValues;
   try
     // DoBeforeCommand
@@ -386,11 +386,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poderá ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que podera ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou não no evento AfterCommand
+    // Pega de volta o JSON manipulado ou nao no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -447,7 +447,7 @@ var
   LFor: Integer;
 begin
   if FBodyParams.Count = 0 then
-    raise Exception.Create('Não foi passado o parâmetro com os dados do insert!');
+    raise Exception.Create('N'#$00E3'o foi passado o par'#$00E2'metro com os dados do insert!');
 
   for LFor := 0 to FBodyParams.Count -1 do
     AParams := AParams + FBodyParams.Items[LFor].AsString;

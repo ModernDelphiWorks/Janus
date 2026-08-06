@@ -213,7 +213,7 @@ begin
       LURL := FConnection.FullURL;
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
                                          'ID     : ' + IntToStr(AID) + sLineBreak +
-                                         'M�todo : DELETE' + sLineBreak +
+                                         'M'#$00E9'todo : DELETE' + sLineBreak +
                                          'Result : ' + LResult, nil);
     end;
   end;
@@ -267,7 +267,7 @@ begin
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
                                          'Where  : ' + AWhere + sLineBreak +
                                          'OrderBy: ' + AOrderBy + sLineBreak +
-                                         'M�todo : GET' + sLineBreak +
+                                         'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
   end;
@@ -316,7 +316,7 @@ begin
       LURL := FConnection.FullURL;
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
                                          'ID     : ' + AID  + sLineBreak +
-                                         'M�todo : GET' + sLineBreak +
+                                         'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
   end;
@@ -353,7 +353,7 @@ begin
     begin
       LURL := FConnection.FullURL;
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
-                                         'M�todo : GET' + sLineBreak +
+                                         'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
   end;
@@ -412,7 +412,7 @@ begin
     begin
       LURL := FConnection.FullURL;
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
-                                         'M�todo : POST' + sLineBreak +
+                                         'M'#$00E9'todo : POST' + sLineBreak +
                                          'Result : ' + LResult + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
@@ -492,7 +492,7 @@ begin
         LURL := LURL + '/' + LSubResource;
 
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
-                                         'M�todo : GET' + sLineBreak +
+                                         'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
   end;
@@ -529,7 +529,7 @@ begin
 
       // Gera Lentid�o se tiver campo TBlob no JSON
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
-                                         'M�todo : GET' + sLineBreak +
+                                         'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
   end;
@@ -565,7 +565,7 @@ begin
     begin
       LURL := FConnection.FullURL;
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
-                                         'M�todo : PUT' + sLineBreak +
+                                         'M'#$00E9'todo : PUT' + sLineBreak +
                                          'Result : ' + LResult + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
@@ -646,7 +646,7 @@ begin
     begin
       LURL := FConnection.FullURL;
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
-                                         'M�todo : GET' + sLineBreak +
+                                         'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
   end;

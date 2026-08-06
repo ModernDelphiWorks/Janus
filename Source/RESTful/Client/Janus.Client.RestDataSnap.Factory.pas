@@ -33,7 +33,7 @@ uses
 
 type
   /// <summary>
-  /// Fábrica de conexões abstratas
+  /// Fabrica de conexoes abstratas
   /// </summary>
   TRESTFactoryDatasnap = class (TRESTFactoryConnection)
   public

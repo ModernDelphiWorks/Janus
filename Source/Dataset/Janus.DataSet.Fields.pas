@@ -290,7 +290,7 @@ var
   LField: TField;
 begin
   if (ADataSet.FindField(AFieldName) <> nil) then
-    raise Exception.Create('O Campo calculado : ' + AFieldName + ' j� existe');
+    raise Exception.Create('O Campo calculado : ' + AFieldName + ' j'#$00E1' existe');
 
   LField := GetFieldType(ADataSet, AFieldType);
   if LField = nil then
@@ -319,7 +319,7 @@ var
   LField: TAggregateField;
 begin
   if ADataSet.FindField(AFieldName) <> nil then
-     raise Exception.Create('O Campo agregado de nome : ' + AFieldName + ' j� existe');
+     raise Exception.Create('O Campo agregado de nome : ' + AFieldName + ' j'#$00E1' existe');
 
   LField := TAggregateField.Create(ADataSet);
   if LField = nil then

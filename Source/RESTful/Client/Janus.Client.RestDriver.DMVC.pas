@@ -33,7 +33,7 @@ uses
 
 type
   /// <summary>
-  /// Classe de conexão concreta com Delphi MVC
+  /// Classe de conexao concreta com Delphi MVC
   /// </summary>
   TRESTDriverDMVC = class(TRESTDriver)
   protected

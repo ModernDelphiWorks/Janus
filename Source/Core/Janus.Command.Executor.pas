@@ -121,7 +121,7 @@ begin
   FPageSize := APageSize;
   if not (AOwner is TSessionAbstract<M>) then
     raise Exception
-            .Create('O Object Manager n�o deve ser inst�nciada diretamente, use as classes TSessionObject<M> ou TSessionDataSet<M>');
+            .Create('O Object Manager n'#$00E3'o deve ser inst'#$00E2'nciada diretamente, use as classes TSessionObject<M> ou TSessionDataSet<M>');
   FConnection := AConnection;
 
   FObjectInternal := M.Create;

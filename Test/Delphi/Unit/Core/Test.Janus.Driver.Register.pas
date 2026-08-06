@@ -52,6 +52,8 @@ type
     [Test]
     procedure GetDriver_RaisesWhenMissing;
     [Test]
+    procedure GetDriver_MessageCarriesItsAccentsAsCodepoints;
+    [Test]
     procedure GetDriver_InvokesFactoryEachCall;
     [Test]
     procedure Registry_PreservesProductionRegistrationsAfterTeardown;
@@ -145,6 +147,54 @@ begin
     Exception,
     'n.o est. registrado',
     'GetDriver must raise with PT-BR contract message containing "não está registrado"');
+end;
+
+{ The source of this message is pure ASCII: its three accented letters are
+  written as Delphi #$XXXX escapes (see CONTRIBUTING.md, "Source file
+  encoding"). This asserts on the ORDINALS the compiled string actually
+  carries, so it answers the question the byte-level guard cannot - whether the
+  character the user reads survived the trip into the binary. Comparing against
+  another escape-built literal would prove nothing, because both sides would
+  come from the same mechanism. }
+procedure TTestJanusDriverRegister.GetDriver_MessageCarriesItsAccentsAsCodepoints;
+var
+  LMessage: string;
+  LFor: Integer;
+  LOrdinals: TArray<Integer>;
+begin
+  LMessage := '';
+  try
+    TDriverRegister.GetDriver(CMissingDriver);
+  except
+    on E: Exception do
+      LMessage := E.Message;
+  end;
+
+  Assert.IsTrue(LMessage <> '',
+    'GetDriver must raise for an unregistered driver');
+
+  LOrdinals := nil;
+  for LFor := 1 to Length(LMessage) do
+    if Ord(LMessage[LFor]) > 127 then
+    begin
+      SetLength(LOrdinals, Length(LOrdinals) + 1);
+      LOrdinals[High(LOrdinals)] := Ord(LMessage[LFor]);
+    end;
+
+  Assert.AreEqual(3, Length(LOrdinals),
+    Format('The message must carry exactly three non-ASCII characters; ' +
+           'found %d. A U+FFFD ($FFFD) here would mean the accent was lost ' +
+           'again. Message: %s', [Length(LOrdinals), LMessage]));
+
+  // "nao" -> LATIN SMALL LETTER A WITH TILDE
+  Assert.AreEqual($00E3, LOrdinals[0],
+    'First accented character must be U+00E3 (a with tilde), from "nao"');
+  // "esta" -> LATIN SMALL LETTER A WITH ACUTE
+  Assert.AreEqual($00E1, LOrdinals[1],
+    'Second accented character must be U+00E1 (a with acute), from "esta"');
+  // "clausula" -> LATIN SMALL LETTER A WITH ACUTE
+  Assert.AreEqual($00E1, LOrdinals[2],
+    'Third accented character must be U+00E1 (a with acute), from "clausula"');
 end;
 
 procedure TTestJanusDriverRegister.GetDriver_InvokesFactoryEachCall;

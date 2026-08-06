@@ -195,10 +195,10 @@ begin
       FilterExecuteFind;
       // Busca o registro pelo ID
       IDExecuteFind;
-      // Caso nenhum dos dois métodos encontre um registro, é gerado uma
-      // exceção com uma mensagem de registro não encontrado para quem requisitou
+      // Caso nenhum dos dois metodos encontre um registro, sera gerado uma
+      // excecao com uma mensagem de registro nao encontrado para quem requisitou
       ExceptionExecute;
-      // Se passar tudo ok, será executado o método do Janus
+      // Se passar tudo ok, sera executado o metodo do Janus
       LObjectSet.Delete(LObject);
       Result := Format(cRESOURCEDELETE, [AQuery.ResourceName]);
     finally

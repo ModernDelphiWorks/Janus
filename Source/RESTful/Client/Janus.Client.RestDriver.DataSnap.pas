@@ -33,7 +33,7 @@ uses
 
 type
   /// <summary>
-  /// Classe de conexão concreta com dbExpress
+  /// Classe de conexao concreta com dbExpress
   /// </summary>
   TRESTDriverDatasnap = class(TRESTDriver)
   protected

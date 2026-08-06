@@ -122,7 +122,7 @@ begin
   FPageSize := APageSize;
   if not (AOwner is TRESTObjectSetSession) then
     raise Exception
-            .Create('O Object Manager n�o deve ser inst�nciada diretamente, use as classes TRESTObjectSetSession');
+            .Create('O Object Manager n'#$00E3'o deve ser inst'#$00E2'nciada diretamente, use as classes TRESTObjectSetSession');
   FConnection := AConnection;
   FObjectInternal := AClassType.Create;
   // Fabrica de comandos SQL
