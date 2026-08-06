@@ -263,7 +263,10 @@ begin
   BuildMasterOnly;
   Assert.IsTrue(FManager.DataSet<TAsymMaster> = FMasterMem,
     'AddAdapter<T> must register the class - it exits silently when it does ' +
-    'not, and then DataSet<T> comes back nil');
+    'not, and DataSet<T> does not come back nil either: Resolver<T> returns ' +
+    'nil and DataSet<T> reads FOrmDataSet off it, raising EAccessViolation on ' +
+    'address 0000000C - measured in THIS build, and 0x0C is FOrmDataSet''s own ' +
+    'offset');
 end;
 
 procedure TTestDriverManagerDataSet.AddAdapter_TheAdapterItBuiltTalksToTheRestConnection;
