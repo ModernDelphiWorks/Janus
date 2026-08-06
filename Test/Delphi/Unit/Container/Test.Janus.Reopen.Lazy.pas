@@ -70,6 +70,11 @@
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
 
+{ The dataset choice lives in Janus.inc, so a fixture that has to follow it
+  must read it. Without this include the IFDEFs below are simply false and
+  the fixture silently hard-codes one half of the choice again. }
+{$INCLUDE ..\..\..\..\Source\Janus.inc}
+
 unit Test.Janus.Reopen.Lazy;
 
 interface
@@ -149,7 +154,10 @@ type
     FMidTable: TFDMemTable;
     FRoot: IContainerDataSet<TAitRoot>;
     FMid: IContainerDataSet<TAitMid>;
-    FManagerTable: TFDMemTable;
+    /// TManagerDataSet.ResolverDataSetType only accepts the dataset the
+    /// configured directive names, so the manager's table follows the
+    /// configuration rather than hard-coding one half of it. See #223.
+    FManagerTable: TDataSet;
     FManager: TManagerDataSet;
     FRestMemTable: TFDMemTable;
     FRestMem: TRESTFDMemTableAdapter<TKeyOnly>;
@@ -384,7 +392,11 @@ procedure TTestReopenLazy.BuildManager(const ARows: Integer);
 begin
   if FConn = nil then
     BuildConnection(ARows);
+  {$IFDEF USECLIENTDATASET}
+  FManagerTable := TClientDataSet.Create(nil);
+  {$ELSE}
   FManagerTable := TFDMemTable.Create(nil);
+  {$ENDIF}
   FManager := TManagerDataSet.Create(FConn);
   FManager.AddAdapter<TKeyOnly>(FManagerTable);
 end;

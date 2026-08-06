@@ -56,9 +56,38 @@
 {.$DEFINE FMX}
 {.$DEFINE LOAD_DYNAMICALLY}
 {.$DEFINE DRIVERRESTFUL}
-{$DEFINE USEFDMEMTABLE}
 {.$DEFINE USECLIENTDATASET}
+{$IFNDEF USECLIENTDATASET}
+  {$DEFINE USEFDMEMTABLE}
+{$ENDIF}
 {.$DEFINE MONITORRESTFULCLIENT}
+
+{ WHICH IN-MEMORY DATASET - ONE CHOICE WITH TWO VALUES, NOT TWO SWITCHES
+
+  USEFDMEMTABLE and USECLIENTDATASET are read by exactly one unit,
+  Janus.Manager.DataSet, and defining BOTH leaves it unable to accept any
+  dataset at all - it compiles both type gates into
+  TManagerDataSet.ResolverDataSetType, and no one dataset satisfies both, so
+  every AddAdapter call raises. That unit refuses to build on that
+  combination; see #223.
+
+  USEFDMEMTABLE is therefore defined only when USECLIENTDATASET is NOT. This
+  is what makes the ClientDataSet configuration reachable the documented way.
+  A project file carries USECLIENTDATASET in DCC_Define, and a DCC_Define can
+  only ADD a symbol - it cannot take USEFDMEMTABLE away. With USEFDMEMTABLE
+  defined unconditionally, every such project landed in the dead combination
+  instead of the working one. Five Example .dproj files under
+  Examples/Delphi/Data did exactly that, and all five use TClientDataSet.
+
+  The delivered default is unchanged: with nothing defined from outside,
+  USECLIENTDATASET is off and USEFDMEMTABLE is on.
+
+  ORDER HERE IS LOAD-BEARING. JanusInstall rewrites these lines by scanning
+  for the FIRST line whose text contains the symbol name and replacing that
+  whole line (TfrmPrincipal.LigarDefineJanusInc). The toggle line for each
+  symbol must therefore come BEFORE any other line mentioning it - which is
+  why the USECLIENTDATASET toggle sits above the IFNDEF that reads it, and
+  why this note sits below both. }
 
 {$IFDEF FMX}
   {$DEFINE HAS_FMX}

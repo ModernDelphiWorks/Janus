@@ -41,59 +41,58 @@ interface
     type gates, one compiled in by USEFDMEMTABLE and one by USECLIENTDATASET.
 
   So USECLIENTDATASET governs INCLUSION only - it never selects anything - and
-  turning USEFDMEMTABLE OFF is what selects the ClientDataSet adapter.
+  USEFDMEMTABLE being ABSENT is what selects the ClientDataSet adapter.
 
   THE FOUR COMBINATIONS, EACH ONE COMPILED AND RUN - NOT READ OFF THE SOURCE
 
-  Measured by editing Janus.inc and rebuilding Janus.Tests.Units (the local
-  branch, DRIVERRESTFUL off) and Janus.Tests.RESTfulDriver (DRIVERRESTFUL on).
-  Both projects gave the same four answers.
+  Measured on Janus.Tests.Units, the local branch, by moving the Janus.inc
+  toggles and the project DCC_Define. The same four answers came back from
+  Janus.Tests.RESTfulDriver, which compiles this unit with DRIVERRESTFUL on.
 
-    USEFDMEMTABLE on, USECLIENTDATASET off - what Janus.inc ships. Builds, and
-    every suite is green.
+    FDMemTable, the shipped default - Janus.inc as delivered, nothing added by
+    the project. Builds; suite green.
 
-    USEFDMEMTABLE off, USECLIENTDATASET on - builds, AND WORKS. Fed a
-    TClientDataSet, TManagerDataSet.AddAdapter<T> registers a
+    ClientDataSet - reached EITHER by uncommenting USECLIENTDATASET in
+    Janus.inc OR by carrying it in a project DCC_Define. Both routes build and
+    both run the whole suite green: AddAdapter<T> registers a
     TClientDataSetAdapter, AddAdapter<T, M> links detail to master, and opening
-    the master opens the detail. This is the working ClientDataSet
-    configuration.
+    the master opens the detail. This is a fully working configuration, not a
+    tolerated one.
 
-    BOTH on - builds, and then nothing works. Both type gates in
-    ResolverDataSetType are compiled in, and no one dataset satisfies both:
-    measured inside a SINGLE binary, a TClientDataSet raises `Is not TFDMemTable
-    type` and a TFDMemTable raises `Is not TClientDataSet type`. Every
-    AddAdapter call raises, whatever it is handed. The ClientDataSet unit is
-    dragged into the binary and its adapter is still never constructed, because
-    selection sits on the FDMemTable arm.
+    BOTH defined - builds only if this guard is removed, and then nothing works.
+    Both type gates compile in and no one dataset satisfies both: measured
+    inside a SINGLE binary, a TClientDataSet raises `Is not TFDMemTable type`
+    and a TFDMemTable raises `Is not TClientDataSet type`. Every AddAdapter call
+    raises, whatever it is handed. The ClientDataSet unit is dragged into the
+    binary and its adapter is still never constructed, because selection sits on
+    the FDMemTable arm.
 
-    NEITHER on - does not build. The ELSE arm of both AddAdapter overloads names
-    an adapter class no uses clause brought in: E2003 Undeclared identifier,
-    twice, plus the parse noise that follows. The IFNDEF USEMEMDATASET arm of
-    ResolverDataSetType, whose whole purpose is to say `Enable the directive
-    USEFDMEMTABLE or USECLIENTDATASET`, is compiled in exactly here and can
-    therefore never run - the unit it lives in cannot be built when it applies.
-    It is left in place: dead code is not behaviour, and removing it is not what
-    this guard is for.
+    NEITHER defined - does not build. The ELSE arm of both AddAdapter overloads
+    names an adapter class no uses clause brought in: E2003 Undeclared
+    identifier, twice, plus the parse noise that follows. The IFNDEF
+    USEMEMDATASET arm of ResolverDataSetType, whose whole purpose is to say
+    `Enable the directive USEFDMEMTABLE or USECLIENTDATASET`, is compiled in
+    exactly here and can therefore never run - the unit it lives in cannot be
+    built when it applies. It is left in place: dead code is not behaviour, and
+    removing it is not what this guard is for.
 
-  WHY A COMPILE-TIME GUARD AND NOT A RENAMED OR MERGED DIRECTIVE
+  WHAT REACHES THE BOTH-DEFINED COMBINATION, AND WHAT NO LONGER DOES
 
-  These two directives are the public configuration surface: JanusInstall writes
-  both of them into Janus.inc, and Example projects carry USECLIENTDATASET in
-  their own DCC_Define. Renaming or merging them would move that surface under
-  consumers outside this repository. The guard changes nothing for either
-  coherent combination, and converts the incoherent one from `raises on every
-  call at run time` into a build error that carries the fix.
+  Janus.inc defines USEFDMEMTABLE only when USECLIENTDATASET is not, so neither
+  supported route can produce it. JanusInstall cannot: TFDMemTable and
+  TClientDataSet are two TRadioButtons in one parent whose OnClick handlers
+  clear each other, and the two lines it rewrites are the two toggles. A project
+  DCC_Define cannot either, because adding USECLIENTDATASET now takes
+  USEFDMEMTABLE away with it.
 
-  HOW A CONSUMER REACHES THE BOTH-ON COMBINATION
-
-  JanusInstall cannot. TFDMemTable and TClientDataSet are two TRadioButtons in
-  one parent, and each one's OnClick sets the other False, so the installer can
-  only ever write one of the two coherent combinations. A project file can, and
-  five Example .dproj files in four Example folders do: Janus.inc defines
-  USEFDMEMTABLE unconditionally and a DCC_Define can only ADD symbols, so
-  USECLIENTDATASET carried in a .dproj lands on top of USEFDMEMTABLE rather than
-  instead of it. Reaching the working ClientDataSet configuration means editing
-  Janus.inc.
+  That last part is a change, and it is the reason this guard is not a trap. A
+  DCC_Define can only ADD a symbol; while Janus.inc defined USEFDMEMTABLE
+  unconditionally, a project asking for USECLIENTDATASET got BOTH - the dead
+  combination - and five Example .dproj files under Examples/Delphi/Data did
+  exactly that, all five of them using TClientDataSet. They now reach the
+  working ClientDataSet configuration instead, and this guard never fires for
+  them. What is left to reach the both-defined state is forcing USEFDMEMTABLE
+  from outside as well - measured, and what this guard stops.
 
   The technique is the one Janus.Tests.RESTfulDriver already uses to refuse to
   build without DRIVERRESTFUL instead of quietly becoming a smaller green suite.
@@ -101,7 +100,7 @@ interface
   ANCHORS ARE BY METHOD, NEVER BY `file:line`. }
 {$IFDEF USEFDMEMTABLE}
   {$IFDEF USECLIENTDATASET}
-    {$MESSAGE FATAL 'USEFDMEMTABLE and USECLIENTDATASET are both defined - one choice with two values, not two switches. Every AddAdapter call would raise, whichever dataset it got. Define exactly ONE in Janus.inc; a project DCC_Define only ADDS, so Janus.inc must be edited.'}
+    {$MESSAGE FATAL 'USEFDMEMTABLE and USECLIENTDATASET are both defined - one choice with two values, not two switches. Every AddAdapter call would raise, whichever dataset it got. Janus.inc defines one only when the other is not, so something outside forced both. Drop one.'}
   {$ENDIF}
 {$ENDIF}
 {$IFNDEF USEFDMEMTABLE}
