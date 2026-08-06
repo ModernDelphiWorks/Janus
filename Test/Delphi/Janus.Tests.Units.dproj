@@ -138,6 +138,7 @@
         <DCCReference Include="Common\Janus.Test.Runner.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.KeyOnly.pas"/>
         <DCCReference Include="Common\Test.Janus.Cursor.Double.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.FieldShapes.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AutoIncTree.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AsymKey.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.Nested.pas"/>
@@ -181,6 +182,7 @@
         <DCCReference Include="Unit\Core\Test.Janus.Json.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Cursor.Advance.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.AutoInc.Childs.pas"/>
+        <DCCReference Include="Unit\Core\Test.Janus.Apply.Loops.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.RestFactory.MethodToken.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.MasterDetail.Link.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Nested.Delete.pas"/>

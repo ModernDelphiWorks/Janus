@@ -37,6 +37,7 @@ uses
   DUnitX.Loggers.Xml.NUnit,
   Janus.Test.Runner in 'Common\Janus.Test.Runner.pas',
   Test.Janus.Cursor.Double in 'Common\Test.Janus.Cursor.Double.pas',
+  Test.Janus.Model.FieldShapes in 'Common\Test.Janus.Model.FieldShapes.pas',
   /// Models
   MetaDbDiff.Mapping.Register,
   Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
@@ -90,6 +91,7 @@ uses
   /// Cursor advance regression — sibling of 1ad296b
   Test.Janus.Cursor.Advance in 'Unit\Core\Test.Janus.Cursor.Advance.pas',
   Test.Janus.AutoInc.Childs in 'Unit\Core\Test.Janus.AutoInc.Childs.pas',
+  Test.Janus.Apply.Loops in 'Unit\Core\Test.Janus.Apply.Loops.pas',
   /// RESTful\Common property/getter wiring — first coverage of that folder
   Test.Janus.RestFactory.MethodToken in 'Unit\RESTful\Test.Janus.RestFactory.MethodToken.pas',
   /// REST client master-detail wiring — first coverage of TRESTClientDataSetAdapter

@@ -713,8 +713,13 @@ end;
 ///  not save. TWO markers are needed and neither one alone is enough, which is
 ///  a measurement and not a reading:
 ///  - the row being typed RIGHT NOW never reached DoBeforePost, so the internal
-///    column still carries its default of -1 (Bind.SetDataDictionary writes
-///    DefaultExpression '-1'); only State shows it;
+///    column still carries its default of -1. That default is written by
+///    TBind.SetInternalInitFieldDefsObjectClass, which creates the column -
+///    NOT by Bind.SetDataDictionary, which only walks columns that are MAPPED
+///    and carry a Dictionary attribute, and the internal column is neither.
+///    Measured by Test.Janus.Apply.Loops
+///    .InternalFieldCarriesTheMinusOneDefault, over an entity that declares no
+///    Dictionary at all. Only State shows it;
 ///  - rows already posted into the in-memory table carry Integer(dsInsert) or
 ///    Integer(dsEdit) in that column, written by DoBeforePost and reset to -1
 ///    by ApplyInserter/ApplyUpdater once the row reaches the database; State is
