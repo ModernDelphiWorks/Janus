@@ -114,7 +114,9 @@ uses
   /// What a real close costs against what emptying costs — issue #246
   Test.Janus.Close.VsEmpty in 'Unit\Container\Test.Janus.Close.VsEmpty.pas',
   /// The reopen, and the cursor count that shows the lazy path is alive — #248
-  Test.Janus.Reopen.Lazy in 'Unit\Container\Test.Janus.Reopen.Lazy.pas';
+  Test.Janus.Reopen.Lazy in 'Unit\Container\Test.Janus.Reopen.Lazy.pas',
+  /// AddAdapter<T, M> on the branch a stock Janus.inc produces — issue #226
+  Test.Janus.Manager.AddAdapter in 'Unit\Core\Test.Janus.Manager.AddAdapter.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

@@ -205,10 +205,64 @@ begin
   Resolver<T>.LoadLazy(AOwner);
 end;
 
+/// <summary> Registers the adapter for the DETAIL class T and links it to the
+///  adapter already registered for the MASTER class M.
+///
+///  WHY THE MASTER IS HELD AS TObject AND NOT AS AN ADAPTER TYPE
+///
+///  The object filed under the master's class name is a
+///  TDataSetBaseAdapter&lt;M&gt;, never a TDataSetBaseAdapter&lt;T&gt;: it was
+///  put there by an earlier AddAdapter call whose own T was this method's M.
+///  Two instantiations of one generic class are unrelated types in Delphi, so
+///  naming the wrong one costs a hard cast, and a hard cast between class
+///  types is unchecked - it compiles to nothing and asks the object nothing.
+///
+///  It is also unnecessary here, which is what the declaration below records.
+///  This method does exactly two things with the value: compare it against nil
+///  and hand it over as the fourth constructor argument. That parameter is
+///  declared AMasterObject: TObject in all four constructors this method can
+///  select - TFDMemTableAdapter&lt;T&gt;, TClientDataSetAdapter&lt;T&gt;,
+///  TRESTFDMemTableAdapter&lt;T&gt; and TRESTClientDataSetAdapter&lt;T&gt; -
+///  and stays TObject the whole way down, through
+///  TDataSetBaseAdapter&lt;M&gt;.Create into
+///  TDataSetBaseAdapter&lt;M&gt;.SetMasterObject. No member of the value is
+///  read here and no method of it is called here. TObject is therefore the
+///  honest type, and the compiler now refuses the member access that the hard
+///  cast used to wave through.
+///
+///  WHAT THIS DOES NOT FIX
+///
+///  The cross-instantiation aliasing itself lives elsewhere and is untouched:
+///  TDataSetBaseAdapter&lt;M&gt;.SetMasterObject and
+///  TDataSetBaseAdapter&lt;M&gt;._GetMasterValues both cast FOwnerMasterObject
+///  to their OWN instantiation and then read fields through it. Removing the
+///  cast here removes this method from that family; it does not remove the
+///  family.
+///
+///  THE SILENT EXITS ARE THE SHIPPED BEHAVIOUR
+///
+///  Three of them: T already registered, M not registered, and the master
+///  entry being nil. None of them raises and none of them reports, so a caller
+///  that misspells the master or registers it after the detail walks away with
+///  no adapter.
+///
+///  The silence lasts exactly one statement, which is worth knowing before
+///  anyone decides whether it is acceptable. DataSet&lt;T&gt; is
+///  `Result := Resolver&lt;T&gt;.FOrmDataSet` and Resolver&lt;T&gt; returns nil
+///  for a class it never registered, so the next call the caller makes on the
+///  detail dereferences nil - measured on Win32 as EAccessViolation, with
+///  nothing in it naming the master that was misspelled.
+///
+///  All of that is measured, none of it is endorsed: changing it would change
+///  what every existing consumer sees, and that is the maintainer's call.
+///  Pinned as it stands by Test.Janus.Manager.AddAdapter
+///  .MasterMissing_ItExitsSilentlyAndRegistersNothing,
+///  .MasterMissing_TheNextCallOnTheDetailDereferencesNil and
+///  .DetailTwice_TheSecondCallIsANoOpAndTheFirstDataSetSurvives. </summary>
 function TManagerDataSet.AddAdapter<T, M>(const ADataSet: TDataSet): TManagerDataSet;
 var
   LDataSetAdapter: TDataSetBaseAdapter<T>;
-  LMaster: TDataSetBaseAdapter<T>;
+  LMaster: TObject;
   LClassName: String;
   LMasterName: String;
 begin
@@ -219,7 +273,7 @@ begin
     Exit;
   if not FRepository.ContainsKey(LMasterName) then
     Exit;
-  LMaster := TDataSetBaseAdapter<T>(FRepository.Items[LMasterName]);
+  LMaster := FRepository.Items[LMasterName];
   if LMaster = nil then
     Exit;
 
@@ -346,6 +400,37 @@ begin
   FRepository.TrimExcess;
 end;
 
+/// <summary> Hands back the adapter registered for T, or nil.
+///
+///  THE CAST HERE IS NOT THE ONE AddAdapter&lt;T, M&gt; CARRIED - DO NOT
+///  UNIFORMISE THE TWO
+///
+///  The two read the same dictionary and the two spell the same thing, and
+///  they are still different. AddAdapter&lt;T, M&gt; looked up the MASTER key
+///  and named T, so the stored object was an instantiation the name did not
+///  describe. This one looks up T's OWN key. Every write to FRepository in this
+///  unit is a Add(TClass(T).ClassName, adapter) whose value is typed
+///  TDataSetBaseAdapter&lt;T&gt; for the SAME T that produced the key - there
+///  are exactly two such writes, one in each AddAdapter overload, and no other
+///  member of this class puts anything in. So the type named here is the type
+///  stored, and the cast is a widening the compiler simply cannot express for a
+///  TObject-valued dictionary.
+///
+///  It is left as a hard cast, not turned into `as`. A checked cast that can
+///  never fire is a claim no test can defend: to make it fire, an object of
+///  another class would have to be stored under T's key, and nothing in this
+///  unit can do that.
+///
+///  ONE WAY IT COULD FIRE, WHICH IS A DIFFERENT DEFECT AND IS NOT FIXED HERE
+///
+///  The key is ClassName - the SHORT name, not the qualified one. Two entity
+///  classes called the same thing in two different units share a key. The
+///  second AddAdapter&lt;T&gt; for such a pair takes its
+///  `already registered` exit and registers nothing, and Resolver&lt;T&gt; then
+///  answers for the SECOND class with the FIRST class's adapter - which is the
+///  wrong instantiation again, by a different route. Read out of this unit, not
+///  observed: no such pair exists in this repository to run, so nothing here
+///  measures it and nothing here claims a consequence. </summary>
 function TManagerDataSet.Resolver<T>: TDataSetBaseAdapter<T>;
 var
   LClassName: String;

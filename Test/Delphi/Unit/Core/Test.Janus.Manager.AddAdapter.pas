@@ -1,0 +1,494 @@
+{
+  ------------------------------------------------------------------------------
+  Janus
+  Modern Object-Relational Mapping (ORM) framework for Delphi.
+
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2016-2026 Isaque Pinheiro
+
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
+}
+
+{ @abstract(Janus Framework - TManagerDataSet.AddAdapter<T, M> on the LOCAL
+  branch, the one Janus.inc ships.)
+
+  WHY THIS FIXTURE EXISTS
+
+  AddAdapter<T, M> had exactly one fixture in the repository -
+  Test.Janus.Driver.ManagerDataSet - and it belongs to Janus.Tests.RESTfulDriver,
+  which compiles the unit with DRIVERRESTFUL DEFINED. The method's body selects
+  its adapter inside nested IFDEFs, so that fixture measures the REST leg and
+  only the REST leg. The leg every consumer gets from a stock Janus.inc -
+  TFDMemTableAdapter<T>, no directive - was reached by nothing: measured on the
+  base this was written against, Janus.Tests.Units named AddAdapter once, in
+  Test.Janus.Reopen.Lazy.BuildManager, and that call is the SINGLE-parameter
+  overload with no master at all.
+
+  So this fixture is not a second opinion on the REST one. It is the first
+  measurement of the branch the ORM actually ships, and it is written against
+  the maintainer's rule that the client/server path is measured first and
+  always.
+
+  WHAT THE LOCAL LINK IS, CONCRETELY
+
+  The REST adapters bind a child to its master with MasterSource/MasterFields
+  on the dataset. The local family does not: TDataSetAdapter<M> has no such
+  wiring. What AddAdapter<T, M> produces locally is an OBJECT link -
+  TDataSetBaseAdapter<M>.SetMasterObject files the child adapter in the
+  master adapter's FMasterObject dictionary under the child's class name, and
+  points the child's FOwnerMasterObject back at the master. That dictionary is
+  the whole mechanism: TDataSetAdapter<M>.OpenDataSetChilds returns on its
+  first lines when FMasterObject.Count is zero, so a master that was never
+  linked opens alone and no child is ever queried. Both ends of that link are
+  asserted below, and then the consequence is asserted end to end.
+
+  THE THREE SILENT EXITS
+
+  AddAdapter<T, M> returns without a word on three conditions: T already
+  registered, M not registered, and the master entry being nil. The first two
+  are pinned below AS THEY SHIP. Nothing here argues they are right; whether
+  they should raise is the maintainer's call, not this fixture's. What the
+  fixture removes is the possibility of the behaviour changing by accident.
+
+  One measurement is worth carrying into that decision, because it was not
+  what this fixture expected. `Silent` describes the CALL, not the session.
+  TManagerDataSet.DataSet<T> is `Result := Resolver<T>.FOrmDataSet` and
+  TManagerDataSet.Resolver<T> returns nil for a class it never registered, so
+  the next call a consumer makes on the detail dereferences nil - measured on
+  Win32 as EAccessViolation, pinned by
+  MasterMissing_TheNextCallOnTheDetailDereferencesNil. The silence lasts
+  exactly one statement, and then the caller gets a fault with nothing in it
+  naming the master it misspelled.
+
+  THE THIRD EXIT IS NOT COVERED AND CANNOT HONESTLY BE
+
+  `if LMaster = nil then Exit` needs a nil VALUE filed under a key the
+  repository CONTAINS. FRepository is private, every Add to it in
+  Janus.Manager.DataSet passes a freshly constructed adapter, and nothing in
+  the public surface can store nil. Reaching it would mean writing nil into the
+  dictionary through RTTI - a state the shipped code cannot produce - and the
+  test would then be measuring the fixture. Declared, not covered.
+
+  ANCHORS ARE BY METHOD, NEVER BY `file:line`.
+}
+
+unit Test.Janus.Manager.AddAdapter;
+
+interface
+
+{$IFDEF DRIVERRESTFUL}
+  {$MESSAGE FATAL 'This unit measures the NON-REST leg of TManagerDataSet.AddAdapter. With DRIVERRESTFUL defined it would silently assert the REST leg instead, which Test.Janus.Driver.ManagerDataSet already covers.'}
+{$ENDIF}
+
+uses
+  DB,
+  Rtti,
+  Classes,
+  SysUtils,
+  Generics.Collections,
+  DUnitX.TestFramework,
+  FireDAC.Stan.Intf,
+  FireDAC.Stan.Option,
+  FireDAC.Stan.Param,
+  FireDAC.Stan.Error,
+  FireDAC.DatS,
+  FireDAC.Phys.Intf,
+  FireDAC.DApt.Intf,
+  FireDAC.Comp.DataSet,
+  FireDAC.Comp.Client,
+  DataEngine.FactoryInterfaces,
+  Janus.DataSet.Base.Adapter,
+  Janus.Manager.DataSet,
+  Test.Janus.Cursor.Double,
+  Test.Janus.Model.AsymKey,
+  Test.Janus.Model.KeyOnly;
+
+type
+  /// <summary> The usual protected-access descendant. FOwnerMasterObject and
+  ///  FMasterObject are the two ends of the link AddAdapter<T, M> installs and
+  ///  both are protected. The probe adds no field of its own, so it is the
+  ///  same object seen through a wider door. </summary>
+  TAdapterProbe<M: class, constructor> = class(TDataSetBaseAdapter<M>)
+  public
+    class function OwnerOf(const AAdapter: TObject): TObject;
+    class function ChildCountOf(const AAdapter: TObject): Integer;
+    class function ChildUnder(const AAdapter: TObject;
+      const AKey: String): TObject;
+  end;
+
+  [TestFixture]
+  TTestManagerAddAdapter = class
+  private
+    FRows: TRowsConnection;
+    FConn: IDBConnection;
+    FManager: TManagerDataSet;
+    FMasterMem: TFDMemTable;
+    FChildMem: TFDMemTable;
+    FSpareMem: TFDMemTable;
+    function Repository: TDictionary<String, TObject>;
+    function AdapterOf(const AClassName: String): TObject;
+    procedure BuildMasterOnly;
+    procedure BuildMasterDetail;
+  public
+    [Setup]
+    procedure Setup;
+    [TearDown]
+    procedure TearDown;
+
+    /// EXTREME 1 - the master IS registered. Both ends of the object link the
+    /// local branch depends on: the child adapter must point back at the
+    /// master adapter, and it must be the very object filed under the MASTER
+    /// class name, not a copy and not some other adapter.
+    [Test]
+    procedure MasterPresent_TheChildPointsAtTheAdapterFiledUnderTheMasterClass;
+
+    /// ...and the other end of the same link: the master adapter must carry
+    /// the child in its FMasterObject dictionary, keyed by the CHILD class
+    /// name. TDataSetAdapter<M>.OpenDataSetChilds reads exactly that.
+    [Test]
+    procedure MasterPresent_TheMasterCarriesTheChildUnderTheChildClassName;
+
+    /// The consequence, end to end and without touching a private field:
+    /// opening the master must open the child, which can only happen through
+    /// the link above. Asserted against the connection - a second cursor is
+    /// handed out and the child dataset comes back active.
+    [Test]
+    procedure MasterPresent_OpeningTheMasterOpensTheChildThroughThatLink;
+
+    /// The class the manager put in the repository for BOTH ends. Behaviour
+    /// can be argued about, a class name cannot: without DRIVERRESTFUL this
+    /// is TFDMemTableAdapter and never TRESTFDMemTableAdapter.
+    [Test]
+    procedure Selection_BothEndsAreTheLocalAdapterClass;
+
+    /// EXTREME 2 - the master is NOT registered. The shipped behaviour is a
+    /// silent return: no exception, and nothing at all in the repository.
+    [Test]
+    procedure MasterMissing_ItExitsSilentlyAndRegistersNothing;
+
+    /// ...and what the caller meets NEXT, which is the part worth knowing
+    /// before anyone decides whether the silent exit is acceptable. It is not
+    /// a nil dataset. TManagerDataSet.DataSet<T> is
+    /// `Result := Resolver<T>.FOrmDataSet` and TManagerDataSet.Resolver<T>
+    /// returns nil for a class it never registered, so the very next call a
+    /// consumer would make dereferences nil. Measured, on Win32, as
+    /// EAccessViolation. This asserts the consequence as it ships; it does not
+    /// say the consequence is acceptable.
+    [Test]
+    procedure MasterMissing_TheNextCallOnTheDetailDereferencesNil;
+
+    /// DEGENERATE - the detail is already registered. The second call must be
+    /// a no-op, and `no-op` has to be proved on the DATASET: an overwrite
+    /// would also raise nothing.
+    [Test]
+    procedure DetailTwice_TheSecondCallIsANoOpAndTheFirstDataSetSurvives;
+
+    /// The issue that opened this work says the hard cast the method used to
+    /// carry `works by coincidence of layout: the fields it touches sit at the
+    /// same offsets in both instantiations`. This measures the layout claim
+    /// directly - and it does NOT confirm `coincidence`. Every field of
+    /// TDataSetBaseAdapter<M> is a pointer or a fixed-size scalar for every M
+    /// the constraint `M: class, constructor` admits, so the offsets agree by
+    /// construction and no instantiation with a different layout can be built
+    /// to disprove it. What the cast really risked was never the offsets: it
+    /// was the TYPE ARGUMENT, which drives RTTI lookups and object creation
+    /// and is wrong regardless of where the fields sit.
+    [Test]
+    procedure Layout_EveryInstantiationOfTheBaseAdapterAgreesOnEveryOffset;
+  end;
+
+implementation
+
+const
+  cMASTERCLASS = 'TAsymMaster';
+  cCHILDCLASS  = 'TAsymChild';
+  cLOCALADAPTER = 'TFDMemTableAdapter';
+
+{ TAdapterProbe<M> }
+
+class function TAdapterProbe<M>.OwnerOf(const AAdapter: TObject): TObject;
+begin
+  Result := TAdapterProbe<M>(AAdapter).FOwnerMasterObject;
+end;
+
+class function TAdapterProbe<M>.ChildCountOf(const AAdapter: TObject): Integer;
+begin
+  Result := TAdapterProbe<M>(AAdapter).FMasterObject.Count;
+end;
+
+class function TAdapterProbe<M>.ChildUnder(const AAdapter: TObject;
+  const AKey: String): TObject;
+var
+  LChild: TDataSetBaseAdapter<M>;
+begin
+  Result := nil;
+  if TAdapterProbe<M>(AAdapter).FMasterObject.TryGetValue(AKey, LChild) then
+    Result := LChild;
+end;
+
+{ TTestManagerAddAdapter }
+
+/// A cursor wide enough for BOTH entities. Janus.Bind reads every field of the
+/// TARGET dataset out of the cursor BY NAME, so a column the cursor has not got
+/// is `Field <name> not found` the moment either side opens.
+procedure TTestManagerAddAdapter.Setup;
+begin
+  FRows := TRowsConnection.Create(dnSQLite, 2,
+    procedure(const ADataSet: TFDMemTable)
+    begin
+      ADataSet.FieldDefs.Add('mkey', ftInteger);
+      ADataSet.FieldDefs.Add('mtag', ftString, 20);
+      ADataSet.FieldDefs.Add('ckey', ftInteger);
+      ADataSet.FieldDefs.Add('cparent', ftInteger);
+      ADataSet.FieldDefs.Add('ctag', ftString, 20);
+    end,
+    procedure(const ADataSet: TFDMemTable; const AIndex: Integer)
+    begin
+      ADataSet.FieldByName('mkey').AsInteger := 1 + AIndex;
+      ADataSet.FieldByName('mtag').AsString := 'M' + IntToStr(AIndex);
+      ADataSet.FieldByName('ckey').AsInteger := 10 + AIndex;
+      ADataSet.FieldByName('cparent').AsInteger := 1 + AIndex;
+      ADataSet.FieldByName('ctag').AsString := 'C' + IntToStr(AIndex);
+    end,
+    'manager-addadapter');
+  FConn := FRows;
+  FManager := TManagerDataSet.Create(FConn);
+end;
+
+procedure TTestManagerAddAdapter.TearDown;
+begin
+  FreeAndNil(FManager);
+  FreeAndNil(FSpareMem);
+  FreeAndNil(FChildMem);
+  FreeAndNil(FMasterMem);
+  FConn := nil;
+  FRows := nil;
+end;
+
+/// The manager keeps its adapters in a private dictionary. Reading it is the
+/// only way to compare the object the child was given against the object the
+/// repository holds for the master - which is the whole point of the first two
+/// tests. RTTI, not a cracker: TManagerDataSet is not a class one can descend
+/// usefully for this, the field is private and there is no accessor.
+function TTestManagerAddAdapter.Repository: TDictionary<String, TObject>;
+var
+  LContext: TRttiContext;
+  LType: TRttiType;
+  LField: TRttiField;
+begin
+  Result := nil;
+  LContext := TRttiContext.Create;
+  try
+    LType := LContext.GetType(TManagerDataSet);
+    Assert.IsNotNull(LType, 'TManagerDataSet must be visible to RTTI');
+    LField := LType.GetField('FRepository');
+    Assert.IsNotNull(LField,
+      'FRepository must be readable through RTTI, otherwise every assertion ' +
+      'that reads it is blind and would pass on anything at all');
+    Result := TDictionary<String, TObject>(LField.GetValue(FManager).AsObject);
+  finally
+    LContext.Free;
+  end;
+end;
+
+function TTestManagerAddAdapter.AdapterOf(const AClassName: String): TObject;
+begin
+  if not Repository.TryGetValue(AClassName, Result) then
+    Result := nil;
+end;
+
+procedure TTestManagerAddAdapter.BuildMasterOnly;
+begin
+  FMasterMem := TFDMemTable.Create(nil);
+  FManager.AddAdapter<TAsymMaster>(FMasterMem);
+end;
+
+procedure TTestManagerAddAdapter.BuildMasterDetail;
+begin
+  BuildMasterOnly;
+  FChildMem := TFDMemTable.Create(nil);
+  FManager.AddAdapter<TAsymChild, TAsymMaster>(FChildMem);
+end;
+
+procedure TTestManagerAddAdapter.MasterPresent_TheChildPointsAtTheAdapterFiledUnderTheMasterClass;
+var
+  LMaster: TObject;
+  LChild: TObject;
+begin
+  BuildMasterDetail;
+  LMaster := AdapterOf(cMASTERCLASS);
+  LChild := AdapterOf(cCHILDCLASS);
+  Assert.IsNotNull(LMaster, 'the master adapter must be in the repository');
+  Assert.IsNotNull(LChild,
+    'the child adapter must be in the repository - AddAdapter<T, M> returns ' +
+    'silently on three conditions and then every assertion below is vacuous');
+  Assert.IsTrue(TAdapterProbe<TAsymChild>.OwnerOf(LChild) = LMaster,
+    'the child must point back at THE master adapter the repository holds ' +
+    'under the master class name. Handing the constructor anything else - nil ' +
+    'included - leaves the pair unlinked and OpenDataSetChilds with nothing ' +
+    'to iterate');
+end;
+
+procedure TTestManagerAddAdapter.MasterPresent_TheMasterCarriesTheChildUnderTheChildClassName;
+var
+  LMaster: TObject;
+  LChild: TObject;
+begin
+  BuildMasterDetail;
+  LMaster := AdapterOf(cMASTERCLASS);
+  LChild := AdapterOf(cCHILDCLASS);
+  Assert.IsNotNull(LMaster, 'the master adapter must be in the repository');
+  Assert.IsNotNull(LChild, 'the child adapter must be in the repository');
+  Assert.AreEqual(1, TAdapterProbe<TAsymMaster>.ChildCountOf(LMaster),
+    'exactly one detail was added, so the master must carry exactly one');
+  Assert.IsTrue(
+    TAdapterProbe<TAsymMaster>.ChildUnder(LMaster, cCHILDCLASS) = LChild,
+    'and it must be filed under the CHILD class name - that string is the key ' +
+    'TDataSetAdapter<M>.OpenDataSetChilds and SelectAssociation look it up by');
+end;
+
+procedure TTestManagerAddAdapter.MasterPresent_OpeningTheMasterOpensTheChildThroughThatLink;
+begin
+  BuildMasterDetail;
+  Assert.AreEqual(0, FRows.CreateCount,
+    'building the adapters must not query anything by itself');
+  FManager.OpenWhere<TAsymMaster>('1 = 1');
+  Assert.IsTrue(FMasterMem.Active, 'the master must be open');
+  Assert.IsTrue(FRows.CreateCount > 1,
+    'opening a LINKED master must produce a SECOND cursor - the child query. ' +
+    'With the link missing OpenDataSetChilds returns on FMasterObject.Count = ' +
+    '0 and exactly one cursor is ever asked for');
+  Assert.IsTrue(FChildMem.Active,
+    'and the child dataset must have been opened by that query');
+end;
+
+procedure TTestManagerAddAdapter.Selection_BothEndsAreTheLocalAdapterClass;
+var
+  LMaster: TObject;
+  LChild: TObject;
+begin
+  BuildMasterDetail;
+  LMaster := AdapterOf(cMASTERCLASS);
+  LChild := AdapterOf(cCHILDCLASS);
+  Assert.IsNotNull(LMaster, 'the master adapter must be in the repository');
+  Assert.IsNotNull(LChild, 'the child adapter must be in the repository');
+  // TFDMemTableAdapter is a SUFFIX of TRESTFDMemTableAdapter, so the position
+  // is what separates the branches - a bare Pos() would match both and prove
+  // nothing.
+  Assert.AreEqual(1, Pos(cLOCALADAPTER, LMaster.ClassName),
+    'AddAdapter<T> must build TFDMemTableAdapter without DRIVERRESTFUL. ' +
+    'Found: ' + LMaster.ClassName);
+  Assert.AreEqual(1, Pos(cLOCALADAPTER, LChild.ClassName),
+    'AddAdapter<T, M> must build TFDMemTableAdapter without DRIVERRESTFUL. ' +
+    'Found: ' + LChild.ClassName);
+end;
+
+procedure TTestManagerAddAdapter.MasterMissing_ItExitsSilentlyAndRegistersNothing;
+begin
+  FChildMem := TFDMemTable.Create(nil);
+  // No AddAdapter<TAsymMaster> anywhere above this line.
+  Assert.WillNotRaiseAny(
+    procedure
+    begin
+      FManager.AddAdapter<TAsymChild, TAsymMaster>(FChildMem);
+    end,
+    'the shipped behaviour is a silent return when the master is unknown. ' +
+    'This asserts what SHIPS, not what ought to ship');
+  Assert.AreEqual(0, Repository.Count,
+    'and it must register nothing - a half-built pair would be worse than ' +
+    'either outcome');
+end;
+
+procedure TTestManagerAddAdapter.MasterMissing_TheNextCallOnTheDetailDereferencesNil;
+begin
+  FChildMem := TFDMemTable.Create(nil);
+  // No AddAdapter<TAsymMaster> anywhere above this line, so the call below
+  // takes the `master not registered` exit.
+  FManager.AddAdapter<TAsymChild, TAsymMaster>(FChildMem);
+  Assert.WillRaise(
+    procedure
+    begin
+      FManager.DataSet<TAsymChild>;
+    end,
+    EAccessViolation,
+    'the silent exit is not silent for long: DataSet<T> reads FOrmDataSet off ' +
+    'the nil TManagerDataSet.Resolver<T> returns. If this ever stops raising, ' +
+    'somebody made the manager answer for an unregistered class and the ' +
+    'silent exit changed shape');
+end;
+
+procedure TTestManagerAddAdapter.DetailTwice_TheSecondCallIsANoOpAndTheFirstDataSetSurvives;
+begin
+  BuildMasterDetail;
+  FSpareMem := TFDMemTable.Create(nil);
+  Assert.WillNotRaiseAny(
+    procedure
+    begin
+      FManager.AddAdapter<TAsymChild, TAsymMaster>(FSpareMem);
+    end,
+    'registering the same detail twice returns silently');
+  Assert.AreEqual(2, Repository.Count,
+    'and adds nothing - two classes went in, two entries exist');
+  Assert.IsTrue(FManager.DataSet<TAsymChild> = FChildMem,
+    'the FIRST dataset must survive. Without this the test cannot tell a ' +
+    'no-op from an overwrite: neither raises');
+end;
+
+procedure TTestManagerAddAdapter.Layout_EveryInstantiationOfTheBaseAdapterAgreesOnEveryOffset;
+var
+  LContext: TRttiContext;
+
+  function Shape(const AClass: TClass): String;
+  var
+    LType: TRttiType;
+    LField: TRttiField;
+    LCount: Integer;
+  begin
+    Result := '';
+    LCount := 0;
+    LType := LContext.GetType(AClass);
+    Assert.IsNotNull(LType, AClass.ClassName + ' must be visible to RTTI');
+    for LField in LType.GetFields do
+    begin
+      Result := Result + LField.Name + '@' + IntToStr(LField.Offset) + ';';
+      Inc(LCount);
+    end;
+    Assert.IsTrue(LCount > 0,
+      'field RTTI must be emitted for ' + AClass.ClassName + ', otherwise ' +
+      'this test compares two empty strings and passes on anything');
+  end;
+
+var
+  LMasterShape: String;
+  LChildShape: String;
+  LThirdShape: String;
+begin
+  LContext := TRttiContext.Create;
+  try
+    LMasterShape := Shape(TDataSetBaseAdapter<TAsymMaster>);
+    LChildShape := Shape(TDataSetBaseAdapter<TAsymChild>);
+    // A third entity from an unrelated model, with a different field list and
+    // a different key shape, so that agreement cannot be an artefact of two
+    // near-identical entities.
+    LThirdShape := Shape(TDataSetBaseAdapter<TKeyOnly>);
+  finally
+    LContext.Free;
+  end;
+  Assert.AreEqual(TDataSetBaseAdapter<TAsymMaster>.InstanceSize,
+                  TDataSetBaseAdapter<TAsymChild>.InstanceSize,
+    'two instantiations of the base adapter must occupy the same bytes');
+  Assert.AreEqual(TDataSetBaseAdapter<TAsymMaster>.InstanceSize,
+                  TDataSetBaseAdapter<TKeyOnly>.InstanceSize,
+    'and so must a third one from an unrelated model');
+  Assert.AreEqual(LMasterShape, LChildShape,
+    'every field must sit at the same offset in both instantiations');
+  Assert.AreEqual(LMasterShape, LThirdShape,
+    'and in the third');
+end;
+
+initialization
+  TDUnitX.RegisterTestFixture(TTestManagerAddAdapter);
+
+end.
