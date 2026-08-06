@@ -24,6 +24,92 @@ unit Janus.Manager.DataSet;
 
 interface
 
+{ ONE CHOICE, TWO DIRECTIVES - WHY THIS UNIT REFUSES TO BUILD ON TWO OF THE FOUR
+  COMBINATIONS
+
+  Which in-memory dataset this unit talks to is decided in two places, and the
+  two places do not ask the same question.
+
+    INCLUSION - the uses clause below brings FireDAC.Comp.Client and the
+    FDMemTable adapter unit in under USEFDMEMTABLE, and DBClient and the
+    ClientDataSet adapter unit in under USECLIENTDATASET. Two independent
+    IFDEFs.
+
+    SELECTION - both AddAdapter overloads name the adapter under USEFDMEMTABLE
+    alone, with the ClientDataSet adapter sitting in that directive's ELSE arm.
+    TManagerDataSet.ResolverDataSetType is not the selection: it is a pair of
+    type gates, one compiled in by USEFDMEMTABLE and one by USECLIENTDATASET.
+
+  So USECLIENTDATASET governs INCLUSION only - it never selects anything - and
+  turning USEFDMEMTABLE OFF is what selects the ClientDataSet adapter.
+
+  THE FOUR COMBINATIONS, EACH ONE COMPILED AND RUN - NOT READ OFF THE SOURCE
+
+  Measured by editing Janus.inc and rebuilding Janus.Tests.Units (the local
+  branch, DRIVERRESTFUL off) and Janus.Tests.RESTfulDriver (DRIVERRESTFUL on).
+  Both projects gave the same four answers.
+
+    USEFDMEMTABLE on, USECLIENTDATASET off - what Janus.inc ships. Builds, and
+    every suite is green.
+
+    USEFDMEMTABLE off, USECLIENTDATASET on - builds, AND WORKS. Fed a
+    TClientDataSet, TManagerDataSet.AddAdapter<T> registers a
+    TClientDataSetAdapter, AddAdapter<T, M> links detail to master, and opening
+    the master opens the detail. This is the working ClientDataSet
+    configuration.
+
+    BOTH on - builds, and then nothing works. Both type gates in
+    ResolverDataSetType are compiled in, and no one dataset satisfies both:
+    measured inside a SINGLE binary, a TClientDataSet raises `Is not TFDMemTable
+    type` and a TFDMemTable raises `Is not TClientDataSet type`. Every
+    AddAdapter call raises, whatever it is handed. The ClientDataSet unit is
+    dragged into the binary and its adapter is still never constructed, because
+    selection sits on the FDMemTable arm.
+
+    NEITHER on - does not build. The ELSE arm of both AddAdapter overloads names
+    an adapter class no uses clause brought in: E2003 Undeclared identifier,
+    twice, plus the parse noise that follows. The IFNDEF USEMEMDATASET arm of
+    ResolverDataSetType, whose whole purpose is to say `Enable the directive
+    USEFDMEMTABLE or USECLIENTDATASET`, is compiled in exactly here and can
+    therefore never run - the unit it lives in cannot be built when it applies.
+    It is left in place: dead code is not behaviour, and removing it is not what
+    this guard is for.
+
+  WHY A COMPILE-TIME GUARD AND NOT A RENAMED OR MERGED DIRECTIVE
+
+  These two directives are the public configuration surface: JanusInstall writes
+  both of them into Janus.inc, and Example projects carry USECLIENTDATASET in
+  their own DCC_Define. Renaming or merging them would move that surface under
+  consumers outside this repository. The guard changes nothing for either
+  coherent combination, and converts the incoherent one from `raises on every
+  call at run time` into a build error that carries the fix.
+
+  HOW A CONSUMER REACHES THE BOTH-ON COMBINATION
+
+  JanusInstall cannot. TFDMemTable and TClientDataSet are two TRadioButtons in
+  one parent, and each one's OnClick sets the other False, so the installer can
+  only ever write one of the two coherent combinations. A project file can, and
+  five Example .dproj files in four Example folders do: Janus.inc defines
+  USEFDMEMTABLE unconditionally and a DCC_Define can only ADD symbols, so
+  USECLIENTDATASET carried in a .dproj lands on top of USEFDMEMTABLE rather than
+  instead of it. Reaching the working ClientDataSet configuration means editing
+  Janus.inc.
+
+  The technique is the one Janus.Tests.RESTfulDriver already uses to refuse to
+  build without DRIVERRESTFUL instead of quietly becoming a smaller green suite.
+
+  ANCHORS ARE BY METHOD, NEVER BY `file:line`. }
+{$IFDEF USEFDMEMTABLE}
+  {$IFDEF USECLIENTDATASET}
+    {$MESSAGE FATAL 'USEFDMEMTABLE and USECLIENTDATASET are both defined - one choice with two values, not two switches. Every AddAdapter call would raise, whichever dataset it got. Define exactly ONE in Janus.inc; a project DCC_Define only ADDS, so Janus.inc must be edited.'}
+  {$ENDIF}
+{$ENDIF}
+{$IFNDEF USEFDMEMTABLE}
+  {$IFNDEF USECLIENTDATASET}
+    {$MESSAGE FATAL 'Neither USEFDMEMTABLE nor USECLIENTDATASET is defined - TManagerDataSet has no in-memory dataset to build an adapter over. Define exactly ONE of them in Janus.inc. Without this message the build fails below with E2003 on the unincluded adapter class.'}
+  {$ENDIF}
+{$ENDIF}
+
 uses
   DB,
   Rtti,
