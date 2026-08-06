@@ -29,8 +29,9 @@ uses
   SysUtils;
 
 const
-  /// <summary> Name of the column every Janus dataset carries to hold the
-  ///  STATE OF THE ROW. TDataSetBaseAdapter<M>.DoBeforePost writes
+  /// <summary> Name of the column TBind.SetInternalInitFieldDefsObjectClass
+  ///  adds to every dataset it initialises, to hold the STATE OF THE ROW.
+  ///  TDataSetBaseAdapter<M>.DoBeforePost writes
   ///  Integer(dsInsert) whenever the dataset is in dsInsert, and
   ///  Integer(dsEdit) when it is in dsEdit AND the column currently holds -1 -
   ///  so a row still pending insertion keeps its insert marker through any
@@ -39,9 +40,12 @@ const
   ///  TRESTDataSetAdapter<M> write -1 back once the row has been applied.
   ///
   ///  THE -1 IS NOT LOOP BOOKKEEPING, IT IS A RELATIONAL GUARD.
-  ///  TDataSetBaseAdapter<M>._IsPendingInsertRow lets only a row still
-  ///  marked Integer(dsInsert) be re-pointed at a key the database has just
-  ///  generated. A row at -1 is already saved and, in the REST client, may
+  ///  TDataSetBaseAdapter<M>._IsPendingInsertRow answers True for a row whose
+  ///  column holds Integer(dsInsert), and also for a dataset that carries no
+  ///  such column at all - that second branch is its fallback, not its normal
+  ///  path. Only a row it answers True for may be re-pointed at a key the
+  ///  database has just generated. A row at -1 is already saved and, in the
+  ///  REST client, may
   ///  belong to a DIFFERENT master - the child dataset there holds the
   ///  children of every master the listing brought back - so stamping the new
   ///  key on it would silently re-parent someone else's data. Pinned by

@@ -99,6 +99,7 @@ uses
   Janus.DataSet.FDMemTable,
   Janus.DataSet.ClientDataSet,
   Janus.RestDataSet.FDMemTable,
+  Janus.RestDataSet.ClientDataSet,
   Janus.RestFactory.Interfaces,
   Janus.Client.Methods,
   Test.Janus.Model.Nested,
@@ -197,6 +198,10 @@ type
     procedure SeedPendingEdits(const ADataSet: TDataSet; const ARows: Integer);
     function Markers(const ADataSet: TDataSet): string;
     function MinusOnes(const ADataSet: TDataSet): Integer;
+    procedure ApplyOverFDMemTable(const ARows: Integer);
+    procedure ApplyOverClientDataSet(const ARows: Integer);
+    procedure ApplyOverRestFDMemTable(const ARows: Integer);
+    procedure ApplyOverRestClientDataSet(const ARows: Integer);
   public
     [Setup]
     procedure Setup;
@@ -220,14 +225,38 @@ type
     procedure InternalFieldIsFieldZero_AfterCloseAndReopen;
     [Test]
     procedure SecondAdapterOverTheSameDataSet_RefusesToBuild;
+    [Test]
+    procedure InternalFieldCarriesTheMinusOneDefault;
 
     // --- the six loops terminate on the shipped path ----------------------
+    // N rows, ONE row and NO rows, on each of the FOUR concrete adapters that
+    // own an ApplyInternal. One row is not redundant: a loop that walks a
+    // single row can be broken and still look right, which is why the sibling
+    // fixture of #207 measured 0, 1 and N as well.
     [Test]
     procedure FDMemTable_ApplyInternal_ClearsEveryPendingRow;
     [Test]
+    procedure FDMemTable_ApplyInternal_WithOneRow;
+    [Test]
+    procedure FDMemTable_ApplyInternal_WithNoRows;
+    [Test]
     procedure ClientDataSet_ApplyInternal_ClearsEveryPendingRow;
     [Test]
+    procedure ClientDataSet_ApplyInternal_WithOneRow;
+    [Test]
+    procedure ClientDataSet_ApplyInternal_WithNoRows;
+    [Test]
     procedure Rest_ApplyInternal_ClearsEveryPendingRow;
+    [Test]
+    procedure Rest_ApplyInternal_WithOneRow;
+    [Test]
+    procedure Rest_ApplyInternal_WithNoRows;
+    [Test]
+    procedure RestClientDataSet_ApplyInternal_ClearsEveryPendingRow;
+    [Test]
+    procedure RestClientDataSet_ApplyInternal_WithOneRow;
+    [Test]
+    procedure RestClientDataSet_ApplyInternal_WithNoRows;
     [Test]
     procedure MixedMarkers_ApplyInternal_ClearsEveryPendingRowAndKeepsKeys;
 
@@ -238,6 +267,8 @@ type
     procedure ClientDataSet_ApplyUpdater_WithBeforePostLive_NeverTerminates;
     [Test]
     procedure Rest_ApplyUpdater_WithBeforePostLive_NeverTerminates;
+    [Test]
+    procedure RestClientDataSet_ApplyUpdater_WithBeforePostLive_NeverTerminates;
     [Test]
     procedure ApplyInserter_WithBeforePostLive_LeavesTheRowMarkedEdit;
     [Test]
@@ -727,11 +758,47 @@ begin
   end;
 end;
 
+procedure TTestApplyLoops.InternalFieldCarriesTheMinusOneDefault;
+var
+  LTable: TFDMemTable;
+  LA: TFDMemTableAdapter<TAitMid>;
+begin
+  LTable := TFDMemTable.Create(nil);
+  try
+    LA := TFDMemTableAdapter<TAitMid>.Create(FConn, LTable, -1, nil);
+    try
+      // WHICH method writes this default is a question the code answered two
+      // different ways. TBind.SetDataDictionary only walks columns that are
+      // MAPPED and carry a Dictionary attribute, and the internal field is
+      // neither - it is created and defaulted by
+      // TBind.SetInternalInitFieldDefsObjectClass. TAitMid declares no
+      // Dictionary at all, so under this fixture SetDataDictionary writes
+      // nothing whatsoever and the default below can only have come from the
+      // other method.
+      Assert.AreEqual('-1', LTable.Fields[0].DefaultExpression,
+        'the internal field must carry the -1 default; a row being typed has ' +
+        'not reached DoBeforePost yet, and this default is the only thing ' +
+        'that keeps it out of both Apply* filters');
+      Assert.IsFalse(LTable.Fields[0].Visible,
+        'and it must stay invisible - it is not a column of the entity');
+    finally
+      LA.Free;
+    end;
+  finally
+    LTable.Free;
+  end;
+end;
+
 // ---------------------------------------------------------------------------
 // The six loops terminate on the shipped path
 // ---------------------------------------------------------------------------
 
-procedure TTestApplyLoops.FDMemTable_ApplyInternal_ClearsEveryPendingRow;
+/// <summary> Builds the adapter over the REAL component, seeds ARows rows the
+///  operator typed and never applied, and drives the SHIPPED entry point -
+///  ApplyInternal, which disables the dataset events and only then runs
+///  ApplyInserter and ApplyUpdater. Every row must come back marked applied
+///  and no row may be lost. </summary>
+procedure TTestApplyLoops.ApplyOverFDMemTable(const ARows: Integer);
 var
   LTable: TWatchedMemTable;
   LA: TFDMemTableAdapter<TAitMid>;
@@ -740,15 +807,15 @@ begin
   try
     LA := TFDMemTableAdapter<TAitMid>.Create(FConn, LTable, -1, nil);
     try
-      SeedPendingInserts(LTable, cROWS);
-      LTable.Arm(Budget(cROWS));
-      // The SHIPPED entry point: it disables the dataset events and only then
-      // runs ApplyInserter and ApplyUpdater.
+      SeedPendingInserts(LTable, ARows);
+      LTable.Arm(Budget(ARows));
       TApplyAccess<TAitMid>.Internal(LA);
       LTable.Arm(0);
-      Assert.AreEqual(cROWS, MinusOnes(LTable),
+      Assert.AreEqual(ARows, MinusOnes(LTable),
         'every pending row must come back marked applied; anything else ' +
         'means the loop stopped early or the marker did not survive Post');
+      Assert.AreEqual(ARows, LTable.RecordCount,
+        'no row may be lost or invented by the walk');
     finally
       LA.Free;
     end;
@@ -757,7 +824,7 @@ begin
   end;
 end;
 
-procedure TTestApplyLoops.ClientDataSet_ApplyInternal_ClearsEveryPendingRow;
+procedure TTestApplyLoops.ApplyOverClientDataSet(const ARows: Integer);
 var
   LCds: TWatchedClientDataSet;
   LA: TClientDataSetAdapter<TAitMid>;
@@ -766,12 +833,14 @@ begin
   try
     LA := TClientDataSetAdapter<TAitMid>.Create(FConn, LCds, -1, nil);
     try
-      SeedPendingInserts(LCds, cROWS);
-      LCds.Arm(Budget(cROWS));
+      SeedPendingInserts(LCds, ARows);
+      LCds.Arm(Budget(ARows));
       TApplyAccess<TAitMid>.Internal(LA);
       LCds.Arm(0);
-      Assert.AreEqual(cROWS, MinusOnes(LCds),
+      Assert.AreEqual(ARows, MinusOnes(LCds),
         'the ClientDataSet family must terminate and clear every row too');
+      Assert.AreEqual(ARows, LCds.RecordCount,
+        'no row may be lost or invented by the walk');
     finally
       LA.Free;
     end;
@@ -780,7 +849,10 @@ begin
   end;
 end;
 
-procedure TTestApplyLoops.Rest_ApplyInternal_ClearsEveryPendingRow;
+/// <summary> TRESTDataSetAdapter<M>.ApplyInserter is the one of the six that
+///  walks on `not Eof`; the field-0 counter is what bounds it, because Eof is
+///  not virtual and cannot be counted. </summary>
+procedure TTestApplyLoops.ApplyOverRestFDMemTable(const ARows: Integer);
 var
   LTable: TWatchedMemTable;
   LA: TRESTFDMemTableAdapter<TAitMid>;
@@ -789,21 +861,113 @@ begin
   try
     LA := TRESTFDMemTableAdapter<TAitMid>.Create(FRest, LTable, -1, nil);
     try
-      SeedPendingInserts(LTable, cROWS);
-      LTable.Arm(Budget(cROWS));
-      // TRESTDataSetAdapter<M>.ApplyInserter is the one of the six that walks
-      // on `not Eof`; the field-0 counter is what bounds it, because Eof is
-      // not virtual and cannot be counted.
+      SeedPendingInserts(LTable, ARows);
+      LTable.Arm(Budget(ARows));
       TApplyAccess<TAitMid>.Internal(LA);
       LTable.Arm(0);
-      Assert.AreEqual(cROWS, MinusOnes(LTable),
-        'the REST family must terminate and clear every row too');
+      Assert.AreEqual(ARows, MinusOnes(LTable),
+        'the REST FDMemTable family must terminate and clear every row too');
+      Assert.AreEqual(ARows, LTable.RecordCount,
+        'no row may be lost or invented by the walk');
     finally
       LA.Free;
     end;
   finally
     LTable.Free;
   end;
+end;
+
+/// <summary> The FOURTH ApplyInternal. It shares its two loops with
+///  TRESTFDMemTableAdapter<M> - both inherit them from TRESTDataSetAdapter<M> -
+///  but it owns its own ApplyInternal, and therefore its own
+///  DisableDataSetEvents. Nothing else in the repository drives it: every
+///  other fixture that builds a TRESTClientDataSetAdapter reaches for
+///  OpenWhereInternal, DeleteDataSetChilds or RefreshRecordInternal. Without
+///  this runner the note on that method would name a test that does not
+///  exercise it. </summary>
+procedure TTestApplyLoops.ApplyOverRestClientDataSet(const ARows: Integer);
+var
+  LCds: TWatchedClientDataSet;
+  LA: TRESTClientDataSetAdapter<TAitMid>;
+begin
+  LCds := TWatchedClientDataSet.Create(nil);
+  try
+    LA := TRESTClientDataSetAdapter<TAitMid>.Create(FRest, LCds, -1, nil);
+    try
+      SeedPendingInserts(LCds, ARows);
+      LCds.Arm(Budget(ARows));
+      TApplyAccess<TAitMid>.Internal(LA);
+      LCds.Arm(0);
+      Assert.AreEqual(ARows, MinusOnes(LCds),
+        'the REST ClientDataSet family must terminate and clear every row too');
+      Assert.AreEqual(ARows, LCds.RecordCount,
+        'no row may be lost or invented by the walk');
+    finally
+      LA.Free;
+    end;
+  finally
+    LCds.Free;
+  end;
+end;
+
+procedure TTestApplyLoops.FDMemTable_ApplyInternal_ClearsEveryPendingRow;
+begin
+  ApplyOverFDMemTable(cROWS);
+end;
+
+procedure TTestApplyLoops.FDMemTable_ApplyInternal_WithOneRow;
+begin
+  ApplyOverFDMemTable(1);
+end;
+
+procedure TTestApplyLoops.FDMemTable_ApplyInternal_WithNoRows;
+begin
+  ApplyOverFDMemTable(0);
+end;
+
+procedure TTestApplyLoops.ClientDataSet_ApplyInternal_ClearsEveryPendingRow;
+begin
+  ApplyOverClientDataSet(cROWS);
+end;
+
+procedure TTestApplyLoops.ClientDataSet_ApplyInternal_WithOneRow;
+begin
+  ApplyOverClientDataSet(1);
+end;
+
+procedure TTestApplyLoops.ClientDataSet_ApplyInternal_WithNoRows;
+begin
+  ApplyOverClientDataSet(0);
+end;
+
+procedure TTestApplyLoops.Rest_ApplyInternal_ClearsEveryPendingRow;
+begin
+  ApplyOverRestFDMemTable(cROWS);
+end;
+
+procedure TTestApplyLoops.Rest_ApplyInternal_WithOneRow;
+begin
+  ApplyOverRestFDMemTable(1);
+end;
+
+procedure TTestApplyLoops.Rest_ApplyInternal_WithNoRows;
+begin
+  ApplyOverRestFDMemTable(0);
+end;
+
+procedure TTestApplyLoops.RestClientDataSet_ApplyInternal_ClearsEveryPendingRow;
+begin
+  ApplyOverRestClientDataSet(cROWS);
+end;
+
+procedure TTestApplyLoops.RestClientDataSet_ApplyInternal_WithOneRow;
+begin
+  ApplyOverRestClientDataSet(1);
+end;
+
+procedure TTestApplyLoops.RestClientDataSet_ApplyInternal_WithNoRows;
+begin
+  ApplyOverRestClientDataSet(0);
 end;
 
 procedure TTestApplyLoops.MixedMarkers_ApplyInternal_ClearsEveryPendingRowAndKeepsKeys;
@@ -967,6 +1131,34 @@ begin
     end;
   finally
     LTable.Free;
+  end;
+end;
+
+procedure TTestApplyLoops.RestClientDataSet_ApplyUpdater_WithBeforePostLive_NeverTerminates;
+var
+  LCds: TWatchedClientDataSet;
+  LA: TRESTClientDataSetAdapter<TAitMid>;
+begin
+  LCds := TWatchedClientDataSet.Create(nil);
+  try
+    LA := TRESTClientDataSetAdapter<TAitMid>.Create(FRest, LCds, -1, nil);
+    try
+      SeedPendingEdits(LCds, cROWS);
+      LCds.Arm(Budget(cROWS));
+      Assert.WillRaise(
+        procedure
+        begin
+          TApplyAccess<TAitMid>.Updater(LA);
+        end,
+        EApplyRunaway,
+        'the fourth family behaves the same - measured, not inferred from ' +
+        'the other three');
+      LCds.Arm(0);
+    finally
+      LA.Free;
+    end;
+  finally
+    LCds.Free;
   end;
 end;
 
