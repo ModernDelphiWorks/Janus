@@ -49,6 +49,94 @@
   muted - only the fixture's own set-up and measurement helpers are, so that a
   count is a count and not a side effect.
 
+  WHICH MASTER ROW'S KEY REACHES THE CHILDREN - issue #261
+
+  _AutoIncToChildRows reads the association's columns off the MASTER DATASET,
+  which means off whatever row that dataset's cursor is sitting on, and writes
+  them into EVERY pending child row. It consults no primary key and no per-row
+  correspondence. Until this section existed nobody had ever run it with two
+  master rows carrying different keys - the older grandchild test gives all
+  three mid rows the SAME own key on purpose, and says so - so the outcome was
+  unmeasured rather than known. It is measured now:
+
+    * three mid rows carrying 91 / 92 / 93, two leaf rows starting on a key no
+      mid row has: BOTH leaves come out on 91. Not one carries 92 or 93, and
+      none is left alone. Measured by
+      Linked_MidRowsWithDistinctKeys_EveryLeafGetsTheFirstMidRowKey and its
+      Unlinked_ twin, so it is not an artefact of the REST client's wiring;
+
+    * 91 is the FIRST mid row, not the last one processed - the probe records
+      the last mid row the cascade touched as M2/93 in the same run. Which row
+      the cursor ends on is decided by _AutoIncToChildRows' own `finally`, which
+      calls AChild.First after writing. Mutating that single call to AChild.Last
+      moves the value every leaf receives from 91 to 93 and reddens exactly
+      those two tests out of 470 - which is why this file says the key is the
+      CURSOR's row rather than merely observing that they collapse;
+
+    * the master-detail range never protects anything. With the link live the
+      visible leaf set is ZERO rows and both leaves are written all the same,
+      because _AutoIncToChildRows calls _DetachMasterLink before it walks. The
+      only filter left is _IsPendingInsertRow. That clause is a PREMISE inside
+      the Linked_ test;
+
+    * and one level up, TFDMemTableAdapter<M>.ApplyInserter loops over EVERY
+      pending master row calling SetAutoIncValueChilds once per row, while the
+      child rows stay dsInsert for the whole loop - TFDMemTableAdapter<M>
+      .ApplyInternal only reaches each child's own ApplyInternal after the
+      master loop has finished. So each pass re-stamps the same child rows and
+      the LAST pending master row wins. Measured by
+      TwoPendingMasterRows_EveryPendingChildEndsOnTheLastMasterKey, which
+      asserts the rows are still pending on the second pass rather than
+      assuming it.
+
+  THE OTHER FAMILY DOES NOT DO THIS, AND THAT IS THE POINT
+
+  TObjectSetBaseAdapter<M>.SetAutoIncValueOneToMany reads the value with
+  AProperty.GetValue(AObject), where AObject is the parent OBJECT it was handed.
+  Two parents are two arguments, never two positions in one cursor. Measured
+  with the same three keys by
+  ObjectSet_TwoParentsWithDistinctKeys_NeitherChildListCollapses: each list
+  keeps its own parent's key. The two families are supposed to be
+  interchangeable to a consumer and here they are not.
+
+  WHY THE WRITE IS INSTRUMENTED AND NOT INFERRED
+
+  A value found on a child row afterwards does not say who put it there - a
+  later pass over the same level can leave the same number behind, and that
+  confusion is what made an earlier defect in this series look like a feature.
+  So the fixture hooks TField.OnChange on the column being propagated and
+  records, INSIDE the write, which master row was current. That hook survives
+  both mutes the production path installs: TDataSetBaseAdapter<M>
+  .DisableDataSetEvents only nils the DATASET's own event properties (see its
+  _FindEvents list, which has no field event in it), and TDataSet.DataEvent
+  reaches TField.Change before the branch that DisableControls suppresses. Not
+  argued - the probe records writes that happen inside both.
+  NoPendingLeafRow_TheProbeRecordsNoWriteAtAll is the meta-check of the probe
+  itself: an instrument that could not report a zero would make every count
+  above unfalsifiable.
+
+  WHAT THIS SECTION DID NOT MEASURE
+
+  * Neither family is driven through its real ApplyInserter: that needs a live
+    FSession.Insert. As everywhere else in this fixture, the state ApplyInserter
+    creates is reproduced and the SHIPPED SetAutoIncValueChilds is called.
+  * TwoPendingMasterRows_ moves the master cursor itself, wrapped in the
+    framework's own DisableDataSetEvents, because ApplyInserter advances its
+    cursor as a side effect of marking rows saved through its filter and that
+    needs the session. What the mute buys is asserted, not assumed.
+  * The ObjectSet test calls SetAutoIncValueChilds once per parent object the
+    way OneToManyCascadeActionsExecute does, but does not run the cascade, so it
+    measures the distribution step and not the call sequence that reaches it.
+  * WHETHER the mid rows' own keys have been generated at the instant the
+    recursion fires is issue #262 and is NOT answered here. This fixture writes
+    those keys itself, so it can say WHICH key travels and never whether it had
+    been generated.
+  * Nothing here ran against a live database or a live REST server.
+    TClientDataSetAdapter<M>.ApplyInserter and TRESTDataSetAdapter<M>
+    .ApplyInserter carry the same per-pending-master-row loop, and
+    TRESTDataSetAdapter<M>.OpenDataSetChilds has an empty body, so a master
+    scroll there discards no pending child. Both are READ, not run.
+
   ANCHORS ARE BY METHOD, NEVER BY `file:line`. A line anchor rots on the first
   commit that inserts a line above it.
 }
@@ -87,6 +175,28 @@ uses
   Test.Janus.Cursor.Double;
 
 type
+  /// <summary> One observed WRITE into a child row's foreign key, captured at
+  ///  the instant the write happens - not reconstructed from the rows
+  ///  afterwards. `MasterTag`/`MasterKey` are read INSIDE the handler, so they
+  ///  are the master row the cascade was standing on when it wrote, which is
+  ///  the whole question issue #261 asks. </summary>
+  TCascadeWrite = record
+    Level: String;
+    ChildTag: String;
+    Value: Integer;
+    MasterTag: String;
+    MasterKey: Integer;
+  end;
+
+  /// <summary> One armed (child dataset, column) pair and the master dataset
+  ///  whose current row is to be recorded alongside every write to it. </summary>
+  TProbeArm = record
+    Level: String;
+    Child: TFDMemTable;
+    Master: TFDMemTable;
+    MasterColumn: String;
+  end;
+
   /// <summary> Classic protected-access descendant. SetAutoIncValueChilds and
   ///  FOrmDataSource are protected, and the production call sites sit deep
   ///  inside ApplyInserter, which would need a live server or a live database.
@@ -96,6 +206,13 @@ type
   public
     class procedure Propagate(const AAdapter: TDataSetBaseAdapter<M>);
     class function SourceOf(const AAdapter: TDataSetBaseAdapter<M>): TDataSource;
+    /// The SHIPPED mute, not a fixture imitation of it: TFDMemTableAdapter<M>
+    /// .ApplyInternal calls exactly these two around the whole apply, which is
+    /// why its ApplyInserter can walk from one pending master row to the next
+    /// without DoAfterScroll re-opening - and therefore discarding - the child
+    /// rows it is about to stamp.
+    class procedure MuteAdapter(const AAdapter: TDataSetBaseAdapter<M>);
+    class procedure UnmuteAdapter(const AAdapter: TDataSetBaseAdapter<M>);
   end;
 
   /// <summary> Same protected-access trick for the OTHER family that ships a
@@ -120,6 +237,8 @@ type
     FMid: IContainerDataSet<TAitMid>;
     FLeaf: IContainerDataSet<TAitLeaf>;
     FOther: IContainerDataSet<TAitNoCascade>;
+    FWrites: TList<TCascadeWrite>;
+    FArms: TList<TProbeArm>;
     procedure BuildTree(const AWithLeaf: Boolean = True;
       const AWithOther: Boolean = False);
     procedure LinkAsRestClientDoes;
@@ -133,6 +252,16 @@ type
       const AColumn: String; const AKey: Integer): Integer;
     function VisibleRowCount(const ADataSet: TFDMemTable): Integer;
     procedure MoveMasterToNewKey(const ANewKey: Integer);
+    procedure ArmWriteProbe(const ALevel: String; const AChild: TFDMemTable;
+      const AColumn: String; const AMaster: TFDMemTable;
+      const AMasterColumn: String);
+    procedure DisarmWriteProbe;
+    procedure ProbeFieldChanged(Sender: TField);
+    function WritesAt(const ALevel: String): TArray<TCascadeWrite>;
+    function WriteLog: String;
+    procedure BuildDistinctKeyTree(const ALinked: Boolean;
+      const AMidRows: Integer; const ALeafRows: Integer);
+    procedure AssertLeavesCollapsedOntoTheFirstMidRow;
   public
     [Setup]
     procedure Setup;
@@ -171,6 +300,31 @@ type
     [Test]
     procedure ChildDataSetNotRegistered_DoesNotRaise;
 
+    // -----------------------------------------------------------------------
+    // Issue #261 - WHICH master row's key reaches the pending child rows
+    // -----------------------------------------------------------------------
+
+    /// The measurement the issue asks for: three mid rows, three DIFFERENT own
+    /// keys, and the write into every leaf instrumented as it happens.
+    [Test]
+    procedure Linked_MidRowsWithDistinctKeys_EveryLeafGetsTheFirstMidRowKey;
+    /// The same with no master-detail link anywhere, so the collapse cannot be
+    /// blamed on the REST client's wiring.
+    [Test]
+    procedure Unlinked_MidRowsWithDistinctKeys_EveryLeafGetsTheFirstMidRowKey;
+    /// ONE mid row. This case cannot tell a collapse from a correct
+    /// distribution and does not claim to - see its own comment.
+    [Test]
+    procedure SingleMidRow_TheOnlyKeyReachesTheLeaves_DEGENERATE;
+    /// ZERO pending leaf rows. Also not a detector of the collapse: it is the
+    /// meta-check of the probe, which would be worthless if it could not report
+    /// a zero.
+    [Test]
+    procedure NoPendingLeafRow_TheProbeRecordsNoWriteAtAll;
+    /// Two pending MASTER rows, which is what ApplyInserter really loops over.
+    [Test]
+    procedure TwoPendingMasterRows_EveryPendingChildEndsOnTheLastMasterKey;
+
     /// The OTHER family. It has no cursor and no master-detail filter, so the
     /// defect above cannot exist there - measured, not assumed.
     [Test]
@@ -180,6 +334,12 @@ type
     /// fixture carried before #244 could not be expressed here at all.
     [Test]
     procedure ObjectSet_EveryGrandchildObjectReceivesTheMidKey;
+    /// Issue #261 in the other family: TWO parents with different keys, each
+    /// holding its own children. This is the comparison the issue calls the
+    /// most valuable outcome, because the two families are meant to be
+    /// interchangeable to a consumer.
+    [Test]
+    procedure ObjectSet_TwoParentsWithDistinctKeys_NeitherChildListCollapses;
   end;
 
 implementation
@@ -198,6 +358,22 @@ const
   cMIDOWNKEY    = 90;
   cMASTERSOURCE = 'MasterSource';
   cWALKCEILING  = 50;
+  /// ---- issue #261: THREE mid rows, three DIFFERENT own keys ----------------
+  /// cMIDOWNKEY above is the one-key-for-all value the older grandchild test
+  /// uses on purpose. These are its opposite, and the only reason this file
+  /// can answer "which parent's key reaches the leaves".
+  cMIDKEYFIRST  = 91;
+  cMIDKEYMIDDLE = 92;
+  cMIDKEYLAST   = 93;
+  /// The leaves start on a value NO mid row carries, so "nothing was written"
+  /// and "the first mid row was written" can never be read as the same result.
+  cLEAFSTART    = -7;
+  /// The SECOND pending master row's generated key - cROOTKEYNEW is the first.
+  cROOTKEYB     = 600;
+  /// What the probe records when the master dataset has no current row.
+  cNOMASTERROW  = -999;
+  cLEVELMID     = 'mid';
+  cLEVELLEAF    = 'leaf';
 
 type
   /// Saved BeforeScroll/AfterScroll pair, so a fixture helper can walk a
@@ -235,6 +411,18 @@ begin
   Result := TAdapterAccess<M>(AAdapter).FOrmDataSource;
 end;
 
+class procedure TAdapterAccess<M>.MuteAdapter(
+  const AAdapter: TDataSetBaseAdapter<M>);
+begin
+  TAdapterAccess<M>(AAdapter).DisableDataSetEvents;
+end;
+
+class procedure TAdapterAccess<M>.UnmuteAdapter(
+  const AAdapter: TDataSetBaseAdapter<M>);
+begin
+  TAdapterAccess<M>(AAdapter).EnableDataSetEvents;
+end;
+
 { TObjectSetAccess<M> }
 
 class procedure TObjectSetAccess<M>.Propagate(
@@ -246,8 +434,101 @@ end;
 
 { TTestAutoIncChilds }
 
+// ---------------------------------------------------------------------------
+// The probe - see WHY THE WRITE IS INSTRUMENTED in the unit header
+// ---------------------------------------------------------------------------
+
+procedure TTestAutoIncChilds.ArmWriteProbe(const ALevel: String;
+  const AChild: TFDMemTable; const AColumn: String; const AMaster: TFDMemTable;
+  const AMasterColumn: String);
+var
+  LArm: TProbeArm;
+begin
+  LArm.Level := ALevel;
+  LArm.Child := AChild;
+  LArm.Master := AMaster;
+  LArm.MasterColumn := AMasterColumn;
+  FArms.Add(LArm);
+  AChild.FieldByName(AColumn).OnChange := ProbeFieldChanged;
+end;
+
+procedure TTestAutoIncChilds.DisarmWriteProbe;
+var
+  LArm: TProbeArm;
+  LFor: Integer;
+begin
+  if FArms = nil then
+    Exit;
+  for LArm in FArms do
+    for LFor := 0 to LArm.Child.FieldCount - 1 do
+      LArm.Child.Fields[LFor].OnChange := nil;
+  FArms.Clear;
+end;
+
+procedure TTestAutoIncChilds.ProbeFieldChanged(Sender: TField);
+var
+  LArm: TProbeArm;
+  LWrite: TCascadeWrite;
+begin
+  for LArm in FArms do
+  begin
+    if LArm.Child <> Sender.DataSet then
+      Continue;
+    LWrite.Level := LArm.Level;
+    LWrite.Value := Sender.AsInteger;
+    LWrite.ChildTag := LArm.Child.FieldByName('tag').AsString;
+    // The master's CURRENT ROW, read at the instant of the write. This is the
+    // measurement: everything else in this fixture is a consequence of it.
+    if (LArm.Master = nil) or LArm.Master.IsEmpty then
+    begin
+      LWrite.MasterTag := '<empty>';
+      LWrite.MasterKey := cNOMASTERROW;
+    end
+    else
+    begin
+      LWrite.MasterTag := LArm.Master.FieldByName('tag').AsString;
+      LWrite.MasterKey := LArm.Master.FieldByName(LArm.MasterColumn).AsInteger;
+    end;
+    FWrites.Add(LWrite);
+    Exit;
+  end;
+end;
+
+function TTestAutoIncChilds.WritesAt(const ALevel: String): TArray<TCascadeWrite>;
+var
+  LFor: Integer;
+  LCount: Integer;
+begin
+  SetLength(Result, 0);
+  LCount := 0;
+  for LFor := 0 to FWrites.Count - 1 do
+  begin
+    if FWrites[LFor].Level <> ALevel then
+      Continue;
+    SetLength(Result, LCount + 1);
+    Result[LCount] := FWrites[LFor];
+    Inc(LCount);
+  end;
+end;
+
+/// Every assertion below quotes this, so a red never asks anyone to guess what
+/// the run actually did.
+function TTestAutoIncChilds.WriteLog: String;
+var
+  LFor: Integer;
+begin
+  Result := IntToStr(FWrites.Count) + ' write(s):';
+  for LFor := 0 to FWrites.Count - 1 do
+    Result := Result + ' [' + FWrites[LFor].Level + ' ' +
+              FWrites[LFor].ChildTag + ' <- ' + IntToStr(FWrites[LFor].Value) +
+              ' while the master sat on ' + FWrites[LFor].MasterTag + '/' +
+              IntToStr(FWrites[LFor].MasterKey) + ']';
+end;
+
 procedure TTestAutoIncChilds.Setup;
 begin
+  FWrites := TList<TCascadeWrite>.Create;
+  FArms := TList<TProbeArm>.Create;
   // The connection is only needed to build the adapters; no test here opens a
   // cursor. Zero rows keeps the double completely inert.
   FConn := TRowsConnection.Create(dnSQLite, 0,
@@ -264,6 +545,9 @@ end;
 
 procedure TTestAutoIncChilds.TearDown;
 begin
+  DisarmWriteProbe;
+  FreeAndNil(FArms);
+  FreeAndNil(FWrites);
   // Detach first: a TFDMemTable freed while another one still points at its
   // TDataSource is a crash, not a test result.
   if FLeafTable <> nil then
@@ -533,7 +817,11 @@ begin
   BuildTree(True);
   AddMasterRow(cROOTKEYOLD);
   // Every mid row carries the SAME own key, so the result does not depend on
-  // which mid row the cursor happens to sit on when the recursion fires.
+  // which mid row the cursor happens to sit on when the recursion fires. That
+  // is still true and still deliberate here - what it costs is that this test
+  // cannot tell a correct per-parent distribution from a collapse onto one
+  // parent. Issue #261 ran the case with three DIFFERENT keys instead: see
+  // Linked_MidRowsWithDistinctKeys_EveryLeafGetsTheFirstMidRowKey.
   for LFor := 0 to cCHILDS - 1 do
     AddChildRow(FMidTable, cROOTKEYOLD, 'M' + IntToStr(LFor), True, cMIDOWNKEY);
   // The leaves start on mid_id = 0, and on the OLD root key.
@@ -719,6 +1007,227 @@ begin
 end;
 
 // ---------------------------------------------------------------------------
+// Issue #261 - WHICH master row's key reaches the pending child rows
+// ---------------------------------------------------------------------------
+
+/// Builds root + three mid rows carrying THREE DIFFERENT own keys + two leaf
+/// rows starting on a key no mid row has, and arms the probe on both levels.
+/// Mid rows go in before leaf rows because appending to the mid scrolls it, and
+/// TDataSetAdapter<M>.DoAfterScroll re-opens - that is, empties - its children.
+procedure TTestAutoIncChilds.BuildDistinctKeyTree(const ALinked: Boolean;
+  const AMidRows: Integer; const ALeafRows: Integer);
+var
+  LFor: Integer;
+begin
+  BuildTree(True);
+  AddMasterRow(cROOTKEYOLD);
+  for LFor := 0 to AMidRows - 1 do
+    AddChildRow(FMidTable, cROOTKEYOLD, 'M' + IntToStr(LFor), True,
+                cMIDKEYFIRST + LFor);
+  for LFor := 0 to ALeafRows - 1 do
+    AddChildRow(FLeafTable, cROOTKEYOLD, 'L' + IntToStr(LFor), True, cLEAFSTART);
+  if ALinked then
+    LinkAsRestClientDoes;
+  MoveMasterToNewKey(cROOTKEYNEW);
+  ArmWriteProbe(cLEVELMID, FMidTable, cKEYFIELD, FRootTable, cKEYFIELD);
+  ArmWriteProbe(cLEVELLEAF, FLeafTable, cOWNKEYFIELD, FMidTable, cOWNKEYFIELD);
+end;
+
+/// The two DataSet-family tests below assert the same four things about the
+/// same run, so the wording lives once.
+procedure TTestAutoIncChilds.AssertLeavesCollapsedOntoTheFirstMidRow;
+var
+  LMid: TArray<TCascadeWrite>;
+  LLeaf: TArray<TCascadeWrite>;
+  LFor: Integer;
+begin
+  LMid := WritesAt(cLEVELMID);
+  LLeaf := WritesAt(cLEVELLEAF);
+
+  // The probe has to have seen something, or every clause below is vacuous.
+  Assert.AreEqual(cCHILDS, Length(LMid),
+    'the probe must have observed one write per mid row - ' + WriteLog);
+  Assert.AreEqual(cGRANDS, Length(LLeaf),
+    'the probe must have observed one write per leaf row - ' + WriteLog);
+
+  // WHICH mid row was processed LAST. Measured, not assumed, and it is the
+  // reading the leaf result has to be told apart from.
+  Assert.AreEqual('M' + IntToStr(cCHILDS - 1), LMid[Length(LMid) - 1].ChildTag,
+    'the LAST mid row the cascade touched must be the last one added - ' +
+    WriteLog);
+
+  for LFor := 0 to Length(LLeaf) - 1 do
+  begin
+    // The instrumented half: this is read INSIDE the write, so it names the
+    // row the cascade was standing on, not the row it ended on.
+    Assert.AreEqual('M0', LLeaf[LFor].MasterTag,
+      'every leaf write must have been taken from the FIRST mid row - ' +
+      WriteLog);
+    Assert.AreEqual(cMIDKEYFIRST, LLeaf[LFor].MasterKey,
+      'and that row must be the one carrying the first key - ' + WriteLog);
+    Assert.AreEqual(cMIDKEYFIRST, LLeaf[LFor].Value,
+      'so the value written is the first mid row key, NOT the last mid row ' +
+      'processed - ' + WriteLog);
+  end;
+
+  // And the rows agree with the probe, which is the cross-check that the
+  // instrumentation is describing this run and not a different one.
+  Assert.AreEqual(cGRANDS, CountWithColumn(FLeafTable, cOWNKEYFIELD, cMIDKEYFIRST),
+    'both leaves end up parented to the first mid row');
+  Assert.AreEqual(0, CountWithColumn(FLeafTable, cOWNKEYFIELD, cMIDKEYMIDDLE),
+    'none is parented to the middle mid row');
+  Assert.AreEqual(0, CountWithColumn(FLeafTable, cOWNKEYFIELD, cMIDKEYLAST),
+    'and none to the last one - which is what a last-writer-wins walk would ' +
+    'have produced');
+  Assert.AreEqual(0, CountWithColumn(FLeafTable, cOWNKEYFIELD, cLEAFSTART),
+    'and no leaf was simply left alone');
+end;
+
+procedure TTestAutoIncChilds.Linked_MidRowsWithDistinctKeys_EveryLeafGetsTheFirstMidRowKey;
+begin
+  BuildDistinctKeyTree(True, cCHILDS, cGRANDS);
+
+  // THE RANGE DOES NOT PROTECT ANYTHING, and this is the number that says so:
+  // the link is live, the mid cursor is on a row whose key no leaf carries, so
+  // the leaf set the user can SEE is empty - and both leaves are written all
+  // the same, because _AutoIncToChildRows detaches the link before it walks.
+  Assert.AreEqual(0, VisibleRowCount(FLeafTable),
+    'PREMISE: with the link live not one leaf row is inside the range');
+
+  TAdapterAccess<TAitRoot>.Propagate(FRoot.This);
+  DisarmWriteProbe;
+
+  AssertLeavesCollapsedOntoTheFirstMidRow;
+end;
+
+procedure TTestAutoIncChilds.Unlinked_MidRowsWithDistinctKeys_EveryLeafGetsTheFirstMidRowKey;
+begin
+  // No MasterSource anywhere - the plain TFDMemTableAdapter / TClientDataSet
+  // shape. Nothing under Source\Dataset ever assigns MasterSource, so if the
+  // collapse survives here it is not an artefact of the REST client's wiring.
+  BuildDistinctKeyTree(False, cCHILDS, cGRANDS);
+
+  TAdapterAccess<TAitRoot>.Propagate(FRoot.This);
+  DisarmWriteProbe;
+
+  AssertLeavesCollapsedOntoTheFirstMidRow;
+end;
+
+procedure TTestAutoIncChilds.SingleMidRow_TheOnlyKeyReachesTheLeaves_DEGENERATE;
+var
+  LLeaf: TArray<TCascadeWrite>;
+  LFor: Integer;
+begin
+  // WHAT THIS CASE DOES NOT DO. With one mid row there is exactly one key the
+  // recursion could possibly carry, so this test cannot distinguish a correct
+  // per-parent distribution from the collapse the two tests above measure, and
+  // it is not written as if it could. What it does hold is the floor: the
+  // recursion still fires, and still writes, when the collapse has nothing to
+  // collapse - so a green pair above is not explained by "it never writes".
+  BuildDistinctKeyTree(True, 1, cGRANDS);
+
+  TAdapterAccess<TAitRoot>.Propagate(FRoot.This);
+  DisarmWriteProbe;
+
+  LLeaf := WritesAt(cLEVELLEAF);
+  Assert.AreEqual(cGRANDS, Length(LLeaf),
+    'the recursion must still write every leaf when there is a single mid ' +
+    'row - ' + WriteLog);
+  for LFor := 0 to Length(LLeaf) - 1 do
+    Assert.AreEqual(cMIDKEYFIRST, LLeaf[LFor].Value,
+      'and the only key available is the one that arrives - ' + WriteLog);
+end;
+
+procedure TTestAutoIncChilds.NoPendingLeafRow_TheProbeRecordsNoWriteAtAll;
+begin
+  // META-CHECK OF THE INSTRUMENT, not of the framework. Every other clause in
+  // this section reads a write COUNT, and a probe that cannot report zero would
+  // make all of them unfalsifiable. The mid level still has its three rows, so
+  // this is not an empty run: the mid writes are observed and the leaf ones are
+  // not, in the same execution.
+  BuildDistinctKeyTree(True, cCHILDS, 0);
+
+  TAdapterAccess<TAitRoot>.Propagate(FRoot.This);
+  DisarmWriteProbe;
+
+  Assert.AreEqual(cCHILDS, Length(WritesAt(cLEVELMID)),
+    'the mid level must still have been written - ' + WriteLog);
+  Assert.AreEqual(0, Length(WritesAt(cLEVELLEAF)),
+    'and with no leaf row to stamp the probe must report ZERO, not silence - ' +
+    WriteLog);
+end;
+
+procedure TTestAutoIncChilds.TwoPendingMasterRows_EveryPendingChildEndsOnTheLastMasterKey;
+var
+  LFor: Integer;
+  LMid: TArray<TCascadeWrite>;
+  LInternal: TField;
+begin
+  // WHY THIS IS THE SHIPPED CONFIGURATION, and not a shape invented to fail.
+  // TFDMemTableAdapter<M>.ApplyInserter filters the master on
+  // InternalField = dsInsert and loops WHILE THERE ARE ROWS LEFT, calling
+  // SetAutoIncValueChilds once per pending master row. The child rows are not
+  // marked saved in that loop - TFDMemTableAdapter<M>.ApplyInternal only
+  // reaches each child's own ApplyInternal AFTER the master loop has finished -
+  // so every iteration finds the same pending child rows again. The assertion
+  // on InternalField below is that fact measured rather than read.
+  BuildTree(False);
+  AddMasterRow(cROOTKEYOLD);
+  AddMasterRow(cROOTKEYOLD);
+  for LFor := 0 to cCHILDS - 1 do
+    AddChildRow(FMidTable, cROOTKEYOLD, 'M' + IntToStr(LFor), True,
+                cMIDKEYFIRST + LFor);
+  ArmWriteProbe(cLEVELMID, FMidTable, cKEYFIELD, FRootTable, cKEYFIELD);
+
+  // The shipped mute, for the same reason ApplyInternal installs it: without it
+  // moving the master cursor re-opens the children and there is nothing left to
+  // measure. This is the one liberty the fixture takes with the call sequence,
+  // and it takes it with the framework's own method.
+  TAdapterAccess<TAitRoot>.MuteAdapter(FRoot.This);
+  try
+    FRootTable.First;
+    FRootTable.Edit;
+    FRootTable.FieldByName(cKEYFIELD).AsInteger := cROOTKEYNEW;
+    TAdapterAccess<TAitRoot>.Propagate(FRoot.This);
+    FRootTable.Post;
+
+    LInternal := FMidTable.FindField('InternalField');
+    Assert.IsNotNull(LInternal, 'the adapter must create the internal field');
+    FMidTable.First;
+    Assert.AreEqual(Integer(dsInsert), LInternal.AsInteger,
+      'the child rows must STILL be pending after the first master row was ' +
+      'stamped - if they were not, the second pass could not touch them');
+
+    FRootTable.Last;
+    FRootTable.Edit;
+    FRootTable.FieldByName(cKEYFIELD).AsInteger := cROOTKEYB;
+    TAdapterAccess<TAitRoot>.Propagate(FRoot.This);
+    FRootTable.Post;
+  finally
+    TAdapterAccess<TAitRoot>.UnmuteAdapter(FRoot.This);
+  end;
+  DisarmWriteProbe;
+
+  LMid := WritesAt(cLEVELMID);
+  Assert.AreEqual(cCHILDS * 2, Length(LMid),
+    'every child row must have been written ONCE PER PENDING MASTER ROW - ' +
+    WriteLog);
+  for LFor := 0 to cCHILDS - 1 do
+    Assert.AreEqual(cROOTKEYNEW, LMid[LFor].Value,
+      'the first pass parents them all on the first master row - ' + WriteLog);
+  for LFor := cCHILDS to (cCHILDS * 2) - 1 do
+    Assert.AreEqual(cROOTKEYB, LMid[LFor].Value,
+      'and the second pass re-parents the very same rows on the second - ' +
+      WriteLog);
+
+  Assert.AreEqual(0, CountWithKey(FMidTable, cROOTKEYNEW),
+    'not one child is left on the first master key');
+  Assert.AreEqual(cCHILDS, CountWithKey(FMidTable, cROOTKEYB),
+    'they all end up on the LAST pending master row - which is the answer to ' +
+    'the second half of issue #261 at this level: last writer wins');
+end;
+
+// ---------------------------------------------------------------------------
 // The other family
 // ---------------------------------------------------------------------------
 
@@ -824,6 +1333,66 @@ begin
   finally
     LAdapter.Free;
     LMid.Free;
+  end;
+end;
+
+procedure TTestAutoIncChilds.ObjectSet_TwoParentsWithDistinctKeys_NeitherChildListCollapses;
+var
+  LAdapter: TObjectSetAdapter<TAitMid>;
+  LMids: TObjectList<TAitMid>;
+  LMid: TAitMid;
+  LLeaf: TAitLeaf;
+  LPrimaryKey: TPrimaryKeyColumnsMapping;
+  LFor: Integer;
+  LRow: Integer;
+begin
+  // WHAT THIS MIRRORS. TObjectSetBaseAdapter<M>.OneToManyCascadeActionsExecute
+  // calls SetAutoIncValueChilds ONCE PER CHILD OBJECT, right after that object
+  // has been inserted and has its own key - so the loop below is the shape the
+  // shipped cascade runs, not a shape chosen to pass.
+  //
+  // WHY IT CANNOT COLLAPSE THE WAY THE DATASET FAMILY DOES. There is no cursor:
+  // SetAutoIncValueOneToMany reads the value with AProperty.GetValue(AObject),
+  // where AObject is the parent OBJECT it was handed. Two parents are two
+  // arguments, never two positions in one dataset.
+  //
+  // WHAT IT IS NOT. This does not run the cascade itself - that needs a live
+  // FSession.Insert - so it does not prove the shipped call sequence reaches
+  // here with the right objects. It measures the distribution step only.
+  LMids := TObjectList<TAitMid>.Create;
+  LAdapter := TObjectSetAdapter<TAitMid>.Create(FConn);
+  try
+    for LRow := 0 to cCHILDS - 1 do
+    begin
+      LMid := TAitMid.Create;
+      LMid.mid_id := cMIDKEYFIRST + LRow;
+      LMid.root_id := cROOTKEYNEW;
+      for LFor := 0 to cGRANDS - 1 do
+      begin
+        LLeaf := TAitLeaf.Create;
+        LLeaf.mid_id := cLEAFSTART;
+        LLeaf.root_id := cROOTKEYOLD;
+        LMid.leafs.Add(LLeaf);
+      end;
+      LMids.Add(LMid);
+    end;
+    LPrimaryKey := TMappingExplorer.GetMappingPrimaryKeyColumns(TAitMid);
+    Assert.IsNotNull(LPrimaryKey, 'TAitMid must expose a primary key mapping');
+
+    for LRow := 0 to LMids.Count - 1 do
+      TObjectSetAccess<TAitMid>.Propagate(LAdapter, LMids[LRow],
+                                          LPrimaryKey.Columns[0]);
+
+    for LRow := 0 to LMids.Count - 1 do
+      for LFor := 0 to LMids[LRow].leafs.Count - 1 do
+        Assert.AreEqual(cMIDKEYFIRST + LRow, LMids[LRow].leafs[LFor].mid_id,
+          'leaf ' + IntToStr(LFor) + ' of parent ' + IntToStr(LRow) +
+          ' must carry ITS OWN parent key. The DataSet family, measured in ' +
+          'the same file with the same three keys, hands every leaf the ' +
+          'FIRST parent key instead - that divergence is the finding');
+  finally
+    LAdapter.Free;
+    LMids.Free;
   end;
 end;
 
