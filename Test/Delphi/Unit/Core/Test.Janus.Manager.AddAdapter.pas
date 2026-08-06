@@ -71,8 +71,22 @@
   dictionary through RTTI - a state the shipped code cannot produce - and the
   test would then be measuring the fixture. Declared, not covered.
 
+  IT RUNS IN BOTH SHIPPED CONFIGURATIONS
+
+  The dataset handed to AddAdapter and the adapter class name expected back
+  both follow the directive Janus.inc selects, through TMemDataSet and
+  cLOCALADAPTER below. Hard-coding TFDMemTable made every test here error
+  with `Is not TClientDataSet type` under the ClientDataSet configuration -
+  which reads as that configuration being broken, when what was broken was
+  the fixture. Measured in both, see #223.
+
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
+
+{ The dataset choice lives in Janus.inc, so a fixture that has to follow it
+  must read it. Without this include the IFDEFs below are simply false and
+  the fixture silently hard-codes one half of the choice again. }
+{$INCLUDE ..\..\..\..\Source\Janus.inc}
 
 unit Test.Janus.Manager.AddAdapter;
 
@@ -89,6 +103,9 @@ uses
   SysUtils,
   Generics.Collections,
   DUnitX.TestFramework,
+  {$IFDEF USECLIENTDATASET}
+  DBClient,
+  {$ENDIF}
   FireDAC.Stan.Intf,
   FireDAC.Stan.Option,
   FireDAC.Stan.Param,
@@ -106,6 +123,19 @@ uses
   Test.Janus.Model.KeyOnly;
 
 type
+  /// <summary> The in-memory dataset THIS BUILD is configured to accept.
+  ///  Janus.inc exposes that choice as one of two directives and
+  ///  TManagerDataSet.ResolverDataSetType rejects anything else, so a fixture
+  ///  that hard-coded one of them could only run in one of the two shipped
+  ///  configurations - and in the other one every test here errored with
+  ///  `Is not TClientDataSet type` before reaching a single assertion. Both
+  ///  configurations are supported and both were run. </summary>
+  {$IFDEF USECLIENTDATASET}
+  TMemDataSet = TClientDataSet;
+  {$ELSE}
+  TMemDataSet = TFDMemTable;
+  {$ENDIF}
+
   /// <summary> The usual protected-access descendant. FOwnerMasterObject and
   ///  FMasterObject are the two ends of the link AddAdapter<T, M> installs and
   ///  both are protected. The probe adds no field of its own, so it is the
@@ -124,9 +154,9 @@ type
     FRows: TRowsConnection;
     FConn: IDBConnection;
     FManager: TManagerDataSet;
-    FMasterMem: TFDMemTable;
-    FChildMem: TFDMemTable;
-    FSpareMem: TFDMemTable;
+    FMasterMem: TMemDataSet;
+    FChildMem: TMemDataSet;
+    FSpareMem: TMemDataSet;
     function Repository: TDictionary<String, TObject>;
     function AdapterOf(const AClassName: String): TObject;
     procedure BuildMasterOnly;
@@ -158,8 +188,10 @@ type
     procedure MasterPresent_OpeningTheMasterOpensTheChildThroughThatLink;
 
     /// The class the manager put in the repository for BOTH ends. Behaviour
-    /// can be argued about, a class name cannot: without DRIVERRESTFUL this
-    /// is TFDMemTableAdapter and never TRESTFDMemTableAdapter.
+    /// can be argued about, a class name cannot: without DRIVERRESTFUL the
+    /// adapter is the LOCAL one for the configured dataset -
+    /// TFDMemTableAdapter or TClientDataSetAdapter - and never its
+    /// TREST... namesake.
     [Test]
     procedure Selection_BothEndsAreTheLocalAdapterClass;
 
@@ -204,7 +236,11 @@ implementation
 const
   cMASTERCLASS = 'TAsymMaster';
   cCHILDCLASS  = 'TAsymChild';
+  {$IFDEF USECLIENTDATASET}
+  cLOCALADAPTER = 'TClientDataSetAdapter';
+  {$ELSE}
   cLOCALADAPTER = 'TFDMemTableAdapter';
+  {$ENDIF}
 
 { TAdapterProbe<M> }
 
@@ -301,14 +337,14 @@ end;
 
 procedure TTestManagerAddAdapter.BuildMasterOnly;
 begin
-  FMasterMem := TFDMemTable.Create(nil);
+  FMasterMem := TMemDataSet.Create(nil);
   FManager.AddAdapter<TAsymMaster>(FMasterMem);
 end;
 
 procedure TTestManagerAddAdapter.BuildMasterDetail;
 begin
   BuildMasterOnly;
-  FChildMem := TFDMemTable.Create(nil);
+  FChildMem := TMemDataSet.Create(nil);
   FManager.AddAdapter<TAsymChild, TAsymMaster>(FChildMem);
 end;
 
@@ -374,20 +410,21 @@ begin
   LChild := AdapterOf(cCHILDCLASS);
   Assert.IsNotNull(LMaster, 'the master adapter must be in the repository');
   Assert.IsNotNull(LChild, 'the child adapter must be in the repository');
-  // TFDMemTableAdapter is a SUFFIX of TRESTFDMemTableAdapter, so the position
-  // is what separates the branches - a bare Pos() would match both and prove
-  // nothing.
+  // Each local adapter name is a SUFFIX of its REST namesake -
+  // TFDMemTableAdapter of TRESTFDMemTableAdapter, TClientDataSetAdapter of
+  // TRESTClientDataSetAdapter - so the POSITION is what separates the
+  // branches. A bare Pos() would match both and prove nothing.
   Assert.AreEqual(1, Pos(cLOCALADAPTER, LMaster.ClassName),
-    'AddAdapter<T> must build TFDMemTableAdapter without DRIVERRESTFUL. ' +
+    'AddAdapter<T> must build ' + cLOCALADAPTER + ' without DRIVERRESTFUL. ' +
     'Found: ' + LMaster.ClassName);
   Assert.AreEqual(1, Pos(cLOCALADAPTER, LChild.ClassName),
-    'AddAdapter<T, M> must build TFDMemTableAdapter without DRIVERRESTFUL. ' +
+    'AddAdapter<T, M> must build ' + cLOCALADAPTER + ' without DRIVERRESTFUL. ' +
     'Found: ' + LChild.ClassName);
 end;
 
 procedure TTestManagerAddAdapter.MasterMissing_ItExitsSilentlyAndRegistersNothing;
 begin
-  FChildMem := TFDMemTable.Create(nil);
+  FChildMem := TMemDataSet.Create(nil);
   // No AddAdapter<TAsymMaster> anywhere above this line.
   Assert.WillNotRaiseAny(
     procedure
@@ -403,7 +440,7 @@ end;
 
 procedure TTestManagerAddAdapter.MasterMissing_TheNextCallOnTheDetailDereferencesNil;
 begin
-  FChildMem := TFDMemTable.Create(nil);
+  FChildMem := TMemDataSet.Create(nil);
   // No AddAdapter<TAsymMaster> anywhere above this line, so the call below
   // takes the `master not registered` exit.
   FManager.AddAdapter<TAsymChild, TAsymMaster>(FChildMem);
@@ -422,7 +459,7 @@ end;
 procedure TTestManagerAddAdapter.DetailTwice_TheSecondCallIsANoOpAndTheFirstDataSetSurvives;
 begin
   BuildMasterDetail;
-  FSpareMem := TFDMemTable.Create(nil);
+  FSpareMem := TMemDataSet.Create(nil);
   Assert.WillNotRaiseAny(
     procedure
     begin
