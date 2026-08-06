@@ -781,8 +781,10 @@ begin
   // parent's OWN primary key property against the association's ColumnsName,
   // so only a column the parent's key names can ever be written. Before issue
   // #244 the mid level offered `root_id` while its key is `mid_id`: the lookup
-  // matched nothing, the walker returned, and no leaf was written - with
-  // nothing raised. That shape is what this test would not tolerate.
+  // matched nothing, so every leaf in the list was skipped by the loop's
+  // Continue - the early Exit belongs to the OneToOne sibling, not here - and
+  // none was written, with nothing raised. That shape is what this test would
+  // not tolerate.
   LMid := TAitMid.Create;
   LAdapter := TObjectSetAdapter<TAitMid>.Create(FConn);
   try
