@@ -398,6 +398,10 @@ begin
   LRecnoBook := FOrmDataSet.GetBookmark;
   FOrmDataSet.DisableControls;
   FOrmDataSet.DisableConstraints;
+  // DisableDataSetEvents is LOAD-BEARING, not cosmetic: it unhooks
+  // TDataSetBaseAdapter<M>.DoBeforePost, and ApplyUpdater does not terminate
+  // without it. See the note on cInternalField in Janus.DataSet.Fields;
+  // pinned by Test.Janus.Apply.Loops.
   DisableDataSetEvents;
   try
     ApplyInserter(MaxErros);

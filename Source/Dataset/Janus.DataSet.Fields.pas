@@ -29,6 +29,46 @@ uses
   SysUtils;
 
 const
+  /// <summary> Name of the column every Janus dataset carries to hold the
+  ///  STATE OF THE ROW. TDataSetBaseAdapter<M>.DoBeforePost writes
+  ///  Integer(dsInsert) whenever the dataset is in dsInsert, and
+  ///  Integer(dsEdit) when it is in dsEdit AND the column currently holds -1 -
+  ///  so a row still pending insertion keeps its insert marker through any
+  ///  number of edits. The ApplyInserter and ApplyUpdater of
+  ///  TFDMemTableAdapter<M>, TClientDataSetAdapter<M> and
+  ///  TRESTDataSetAdapter<M> write -1 back once the row has been applied.
+  ///
+  ///  THE -1 IS NOT LOOP BOOKKEEPING, IT IS A RELATIONAL GUARD.
+  ///  TDataSetBaseAdapter<M>._IsPendingInsertRow lets only a row still
+  ///  marked Integer(dsInsert) be re-pointed at a key the database has just
+  ///  generated. A row at -1 is already saved and, in the REST client, may
+  ///  belong to a DIFFERENT master - the child dataset there holds the
+  ///  children of every master the listing brought back - so stamping the new
+  ///  key on it would silently re-parent someone else's data. Pinned by
+  ///  Test.Janus.Apply.Loops
+  ///  .ApplyInserter_DoesNotRepointAChildRowOfAnotherMaster and by
+  ///  Test.Janus.AutoInc.Childs.PersistedChildRow_IsNotRepointed.
+  ///
+  ///  WHERE IT COMES FROM. TBind.SetInternalInitFieldDefsObjectClass creates
+  ///  it after every mapped column and then moves it to position 0, with
+  ///  DefaultExpression '-1' and Visible False. TBind.SetFieldToField and
+  ///  TDataSetAbstract<M>.DoDataChange exclude it from the bind by NAME;
+  ///  TBind.SetFieldToField also starts its walk at index 1.
+  ///
+  ///  THE COUPLING THE Apply* LOOPS RIDE ON. Six loops - the ApplyInserter and
+  ///  ApplyUpdater of the three adapter families above - set Filter on this
+  ///  NAME and then read and write FOrmDataSet.Fields[FInternalIndex], where
+  ///  FInternalIndex is assigned 0 in TDataSetBaseAdapter<M>.Create: two
+  ///  units agreeing by hand, with nothing in the compiler holding them
+  ///  together. None of the six calls Next - a row leaves the walk only when
+  ///  its own Post pushes it out of the filtered set. Measured, that marker
+  ///  survives the Post only because every ApplyInternal calls
+  ///  DisableDataSetEvents first, which unhooks DoBeforePost; with that event
+  ///  live DoBeforePost rewrites the marker to Integer(dsEdit), which is the
+  ///  value ApplyUpdater filters on, and ApplyUpdater never terminates. Both
+  ///  halves are pinned by Test.Janus.Apply.Loops - the
+  ///  InternalFieldIsFieldZero_* group for the position, the
+  ///  WithBeforePostLive group for the event. </summary>
   cInternalField = 'InternalField';
 
 type
