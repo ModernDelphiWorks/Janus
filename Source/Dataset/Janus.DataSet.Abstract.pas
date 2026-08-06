@@ -107,7 +107,7 @@ begin
     Exit;
   if (Field.FieldKind <> fkData) or (Field.FieldName = cInternalField) then
     Exit;
-  // S� adiciona a lista se for edi��o
+  // So adiciona a lista se for edicao
   if FOrmDataSet.State in [dsEdit] then
   begin
     LValues := FSession.ModifiedFields.Items[M.ClassName];

@@ -39,7 +39,7 @@ uses
   DataEngine.FactoryInterfaces;
 
 type
-  // Classe de conex�o concreta com dbExpress
+  // Classe de conexao concreta com dbExpress
   TDMLGeneratorMySQL = class(TDMLGeneratorAbstract)
   protected
     function GetGeneratorSelect(const ASQL: String; const AOrderBy: String = ''): String; override;
@@ -94,7 +94,7 @@ begin
   Result := Result + GetGeneratorWhere(AClass, LTable.Name, AID);
   // OrderBy
   Result := Result + GetGeneratorOrderBy(AClass, LTable.Name, AID);
-  // Monta SQL para pagina��o
+  // Monta SQL para paginacao
   if APageSize > -1 then
     Result := Result + GetGeneratorSelect(Result);
 end;
@@ -134,7 +134,7 @@ begin
     Result := Result + IfThen(LScopeOrderBy = '', ' ORDER BY ', ', ');
     Result := Result + AOrderBy;
   end;
-  // Monta SQL para pagina��o
+  // Monta SQL para paginacao
   if APageSize > -1 then
     Result := Result + GetGeneratorSelect(Result);
 end;

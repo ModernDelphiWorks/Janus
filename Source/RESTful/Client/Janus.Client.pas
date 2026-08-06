@@ -94,8 +94,8 @@ type
     FPort: Integer;
     FServerUse: Boolean;
     FClassNotServerUse: Boolean;
-    // Vari�vel de controle, para conseguir chamar o m�todo Execute()
-    // de dentro do evento de autentica��o.
+    // Variavel de controle, para conseguir chamar o metodo Execute()
+    // de dentro do evento de autenticacao.
     FPerformingAuthentication: Boolean;
     FMethodSelect: String;
     FMethodSelectID: String;

@@ -16,7 +16,7 @@
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
   @author(Skype : ispinheiro)
 
-  ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi.
+  ORM Brasil: um ORM simples e descomplicado para quem utiliza Delphi.
 }
 
 {$INCLUDE ..\Janus.inc}
@@ -91,14 +91,14 @@ type
     function ModifiedFields<T: class, constructor>: TDictionary<String, TDictionary<String, String>>;
     function ExistSequence<T: class, constructor>: Boolean;
     procedure LoadLazy<T: class, constructor>(const AObject: TObject); overload;
-    // M�todos para serem usados com a propriedade OwnerNestedList := False;
+    // Metodos para serem usados com a propriedade OwnerNestedList := False;
     function Insert<T: class, constructor>(const AObject: T): Integer; overload;
     procedure Update<T: class, constructor>(const AObject: T); overload;
     procedure Delete<T: class, constructor>(const AObject: T); overload;
     procedure Modify<T: class, constructor>(const AObject: T); overload;
     procedure NextPacket<T: class, constructor>(var AObjectList: TObjectList<T>); overload;
     procedure New<T: class, constructor>(var AObject: T); overload;
-    // M�todos para serem usados com a propriedade OwnerNestedList := True;
+    // Metodos para serem usados com a propriedade OwnerNestedList := True;
     function Current<T: class, constructor>: T; overload;
     function Current<T: class, constructor>(const AIndex: Integer): T; overload;
     function New<T: class, constructor>: Integer; overload;
@@ -137,7 +137,7 @@ begin
   {$ELSE}
     LObjectetAdapter := TObjectSetAdapter<T>.Create(FConnection, APageSize);
   {$ENDIF}
-  // Adiciona o container ao reposit�rio de containers
+  // Adiciona o container ao repositorio de containers
   LRepository := TRepository.Create;
   LRepository.ObjectSet := LObjectetAdapter;
   FRepository.Add(LClassName, LRepository);

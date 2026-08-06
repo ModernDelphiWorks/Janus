@@ -16,7 +16,7 @@
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
   @author(Skype : ispinheiro)
 
-  ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi.
+  ORM Brasil: um ORM simples e descomplicado para quem utiliza Delphi.
 }
 
 unit Janus.Objects.Utils;
@@ -345,34 +345,34 @@ begin
   LColumns := TMappingExplorer.GetMappingColumn(AObject.ClassType);
   for LColumn in LColumns do
   begin
-     // Valida se o valor � NULO
+     // Valida valor NULO
      LAttribute := LColumn.ColumnProperty.GetNotNullConstraint;
      if LAttribute <> nil then
        NotNullConstraint(LAttribute)
          .Validate(LColumn.ColumnDictionary.ConstraintErrorMessage,
                    LColumn.ColumnProperty.GetNullableValue(AObject));
 
-     // Valida se o valor � menor que ZERO
+     // Valida valor menor que ZERO
      LAttribute := LColumn.ColumnProperty.GetMinimumValueConstraint;
      if LAttribute <> nil then
         MinimumValueConstraint(LAttribute)
           .Validate(LColumn.ColumnDictionary.ConstraintErrorMessage,
                     LColumn.ColumnProperty.GetNullableValue(AObject));
 
-     // Valida se o valor � menor que ZERO
+     // Valida valor menor que ZERO
      LAttribute := LColumn.ColumnProperty.GetMaximumValueConstraint;
      if LAttribute <> nil then
         MaximumValueConstraint(LAttribute)
           .Validate(LColumn.ColumnDictionary.ConstraintErrorMessage,
                     LColumn.ColumnProperty.GetNullableValue(AObject));
 
-     // Valida se o valor � vazio
+     // Valida valor vazio
      LAttribute := LColumn.ColumnProperty.GetNotEmptyConstraint;
      if LAttribute <> nil then
         NotEmpty(LAttribute)
           .Validate(LColumn.ColumnProperty, AObject);
 
-     // Valida se o tamanho da String � v�lido
+     // Valida tamanho valido da String
      LAttribute := LColumn.ColumnProperty.GetSizeConstraint;
      if LAttribute <> nil then
         Size(LAttribute)

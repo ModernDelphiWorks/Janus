@@ -31,7 +31,7 @@ uses
   Janus.RestFactory.Interfaces;
 
 type
-  // F�brica de conex�es abstratas
+  // Fabrica de conexoes abstratas
   TRESTFactoryConnection = class abstract(TInterfacedObject, IRESTConnection)
   private
     function GetBaseURL: String;

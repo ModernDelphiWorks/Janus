@@ -113,7 +113,7 @@ class procedure TJanusJson.DoGetValue({const Sender: TJsonFlowObject;}
 var
   LColumn: Column;
 begin
-  // Ao voltar para o m�todo GetValue do JsonFlow, executa o comando Exit e sai,
+  // Ao voltar para o metodo GetValue do JsonFlow, executa o comando Exit e sai,
   // se ABreak = True;
   ABreak := False;
   VarClear(AResult);
@@ -176,7 +176,7 @@ var
   LBlob: TBlob;
   LColumn: Column;
 begin
-  // Ao voltar para o m�todo SetValue do JsonFlow, executa o comando Exit e sai,
+  // Ao voltar para o metodo SetValue do JsonFlow, executa o comando Exit e sai,
   // se ABreak = True;
   ABreak := False;
   if (AProperty <> nil) and (AInstance <> nil) then

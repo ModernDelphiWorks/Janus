@@ -29,7 +29,7 @@ uses
   SysUtils,
   StrUtils,
   Janus.RestComponent,
-  // DataEngine Conex�o
+  // DataEngine Conexao
   DataEngine.FactoryInterfaces,
   // HorseCore
   Horse,
@@ -71,7 +71,7 @@ begin
     FAPIAddress := 'api/Janus/:resource'
   else
   begin
-    // Se o �ltimo caracter n�o for '/' concatena ele para ser
+    // Se o ultimo caracter nao for '/' concatena ele para ser
     FAPIAddress := AAPIAddress;
     if RightStr(FAPIAddress, 1) <> '/' then
       FAPIAddress := FAPIAddress + '/';

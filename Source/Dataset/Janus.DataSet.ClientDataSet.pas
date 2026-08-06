@@ -91,7 +91,7 @@ constructor TClientDataSetAdapter<M>.Create(AConnection: IDBConnection;
   ADataSet: TDataSet; APageSize: Integer; AMasterObject: TObject);
 begin
   inherited Create(AConnection, ADataSet, APageSize, AMasterObject);
-  // Captura o component TClientDataset da IDE passado como par�metro
+  // Captura o component TClientDataset da IDE passado como parametro
   FOrmDataSet := ADataSet as TClientDataSet;
   FClientDataSetEvents := TClientDataSetEvents.Create;
   // Captura e guarda os eventos do dataset
@@ -211,7 +211,7 @@ begin
     EnableDataSetEvents;
     // Define a order no dataset
     FOrmDataSet.IndexFieldNames := _GetIndexFieldNames('');
-    // Erro interno do FireDAC se no m�todo First se o dataset estiver vazio
+    // Erro interno do FireDAC se no metodo First se o dataset estiver vazio
     if not FOrmDataSet.IsEmpty then
       FOrmDataSet.First;
     FOrmDataSet.EnableControls;
@@ -247,7 +247,7 @@ begin
     EnableDataSetEvents;
     // Define a order no dataset
     FOrmDataSet.IndexFieldNames := _GetIndexFieldNames('');
-    // Erro interno do FireDAC se no m�todo First se o dataset estiver vazio
+    // Erro interno do FireDAC se no metodo First se o dataset estiver vazio
     if not FOrmDataSet.IsEmpty then
       FOrmDataSet.First;
     FOrmDataSet.EnableControls;
@@ -283,7 +283,7 @@ begin
     EnableDataSetEvents;
     // Define a order no dataset
     FOrmDataSet.IndexFieldNames := _GetIndexFieldNames(AOrderBy);
-    // Erro interno do FireDAC se no m�todo First se o dataset estiver vazio
+    // Erro interno do FireDAC se no metodo First se o dataset estiver vazio
     if not FOrmDataSet.IsEmpty then
       FOrmDataSet.First;
     FOrmDataSet.EnableControls;
@@ -333,7 +333,7 @@ var
   LFor: Integer;
 begin
   inherited;
-  // Filtar somente os registros exclu�dos
+  // Filtar somente os registros excluidos
   if FSession.DeleteList.Count = 0 then
     Exit;
 
@@ -433,7 +433,7 @@ var
   LIsConnected: Boolean;
 begin
   inherited;
-  // Controle de transa��o externa, controlada pelo desenvolvedor
+  // Controle de transacao externa, controlada pelo desenvolvedor
   LInTransaction := FConnection.InTransaction;
   LIsConnected := FConnection.IsConnected;
   if not LIsConnected then

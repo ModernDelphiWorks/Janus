@@ -165,7 +165,7 @@ end;
 procedure TDataSetAdapter<M>.DoBeforePost(DataSet: TDataSet);
 begin
   inherited DoBeforePost(DataSet);
-  // Rotina de valida��o se o campo foi deixado null
+  // Rotina de validacao se o campo foi deixado null
   _ExecuteCheckNotNull;
 end;
 
@@ -233,7 +233,7 @@ begin
     Exit;
   if FOrmDataSet.RecordCount = 0 then
     Exit;
-  // Se Count > 0, identifica-se que � o objeto � o Master
+  // Se Count > 0, identifica-se o objeto como o Master
   if FMasterObject.Count = 0 then
     Exit;
 
@@ -246,7 +246,7 @@ begin
     Bind.SetFieldToProperty(FOrmDataSet, LObject);
     for LChildKey in FMasterObject.Keys do
     begin
-      // Verifica se a associa��o correspondente ao child � lazy
+      // Verifica se a associacao correspondente ao child usa lazy
       LIsLazy := False;
       if LAssociations <> nil then
       begin
@@ -259,7 +259,7 @@ begin
           end;
         end;
       end;
-      // Pula filhos lazy - ser�o resolvidos via proxy transparente
+      // Pula filhos lazy - serao resolvidos via proxy transparente
       if LIsLazy then
         Continue;
 
@@ -351,8 +351,8 @@ begin
   begin
     if not (LAssociation.Multiplicity in [TMultiplicity.OneToOne, TMultiplicity.ManyToOne]) then
       Continue;
-    // Checa se o campo que recebeu a altera��o, � um campo de associa��o
-    // Se for � feito um novo select para atualizar a propriedade associada.
+    // Checa se o campo que recebeu a alteracao pertence a uma associacao
+    // Se for, faz-se um novo select para atualizar a propriedade associada.
     if LAssociation.ColumnsName.IndexOf(AFieldName) = -1 then
       Continue;
     if not FMasterObject.ContainsKey(LAssociation.ClassNameRef) then
@@ -376,7 +376,7 @@ end;
 
 procedure TDataSetAdapter<M>.DoNewRecord(DataSet: TDataSet);
 begin
-  // Limpa registros do dataset em mem�ria antes de receber os novos registros
+  // Limpa registros do dataset em memoria antes de receber os novos registros
   EmptyDataSetChilds;
   inherited DoNewRecord(DataSet);
 end;

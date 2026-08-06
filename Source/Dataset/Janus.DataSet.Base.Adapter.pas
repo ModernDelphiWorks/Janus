@@ -179,7 +179,7 @@ begin
   Bind.SetDataDictionary(ADataSet, FCurrentInternal);
   FDataSetEvents := TDataSetEvents.Create;
   FAutoNextPacket := True;
-  // Vari�vel que identifica o campo que armazena o estado do registro.
+  // Variavel que identifica o campo que armazena o estado do registro.
   FInternalIndex := 0;
   FCheckedFieldEvents := False;
   if AMasterObject <> nil then
@@ -203,7 +203,7 @@ end;
 
 procedure TDataSetBaseAdapter<M>.Save(AObject: M);
 begin
-  // Aualiza o DataSet com os dados a vari�vel interna
+  // Aualiza o DataSet com os dados a variavel interna
   FOrmDataSet.Edit;
   Bind.SetPropertyToField(AObject, FOrmDataSet);
   FOrmDataSet.Post;
@@ -391,7 +391,7 @@ begin
     begin
       // Popula o objeto M e o adiciona na lista e objetos com o registro do DataSet.
       Bind.SetFieldToProperty(ADatasetBase.FOrmDataSet, LObject);
-      // Pr�ximo registro
+      // Proximo registro
       ADatasetBase.FOrmDataSet.Next;
     end;
   finally
@@ -399,7 +399,7 @@ begin
     ADatasetBase.FOrmDataSet.FreeBookmark(LBookMark);
     ADatasetBase.FOrmDataSet.BlockReadSize := 0;
   end;
-  // Populando em hierarquia de v�rios n�veis
+  // Populando em hierarquia de varios niveis
   for LDataSetChild in ADatasetBase.FMasterObject.Values do
     LDataSetChild.FillMastersClass(LDataSetChild, LObject);
 end;
@@ -439,11 +439,11 @@ begin
 
       LObjectList := AProperty.GetNullableValue(TObject(AObject)).AsObject;
       LObjectList.MethodCall('Add', [LObjectType]);
-      // Populando em hierarquia de v�rios n�veis
+      // Populando em hierarquia de varios niveis
       for LDataSetChild in ADatasetBase.FMasterObject.Values do
         LDataSetChild.FillMastersClass(LDataSetChild, LObjectType);
 
-      // Pr�ximo registro
+      // Proximo registro
       LDataSet.Next;
     end;
   finally
@@ -558,7 +558,7 @@ begin
     Exit;
   if not FAutoNextPacket then
     Exit;
-  // Controle de pagina��o de registros retornados do banco de dados
+  // Controle de paginacao de registros retornados do banco de dados
   NextPacket;
 end;
 
@@ -669,8 +669,8 @@ var
   LDataSetChild: TDataSetBaseAdapter<M>;
   LField: TField;
 begin
-  // Muda o Status do registro, para identifica��o do Janus dos registros que
-  // sofreram altera��es.
+  // Muda o Status do registro, para identificacao do Janus dos registros que
+  // sofreram alteracoes.
   LField := FOrmDataSet.Fields[FInternalIndex];
   case FOrmDataSet.State of
     dsInsert:

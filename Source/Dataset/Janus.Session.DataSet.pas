@@ -172,7 +172,7 @@ end;
 procedure TSessionDataSet<M>._PopularDataSet(const ADBResultSet: IDBDataSet);
 begin
 //  FOrmDataSet.Locate(KeyFiels, KeyValues, Options);
-//  { TODO -oISAQUE : Procurar forma de verificar se o registro n�o j� est� em mem�ria
+//  { TODO -oISAQUE : Procurar forma de verificar se o registro nao ja se encontra em memoria
 //  pela chave primaria }
   try
     while not ADBResultSet.Eof do

@@ -253,7 +253,7 @@ begin
     if not FModifiedFields.ContainsKey(AKey) then
       FModifiedFields.Add(AKey, TDictionary<String, String>.Create);
     // Se o tipo da property for tkRecord provavelmente tem Nullable nela
-    // Se n�o for tkRecord entra no ELSE e pega o valor de forma direta
+    // Se nao for tkRecord entra no ELSE e pega o valor de forma direta
     if LProperty.PropertyType.TypeKind in [tkRecord] then // Nullable ou TBlob
     begin
       if LProperty.IsBlob then
@@ -374,10 +374,10 @@ begin
     begin
       Result.Add(M.Create);
       Bind.SetFieldToProperty(ADBResultSet, TObject(Result.Last));
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FCommandExecutor.FillAssociation(Result.Last);
-      // Avan�a o cursor: sem isso o la�o nunca atinge Eof e popula a mesma
-      // linha infinitamente at� esgotar a heap (EOutOfMemory no binding).
+      // Avanca o cursor: sem isso o laco nunca atinge Eof e popula a mesma
+      // linha infinitamente ate esgotar a heap (EOutOfMemory no binding).
       ADBResultSet.Next;
     end;
     if Result.Count > 0 then

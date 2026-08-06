@@ -19,7 +19,7 @@
   @abstract(Website : http://www.Janus.com.br)
   @abstract(Telagram : https://t.me/Janus)
 
-  ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi.
+  ORM Brasil: um ORM simples e descomplicado para quem utiliza Delphi.
 }
 
 {$INCLUDE ..\..\Janus.inc}
@@ -107,7 +107,7 @@ constructor TRESTFDMemTableAdapter<M>.Create(const AConnection: IRESTConnection;
   ADataSet: TDataSet; APageSize: Integer; AMasterObject: TObject);
 begin
   inherited Create(AConnection, ADataSet, APageSize, AMasterObject);
-  // Captura o component TFDMemTable da IDE passado como par�metro
+  // Captura o component TFDMemTable da IDE passado como parametro
   FOrmDataSet := ADataSet as TFDMemTable;
   FMemTableEvents := TFDMemTableEvents.Create;
   // Captura e guarda os eventos do dataset
@@ -376,7 +376,7 @@ begin
     end;
     LKeyFields := Copy(LKeyFields, 1, Length(LKeyFields) -2);
     LKeyValues := Copy(LKeyValues, 1, Length(LKeyValues) -2);
-    // Evitar duplicidade de registro em mem�ria
+    // Evitar duplicidade de registro em memoria
     if not LChild.FOrmDataSet.Locate(LKeyFields, LKeyValues, [loCaseInsensitive]) then
     begin
       LChild.FOrmDataSet.Append;

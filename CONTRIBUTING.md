@@ -82,25 +82,33 @@ adding it to the excluded set alongside `Source/External/`. A BOM makes the
 encoding a fact about the file instead of a guess about the compiler, which is
 the property `Source/` does not have and cannot get without one.
 
-### The baseline
+### The baseline, and why it is empty
 
-`Source/` still carries U+FFFD characters inside comments — accents destroyed by
-a past re-encode, where the original letter is gone and can only be inferred from
-the surrounding Portuguese. Those files are listed with an exact count in the
-`CBaseline` array of `Test.Janus.Source.Encoding`.
+`Source/` used to carry U+FFFD characters inside comments — accents destroyed by
+a past re-encode, where the original letter is gone. They were tolerated through
+a shrink-only baseline in `Test.Janus.Source.Encoding`. **That baseline is now
+empty**: every file under `Source/` is held to plain ASCII with no exception, and
+`BaselineIsAtZeroAndTheTreeAgrees` fails both if a row is added back and if a
+U+FFFD reappears anywhere.
 
-The list is a **ratchet**:
+Repairing the last of them needed a rule worth writing down, because the next
+person to meet a U+FFFD will need it:
 
-* a file **not** on it may not carry a single non-ASCII byte;
-* a listed file may not carry any non-ASCII byte **other than** U+FFFD — a
-  file that is already damaged is not a place to put new damage;
-* a listed count may not grow;
-* a listed count may not shrink without the entry being updated in the same
-  commit, and an entry that reaches zero is deleted;
-* an entry naming a file that no longer exists fails.
+> A U+FFFD proves a non-ASCII byte stood there — so the unaccented spelling is
+> ruled out by construction — but it says only **that** an accent existed, never
+> **which** one.
 
-If you repair some of them, lower the number (or remove the row) in the same
-commit. If you are not repairing them, leave them alone.
+So it is a per-occurrence judgement, never a bulk substitution. Recover the word
+from the surrounding Portuguese, then write **that word** in ASCII: `par?metro`
+was `parâmetro`, so it becomes `parametro`.
+
+The trap is the case where the ASCII spelling is a *different Portuguese word*.
+Flattening `é` (is) to `e` yields `e` (and); `está` (is at) yields `esta` (this);
+and the same holds for `tem`/`têm`, `pode`/`pôde`, `por`/`pôr`. **Every one of
+those folds into a sentence that still reads correctly**, which is exactly why a
+mechanical fold corrupts silently. In those cases **reword the sentence** — drop
+the copula, use the reflexive, or switch to the active voice — rather than
+flatten the word.
 
 ## Line endings
 
