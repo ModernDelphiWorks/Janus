@@ -22,8 +22,6 @@
 
 unit Janus.Server.Resource.DataSnap;
 
-{$IFDEF JANUS_REST_DATASNAP}
-
 interface
 
 uses
@@ -161,10 +159,5 @@ begin
     LQuery.Free;
   end;
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

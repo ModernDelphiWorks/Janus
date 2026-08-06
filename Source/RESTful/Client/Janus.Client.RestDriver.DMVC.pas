@@ -22,8 +22,6 @@
 
 unit Janus.Client.RestDriver.DMVC;
 
-{$IFDEF JANUS_REST_DMVC}
-
 interface
 
 uses
@@ -156,10 +154,5 @@ procedure TRESTDriverDMVC.SetClassNotServerUse(const Value: Boolean);
 begin
   FConnection.SetClassNotServerUse(Value);
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

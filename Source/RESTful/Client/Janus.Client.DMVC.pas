@@ -22,8 +22,6 @@
 
 unit Janus.Client.DMVC;
 
-{$IFDEF JANUS_REST_DMVC}
-
 interface
 
 uses
@@ -431,10 +429,5 @@ begin
   FRESTClient.Username := FProxyParams.ProxyUsername;
   FRESTClient.Password := FProxyParams.ProxyPassword;
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

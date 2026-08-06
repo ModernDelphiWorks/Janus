@@ -22,8 +22,6 @@
 
 unit Janus.Server.MARS;
 
-{$IFDEF JANUS_REST_MARS}
-
 interface
 
 uses
@@ -106,10 +104,5 @@ begin
   /// <summary> Adiciona a App REST no MARS </summary>
   AddResource;
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

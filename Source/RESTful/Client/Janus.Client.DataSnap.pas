@@ -24,8 +24,6 @@
 
 unit Janus.Client.DataSnap;
 
-{$IFDEF JANUS_REST_DATASNAP}
-
 interface
 
 uses
@@ -488,10 +486,5 @@ begin
     FRESTContext := FRESTContext + '/Janus/app';
   SetBaseURL;
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.
