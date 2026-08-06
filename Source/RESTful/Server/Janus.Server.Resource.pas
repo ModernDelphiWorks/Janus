@@ -195,7 +195,7 @@ begin
       FilterExecuteFind;
       // Busca o registro pelo ID
       IDExecuteFind;
-      // Caso nenhum dos dois metodos encontre um registro, e gerado uma
+      // Caso nenhum dos dois metodos encontre um registro, sera gerado uma
       // excecao com uma mensagem de registro nao encontrado para quem requisitou
       ExceptionExecute;
       // Se passar tudo ok, sera executado o metodo do Janus

@@ -52,6 +52,12 @@ UTF-8". It cannot be enforced, because **the two are not distinguishable by
 looking at the bytes**: the cp1252 text `Ã©` and the UTF-8 encoding of `é` are the
 same two bytes, `C3 A9`. Any checker phrased that way has to guess.
 
+That is not one lucky counter-example. A two-byte UTF-8 sequence is a lead byte
+in `C2`–`DF` followed by a continuation byte in `80`–`BF`; cp1252 leaves only
+five of those bytes undefined (`81`, `8D`, `8F`, `90`, `9D`), all of them in the
+continuation range. So **1770 of the 1920 two-byte UTF-8 sequences are legal
+cp1252 text as well** — 30 lead bytes × 59 continuation bytes.
+
 ASCII-only is decidable — a byte is either below `$80` or it is not — and the
 `#$XXXX` escape gives back everything the stricter rule costs, with a bonus: an
 escaped literal is immune to being re-saved in the wrong encoding by an editor,
@@ -59,7 +65,22 @@ a merge tool, or a copy-paste. That is exactly how the damage below happened.
 
 When the rule was introduced, all of `Source/` held **three** non-ASCII bytes
 that were not already corrupt, in one file. The cost of the stricter rule was
-those three bytes.
+those three bytes. Today it costs **35 escaped characters on 23 lines, in 13 of
+134 units** — the Portuguese in this repository is overwhelmingly in comments,
+and comments are simply written in ASCII.
+
+### If Janus ever grows a real body of user-facing Portuguese
+
+The escape stops being comfortable somewhere around a translation table. If an
+i18n or string-resource layer is ever added, **the answer is not to loosen this
+guard** — it cannot be loosened into anything enforceable, for the reason above.
+
+The answer is to move that text into **resource files with a declared encoding
+and a BOM** (`.resx`, `.po`, `.json`, a `.rc` string table — anything whose
+encoding is stated rather than assumed), and exempt that path from the guard by
+adding it to the excluded set alongside `Source/External/`. A BOM makes the
+encoding a fact about the file instead of a guess about the compiler, which is
+the property `Source/` does not have and cannot get without one.
 
 ### The baseline
 

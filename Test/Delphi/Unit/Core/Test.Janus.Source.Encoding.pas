@@ -26,12 +26,18 @@
   compiled string still carries the character.
 
   WHY ASCII AND NOT "cp1252 IS FINE, UTF-8 IS NOT": the two are not
-  distinguishable by inspecting bytes. The cp1252 text 'A' + E9 reads as a
-  valid UTF-8 sequence for a single accented character, so a rule phrased as
-  "reject UTF-8 in a BOM-less file" has to guess. ASCII-only is decidable, and
-  DetectorAnswersTheFourProbes below pins that this guard treats a cp1252 byte
-  and a UTF-8 sequence exactly alike: both are non-ASCII, both are refused.
-  The measured cost of the stricter rule was three bytes in one file.
+  distinguishable by inspecting bytes. Take the two bytes C3 A9. Read as
+  cp1252 they are the two characters A-WITH-TILDE + COPYRIGHT-SIGN; read as
+  UTF-8 they are the one character E-WITH-ACUTE. Both readings are legal, the
+  text differs, and nothing in the file says which was meant. That is not a
+  curiosity: of the 1920 two-byte UTF-8 sequences, 1770 are made entirely of
+  bytes cp1252 also defines, so they are legal both ways. A rule phrased as
+  "reject UTF-8 in a BOM-less file" therefore has to guess.
+
+  ASCII-only is decidable, and DetectorAnswersItsKnownByteProbes below pins
+  that this guard treats a cp1252 byte and a UTF-8 sequence exactly alike:
+  both are non-ASCII, both are refused. The measured cost of the stricter rule
+  was three bytes in one file.
 
   THE BASELINE: the tree still carries U+FFFD - characters destroyed by a past
   re-encode, inside comments, where restoring them means inferring the lost
@@ -83,7 +89,7 @@ type
     procedure TearDown;
 
     [Test]
-    procedure DetectorAnswersTheFourProbes;
+    procedure DetectorAnswersItsKnownByteProbes;
     [Test]
     procedure HarnessLocatesTheSourceTree;
     [Test]
@@ -261,9 +267,9 @@ begin
   FFiles.Free;
 end;
 
-{ The guard's own detector, pinned against four files whose bytes are known.
+{ The guard's own detector, pinned against probes whose bytes are known.
   A detector that cannot tell these apart cannot be trusted with the tree. }
-procedure TTestJanusSourceEncoding.DetectorAnswersTheFourProbes;
+procedure TTestJanusSourceEncoding.DetectorAnswersItsKnownByteProbes;
 var
   LScan: TEncodingScan;
 begin
