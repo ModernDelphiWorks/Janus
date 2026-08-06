@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ @abstract(Janus Binder Resolver — R22.1)
+{ @abstract(Janus Binder Resolver - R22.1)
   @created(23 Apr 2026)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
 }

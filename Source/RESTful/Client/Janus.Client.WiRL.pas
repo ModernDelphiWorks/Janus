@@ -123,7 +123,7 @@ end;
 function TRESTClientWiRL.DoDELETE(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'DELETE';
-  /// <summary> Define valores dos parâmetros </summary>
+  /// <summary> Define valores dos parametros </summary>
   SetParamValues;
   /// <summary> DELETE </summary>
   FRESTSubResource.DELETE(nil,
@@ -155,7 +155,7 @@ end;
 function TRESTClientWiRL.DoGET(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'GET';
-  /// <summary> Define valores dos parâmetros </summary>
+  /// <summary> Define valores dos parametros </summary>
   SetParamValues;
   /// <summary> GET </summary>
   Result := FRESTSubResource.GETAsString(nil, nil,
@@ -184,7 +184,7 @@ var
   LParams: string;
 begin
   FRequestMethod := 'POST';
-  /// <summary> Define valores dos parâmetros </summary>
+  /// <summary> Define valores dos parametros </summary>
   SetProxyParamsBodyValue(LParams);
   /// <summary> POST </summary>
   FRESTSubResource.POST(procedure(AContent: TMemoryStream)
@@ -230,7 +230,7 @@ var
   LParams: string;
 begin
   FRequestMethod := 'PUT';
-  /// <summary> Define valores dos parâmetros </summary>
+  /// <summary> Define valores dos parametros </summary>
   SetProxyParamsBodyValue(LParams);
   /// <summary> PUT </summary>
   FRESTSubResource.PUT(procedure(AContent: TMemoryStream)
@@ -287,14 +287,14 @@ function TRESTClientWiRL.Execute(const AURL: string;
 
 begin
   Result := '';
-  // Executa a procedure de adição dos parâmetros
+  // Executa a procedure de adicao dos parametros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autenticação
+  // Define valores de autenticacao
   SetAuthenticatorTypeValues;
   try
     // DoBeforeCommand
@@ -319,11 +319,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poderá ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que podera ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou não no evento AfterCommand
+    // Pega de volta o JSON manipulado ou nao no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -341,7 +341,7 @@ function TRESTClientWiRL.Execute(const AResource, ASubResource: string;
   begin
     FRESTClientApp.AppName := FAPIContext;
     // Trata a URL Base caso o componente esteja para usar o servidor,
-    // mas a classe não.
+    // mas a classe nao.
     if (FServerUse) and (FClassNotServerUse) then
       FRESTClientApp.AppName := RemoveContextServerUse(FRESTClientApp.AppName);
 
@@ -354,14 +354,14 @@ function TRESTClientWiRL.Execute(const AResource, ASubResource: string;
 
 begin
   Result := '';
-  // Executa a procedure de adição dos parâmetros
+  // Executa a procedure de adicao dos parametros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autenticação
+  // Define valores de autenticacao
   SetAuthenticatorTypeValues;
   try
     // DoBeforeCommand
@@ -386,11 +386,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poderá ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que podera ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou não no evento AfterCommand
+    // Pega de volta o JSON manipulado ou nao no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -449,7 +449,7 @@ var
   LFor: Integer;
 begin
   if FBodyParams.Count = 0 then
-    raise Exception.Create('Não foi passado o parâmetro com os dados do insert!');
+    raise Exception.Create('N'#$00E3'o foi passado o par'#$00E2'metro com os dados do insert!');
 
   for LFor := 0 to FBodyParams.Count -1 do
     AParams := AParams + FBodyParams.Items[LFor].AsString;

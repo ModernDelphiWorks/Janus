@@ -116,7 +116,9 @@ uses
   /// The reopen, and the cursor count that shows the lazy path is alive — #248
   Test.Janus.Reopen.Lazy in 'Unit\Container\Test.Janus.Reopen.Lazy.pas',
   /// AddAdapter<T, M> on the branch a stock Janus.inc produces — issue #226
-  Test.Janus.Manager.AddAdapter in 'Unit\Core\Test.Janus.Manager.AddAdapter.pas';
+  Test.Janus.Manager.AddAdapter in 'Unit\Core\Test.Janus.Manager.AddAdapter.pas',
+  /// The encoding convention for Source\, and its baseline ratchet — issue #214
+  Test.Janus.Source.Encoding in 'Unit\Core\Test.Janus.Source.Encoding.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

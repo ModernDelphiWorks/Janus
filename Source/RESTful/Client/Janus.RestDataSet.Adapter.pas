@@ -443,7 +443,7 @@ begin
     LObjectFind.OwnsObjects := True;
     try
       if LObjectFind.Count = 0 then
-        raise Exception.Create('N�o foi poss�vel encontrar a informa��o ' + LKeyFieldName + '=' + LKeyValue);
+        raise Exception.Create('N'#$00E3'o foi poss'#$00ED'vel encontrar a informa'#$00E7#$00E3'o ' + LKeyFieldName + '=' + LKeyValue);
       LDataSetChild.FOrmDataSet.DisableControls;
       LDataSetChild.DisableDataSetEvents;
       LDataSetChild.FOrmDataSet.Append;

@@ -164,7 +164,7 @@ function TRESTClientDelphiMVC.DoPOST(const AURL, AResource,
   ASubResource: string; const AParams: array of string): string;
 begin
   FRequestMethod := 'POST';
-  // Define valores dos parâmetros
+  // Define valores dos parametros
   SetParamsBodyValue;
   // POST
   try
@@ -198,7 +198,7 @@ function TRESTClientDelphiMVC.DoPUT(const AURL, AResource, ASubResource: string;
   const AParams: array of string): string;
 begin
   FRequestMethod := 'PUT';
-  // Define valores dos parâmetros
+  // Define valores dos parametros
   SetParamsBodyValue;
   // PUT
   try
@@ -239,14 +239,14 @@ begin
   // Passa os dados de acesso para o RESTClient do Delphi MVC
   if not Assigned(FRESTClient) then
     FRESTClient := TRESTClient.Create(FHost, FPort);
-  // Define valores de autenticação
+  // Define valores de autenticacao
   SetAuthenticatorTypeValues;
-  // Executa a procedure de adição dos parâmetros
+  // Executa a procedure de adicao dos parametros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define dados do proxy
   SetProxyParamsClientValues;
-  // Define valores dos parâmetros
+  // Define valores dos parametros
   SetParamValues(@LParams);
   try
     // DoBeforeCommand
@@ -271,11 +271,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para VAR que poderá ser manipulada no evento AfterCommand
+    // Passao JSON para VAR que podera ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta JSON manipulado ou não no evento AfterCommand
+    // Pega de volta JSON manipulado ou nao no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -298,7 +298,7 @@ var
     LResource: string;
     LSubResource: string;
   begin
-    // Trata URL Base caso componente esteja usando servidor, mas a classe não.
+    // Trata URL Base caso componente esteja usando servidor, mas a classe nao.
     if (FServerUse) and (not FClassNotServerUse) then
       LResource := FAPIContext;
     // Nome do recurso
@@ -315,16 +315,16 @@ begin
   // Passa os dados de acesso para o RESTClient do Delphi MVC
   if not Assigned(FRESTClient) then
     FRESTClient := TRESTClient.Create(FHost, FPort);
-  // Define valores de autenticação
+  // Define valores de autenticacao
   SetAuthenticatorTypeValues;
-  // Executa a procedure de adição dos parâmetros
+  // Executa a procedure de adicao dos parametros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValues;
-  // Define valores dos parâmetros
+  // Define valores dos parametros
   SetParamValues(@LParams);
   try
     // DoBeforeCommand
@@ -349,11 +349,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para VAR que poderá ser manipulada no evento AfterCommand
+    // Passao JSON para VAR que podera ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta JSON manipulado ou não no evento AfterCommand
+    // Pega de volta JSON manipulado ou nao no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -409,7 +409,7 @@ procedure TRESTClientDelphiMVC.SetParamValues(AParams: PClientParam);
 var
   LFor: Integer;
 begin
-  // Define o parametro do tipo array necessário para o Delphi MVC
+  // Define o parametro do tipo array necessario para o Delphi MVC
   if FParams.Count > 0 then
   begin
     SetLength(AParams^, FParams.Count);

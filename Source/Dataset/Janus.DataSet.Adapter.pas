@@ -259,7 +259,7 @@ begin
           end;
         end;
       end;
-      // Pula filhos lazy — ser�o resolvidos via proxy transparente
+      // Pula filhos lazy - ser�o resolvidos via proxy transparente
       if LIsLazy then
         Continue;
 

@@ -471,7 +471,7 @@ var
   LFor: Integer;
 begin
   if FBodyParams.Count = 0 then
-    raise Exception.Create('N�o foi passado o par�metro com os dados do insert!');
+    raise Exception.Create('N'#$00E3'o foi passado o par'#$00E2'metro com os dados do insert!');
 
   for LFor := 0 to FBodyParams.Count -1 do
     FRESTRequest.Body.Add(FBodyParams.Items[LFor].AsString, ContentTypeFromString('application/json'));
