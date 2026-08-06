@@ -591,7 +591,7 @@ begin
                                             LColumn.Size);
     end;
     LField := ADataSet.FieldByName(LColumn.ColumnName);
-    // Identificador de que o campo tem um tipo virtual e so recebe dado em cache
+    // Identificador de campo de tipo virtual: so recebe dado em cache
     if LColumn.IsVirtualData then
       LField.Tag := 9;
 

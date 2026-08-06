@@ -5,16 +5,15 @@
                           All rights reserved.
 
                     GNU Lesser General Public License
-                      Versao 3, 29 de junho de 2007
+                        Version 3, 29 June 2007
 
        Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
-       A todos se permite copiar e distribuir copias deste documento de
-       licenca, mas nao se permite muda-lo.
+       Everyone is permitted to copy and distribute verbatim copies
+       of this license document, but changing it is not allowed.
 
-       Esta versao da GNU Lesser General Public License incorpora
-       os termos e condicoes da versao 3 da GNU General Public License
-       Licenca, complementado pelas permissoes adicionais listadas no
-       arquivo LICENSE na pasta principal.
+       This version of the GNU Lesser General Public License incorporates
+       the terms and conditions of version 3 of the GNU General Public
+       License, supplemented by the additional permissions listed below.
 }
 
 { 
