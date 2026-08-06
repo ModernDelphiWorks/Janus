@@ -381,7 +381,7 @@ begin
                            .Create(FConnection, ADataSet, -1, LMaster);
     {$ENDIF}
   {$ENDIF}
-  // Adiciona o container ao reposit�rio
+  // Adiciona o container ao repositorio
   FRepository.Add(LClassName, LDataSetAdapter);
 end;
 
@@ -415,7 +415,7 @@ begin
                            .Create(FConnection, ADataSet, APageSize, nil);
     {$ENDIF}
   {$ENDIF}
-  // Adiciona o container ao reposit�rio
+  // Adiciona o container ao repositorio
   FRepository.Add(LClassName, LDataSetAdapter);
 end;
 

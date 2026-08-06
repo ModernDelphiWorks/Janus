@@ -135,7 +135,7 @@ function TRESTClientWS.DoDELETE(const AResource, ASubResource: String): String;
 begin
   FRequestMethod := 'DELETE';
   FRESTRequest.Method := TRESTRequestMethod.rmDELETE;
-  // Define valores dos par�metros
+  // Define valores dos parametros
   SetParamValues;
   // DELETE
   try
@@ -168,7 +168,7 @@ function TRESTClientWS.DoGET(const AResource, ASubResource: String): String;
 begin
   FRequestMethod := 'GET';
   FRESTRequest.Method := TRESTRequestMethod.rmGET;
-  // Define valores dos par�metros
+  // Define valores dos parametros
   SetParamValues;
   // GET
   try
@@ -204,7 +204,7 @@ function TRESTClientWS.DoPOST(const AResource, ASubResource: String): String;
 begin
   FRequestMethod := 'POST';
   FRESTRequest.Method := TRESTRequestMethod.rmPOST;
-  // Define valores dos par�metros
+  // Define valores dos parametros
   SetParamsBodyValue;
   // POST
   try
@@ -237,7 +237,7 @@ function TRESTClientWS.DoPUT(const AResource, ASubResource: String): String;
 begin
   FRequestMethod := 'PUT';
   FRESTRequest.Method := TRESTRequestMethod.rmPUT;
-  // Define valores dos par�metros
+  // Define valores dos parametros
   SetParamsBodyValue;
   // PUT
   try
@@ -282,14 +282,14 @@ var
 
 begin
   Result := '';
-  // Executa a procedure de adi��o dos par�metros
+  // Executa a procedure de adicao dos parametros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autentica��o
+  // Define valores de autenticacao
   SetAuthenticatorTypeValues;
 
   for LFor := 0 to FParams.Count -1 do
@@ -318,11 +318,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poder� ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que podera ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou n�o no evento AfterCommand
+    // Pega de volta o JSON manipulado ou nao no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';

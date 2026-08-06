@@ -49,7 +49,7 @@ uses
   MetaDbDiff.Types.Mapping;
 
 type
-  // Classe de conex�es abstract
+  // Classe de conexoes abstract
   TDMLGeneratorAbstract = class abstract(TInterfacedObject, IDMLGeneratorCommand)
   private
     function _GetPropertyValue(AObject: TObject; AProperty: TRttiProperty;

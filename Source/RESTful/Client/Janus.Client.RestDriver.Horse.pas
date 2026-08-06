@@ -32,7 +32,7 @@ uses
   Janus.Client.Methods;
 
 type
-  // Classe de conex�o concreta com dbExpress
+  // Classe de conexao concreta com dbExpress
   TRESTDriverHorse = class(TRESTDriver)
   protected
     FConnection: TRESTClientHorse;

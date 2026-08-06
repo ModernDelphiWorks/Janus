@@ -116,7 +116,7 @@ begin
   try
     if FConnection.ServerUse then
     begin
-      // Valida se tem o atributo NotServerUse para n�o usar o server
+      // Valida se tem o atributo NotServerUse para nao usar o server
       LNotServerUse := LObject.GetNotServerUse;
       if LNotServerUse <> nil then
       begin
@@ -192,8 +192,8 @@ var
   LResource: String;
 begin
   LResource := FResource;
-  // S� concatena o ID na URI se a propriedade ServerUse for igual a True,
-  // caso contr�rio ser� passado como par�metro
+  // So concatena o ID na URI se a propriedade ServerUse for igual a True,
+  // caso contrario sera passado como parametro
   if FServerUse then
     LResource := LResource + '(' + IntToStr(AID) + ')';
   LSubResource := ifThen(Length(FConnection.MethodDELETE) > 0, FConnection.MethodDELETE, FSubResource);
@@ -229,7 +229,7 @@ begin
   FFetchingRecords := False;
   FWhere := AWhere;
   FOrderBy := AOrderBy;
-  // S� busca por pagina��o se n�o for um RefreshRecord
+  // So busca por paginacao se nao for um RefreshRecord
   if not FFindWhereRefreshUsed then
   begin
     if FPageSize > -1 then
@@ -253,7 +253,7 @@ begin
                                    if Length(FOrderBy) > 0 then
                                      FConnection.AddQueryParam('$orderby=' + FOrderBy);
                                  end);
-    // Caso o JSON retornado n�o seja um array, � tranformado em um.
+    // Caso o JSON retornado nao seja um array, tranforma-se em um.
     if {$IFDEF NEXTGEN}LJSON[0]{$ELSE}LJSON[1]{$ENDIF} = '{' then
       LJSON := '[' + LJSON + ']';
 
@@ -341,7 +341,7 @@ begin
     LSubResource := ifThen(Length(FConnection.MethodGET) > 0, FConnection.MethodGET, FSubResource);
   try
     LJSON := FConnection.Execute(FResource, LSubResource, TRESTRequestMethodType.rtGET);
-    // Caso o JSON retornado n�o seja um array, � tranformado em um.
+    // Caso o JSON retornado nao seja um array, tranforma-se em um.
     if {$IFDEF NEXTGEN}LJSON[0]{$ELSE}LJSON[1]{$ENDIF} = '{' then
       LJSON := '[' + LJSON + ']';
 
@@ -527,7 +527,7 @@ begin
       if Length(LSubResource) > 0 then
         LURL := LURL + '/' + LSubResource;
 
-      // Gera Lentid�o se tiver campo TBlob no JSON
+      // Gera Lentidao se tiver campo TBlob no JSON
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
                                          'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);

@@ -32,7 +32,7 @@ uses
   Janus.Client.Methods;
 
 type
-  // F�brica de conex�es abstratas
+  // Fabrica de conexoes abstratas
   TRESTFactoryHorse = class (TRESTFactoryConnection)
   public
     constructor Create(AConnection: TComponent); override;

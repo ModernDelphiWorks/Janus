@@ -137,7 +137,7 @@ var
   LObject: TObject;
 begin
   inherited;
-  // Varre a lista de objetos exclu�dos e passa para a sess�o REST
+  // Varre a lista de objetos excluidos e passa para a sessao REST
   for LObject in FSession.DeleteList do
     FSession.Delete(LObject);
 end;
@@ -240,8 +240,8 @@ end;
 procedure TRESTDataSetAdapter<M>.DoAfterDelete(DataSet: TDataSet);
 begin
   inherited DoAfterDelete(DataSet);
-  // Seta o registro mestre com stado de edi��o, considerando esse o
-  // registro filho sendo inclu�do ou alterado
+  // Seta o registro mestre com stado de edicao, considerando esse o
+  // registro filho sendo incluido ou alterado
   _SetMasterDataSetStateEdit;
 end;
 
@@ -250,9 +250,9 @@ var
   LObject: TObject;
 begin
   inherited DoBeforeDelete(DataSet);
-  // 1o - Inst�ncia um novo objeto do tipo
+  // 1o - Instancia um novo objeto do tipo
   // 2o - Popula ele e suas sub-classes com os dados do dataset
-  // 3o - Adiciona o objeto na lista de registros exclu�dos
+  // 3o - Adiciona o objeto na lista de registros excluidos
   if FOwnerMasterObject = nil then
   begin
     LObject := M.Create;
@@ -266,10 +266,10 @@ end;
 procedure TRESTDataSetAdapter<M>.DoBeforePost(DataSet: TDataSet);
 begin
   inherited DoBeforePost(DataSet);
-  // Seta o registro mestre com stado de edi��o, considerando esse o
-  // registro filho sendo inclu�do ou alterado
+  // Seta o registro mestre com stado de edicao, considerando esse o
+  // registro filho sendo incluido ou alterado
   _SetMasterDataSetStateEdit;
-  // Rotina de valida��o se o campo foi deixado null
+  // Rotina de validacao se o campo foi deixado null
   _ExecuteCheckNotNull;
 end;
 
@@ -396,7 +396,7 @@ begin
   begin
     if not FMasterObject.ContainsKey(LObjectChild.ClassName) then
       Continue;
-    // Popular classe ralacionada atrav�s do atributo Association() e todos
+    // Popular classe ralacionada atraves do atributo Association() e todos
     // as suas classes filhas, caso exista.
     LDataSetChild := TRESTDataSetAdapter<M>(FMasterObject.Items[LObjectChild.ClassName]);
     LDataSetChild.FOrmDataSet.DisableControls;
@@ -437,8 +437,8 @@ begin
     LKeyValue := FOrmDataSet.FieldByName(LKeyFieldName).AsString;
     if LDataSetChild.FOrmDataSet.Locate(LKeyFieldName, LKeyValue, [loCaseInsensitive]) then
       Exit;
-    // Se o registro n�o existir no dataset,ser� feito uma requisi��o para
-    // busca-lo e adiciona-lo ao dataset em mem�ria
+    // Se o registro nao existir no dataset,sera feito uma requisicao para
+    // busca-lo e adiciona-lo ao dataset em memoria
     LObjectFind := LDataSetChild.FindWhere(LKeyFieldName + '=' + LKeyValue);
     LObjectFind.OwnsObjects := True;
     try

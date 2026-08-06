@@ -18,7 +18,7 @@
   @abstract(Website : http://www.Janus.com.br)
   @abstract(Telagram : https://t.me/Janus)
 
-  ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi.
+  ORM Brasil: um ORM simples e descomplicado para quem utiliza Delphi.
 }
 
 {$INCLUDE ..\Janus.inc}
@@ -109,7 +109,7 @@ begin
     Exit;
   // Cria novo objeto para guarda-lo na lista com o estado atual do ASourceObject.
   LStateObject := ASourceObject.ClassType.Create;
-  // Gera uma chave de identifica��o unica para cada item da lista
+  // Gera uma chave de identificacao unica para cada item da lista
   LKey := GenerateKey(ASourceObject);
   // Guarda o novo objeto na lista, identificado pela chave
   FObjectState.Add(LKey, LStateObject);

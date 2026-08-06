@@ -33,7 +33,7 @@ uses
 
 type
   /// <summary>
-  /// F�brica de conex�es abstratas
+  /// Fabrica de conexoes abstratas
   /// </summary>
   TRESTFactoryWS = class (TRESTFactoryConnection)
   public

@@ -83,7 +83,7 @@ var
   LIsConnected: Boolean;
 begin
   inherited;
-  // Controle de transa��o externa, controlada pelo desenvolvedor
+  // Controle de transacao externa, controlada pelo desenvolvedor
   LInTransaction := FConnection.InTransaction;
   LIsConnected := FConnection.IsConnected;
   if not LIsConnected then
@@ -169,7 +169,7 @@ var
   LIsConnected: Boolean;
 begin
   inherited;
-  // Controle de transa��o externa, controlada pelo desenvolvedor
+  // Controle de transacao externa, controlada pelo desenvolvedor
   LInTransaction := FConnection.InTransaction;
   LIsConnected := FConnection.IsConnected;
   if not LIsConnected then
@@ -220,7 +220,7 @@ var
   LIsConnected: Boolean;
 begin
   inherited;
-  // Controle de transa��o externa, controlada pelo desenvolvedor
+  // Controle de transacao externa, controlada pelo desenvolvedor
   LInTransaction := FConnection.InTransaction;
   LIsConnected := FConnection.IsConnected;
   if not LIsConnected then
@@ -262,7 +262,7 @@ begin
           FObjectState.Remove(LKey);
           FObjectState.TrimExcess;
         end;
-        // Remove o item exclu�do em Update Mestre-Detalhe
+        // Remove o item excluido em Update Mestre-Detalhe
         for LObjectKey in FObjectState.Values do
           FSession.Delete(LObjectKey);
       end;
@@ -280,7 +280,7 @@ begin
     if not LIsConnected then
       FConnection.Disconnect;
     FObjectState.Clear;
-    // Ap�s executar o comando SQL Update, limpa a lista de campos alterados.
+    // Apos executar o comando SQL Update, limpa a lista de campos alterados.
     FSession.ModifiedFields.Clear;
     FSession.ModifiedFields.TrimExcess;
     FSession.DeleteList.Clear;

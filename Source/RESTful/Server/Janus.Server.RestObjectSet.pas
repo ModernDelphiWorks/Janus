@@ -109,7 +109,7 @@ var
   LIsConnected: Boolean;
 begin
   inherited;
-  // Controle de transa��o externa, controlada pelo desenvolvedor
+  // Controle de transacao externa, controlada pelo desenvolvedor
   LInTransaction := FConnection.InTransaction;
   LIsConnected := FConnection.IsConnected;
   if not LIsConnected then
@@ -152,7 +152,7 @@ begin
   begin
     // Cria um novo objeto para ser guardado na lista com o estado atual do ASourceObject.
     LStateObject := ASourceObject.ClassType.Create;
-    // Gera uma chave de identifica��o unica para cada item da lista
+    // Gera uma chave de identificacao unica para cada item da lista
     LKey := GenerateKey(ASourceObject);
     // Guarda o novo objeto na lista, identificado pela chave
     FObjectState.Add(LKey, LStateObject);
@@ -319,7 +319,7 @@ var
   LInTransaction: Boolean;
   LIsConnected: Boolean;
 begin
-  // Controle de transa��o externa, controlada pelo desenvolvedor
+  // Controle de transacao externa, controlada pelo desenvolvedor
   LInTransaction := FConnection.InTransaction;
   LIsConnected := FConnection.IsConnected;
   if not LIsConnected then
@@ -656,7 +656,7 @@ var
   LIsConnected: Boolean;
 begin
   inherited;
-  // Controle de transa��o externa, controlada pelo desenvolvedor
+  // Controle de transacao externa, controlada pelo desenvolvedor
   LInTransaction := FConnection.InTransaction;
   LIsConnected := FConnection.IsConnected;
   if not LIsConnected then
@@ -700,7 +700,7 @@ begin
           FObjectState.Remove(LKey);
           FObjectState.TrimExcess;
         end;
-        // Remove o item exclu�do em Update Mestre-Detalhe
+        // Remove o item excluido em Update Mestre-Detalhe
         for LObject in FObjectState.Values do
           FSession.Delete(LObject);
       end;
@@ -718,7 +718,7 @@ begin
     if not LIsConnected then
       FConnection.Disconnect;
     FObjectState.Clear;
-    // Ap�s executar o comando SQL Update, limpa a lista de campos alterados.
+    // Apos executar o comando SQL Update, limpa a lista de campos alterados.
     FSession.ModifiedFields.Clear;
     FSession.ModifiedFields.TrimExcess;
     FSession.DeleteList.Clear;

@@ -39,14 +39,21 @@
   both are non-ASCII, both are refused. The measured cost of the stricter rule
   was three bytes in one file.
 
-  THE BASELINE: the tree still carries U+FFFD - characters destroyed by a past
-  re-encode, inside comments, where restoring them means inferring the lost
-  letter from the surrounding Portuguese. Those files are listed below with
-  their exact count. The list is a ratchet: a file not on it may not carry a
-  single non-ASCII byte, a listed file may not grow, may not carry any
-  non-ASCII byte other than U+FFFD, and may not shrink without the entry being
-  updated in the same commit. Entries are expected to disappear over time; an
-  entry naming a file that no longer exists fails. }
+  THE BASELINE IS EMPTY, and that is the interesting part. It used to list 47
+  files carrying 288 U+FFFD - characters destroyed by a past re-encode, inside
+  comments, where restoring one means inferring the lost letter from the
+  surrounding Portuguese. All 288 were repaired, so the ratchet has reached
+  zero and every file under Source\ is now held to plain ASCII with no
+  exception.
+
+  Restoring those characters needed a rule worth keeping written down: a
+  U+FFFD proves a non-ASCII byte stood there, so an unaccented spelling is
+  excluded by construction - but it says only THAT an accent existed, never
+  WHICH. So it cannot be done in bulk. Where the ASCII spelling of the lost
+  word would be a DIFFERENT Portuguese word - "e" (and) for "e-acute" (is),
+  "esta" (this) for "esta-acute" (is at) - the sentence was reworded instead
+  of flattened, because both folds still read correctly and would corrupt the
+  comment silently. }
 unit Test.Janus.Source.Encoding;
 
 interface
@@ -60,7 +67,9 @@ uses
   DUnitX.TestFramework;
 
 type
-  { One tolerated file, with the exact number of U+FFFD it still carries. }
+  { One tolerated file, with the exact number of U+FFFD it still carries.
+    The type outlives the empty list on purpose: tolerating a file again has
+    to be spelled out as a row, where a reviewer can see it. }
   TEncodingBaselineRow = record
     Path: string;
     Count: Integer;
@@ -80,6 +89,7 @@ type
     FFiles: TStringList;
     function _RelativePath(const AFullPath: string): string;
     function _BaselineIndexOf(const ARelPath: string): Integer;
+    class function _Baseline: TArray<TEncodingBaselineRow>; static;
     class function _FindRepositoryRoot: string; static;
     class function _Scan(const ABytes: TBytes): TEncodingScan; static;
   public
@@ -97,7 +107,7 @@ type
     [Test]
     procedure SourceIsAsciiOutsideTheDeclaredBaseline;
     [Test]
-    procedure BaselineIsExactAndOnlyShrinks;
+    procedure BaselineIsAtZeroAndTheTreeAgrees;
   end;
 
 implementation
@@ -113,57 +123,14 @@ const
     every other test in this fixture would pass vacuously. }
   CMinExpectedFiles = 120;
 
-  { Files under Source\ that still carry U+FFFD inside comments, measured at
-    the commit that introduced this guard. Sorted by path. Shrink only. }
-  CBaseline: array [0 .. 46] of TEncodingBaselineRow = (
-    (Path: 'Core\Janus.Bind.pas'; Count: 14),
-    (Path: 'Core\Janus.Command.Deleter.pas'; Count: 6),
-    (Path: 'Core\Janus.Command.Executor.pas'; Count: 14),
-    (Path: 'Core\Janus.Command.Updater.pas'; Count: 5),
-    (Path: 'Core\Janus.DML.Generator.MongoDB.pas'; Count: 1),
-    (Path: 'Core\Janus.DML.Generator.MySQL.pas'; Count: 5),
-    (Path: 'Core\Janus.DML.Generator.Oracle.pas'; Count: 3),
-    (Path: 'Core\Janus.DML.Generator.PostgreSQL.pas'; Count: 4),
-    (Path: 'Core\Janus.DML.Generator.SQLite.pas'; Count: 5),
-    (Path: 'Core\Janus.DML.Generator.pas'; Count: 1),
-    (Path: 'Core\Janus.Json.pas'; Count: 2),
-    (Path: 'Core\Janus.Objects.Helper.pas'; Count: 1),
-    (Path: 'Core\Janus.Objects.Utils.pas'; Count: 7),
-    (Path: 'Core\Janus.Session.Abstract.pas'; Count: 6),
-    (Path: 'Core\Janus.Types.Blob.pas'; Count: 11),
-    (Path: 'Dataset\Janus.DataSet.Abstract.pas'; Count: 3),
-    (Path: 'Dataset\Janus.DataSet.Adapter.pas'; Count: 15),
-    (Path: 'Dataset\Janus.DataSet.Base.Adapter.pas'; Count: 14),
-    (Path: 'Dataset\Janus.DataSet.ClientDataSet.pas'; Count: 7),
-    (Path: 'Dataset\Janus.DataSet.Consts.pas'; Count: 1),
-    (Path: 'Dataset\Janus.DataSet.Events.pas'; Count: 1),
-    (Path: 'Dataset\Janus.DataSet.FDMemTable.pas'; Count: 7),
-    (Path: 'Dataset\Janus.DataSet.Fields.pas'; Count: 1),
-    (Path: 'Dataset\Janus.Manager.DataSet.pas'; Count: 2),
-    (Path: 'Dataset\Janus.Session.DataSet.pas'; Count: 4),
-    (Path: 'Janus.inc'; Count: 14),
-    (Path: 'Monitor\Janus.Form.Monitor.pas'; Count: 1),
-    (Path: 'Objectset\Janus.Manager.ObjectSet.pas'; Count: 4),
-    (Path: 'Objectset\Janus.ObjectSet.Adapter.pas'; Count: 8),
-    (Path: 'Objectset\Janus.ObjectSet.Base.Adapter.pas'; Count: 3),
-    (Path: 'Objectset\Janus.Session.ObjectSet.pas'; Count: 1),
-    (Path: 'RESTful\Client\Janus.Client.Horse.pas'; Count: 19),
-    (Path: 'RESTful\Client\Janus.Client.RestDriver.Horse.pas'; Count: 1),
-    (Path: 'RESTful\Client\Janus.Client.RestDriver.WS.pas'; Count: 1),
-    (Path: 'RESTful\Client\Janus.Client.RestHorse.Factory.pas'; Count: 2),
-    (Path: 'RESTful\Client\Janus.Client.RestWS.Factory.pas'; Count: 2),
-    (Path: 'RESTful\Client\Janus.Client.WS.pas'; Count: 11),
-    (Path: 'RESTful\Client\Janus.Client.pas'; Count: 4),
-    (Path: 'RESTful\Client\Janus.RestDataSet.Adapter.pas'; Count: 18),
-    (Path: 'RESTful\Client\Janus.RestDataSet.ClientDataSet.pas'; Count: 3),
-    (Path: 'RESTful\Client\Janus.RestDataSet.FDMemTable.pas'; Count: 3),
-    (Path: 'RESTful\Client\Janus.Session.RESTful.pas'; Count: 14),
-    (Path: 'RESTful\Common\Janus.RestFactory.Connection.pas'; Count: 2),
-    (Path: 'RESTful\Server\Janus.Server.Horse.pas'; Count: 3),
-    (Path: 'RESTful\Server\Janus.Server.RestObject.Manager.pas'; Count: 23),
-    (Path: 'RESTful\Server\Janus.Server.RestObjectSet.Session.pas'; Count: 1),
-    (Path: 'RESTful\Server\Janus.Server.RestObjectSet.pas'; Count: 10)
-  );
+  { The declared baseline. EMPTY: the last U+FFFD under Source\ was repaired,
+    so no file is tolerated any more and SourceIsAsciiOutsideTheDeclaredBaseline
+    now covers every file it enumerates. Putting a row back is how a file gets
+    excused, and BaselineIsAtZeroAndTheTreeAgrees refuses one on its own. }
+class function TTestJanusSourceEncoding._Baseline: TArray<TEncodingBaselineRow>;
+begin
+  Result := nil;
+end;
 
 class function TTestJanusSourceEncoding._FindRepositoryRoot: string;
 var
@@ -228,10 +195,12 @@ end;
 
 function TTestJanusSourceEncoding._BaselineIndexOf(const ARelPath: string): Integer;
 var
+  LRows: TArray<TEncodingBaselineRow>;
   LFor: Integer;
 begin
-  for LFor := Low(CBaseline) to High(CBaseline) do
-    if SameText(CBaseline[LFor].Path, ARelPath) then
+  LRows := _Baseline;
+  for LFor := Low(LRows) to High(LRows) do
+    if SameText(LRows[LFor].Path, ARelPath) then
       Exit(LFor);
   Result := -1;
 end;
@@ -365,45 +334,44 @@ begin
   end;
 end;
 
-procedure TTestJanusSourceEncoding.BaselineIsExactAndOnlyShrinks;
+{ The ratchet reached its end, and this pins BOTH halves of that - because
+  either half alone can be satisfied while the other rots. The table has to be
+  empty, AND the tree has to actually carry no U+FFFD. Emptying the table while
+  damage survives fails the second half; damage coming back under cover of a
+  freshly added row fails the first. }
+procedure TTestJanusSourceEncoding.BaselineIsAtZeroAndTheTreeAgrees;
 var
+  LRows: TArray<TEncodingBaselineRow>;
   LFor: Integer;
-  LFull: string;
+  LFile: string;
   LScan: TEncodingScan;
   LProblems: TStringList;
 begin
   Assert.IsTrue(FRoot <> '', 'Repository root not found');
+  LRows := _Baseline;
   LProblems := TStringList.Create;
   try
-    for LFor := Low(CBaseline) to High(CBaseline) do
+    for LFor := Low(LRows) to High(LRows) do
+      LProblems.Add(Format('%s: the baseline reached zero and is closed. A row ' +
+                           'excusing a file from the ASCII rule is a decision to ' +
+                           'argue for in review, not to add quietly',
+                           [LRows[LFor].Path]));
+
+    for LFile in FFiles do
     begin
-      LFull := TPath.Combine(TPath.Combine(FRoot, 'Source'), CBaseline[LFor].Path);
-      if not TFile.Exists(LFull) then
-      begin
-        LProblems.Add(Format('%s: listed in the baseline but does not exist - ' +
-                             'remove the entry', [CBaseline[LFor].Path]));
-        Continue;
-      end;
-      LScan := _Scan(TFile.ReadAllBytes(LFull));
-      if LScan.OtherNonAscii > 0 then
-        LProblems.Add(Format('%s: carries %d non-ASCII byte(s) that are not ' +
-                             'U+FFFD - a baseline file tolerates only the ' +
-                             'characters already lost, never a new one',
-                             [CBaseline[LFor].Path, LScan.OtherNonAscii]));
-      if LScan.Replacements > CBaseline[LFor].Count then
-        LProblems.Add(Format('%s: U+FFFD grew from %d to %d',
-                             [CBaseline[LFor].Path, CBaseline[LFor].Count,
-                              LScan.Replacements]))
-      else if LScan.Replacements < CBaseline[LFor].Count then
-        LProblems.Add(Format('%s: U+FFFD dropped from %d to %d - update the ' +
-                             'baseline entry in the same commit (or delete it ' +
-                             'if the count reached zero)',
-                             [CBaseline[LFor].Path, CBaseline[LFor].Count,
-                              LScan.Replacements]));
+      LScan := _Scan(TFile.ReadAllBytes(LFile));
+      if LScan.Replacements > 0 then
+        LProblems.Add(Format('%s: carries %d U+FFFD - a character a bad re-encode ' +
+                             'destroyed. Recover the word from the surrounding ' +
+                             'Portuguese and spell it in ASCII; where the ' +
+                             'unaccented spelling would be a different word, ' +
+                             'reword the sentence instead of flattening it',
+                             [_RelativePath(LFile), LScan.Replacements]));
     end;
+
     Assert.AreEqual(0, LProblems.Count,
-      Format('The encoding baseline is a ratchet and it no longer matches the ' +
-             'tree (%d problem(s)): %s',
+      Format('The encoding baseline is closed at zero and the tree no longer ' +
+             'agrees (%d problem(s)): %s',
              [LProblems.Count, LProblems.CommaText]));
   finally
     LProblems.Free;

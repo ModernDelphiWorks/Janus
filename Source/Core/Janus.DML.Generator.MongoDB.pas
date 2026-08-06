@@ -27,7 +27,7 @@ uses
   Janus.DML.Commands;
 
 type
-  // Classe de conex�o concreta com NoSQL
+  // Classe de conexao concreta com NoSQL
   TDMLGeneratorMongoDB = class(TDMLGeneratorNoSQL)
   protected
   public

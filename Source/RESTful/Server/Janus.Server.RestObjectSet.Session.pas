@@ -196,7 +196,7 @@ begin
     if not FModifiedFields.ContainsKey(AKey) then
       FModifiedFields.Add(AKey, TDictionary<String, String>.Create);
     // Se o tipo da property for tkRecord provavelmente tem Nullable nela
-    // Se n�o for tkRecord entra no ELSE e pega o valor de forma direta
+    // Se nao for tkRecord entra no ELSE e pega o valor de forma direta
     if LProperty.PropertyType.TypeKind in [tkRecord] then // Nullable ou TBlob
     begin
       if LProperty.IsBlob then

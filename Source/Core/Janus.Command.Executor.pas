@@ -340,7 +340,7 @@ begin
       end;
       // Preenche o objeto com os dados do ResultSet
       Bind.SetFieldToProperty(LResultSet, LObjectValue);
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(LObjectValue);
       // Avanca o cursor: sem isso o laco nunca atinge Eof e repopula o mesmo
       // objeto infinitamente (loop infinito / hang).
@@ -374,7 +374,7 @@ begin
       LObjectCreate.MethodCall('Create', []);
       // Popula o objeto com os dados do ResultSet
       Bind.SetFieldToProperty(LResultSet, LObjectCreate);
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(LObjectCreate);
       // Adiciona o objeto a lista
       LObjectList := AProperty.GetNullableValue(AObject).AsObject;
@@ -445,14 +445,14 @@ begin
     begin
       AObjectList.Add(M.Create);
       Bind.SetFieldToProperty(LResultSet, TObject(AObjectList.Last));
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(AObjectList.Last);
       // Avanca o cursor: sem isso o laco nunca atinge Eof e adiciona a mesma
       // linha infinitamente (loop infinito / OOM).
       LResultSet.Next;
     end;
   finally
-    // Essa tag � controlada pela session, mas como esse m�todo fornece
+    // A session controla essa tag, mas como esse metodo fornece
     // dados para a session, tiver que muda-la aqui.
     if LResultSet.RecordCount = 0 then
       TSessionAbstract<M>(FOwner).FetchingRecords := True;
@@ -472,14 +472,14 @@ begin
     begin
       AObjectList.Add(M.Create);
       Bind.SetFieldToProperty(LResultSet, TObject(AObjectList.Last));
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(AObjectList.Last);
       // Avanca o cursor: sem isso o laco nunca atinge Eof e adiciona a mesma
       // linha infinitamente (loop infinito / OOM).
       LResultSet.Next;
     end;
   finally
-    // Essa tag � controlada pela session, mas como esse m�todo fornece
+    // A session controla essa tag, mas como esse metodo fornece
     // dados para a session, tiver que muda-la aqui.
     if LResultSet.RecordCount = 0 then
       TSessionAbstract<M>(FOwner).FetchingRecords := True;
@@ -538,7 +538,7 @@ begin
     begin
       Result := M.Create;
       Bind.SetFieldToProperty(LResultSet, TObject(Result));
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(Result);
     end
     else

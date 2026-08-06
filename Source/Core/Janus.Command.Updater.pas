@@ -99,7 +99,7 @@ begin
   FResultCommand := '';
   if AModifiedFields.Count = 0 then
     Exit;
-  // Variavel local � usado como par�metro para montar o script s� com os
+  // Variavel local usado como parametro para montar o script so com os
   // campos PrimaryKey.
   LParams := TParams.Create(nil);
   try
@@ -123,8 +123,8 @@ begin
     end;
     FResultCommand := FGeneratorCommand.GeneratorUpdate(AObject, LParams, AModifiedFields);
     Result := FResultCommand;
-    // Gera todos os par�metros, sendo os campos alterados primeiro e o do
-    // PrimaryKey por �ltimo, usando LParams criado local.
+    // Gera todos os parametros, sendo os campos alterados primeiro e o do
+    // PrimaryKey por ultimo, usando LParams criado local.
     AObject.GetType(LObjectType);
     for LKey in AModifiedFields.Keys do
     begin

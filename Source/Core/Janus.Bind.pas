@@ -161,7 +161,7 @@ begin
   begin
     LProperty := LColumn.ColumnProperty;
     LField := ADataSet.FieldByName(LColumn.ColumnName);
-    // Possibilita popular o dado nos campos ReadOnly=True que s�o JoinColumn.
+    // Possibilita popular o dado nos campos ReadOnly=True que sao JoinColumn.
     LReadOnly := LField.ReadOnly;
     LField.ReadOnly := False;
     try
@@ -591,7 +591,7 @@ begin
                                             LColumn.Size);
     end;
     LField := ADataSet.FieldByName(LColumn.ColumnName);
-    // Identificador que o campo � de um tipo virtual s� recebe dado em cache
+    // Identificador de campo de tipo virtual: so recebe dado em cache
     if LColumn.IsVirtualData then
       LField.Tag := 9;
 
@@ -661,7 +661,7 @@ begin
     while not ASource.Eof do
     begin
       ATarget.Append;
-      // Usando Mongo com FireDAC o TField[0] � do tipo TDataSet (TDataSetField)
+      // Usando Mongo com FireDAC o TField[0] tem o tipo TDataSet (TDataSetField)
       // e esse DataSet, vem com 1 TField do tipo TADTField, nesse caso o
       // tratamento especial.
       if ASource.Fields[0] is TADTField then
@@ -891,8 +891,8 @@ begin
     if not LColumn.ColumnProperty.IsWritable then
       Continue;
     // Em Banco NoSQL a estrutura de campos pode ser diferente de uma
-    // cole��o para a outra, dessa forma antes de popular a propriedade da
-    // classe, � verificado se o nome dessa propriedade existe na cole��o
+    // colecao para a outra, dessa forma antes de popular a propriedade da
+    // classe, verifica-se se o nome dessa propriedade existe na colecao
     // de dados selecionada.
     LField := ADataSet.FieldList.Find(LColumn.ColumnName);
     if LField = nil then
@@ -916,8 +916,8 @@ begin
     if not LColumn.ColumnProperty.IsWritable then
       Continue;
     // Em Banco NoSQL a estrutura de campos pode ser diferente de uma
-    // cole��o para a outra, dessa forma antes de popular a propriedade da
-    // classe, � verificado se o nome dessa propriedade existe na cole��o
+    // colecao para a outra, dessa forma antes de popular a propriedade da
+    // classe, verifica-se se o nome dessa propriedade existe na colecao
     // de dados selecionada.
     if AADTField.Fields.FindField(LColumn.ColumnName) <> nil then
       _SetFieldToProperty(AADTField.Fields.FieldByName(LColumn.ColumnName),

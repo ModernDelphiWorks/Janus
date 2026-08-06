@@ -80,10 +80,10 @@ begin
         LPrimaryKey := TMappingExplorer.GetMappingPrimaryKey(AObject.ClassType);
         if LPrimaryKey = nil then
           raise Exception.Create(cMESSAGEPKNOTFOUND);
-          { TODO -oISAQUE -cREVIS�O :
-            Se voc� sentiu falta desse trecho de c�digo, entre em contato,
+          { TODO -oISAQUE -cREVISAO :
+            Se voce sentiu falta desse trecho de codigo, entre em contato,
             precisamos discutir sobre ele, pois ele quebra regras de SOLID
-            e est� em um lugar gen�rico o qual n�o atende a todos os bancos. }
+            e fica em um lugar generico o qual nao atende a todos os bancos. }
 
 //        if LPrimaryKey.GuidIncrement then
 //        begin
