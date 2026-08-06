@@ -125,9 +125,12 @@ type
     procedure LinkAsRestClientDoes;
     procedure AddMasterRow(const AKey: Integer);
     procedure AddChildRow(const ADataSet: TFDMemTable; const AKey: Integer;
-      const ATag: String; const APending: Boolean = True);
+      const ATag: String; const APending: Boolean = True;
+      const AOwnKey: Integer = 0);
     function CountWithKey(const ADataSet: TFDMemTable;
       const AKey: Integer): Integer;
+    function CountWithColumn(const ADataSet: TFDMemTable;
+      const AColumn: String; const AKey: Integer): Integer;
     function VisibleRowCount(const ADataSet: TFDMemTable): Integer;
     procedure MoveMasterToNewKey(const ANewKey: Integer);
   public
@@ -172,6 +175,11 @@ type
     /// defect above cannot exist there - measured, not assumed.
     [Test]
     procedure ObjectSet_EveryChildObjectReceivesTheNewKey;
+    /// ...and the level below it, which is the one issue #244 is about: this
+    /// family offers only the parent's OWN key columns, so the shape the
+    /// fixture carried before #244 could not be expressed here at all.
+    [Test]
+    procedure ObjectSet_EveryGrandchildObjectReceivesTheMidKey;
   end;
 
 implementation
@@ -183,6 +191,11 @@ const
   cCHILDS       = 3;
   cGRANDS       = 2;
   cKEYFIELD     = 'root_id';
+  /// The MID's own key - what the mid level propagates to its leaves since
+  /// issue #244. `root_id` on the leaf is the denormalised column no
+  /// association names, kept as the negative control for ancestor propagation.
+  cOWNKEYFIELD  = 'mid_id';
+  cMIDOWNKEY    = 90;
   cMASTERSOURCE = 'MasterSource';
   cWALKCEILING  = 50;
 
@@ -362,13 +375,20 @@ begin
 end;
 
 procedure TTestAutoIncChilds.AddChildRow(const ADataSet: TFDMemTable;
-  const AKey: Integer; const ATag: String; const APending: Boolean);
+  const AKey: Integer; const ATag: String; const APending: Boolean;
+  const AOwnKey: Integer);
 var
   LInternal: TField;
   LSavedBeforePost: TDataSetNotifyEvent;
 begin
   ADataSet.Append;
   ADataSet.FieldByName(cKEYFIELD).AsInteger := AKey;
+  // Written on every row that HAS the column, leaves included, so the leaf's
+  // starting value is stated rather than left to whatever an unset field
+  // reads back as. Both entities carry `mid_id` since #244: on the mid it is
+  // the primary key, on the leaf the foreign key onto it.
+  if ADataSet.FindField(cOWNKEYFIELD) <> nil then
+    ADataSet.FieldByName(cOWNKEYFIELD).AsInteger := AOwnKey;
   if ADataSet.FindField('tag') <> nil then
     ADataSet.FieldByName('tag').AsString := ATag;
   ADataSet.Post;
@@ -397,6 +417,12 @@ end;
 /// range would hide exactly the rows a wrong fix leaves behind.
 function TTestAutoIncChilds.CountWithKey(const ADataSet: TFDMemTable;
   const AKey: Integer): Integer;
+begin
+  Result := CountWithColumn(ADataSet, cKEYFIELD, AKey);
+end;
+
+function TTestAutoIncChilds.CountWithColumn(const ADataSet: TFDMemTable;
+  const AColumn: String; const AKey: Integer): Integer;
 var
   LSource: TDataSource;
   LIndex: String;
@@ -412,7 +438,7 @@ begin
     ADataSet.First;
     while (not ADataSet.Eof) and (Result <= cWALKCEILING) do
     begin
-      if ADataSet.FieldByName(cKEYFIELD).AsInteger = AKey then
+      if ADataSet.FieldByName(AColumn).AsInteger = AKey then
         Inc(Result);
       ADataSet.Next;
     end;
@@ -506,8 +532,11 @@ var
 begin
   BuildTree(True);
   AddMasterRow(cROOTKEYOLD);
+  // Every mid row carries the SAME own key, so the result does not depend on
+  // which mid row the cursor happens to sit on when the recursion fires.
   for LFor := 0 to cCHILDS - 1 do
-    AddChildRow(FMidTable, cROOTKEYOLD, 'M' + IntToStr(LFor));
+    AddChildRow(FMidTable, cROOTKEYOLD, 'M' + IntToStr(LFor), True, cMIDOWNKEY);
+  // The leaves start on mid_id = 0, and on the OLD root key.
   for LFor := 0 to cGRANDS - 1 do
     AddChildRow(FLeafTable, cROOTKEYOLD, 'L' + IntToStr(LFor));
   LinkAsRestClientDoes;
@@ -517,11 +546,18 @@ begin
 
   // Level 3 first: counting level 2 would scroll it, and scrolling a master
   // re-opens its children.
-  Assert.AreEqual(cGRANDS, CountWithKey(FLeafTable, cROOTKEYNEW),
+  Assert.AreEqual(cGRANDS, CountWithColumn(FLeafTable, cOWNKEYFIELD, cMIDOWNKEY),
     'level 3 must be updated too - the recursion into each child adapter is ' +
-    'the whole reason SetAutoIncValueChilds calls itself');
-  Assert.AreEqual(0, CountWithKey(FLeafTable, cROOTKEYOLD),
-    'no grandchild may be left behind on the old key');
+    'the whole reason SetAutoIncValueChilds calls itself. What reaches the ' +
+    'leaf is the MID key, because the mid association names the mid own key');
+  // The other half of issue #244, and the reason `root_id` still exists on the
+  // leaf: no association names it, so a cascade that wrote it would be
+  // propagating an ANCESTOR key - a capability CascadeAutoInc does not offer.
+  Assert.AreEqual(cGRANDS, CountWithKey(FLeafTable, cROOTKEYOLD),
+    'the leaf root_id is denormalised and unlinked; the cascade must leave ' +
+    'every one of them exactly as it found it');
+  Assert.AreEqual(0, CountWithKey(FLeafTable, cROOTKEYNEW),
+    'and not one leaf may come out carrying the ROOT new key');
   Assert.AreEqual(cCHILDS, CountWithKey(FMidTable, cROOTKEYNEW),
     'level 2 must be updated');
 end;
@@ -727,6 +763,65 @@ begin
   finally
     LAdapter.Free;
     LRoot.Free;
+  end;
+end;
+
+procedure TTestAutoIncChilds.ObjectSet_EveryGrandchildObjectReceivesTheMidKey;
+var
+  LAdapter: TObjectSetAdapter<TAitMid>;
+  LMid: TAitMid;
+  LLeaf: TAitLeaf;
+  LPrimaryKey: TPrimaryKeyColumnsMapping;
+  LFor: Integer;
+  LSeen: Integer;
+  LKept: Integer;
+begin
+  // WHY THIS LEVEL AND NOT THE ONE ABOVE. The column this family propagates is
+  // not free: TObjectSetBaseAdapter<M>.SetAutoIncValueOneToMany resolves the
+  // parent's OWN primary key property against the association's ColumnsName,
+  // so only a column the parent's key names can ever be written. Before issue
+  // #244 the mid level offered `root_id` while its key is `mid_id`: the lookup
+  // matched nothing, the walker returned, and no leaf was written - with
+  // nothing raised. That shape is what this test would not tolerate.
+  LMid := TAitMid.Create;
+  LAdapter := TObjectSetAdapter<TAitMid>.Create(FConn);
+  try
+    for LFor := 0 to cGRANDS - 1 do
+    begin
+      LLeaf := TAitLeaf.Create;
+      LLeaf.mid_id := 0;
+      LLeaf.root_id := cROOTKEYOLD;
+      LMid.leafs.Add(LLeaf);
+    end;
+    // The key the database has just generated for the MID, and a root key that
+    // differs from it, so a leaf carrying the wrong one is visible.
+    LMid.mid_id := cMIDOWNKEY;
+    LMid.root_id := cROOTKEYNEW;
+    LPrimaryKey := TMappingExplorer.GetMappingPrimaryKeyColumns(TAitMid);
+    Assert.IsNotNull(LPrimaryKey, 'TAitMid must expose a primary key mapping');
+
+    TObjectSetAccess<TAitMid>.Propagate(LAdapter, LMid, LPrimaryKey.Columns[0]);
+
+    LSeen := 0;
+    LKept := 0;
+    for LFor := 0 to LMid.leafs.Count - 1 do
+    begin
+      if LMid.leafs[LFor].mid_id = cMIDOWNKEY then
+        Inc(LSeen);
+      if LMid.leafs[LFor].root_id = cROOTKEYOLD then
+        Inc(LKept);
+    end;
+    Assert.AreEqual(cGRANDS, LSeen,
+      'every leaf OBJECT must carry the key its OWN parent generated - that ' +
+      'is the whole of what CascadeAutoInc offers, and the fixture now models ' +
+      'it');
+    Assert.AreEqual(cGRANDS, LKept,
+      'and none may pick up the ROOT key the mid also carries: no association ' +
+      'names the leaf root_id, and an ancestor key is not something this ' +
+      'framework propagates');
+  finally
+    LAdapter.Free;
+    LMid.Free;
   end;
 end;
 

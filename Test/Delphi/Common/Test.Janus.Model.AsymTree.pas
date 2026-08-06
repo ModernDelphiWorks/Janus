@@ -33,10 +33,19 @@
   nothing at all.
 
   Measured on the tree as it stood before this unit: the only three level
-  model compiled by the suite is Test.Janus.Model.AutoIncTree, and there the
-  mid level's association carries `root_id` - the ROOT's key name, not the
-  mid's own key name (`mid_id`). That single reused spelling is what makes
+  model compiled by the suite was Test.Janus.Model.AutoIncTree, and there the
+  mid level's association carried `root_id` - the ROOT's key name, not the
+  mid's own key name (`mid_id`). That single reused spelling is what made
   the two readings indistinguishable there.
+
+  Issue #244 has since corrected that fixture: its mid level now names its own
+  `mid_id`, so the ROOT's key name is no longer reused one level down. What
+  #244 did NOT change is that every association in it names the SAME column at
+  both ends - `root_id` -> `root_id`, `mid_id` -> `mid_id`. A wiring that feeds
+  the master's column name where the child's belongs still builds the identical
+  string there. That is the confusion this unit removes, and it is why the two
+  fixtures are not interchangeable: AutoIncTree is the canonical shape,
+  AsymTree is the one that makes this family of defects visible.
 
   THE SHAPE
 

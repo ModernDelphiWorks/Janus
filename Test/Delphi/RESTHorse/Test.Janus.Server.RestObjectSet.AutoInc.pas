@@ -45,10 +45,12 @@
 
   WHY THE SUITE NEEDED A NEW MODEL
 
-  Measured before this unit existed: the one three level model the suite
-  compiles, Test.Janus.Model.AutoIncTree, spells the mid level's association
+  Measured before this unit existed: the one three level model the test tree
+  had, Test.Janus.Model.AutoIncTree, spelled the mid level's association
   `root_id` - the ROOT's key name rather than the mid's own `mid_id`. With
-  that one name reused the two readings are not distinguishable. The two
+  that one name reused the two readings were not distinguishable. Issue #244
+  has since corrected that fixture to name `mid_id`; it is still not a unit
+  this project compiles, so it could not host this measurement anyway. The two
   level fixture Test.Janus.Model.AsymKey does have asymmetric names but the
   step under test is a no-op at two levels, because it fires only after a
   child is inserted and only reaches children OF that child.
