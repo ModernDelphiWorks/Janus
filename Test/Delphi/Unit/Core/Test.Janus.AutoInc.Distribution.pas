@@ -211,20 +211,40 @@
 
     * ClientDataSetLinkedAsTheRestClientDoes_MintingDoesNotPostTheChild catches
       the same candidate writing on the master row from inside the CHILD's
-      OnNewRecord. With a master-detail link installed - which the REST client
-      installs on every child by construction, in both families - the Edit on
-      the master reaches the detail's CheckBrowseMode through the RTL, and the
-      detail is in dsInsert and already Modified, so it gets POSTED half typed.
-      Moving the call to DoBeforeInsert, where the child is still in dsBrowse,
-      is what fixes it: put it back in DoNewRecord and this fixture is the ONLY
-      red, with "Dataset not in edit or insert mode".
-      THE FAMILY MATTERS AND THE FIREDAC TWIN DOES NOT DISCRIMINATE.
-      TFDMasterDataLink.DataEvent has a delayed-scroll branch that captures the
-      event and returns BEFORE the deCheckBrowseMode guard, so the FireDAC
-      detail is never reached and LinkedAsTheRestClientDoes_MintingDoesNotPostTheChild
-      passes under both placements. That was measured, not assumed, and it is
-      why the ClientDataSet twin was written afterwards rather than skipped as
-      a duplicate. The FireDAC one is kept as the record of that measurement;
+      OnNewRecord. Writing on the master row reaches every detail through
+      deDataSetChange -> TDataLink.DataSetChanged -> RecordChanged(nil) ->
+      TMasterDataLink.RecordChanged -> FOnMasterChange ->
+      TCustomClientDataSet.MasterChanged, whose FIRST statement is
+      CheckBrowseMode - so a detail sitting in dsInsert and Modified is POSTED
+      half typed. Moving the call to DoBeforeInsert, where the child is still
+      in dsBrowse, is what fixes it: put it back in DoNewRecord and this
+      fixture is the ONLY red, with "Dataset not in edit or insert mode".
+      THE FAMILY MATTERS AND THE FIREDAC TWIN DOES NOT DISCRIMINATE, but NOT
+      for the reason an earlier revision of this header gave. That revision
+      claimed TFDMasterDataLink.DataEvent captures deCheckBrowseMode in its
+      delayed-scroll branch and returns before the guard. THAT WAS WRONG, and
+      it is recorded here rather than quietly deleted: the branch tests
+      `Event in [deDataSetScroll, deDataSetChange]`, which does not contain
+      deCheckBrowseMode, and it would not fire anyway because it needs
+      FetchOptions.DetailDelay > 0, whose default is 0. The real asymmetry is
+      one level down: TFDDataSet.MasterChanged calls CheckMasterRange and NOT
+      CheckBrowseMode, while TCustomClientDataSet.MasterChanged calls
+      CheckBrowseMode first. The FireDAC twin is kept as the record of that
+      measurement;
+
+    * MintingWithASiblingChildMidInsert_DoesNotPostThatSibling catches the leg
+      that survives the fix above. The child being typed is safe in dsBrowse,
+      but a DIFFERENT child of the same master - another grid the operator left
+      half typed - is not, and it is reached by the same MasterChanged path.
+      Measured with a sibling in dsInsert and Modified: it was POSTED, with AND
+      without DisableControls around the write, because DisableControls
+      suppresses the deCheckBrowseMode leg while EnableControls is itself what
+      re-emits deDataSetChange, and the master's Post emits it regardless. No
+      guard silences both legs and still lets the write happen, so the write is
+      REFUSED instead: if any sibling has a row open, nothing is minted and the
+      child falls back to the historical behaviour. That is why there is no
+      DisableControls in the shipped method - adding it back today reddens
+      nothing at all, measured;
 
     * ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow catches the
       IsEmpty guard. Data.DB.pas turns Edit on a rowless dataset into Insert, so
@@ -267,32 +287,39 @@
 
   HOW THE NEW SOURCE CLAUSES WERE SHOWN TO BIND - issue #265
 
-  Each was reverted on its own and the whole project re-run:
+  Each was reverted on its own and the whole project re-run. EVERY clause in
+  _EnsureMasterRowToken binds, and the list is the whole method:
 
-    * never minting - _EnsureMasterRowToken reading and never writing - reddens
-      all five tests that are red against origin/develop, and nothing else;
-    * minting UNCONDITIONALLY, over an identity a row already had, reddens
-      NINETEEN tests across Test.Janus.AutoInc.Childs, Test.Janus.Apply.Loops
-      and this unit. The identity is load bearing far beyond #265 and
-      overwriting one breaks #261;
-    * minting WITHOUT muting the master's adapter reddens six, among them the
-      two clauses that read the pending marker back off the master ROW - which
-      is what says the mute is there for a reason and not for tidiness;
-    * posting the master even when the caller was mid-edit reddens
-      ChildTypedWhileTheMasterRowIsBeingEdited_DoesNotCommitThatEdit alone;
-    * dropping the child-side benefit of the doubt from _IsOwnedByMasterRow
-      reddens ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster alone,
-      exactly as it did before this issue.
+    * never minting -> the six tests that are red against origin/develop;
+    * taking the value from AtomicIncrement(FRowTokenSeq) instead of the
+      virtual _MintRowToken -> MintedMasterIdentity_ComesFromTheMasterOwnSequence
+      alone;
+    * dropping the sibling-mid-edit loop ->
+      MintingWithASiblingChildMidInsert_DoesNotPostThatSibling alone;
+    * dropping the IsEmpty guard ->
+      ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow alone;
+    * minting from any state instead of only dsBrowse ->
+      ChildTypedWhileTheMasterRowIsBeingEdited_DoesNotCommitThatEdit and
+      ChildTypedUnderAMutedMasterStillInserting_RecordsNoParentage;
+    * minting over an identity a row already had -> NINETEEN tests across
+      Test.Janus.AutoInc.Childs, Test.Janus.Apply.Loops and this unit;
+    * not muting the master's adapter around the write ->
+      LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey, on the clause
+      that reads the pending marker back off the loaded row: without the mute
+      the master's own DoBeforePost promotes it to dsEdit and a row nobody
+      touched becomes an UPDATE;
+    * moving the call from DoBeforeInsert back to DoNewRecord ->
+      ClientDataSetLinkedAsTheRestClientDoes_MintingDoesNotPostTheChild alone;
+    * dropping the child-side benefit of the doubt in _IsOwnedByMasterRow ->
+      ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster alone.
 
-  ONE CLAUSE IS NOT DEFENDED AND SAYS SO. Removing the IsEmpty guard from
-  _EnsureMasterRowToken reddens NOTHING. It stays because it mirrors the guard
-  in _MasterRowToken and because minting needs a row to write on, but it is
-  recorded as an unmeasured guard rather than left to look earned. A second
-  candidate did NOT survive that rule: an exception to the same guard for
-  dsInsert was written on the theory that a dataset on its first unposted row
-  answers IsEmpty; removing it reddened nothing - including
-  ChildTypedBeforeItsMasterRowIsPosted_StillReceivesTheKey, which reaches that
-  exact state - so the theory was wrong and the clause came out.
+  NO CLAUSE IS LEFT UNDEFENDED. An earlier revision of this header carried a
+  paragraph saying the IsEmpty guard reddened nothing; that paragraph described
+  a state of the work that no longer existed when it shipped, and it is deleted
+  rather than adjusted. The guard is now pinned by
+  ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow, and the clause
+  that WAS inert - DisableControls around the write - was removed rather than
+  labelled, after measuring that it changes nothing in either direction.
 
   HOW MANY ASSERTIONS, COUNTED HONESTLY
 
@@ -539,6 +566,10 @@ type
     procedure LinkedAsTheRestClientDoes_MintingDoesNotPostTheChild;
     [Test]
     procedure ClientDataSetLinkedAsTheRestClientDoes_MintingDoesNotPostTheChild;
+    [Test]
+    procedure MintingWithASiblingChildMidInsert_DoesNotPostThatSibling;
+    [Test]
+    procedure ChildTypedUnderAMutedMasterStillInserting_RecordsNoParentage;
     [Test]
     procedure ChildTypedUnderAnUnidentifiedMaster_MakesThatMasterIdentifyItself;
     [Test]
@@ -1792,26 +1823,28 @@ begin
   // does the same. No fixture in this suite had ever combined that link with a
   // master row carrying no identity, which is exactly the pair the mint needs.
   //
-  // WHAT GOES WRONG WITHOUT A GUARD, straight out of the RTL of Studio 37.0:
-  //   Data.DB.pas TDataSet.Edit -> CheckBrowseMode -> DataEvent(deCheckBrowseMode)
-  //   -> NotifyDataSources := not (ControlsDisabled or (State = dsBlockRead))
-  //   -> every TDataSource -> TDataLink.DataEvent -> TMasterDataLink.CheckBrowseMode
-  //   -> the DETAIL CheckBrowseMode -> if Modified then Post else Cancel.
-  // The detail is in dsInsert and ALREADY Modified, because _StampRowTokens
-  // writes the child own RowToken BEFORE it asks for the master identity, and
-  // TDataSet clears FModified only after DoOnNewRecord returns. So the child
-  // row is POSTED from inside its own OnNewRecord, half typed.
+  // WHAT GOES WRONG WITHOUT THE FIX, out of the RTL of Studio 37.0. Writing on
+  // the master row emits deDataSetChange - from the Post, and from
+  // EnableControls when a control pair is used - which descends
+  // TDataLink.DataEvent -> DataSetChanged -> RecordChanged(nil) ->
+  // TMasterDataLink.RecordChanged -> FOnMasterChange -> the detail's
+  // MasterChanged. A detail reached there in dsInsert and already Modified -
+  // and it IS already Modified, because _StampRowTokens writes the child's own
+  // RowToken before anything else - gets POSTED half typed.
   //
-  // MUTING THE ADAPTER DOES NOT HELP AND THAT IS THE LESSON.
-  // DisableDataSetEvents unhooks the ORM own handlers; it does not touch
-  // FDataSources, and the RTL line above tests ControlsDisabled and nothing
-  // else. Only DisableControls silences it - which is what _HasPendingRows and
-  // _AutoIncToChildRows already do elsewhere in the same unit.
+  // THIS FIXTURE DOES NOT DEMONSTRATE THAT, AND SAYS SO. TFDDataSet
+  // .MasterChanged calls CheckMasterRange and NOT CheckBrowseMode, so the
+  // FireDAC family never reaches the post. It passes with the mint in
+  // DoBeforeInsert and with the mint in DoNewRecord alike - measured. It is
+  // kept as the record of that measurement and as a guard that the FireDAC
+  // wiring itself stays harmless; the fixture that DOES discriminate is
+  // ClientDataSetLinkedAsTheRestClientDoes_MintingDoesNotPostTheChild.
   //
-  // The FireDAC guard does not cover it either: TFDMasterDataLink.DataEvent
-  // exits early on deCheckBrowseMode only when BOTH datasets are in dsEditModes,
-  // and the master here is in dsBrowse - the very state the mint treats as the
-  // safe one.
+  // An earlier revision of this comment blamed TFDMasterDataLink.DataEvent's
+  // delayed-scroll branch for swallowing deCheckBrowseMode. That was wrong -
+  // the branch tests Event in [deDataSetScroll, deDataSetChange], and needs
+  // FetchOptions.DetailDelay > 0, default 0 - and the correction is left
+  // visible rather than deleted.
   BuildTree(FConn, LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
   try
     TCascadeAccess<TAitRoot>.Mute(LRoot);
@@ -1883,15 +1916,19 @@ var
   LState: TDataSetState;
   LMute: TScrollMute;
 begin
-  // THE SAME SHAPE IN THE OTHER FAMILY, and it is not a spare copy. The
-  // FireDAC variant above turned out NOT to discriminate: TFDMasterDataLink
-  // .DataEvent has a delayed-scroll branch that captures the event and returns
-  // BEFORE the deCheckBrowseMode guard, so the detail CheckBrowseMode is never
-  // reached and the hazard the RTL chain describes does not fire there.
-  // TClientDataSet uses the plain RTL TMasterDataLink, which has no such
-  // branch - so if the chain bites anywhere in this framework, it bites here.
-  // Written after measuring that the FireDAC one could not tell the two
-  // placements apart, rather than assumed to be redundant with it.
+  // THE SAME SHAPE IN THE OTHER FAMILY, and it is not a spare copy - it is the
+  // one that actually discriminates. TFDDataSet.MasterChanged calls
+  // CheckMasterRange and NOT CheckBrowseMode, so the FireDAC twin above passes
+  // under both placements of the mint and cannot tell them apart.
+  // TCustomClientDataSet.MasterChanged calls CheckBrowseMode as its FIRST
+  // statement, so this is where writing on the master row while a detail sits
+  // half typed commits that detail.
+  //
+  // Move the _EnsureMasterRowToken call from DoBeforeInsert back to
+  // DoNewRecord - which is where the child row is already dsInsert and already
+  // Modified - and THIS fixture is the only red in the project, with
+  // "Dataset not in edit or insert mode": the child was posted from inside its
+  // own insert and the Cancel below then had nothing to cancel.
   LRootCds := TClientDataSet.Create(nil);
   LMidCds := TClientDataSet.Create(nil);
   try
@@ -1927,13 +1964,16 @@ begin
 
       LMidCds.Append;
       LState := LMidCds.State;
-
+    finally
+      // In the FINALLY, not in the body: on the red path the clause above
+      // raises and everything after it is skipped, which would free the
+      // master's TDataSource while the child still points at it and turn a
+      // clean red into a teardown fault. The FireDAC twin already does this.
       if LMidCds.State in [dsInsert, dsEdit] then
         LMidCds.Cancel;
       LMidCds.MasterFields := '';
       LMidCds.IndexFieldNames := '';
       LMidCds.MasterSource := nil;
-    finally
       LMid.Free;
       LRoot.Free;
     end;
@@ -1947,6 +1987,202 @@ begin
     'master row an identity while a child sits half typed must not travel ' +
     'down the master-detail link and post it. Measured state: ' +
     GetEnumName(TypeInfo(TDataSetState), Ord(LState)));
+end;
+
+procedure TTestAutoIncDistribution.MintingWithASiblingChildMidInsert_DoesNotPostThatSibling;
+var
+  LRootCds: TClientDataSet;
+  LMidCds: TClientDataSet;
+  LOtherCds: TClientDataSet;
+  LRoot: TClientDataSetAdapter<TAitRoot>;
+  LMid: TClientDataSetAdapter<TAitMid>;
+  LOther: TClientDataSetAdapter<TAitNoCascade>;
+  LState: TDataSetState;
+  LOtherToken: Integer;
+  LMute: TScrollMute;
+
+  procedure Wire(const AChild: TClientDataSet);
+  var
+    LM: TScrollMute;
+  begin
+    LM := MuteScroll(AChild);
+    try
+      AChild.MasterSource := TCascadeAccess<TAitRoot>.SourceOf(LRoot);
+      AChild.IndexFieldNames := cKEY;
+      AChild.MasterFields := cKEY;
+    finally
+      UnmuteScroll(AChild, LM);
+    end;
+  end;
+
+begin
+  // WHAT DEFENDS THE DisableControls PAIR, and it took a second child to build
+  // it. With the mint called from DoBeforeInsert the child being typed is in
+  // dsBrowse, so nothing the master emits can hurt IT - which is why removing
+  // DisableControls reddened nothing and was briefly, and wrongly, labelled an
+  // unmeasured guard. The row that CAN be hurt is a DIFFERENT child of the same
+  // master, left half typed while the operator moves to another grid.
+  //
+  // THE TWO RTL LEGS THE PAIR SUPPRESSES, both reachable only from here:
+  //   the Post on the master emits deDataSetChange -> TDataLink.DataEvent ->
+  //   DataSetChanged -> RecordChanged(nil) -> TMasterDataLink.RecordChanged ->
+  //   FOnMasterChange -> TCustomClientDataSet.MasterChanged, whose FIRST
+  //   statement is CheckBrowseMode -> "if Modified then Post".
+  // DisableControls does NOT close that: it suppresses the deCheckBrowseMode
+  // leg of Edit, but EnableControls is itself what re-emits deDataSetChange,
+  // and the Post emits it either way. Measured: the sibling was posted WITH
+  // and WITHOUT the pair. So the shipped answer is not to blind the write but
+  // to refuse it - see the sibling loop in _EnsureMasterRowToken - and there is
+  // no DisableControls in the shipped method at all.
+  //
+  // The sibling is appended with ITS adapter muted so that its own
+  // DoBeforeInsert does not mint first - the mint fires once per untokenised
+  // master row, and this test needs it to fire while the sibling is already
+  // sitting in dsInsert.
+  LRootCds := TClientDataSet.Create(nil);
+  LMidCds := TClientDataSet.Create(nil);
+  LOtherCds := TClientDataSet.Create(nil);
+  try
+    LRoot := TClientDataSetAdapter<TAitRoot>.Create(FConn, LRootCds, -1, nil);
+    LMid := TClientDataSetAdapter<TAitMid>.Create(FConn, LMidCds, -1, LRoot);
+    LOther := TClientDataSetAdapter<TAitNoCascade>.Create(FConn, LOtherCds, -1,
+                LRoot);
+    try
+      TCascadeAccess<TAitRoot>.Mute(LRoot);
+      try
+        LRootCds.Append;
+        LRootCds.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+        LRootCds.FieldByName(cTAG).AsString := cLOADEDTAG;
+        LRootCds.Post;
+      finally
+        TCascadeAccess<TAitRoot>.Unmute(LRoot);
+      end;
+      Assert.AreEqual(cNOTOKEN, TokenOfTaggedRow(LRootCds, cLOADEDTAG,
+                                                 cROWTOKEN),
+        'PREMISE: the master must be untokenised, or no mint fires at all');
+
+      Wire(LMidCds);
+      Wire(LOtherCds);
+
+      // The SIBLING, left open and Modified. Muted so it does not mint.
+      TCascadeAccess<TAitMid>.Mute(LMid);
+      try
+        LMidCds.Append;
+        LMidCds.FieldByName(cTAG).AsString := 'HALF';
+      finally
+        TCascadeAccess<TAitMid>.Unmute(LMid);
+      end;
+      Assert.IsTrue(LMidCds.State = dsInsert,
+        'PREMISE: the sibling must be sitting in dsInsert');
+      Assert.IsTrue(LMidCds.Modified,
+        'PREMISE: and Modified, or CheckBrowseMode would Cancel it rather ' +
+        'than Post it and this test would measure the wrong branch');
+
+      // Now the mint fires, from the OTHER child.
+      LOtherCds.Append;
+      LState := LMidCds.State;
+      LOtherToken := LOtherCds.FieldByName(cOWNERTOKEN).AsInteger;
+      if LOtherCds.State in [dsInsert, dsEdit] then
+        LOtherCds.Cancel;
+      if LMidCds.State in [dsInsert, dsEdit] then
+        LMidCds.Cancel;
+    finally
+      LMidCds.MasterFields := '';
+      LMidCds.IndexFieldNames := '';
+      LMidCds.MasterSource := nil;
+      LOtherCds.MasterFields := '';
+      LOtherCds.IndexFieldNames := '';
+      LOtherCds.MasterSource := nil;
+      LOther.Free;
+      LMid.Free;
+      LRoot.Free;
+    end;
+  finally
+    LOtherCds.Free;
+    LMidCds.Free;
+    LRootCds.Free;
+  end;
+
+  Assert.AreEqual(cNOTOKEN, LOtherToken,
+    'and the child that was being typed records NO parentage - refusing to ' +
+    'write is how the sibling is protected, so the price is paid here and is ' +
+    'stated rather than hidden: that child falls back to the historical ' +
+    'behaviour');
+  Assert.IsTrue(LState = dsInsert,
+    'the sibling must STILL be sitting in dsInsert. Writing an identity on ' +
+    'the master row may not reach a half typed row in another detail and ' +
+    'commit it - what would go to the database is whatever the operator had ' +
+    'got to. Measured state: ' +
+    GetEnumName(TypeInfo(TDataSetState), Ord(LState)));
+end;
+
+procedure TTestAutoIncDistribution.ChildTypedUnderAMutedMasterStillInserting_RecordsNoParentage;
+var
+  LRootTable: TFDMemTable;
+  LMidTable: TFDMemTable;
+  LLeafTable: TFDMemTable;
+  LRoot: TFDMemTableAdapter<TAitRoot>;
+  LMid: TFDMemTableAdapter<TAitMid>;
+  LLeaf: TFDMemTableAdapter<TAitLeaf>;
+  LRows: Integer;
+begin
+  // THE LAST PRODUCER OF A ZERO PARENTAGE, and the one the enumeration in
+  // _EnsureMasterRowToken kept implicit. The state guard there is
+  // "State <> dsBrowse", which is not a synonym for dsEdit: it also covers a
+  // master row that is STILL BEING INSERTED. Reached by combining the two
+  // things the other fixtures reach separately - a muted append, so there is no
+  // identity to read, and NO Post, so the row is not in dsBrowse either.
+  //
+  // WHY MINTING IS REFUSED HERE RATHER THAN DONE. Writing into an insertion
+  // buffer that the caller has not committed is the same hazard as the empty
+  // master one level down: the value would ride out on somebody else's Post, or
+  // vanish on their Cancel, and either way the child would be naming an
+  // identity the master no longer carries. So the answer is cNoRowToken and the
+  // child falls back to the behaviour that shipped.
+  //
+  // ITS LIVE TWIN IS NOT THIS. ChildTypedBeforeItsMasterRowIsPosted_StillReceivesTheKey
+  // has the master mid-insert too, but with the adapter LIVE - so DoNewRecord
+  // already stamped that row and _EnsureMasterRowToken returns the identity it
+  // finds without writing anything. The two together are what say that the
+  // refusal is about the MISSING identity plus the state, not about the state
+  // alone.
+  BuildTree(FConn, LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  try
+    TCascadeAccess<TAitRoot>.Mute(LRoot);
+    try
+      LRootTable.Append;
+      LRootTable.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+      LRootTable.FieldByName(cTAG).AsString := cLOADEDTAG;
+      // NOT posted, and the adapter stays muted for the child append below so
+      // that nothing re-enters and quietly commits it.
+      Assert.IsTrue(LRootTable.State = dsInsert,
+        'PREMISE: the master must be mid-insert');
+      LRows := LRootTable.RecordCount;
+
+      LMidTable.Append;
+      LMidTable.FieldByName(cOWNKEY).AsInteger := 0;
+      LMidTable.FieldByName(cTAG).AsString := 'C0';
+      LMidTable.Post;
+    finally
+      TCascadeAccess<TAitRoot>.Unmute(LRoot);
+    end;
+
+    Assert.IsTrue(LRootTable.State = dsInsert,
+      'the master must STILL be mid-insert - nothing may have committed it on ' +
+      'the operator behalf');
+    Assert.AreEqual(LRows, LRootTable.RecordCount,
+      'and no row may have been added to the master table');
+    Assert.AreEqual(cNOTOKEN, TokenOfTaggedRow(LMidTable, 'C0', cOWNERTOKEN),
+      'while the child records NO parentage: there was no identity to read ' +
+      'and the row was in no state to receive one, so this falls back to the ' +
+      'historical behaviour. THIS IS A DECLARED LIMIT, not a fix - a child ' +
+      'typed here is still claimable by any pending master, exactly as it was ' +
+      'before issue #265');
+    if LRootTable.State in [dsInsert, dsEdit] then
+      LRootTable.Cancel;
+  finally
+    DropTree(LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  end;
 end;
 
 procedure TTestAutoIncDistribution.ChildTypedUnderAnUnidentifiedMaster_MakesThatMasterIdentifyItself;

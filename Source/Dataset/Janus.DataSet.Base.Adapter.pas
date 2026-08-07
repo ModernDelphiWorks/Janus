@@ -48,7 +48,31 @@ type
     ///  _IsOwnedByMasterRow makes were minted by the SAME instantiation of
     ///  this counter. Two adapters over the same entity - which is the REST
     ///  client's normal shape - therefore cannot hand out the same identity,
-    ///  which is the only collision that would matter. </summary>
+    ///  which is the only collision that would matter.
+    ///
+    ///  SINCE ISSUE #265 A SECOND INSTANTIATION WRITES INTO THAT COLUMN, and
+    ///  the invariant above survives only because of how. A master row read
+    ///  from the store has no identity, and _EnsureMasterRowToken gives it one
+    ///  from the CHILD's DoBeforeInsert - that is, with Self being the child
+    ///  adapter, whose counter is a different one. Taking the value from there
+    ///  hands the master a number out of the child entity's sequence, and a
+    ///  later master row eventually receives the same number: measured at
+    ///  [live M1=27] [minted M2=125] [live M3=28], and issue #261 comes back
+    ///  as a collision. The value is therefore taken through _MintRowToken,
+    ///  which is VIRTUAL, so the call lands on the master's own instantiation
+    ///  and the column keeps receiving values from one sequence only.
+    ///
+    ///  THAT RESTS ON AN ASSUMPTION THE COMPILER DOES NOT CHECK. The master is
+    ///  reached through a cast that lies - TDataSetBaseAdapter<M of the master>
+    ///  held as TDataSetBaseAdapter<M of the child> - so the virtual call is
+    ///  dispatched through a VMT slot index resolved against the CHILD's
+    ///  instantiation and executed against the MASTER's. It works because both
+    ///  instantiations are generated from the same declaration and so lay out
+    ///  the same slots; nothing enforces that, and inserting a virtual method
+    ///  in the middle of a section moves every slot after it. Pinned
+    ///  behaviourally by Test.Janus.AutoInc.Distribution
+    ///  .MintedMasterIdentity_ComesFromTheMasterOwnSequence, which is the only
+    ///  thing standing between that assumption and silence. </summary>
     FRowTokenSeq: Integer;
   private
     FOrmDataSetEvents: TDataSetLocal;
@@ -107,9 +131,8 @@ type
     procedure DoBeforeCancel(DataSet: TDataSet); virtual;
     procedure DoAfterCancel(DataSet: TDataSet); virtual;
     procedure DoNewRecord(DataSet: TDataSet); virtual;
-    function _MintRowToken: Integer; virtual;
-    function _EnsureMasterRowToken(
-      const AMaster: TDataSetBaseAdapter<M>): Integer;
+    procedure _EnsureMasterRowToken(
+      const AMaster: TDataSetBaseAdapter<M>);
     procedure GetDataSetEvents; virtual;
     procedure SetDataSetEvents; virtual;
     procedure DisableDataSetEvents; virtual;
@@ -127,6 +150,14 @@ type
     procedure FillMastersClass(const ADatasetBase: TDataSetBaseAdapter<M>; AObject: M); virtual;
     function IsAssociationUpdateCascade(ADataSetChild: TDataSetBaseAdapter<M>;
       AColumnsNameRef: String): Boolean; virtual;
+    /// <summary> DECLARADO NO FIM DA SECAO DE PROPOSITO. Acrescentar um metodo
+    ///  virtual no MEIO de uma secao desloca o slot de VMT de todos os
+    ///  virtuais seguintes, o que e inocuo numa recompilacao total e nao e
+    ///  inocuo para um descendente compilado antes. Alem disso este metodo e
+    ///  chamado por despacho virtual atraves de um cast entre instanciacoes -
+    ///  ver o comentario de FRowTokenSeq - de modo que a estabilidade do slot
+    ///  e exatamente a premissa de que ele depende. </summary>
+    function _MintRowToken: Integer; virtual;
   public
     constructor Create(ADataSet: TDataSet; APageSize: Integer;
       AMasterObject: TObject); overload; override;
@@ -192,7 +223,6 @@ const
   ///  framework the community consumes is not the place to put a private
   ///  convention. </summary>
   cNoRowToken = 0;
-
 
 { TDataSetBaseAdapter<M> }
 
@@ -685,11 +715,13 @@ begin
   // A identidade do master e garantida AQUI, e nao no DoNewRecord, e o lugar e
   // o conserto. Data.DB.pas, TDataSet.BeginInsertAppend, chama CheckBrowseMode,
   // CheckCanModify e so entao DoBeforeInsert - de modo que ESTA linha ainda
-  // esta em dsBrowse e ainda nao esta Modified. Cunhar a identidade do master
-  // daqui significa que o deCheckBrowseMode que o Edit do master emite chega a
-  // um detalhe em dsBrowse, onde CheckBrowseMode nao faz nada. Do DoNewRecord
-  // ele chegava a um detalhe em dsInsert e JA Modified - porque
-  // _StampRowTokens escreve o RowToken proprio antes.
+  // esta em dsBrowse e ainda nao esta Modified quando o master e escrito.
+  // Escrever no master reentra no detalhe pelo deDataSetChange do Post, que
+  // chega a TCustomClientDataSet.MasterChanged e la a PRIMEIRA instrucao e
+  // CheckBrowseMode; de dsBrowse isso nao faz nada, de dsInsert e Modified -
+  // que e o estado que o DoNewRecord oferecia, porque _StampRowTokens grava o
+  // RowToken proprio antes - postava a linha pela metade. Ver o cabecalho de
+  // _EnsureMasterRowToken.
   // Checa o Attributo "FieldEvents()" nos TFields somente uma vez
   if FCheckedFieldEvents then
     Exit;
@@ -802,7 +834,6 @@ begin
   if LDataSet.IsEmpty then
     Exit;
   AAdapter.DisableDataSetEvents;
-  LDataSet.DisableControls;
   LMark := LDataSet.GetBookmark;
   try
     LDataSet.First;
@@ -817,7 +848,6 @@ begin
     if LDataSet.BookmarkValid(LMark) then
       LDataSet.GotoBookmark(LMark);
     LDataSet.FreeBookmark(LMark);
-    LDataSet.EnableControls;
     AAdapter.EnableDataSetEvents;
   end;
 end;
@@ -1197,73 +1227,80 @@ end;
 ///  entre si, e o primeiro deles escreve nos filhos do segundo. Medido por
 ///  TwoUnidentifiedPendingMasters_ChildOfTheFirstIsNotClaimedByTheSecond.
 ///
-///  AS TRES GUARDAS DA ESCRITA, cada uma com o seu motivo medido.
+///  AS GUARDAS DA ESCRITA, cada uma com o seu motivo medido.
 ///
-///  1. O LUGAR DA CHAMADA - e esta e a guarda que realmente vale.
-///  _EnsureMasterRowToken e chamado de DoBeforeInsert, NAO de DoNewRecord.
-///  Data.DB.pas, TDataSet.BeginInsertAppend, faz CheckBrowseMode,
-///  CheckCanModify e so entao DoBeforeInsert - de modo que a linha do filho
-///  ainda esta em dsBrowse e ainda nao esta Modified quando o master e
-///  escrito. Do DoNewRecord ela ja estava em dsInsert E Modified, porque
-///  _StampRowTokens grava o RowToken proprio antes, e o Edit no master emitia
-///  deCheckBrowseMode que desce por cada TDataSource ate
-///  TMasterDataLink.CheckBrowseMode e chama CheckBrowseMode NO DETALHE, que
-///  fazia "if Modified then Post" e postava o filho pela metade de dentro do
-///  proprio insert dele.
-///  MEDIDO NA FAMILIA CERTA, e a familia importa: com o par ligado,
-///  TFDMasterDataLink.DataEvent tem um ramo de scroll adiado que captura o
-///  evento e RETORNA antes da guarda de deCheckBrowseMode, de modo que o
-///  detalhe FireDAC nunca e alcancado e a fixture daquela familia nao
-///  distingue as duas posicoes. O TClientDataSet usa o TMasterDataLink puro da
-///  RTL, que nao tem esse ramo. Voltar a chamada para o DoNewRecord derruba
-///  ClientDataSetLinkedAsTheRestClientDoes_MintingDoesNotPostTheChild - e so
-///  ela - com "Dataset not in edit or insert mode", que e o filho postado no
-///  meio do proprio insert. Os filhos do cliente REST tem MasterSource por
-///  construcao, nas duas familias.
-///  O par DisableControls/EnableControls em volta da escrita fica como cinto e
-///  suspensorio e NENHUM teste o defende: retira-lo nao avermelha nada, agora
-///  que a chamada esta no lugar certo. Esta escrito que e uma guarda sem
-///  medicao em vez de deixar parecer que tem.
+///  1. O LUGAR DA CHAMADA. _EnsureMasterRowToken e chamado de DoBeforeInsert e
+///  nao de DoNewRecord. Data.DB.pas, TDataSet.BeginInsertAppend, faz
+///  CheckBrowseMode, CheckCanModify e so entao DoBeforeInsert - de modo que a
+///  linha do filho ainda esta em dsBrowse e ainda nao esta Modified quando o
+///  master e escrito.
+///  QUAL E A PERNA DE REENTRADA, corrigido: nao e o deCheckBrowseMode do Edit.
+///  E o deDataSetChange, emitido pelo Post do master (e pelo EnableControls,
+///  quando ha um par de controles), que desce por TDataLink.DataEvent ->
+///  DataSetChanged -> RecordChanged(nil) -> TMasterDataLink.RecordChanged ->
+///  FOnMasterChange -> TCustomClientDataSet.MasterChanged, cuja PRIMEIRA
+///  instrucao e CheckBrowseMode (Datasnap.DBClient.pas). Um detalhe em
+///  dsInsert e Modified alcancado por ai e POSTADO pela metade.
+///  MEDIDO NA FAMILIA CERTA, e a familia importa: TFDDataSet.MasterChanged
+///  chama CheckMasterRange e NAO CheckBrowseMode, entao a familia FireDAC nao
+///  chega a esse ponto e a fixture dela nao distingue as duas posicoes da
+///  chamada. O TClientDataSet chega. Voltar a chamada para o DoNewRecord
+///  derruba ClientDataSetLinkedAsTheRestClientDoes_MintingDoesNotPostTheChild -
+///  e so ela - com "Dataset not in edit or insert mode". Os filhos do cliente
+///  REST tem MasterSource por construcao, nas duas familias.
 ///
-///  2. SO EM dsBrowse. Se o operador esta com a linha do master aberta em
-///  dsEdit, escrever o token deixa Modified=True numa edicao que ele nao
-///  terminou. O proximo CheckBrowseMode implicito faz "if Modified then Post
-///  else Cancel" e comita por ele; na familia local o ModifiedFields.Count > 0
-///  ainda segura o UPDATE, mas TRESTDataSetAdapter<M>.ApplyUpdater manda PUT
-///  para todo dsEdit. E se ele CANCELAR, o token do master volta a zero
-///  enquanto o filho continua nomeando N, e _IsOwnedByMasterRow passa a
-///  responder False para o proprio pai. Nada disso vale a identidade: em
-///  dsEdit o metodo devolve cNoRowToken e o filho cai no comportamento
-///  historico. Medido por
-///  ChildTypedWhileTheMasterRowIsBeingEdited_DoesNotCommitThatEdit.
-///  O preco escolhido: o filho fica sem proveniencia e cai no comportamento
-///  historico, que e uma perda estreita, em vez de uma escrita silenciosa.
+///  2. NENHUM IRMAO COM LINHA ABERTA - ver o laco abaixo. A perna de reentrada
+///  acima alcanca os OUTROS filhos do mesmo master, que nao estao em dsBrowse
+///  so porque este esta. Nao ha guarda que a cale e ainda deixe a escrita
+///  acontecer: DisableControls cala o deCheckBrowseMode mas e o proprio
+///  EnableControls que reemite o deDataSetChange, e o Post o emite de qualquer
+///  jeito. Medido nos dois sentidos: com um irmao em dsInsert e Modified ele
+///  era postado COM e SEM DisableControls. Por isso a escrita e recusada em vez
+///  de blindada, e por isso NAO ha DisableControls aqui - acrescenta-lo de
+///  volta hoje nao muda teste nenhum, medido, e uma clausula que nada defende
+///  nao entra. Medido por
+///  MintingWithASiblingChildMidInsert_DoesNotPostThatSibling.
 ///
-///  3. IsEmpty. A RTL defende esta sozinha, e o julgamento anterior estava
-///  INVERTIDO: Data.DB.pas, TDataSet.Edit -> "if FRecordCount = 0 then
-///  Insert". Sem a guarda, cunhar num master vazio escreveria num buffer de
-///  INSERCAO e o Post logo abaixo FABRICARIA uma linha de master que ninguem
-///  pediu. Nenhum teste avermelhava ao retira-la, e isso nao era sinal de que
-///  ela sobrava: era a assinatura de um buraco de cobertura, agora fechado por
+///  3. SO EM dsBrowse. Nao e sinonimo de "nao esta em dsEdit": cobre tambem o
+///  master ainda em INSERCAO, e os dois casos sao recusados pelo mesmo motivo -
+///  escrever num buffer que o chamador nao comitou faz o valor sair no Post
+///  dele ou sumir no Cancel dele. Medido por
+///  ChildTypedWhileTheMasterRowIsBeingEdited_DoesNotCommitThatEdit e por
+///  ChildTypedUnderAMutedMasterStillInserting_RecordsNoParentage.
+///
+///  4. IsEmpty. A RTL defende esta sozinha: Data.DB.pas, TDataSet.Edit ->
+///  "if FRecordCount = 0 then Insert". Sem a guarda, cunhar num master vazio
+///  escreveria num buffer de INSERCAO e o Post FABRICARIA uma linha de master
+///  que ninguem pediu. Medido por
 ///  ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow.
 ///
-///  QUANDO NAO HA RESPOSTA POSSIVEL responde cNoRowToken. Sao CINCO os
-///  produtores desse zero, e nao quatro: dataset nulo, fechado, vazio, sem a
-///  coluna, e - este COM linha onde gravar - a linha nao estar em dsBrowse. O
-///  filho fica em cNoRowToken e cai no comportamento historico.
-///  O CONTADOR e o mesmo FRowTokenSeq do #264, agora consumido tambem aqui,
-///  sempre pela instanciacao do MASTER via _MintRowToken. Ele e um Integer que
-///  so cresce e nunca reseta, de modo que depois de 2^32 carimbos DA A VOLTA
-///  sem excecao. Nada aqui se apoia em unicidade eterna - a comparacao e
-///  sempre entre um filho e o master vivo ao lado dele, dentro de um mesmo
-///  ApplyUpdates - mas a volta existe e nao esta tratada. </summary>
-function TDataSetBaseAdapter<M>._EnsureMasterRowToken(
-  const AMaster: TDataSetBaseAdapter<M>): Integer;
+///  SETE SAIDAS EM cNoRowToken, e a conta importa porque e o que sustenta o
+///  "Refs" em vez do "Closes": AMaster nulo, dataset nulo, dataset fechado,
+///  dataset vazio, coluna ausente, linha fora de dsBrowse, e irmao com linha
+///  aberta. Em todas o filho fica sem proveniencia e cai no comportamento
+///  historico - continua reivindicavel por qualquer master pendente, como
+///  antes do #265. As QUATRO alcancaveis por um consumidor - dataset vazio,
+///  linha em dsEdit, linha em dsInsert sob adapter mudo, e irmao com linha
+///  aberta - estao fixadas pelas fixtures nomeadas acima. As outras tres
+///  (AMaster nulo, dataset nulo ou fechado, coluna ausente) sao defensivas e
+///  nenhuma fixture as alcanca.
+///  PROCEDURE E NAO FUNCTION. O valor nao e devolvido porque nao pode ser
+///  transportado com honestidade: entre a cunhagem e a leitura que
+///  _StampRowTokens faz no DoNewRecord passam um Post, um Resync e a cascata de
+///  MasterChanged, e um Integer levado de um instante para o outro pareceria
+///  uma garantia estrutural que na verdade seria circunstancial. Quem le a
+///  identidade e _MasterRowToken, na coluna, no momento em que ela e usada.
+///  O CONTADOR e o mesmo FRowTokenSeq do #264, consumido aqui pela
+///  instanciacao do MASTER via _MintRowToken - ver o comentario daquele campo,
+///  que e onde a invariante e a sua premissa nao verificavel estao escritas.
+///  </summary>
+procedure TDataSetBaseAdapter<M>._EnsureMasterRowToken(
+  const AMaster: TDataSetBaseAdapter<M>);
 var
   LDataSet: TDataSet;
   LField: TField;
+  LChild: TDataSetBaseAdapter<M>;
 begin
-  Result := cNoRowToken;
   if AMaster = nil then
     Exit;
   LDataSet := AMaster.FOrmDataSet;
@@ -1276,21 +1313,37 @@ begin
   LField := LDataSet.FindField(cRowTokenField);
   if LField = nil then
     Exit;
-  Result := LField.AsInteger;
-  if Result <> cNoRowToken then
+  if LField.AsInteger <> cNoRowToken then
     Exit;
   if LDataSet.State <> dsBrowse then
     Exit;
-  LDataSet.DisableControls;
+  // NENHUM OUTRO FILHO DESTE MASTER PODE ESTAR COM LINHA ABERTA. Escrever na
+  // linha do master notifica os detalhes por dois caminhos da RTL e os dois
+  // terminam em CheckBrowseMode do detalhe, que faz "if Modified then Post":
+  // o deCheckBrowseMode do Edit, quando os controles nao estao desabilitados,
+  // e o deDataSetChange que o Post e o EnableControls emitem, que desce por
+  // TDataLink.DataSetChanged -> RecordChanged(nil) ->
+  // TMasterDataLink.RecordChanged -> FOnMasterChange ->
+  // TCustomClientDataSet.MasterChanged, cuja PRIMEIRA instrucao e
+  // CheckBrowseMode. Medido: com um irmao em dsInsert e Modified, ele era
+  // POSTADO pela metade - com e sem DisableControls, porque o segundo caminho
+  // passa pelos dois. Nao ha guarda que cale os dois lados e ainda deixe a
+  // escrita acontecer, entao a escrita nao acontece: o filho que esta sendo
+  // digitado fica sem proveniencia e cai no comportamento historico, que e uma
+  // perda estreita ao lado de comitar a linha que o operador nao terminou.
+  // Medido por MintingWithASiblingChildMidInsert_DoesNotPostThatSibling.
+  for LChild in AMaster.FMasterObject.Values do
+    if (LChild <> nil) and (LChild.FOrmDataSet <> nil) and
+       LChild.FOrmDataSet.Active and
+       (LChild.FOrmDataSet.State in dsEditModes) then
+      Exit;
   AMaster.DisableDataSetEvents;
   try
     LDataSet.Edit;
     LField.AsInteger := AMaster._MintRowToken;
-    Result := LField.AsInteger;
     LDataSet.Post;
   finally
     AMaster.EnableDataSetEvents;
-    LDataSet.EnableControls;
   end;
 end;
 
