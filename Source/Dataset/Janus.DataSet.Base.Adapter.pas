@@ -1248,6 +1248,13 @@ end;
 ///  the family that was once said to be out of reach, by
 ///  FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild - drop
 ///  the descent and BOTH report "Measured state: dsBrowse".
+///  THE OPEN-ROW TEST ITSELF - the only clause here that ever answers True - is
+///  pinned in BOTH families at BOTH depths, and dropping it reddens FIVE:
+///  MintingWithASiblingChildMidInsert_DoesNotPostThatSibling and
+///  FDMemTable_MintingWithASiblingChildMidInsert_DoesNotPostThatSibling at one
+///  level, the two grandchild fixtures at three, and
+///  MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice on the
+///  price it charges.
 ///  IT ASKS ABOUT STATE, NOT ABOUT Modified, and that is deliberate and
 ///  measured - see the item 2 of the header of _EnsureMasterRowToken and
 ///  MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice, which
@@ -1367,6 +1374,31 @@ end;
 ///  o master dele estao AMBOS em dsEditModes, o que um nivel do meio em
 ///  dsBrowse nao satisfaz. Medido em arvore de tres niveis por
 ///  FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild.
+///  E NAO PRECISA DE NIVEL DO MEIO, o que corrige uma leitura estreita: quem
+///  teria de estar em dsEditModes para o desvio valer e o MASTER, e Data.DB
+///  .pas, TDataSet.Edit, roda o CheckBrowseMode ANTES do SetState(dsEdit) - de
+///  modo que naquele instante o master esta em dsBrowse e um IRMAO DIRETO e
+///  alcancado com UM salto so. Medido por
+///  FDMemTable_MintingWithASiblingChildMidInsert_DoesNotPostThatSibling.
+///  SAO DUAS AS MITIGACOES PROPRIAS DA FAMILIA FIREDAC, E NAO UMA - correcao de
+///  uma frase estritamente otimista demais que este cabecalho carregou, a de
+///  que a isolacao daquela familia tem "uma perna de largura". A primeira e a
+///  de cima, o TFDDataSet.MasterChanged que chama CheckMasterRange e nao
+///  CheckBrowseMode, e que mata a perna do deDataSetChange. A SEGUNDA e o
+///  proprio desvio do TFDMasterDataLink.DataEvent, na OUTRA METADE da escrita
+///  daqui: a escrita e Edit, atribuicao e Post, e o Data.DB.pas, TDataSet.Post,
+///  roda UpdateRecord e emite o deCheckBrowseMode de DENTRO do ramo
+///  dsEdit/dsInsert, antes do SetState(dsBrowse) - de modo que naquele instante
+///  o MASTER esta em dsEdit. As duas metades do teste passam a valer para
+///  qualquer detalhe ainda em dsEditModes, o desvio DISPARA e aquele detalhe e
+///  poupado. O TClientDataSet nao tem equivalente: o TMasterDataLink do
+///  Data.DB.pas nao sobrescreve DataEvent, entao o evento chega ao
+///  TDataLink.DataEvent e vira CheckBrowseMode sem excecao nenhuma.
+///  E ISSO NAO SALVA NADA AQUI, que e por que a correcao nao muda veredito
+///  algum: o estrago ja entrou pela perna do Edit uma linha antes, onde o
+///  master ainda esta em dsBrowse e o desvio nao dispara. Quando o Post chega
+///  com o desvio armado, nao ha mais linha aberta para poupar. A afirmacao que
+///  as fixtures medem esta corretamente escopada ao TDataSet.Edit.
 ///
 ///  2. NENHUM DETALHE COM LINHA ABERTA, EM NIVEL NENHUM - ver
 ///  _AnyDetailRowOpen.
@@ -1389,6 +1421,10 @@ end;
 ///  FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild:
 ///  removida a descida recursiva, os DOIS gemeos de tres niveis medem
 ///  "dsBrowse" para o neto, o do FireDAC junto com o do ClientDataSet.
+///  E A UM NIVEL TAMBEM NAS DUAS, que era a forma que faltava medir:
+///  FDMemTable_MintingWithASiblingChildMidInsert_DoesNotPostThatSibling poe um
+///  irmao DIRETO em dsInsert e Modified, e removido o teste de linha aberta ele
+///  reporta "Measured state: dsBrowse" - o irmao foi POSTADO pela metade.
 ///  "ABERTA" QUER DIZER "State in dsEditModes" E NAO "Modified", E ISSO TEM UM
 ///  PRECO QUE ESTA MEDIDO. Uma linha ja gravada, posta em dsEdit e nao tocada,
 ///  seria CANCELADA e nao postada pelo CheckBrowseMode - nada se perderia - e
@@ -1493,11 +1529,13 @@ begin
   // proprio estado - de modo que o nivel do meio estar em dsBrowse nao segura
   // nada, e um neto aberto e Modified era postado. Uma recusa de um nivel so
   // olhava para o meio, nao via nada aberto, e deixava a escrita passar.
-  // Medido por MintingWithASiblingChildMidInsert_DoesNotPostThatSibling, um
+  // Medido por MintingWithASiblingChildMidInsert_DoesNotPostThatSibling e por
+  // FDMemTable_MintingWithASiblingChildMidInsert_DoesNotPostThatSibling, um
   // nivel, e por MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild e
   // FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild, dois
-  // niveis nas DUAS familias - a do FireDAC tambem, ao contrario do que uma
-  // frase deste cabecalho chegou a afirmar. E "aberta" quer dizer
+  // niveis - as DUAS familias nas DUAS profundidades, a do FireDAC tambem, ao
+  // contrario do que uma frase deste cabecalho chegou a afirmar. E "aberta"
+  // quer dizer
   // "State in dsEditModes", nao "Modified": o preco dessa largura esta medido
   // e fixado por
   // MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice.
