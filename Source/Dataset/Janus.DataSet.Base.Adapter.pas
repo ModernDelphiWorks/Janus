@@ -1380,6 +1380,25 @@ end;
 ///  modo que naquele instante o master esta em dsBrowse e um IRMAO DIRETO e
 ///  alcancado com UM salto so. Medido por
 ///  FDMemTable_MintingWithASiblingChildMidInsert_DoesNotPostThatSibling.
+///  SAO DUAS AS MITIGACOES PROPRIAS DA FAMILIA FIREDAC, E NAO UMA - correcao de
+///  uma frase estritamente otimista demais que este cabecalho carregou, a de
+///  que a isolacao daquela familia tem "uma perna de largura". A primeira e a
+///  de cima, o TFDDataSet.MasterChanged que chama CheckMasterRange e nao
+///  CheckBrowseMode, e que mata a perna do deDataSetChange. A SEGUNDA e o
+///  proprio desvio do TFDMasterDataLink.DataEvent, na OUTRA METADE da escrita
+///  daqui: a escrita e Edit, atribuicao e Post, e o Data.DB.pas, TDataSet.Post,
+///  roda UpdateRecord e emite o deCheckBrowseMode de DENTRO do ramo
+///  dsEdit/dsInsert, antes do SetState(dsBrowse) - de modo que naquele instante
+///  o MASTER esta em dsEdit. As duas metades do teste passam a valer para
+///  qualquer detalhe ainda em dsEditModes, o desvio DISPARA e aquele detalhe e
+///  poupado. O TClientDataSet nao tem equivalente: o TMasterDataLink do
+///  Data.DB.pas nao sobrescreve DataEvent, entao o evento chega ao
+///  TDataLink.DataEvent e vira CheckBrowseMode sem excecao nenhuma.
+///  E ISSO NAO SALVA NADA AQUI, que e por que a correcao nao muda veredito
+///  algum: o estrago ja entrou pela perna do Edit uma linha antes, onde o
+///  master ainda esta em dsBrowse e o desvio nao dispara. Quando o Post chega
+///  com o desvio armado, nao ha mais linha aberta para poupar. A afirmacao que
+///  as fixtures medem esta corretamente escopada ao TDataSet.Edit.
 ///
 ///  2. NENHUM DETALHE COM LINHA ABERTA, EM NIVEL NENHUM - ver
 ///  _AnyDetailRowOpen.

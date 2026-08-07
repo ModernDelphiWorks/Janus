@@ -362,11 +362,33 @@
       "Measured state: dsBrowse" - while the ClientDataSet sibling asserts its
       price FIRST and so fails on "Expected [0] but got [33]" and never gets to
       report a state at all;
-    * dropping the RECURSIVE DESCENT alone -> the three fixtures whose open row
-      is more than one level down: the two grandchild ones, both reporting
-      "Measured state: dsBrowse", and the untouched-dsEdit one, reporting
-      "Expected [KEEP] but got [CTRL]" - the untouched row was POSTED carrying
-      what the control wrote;
+    * NARROWING THE DIRECT CHILD TEST TO THE ClientDataSet FAMILY, with the
+      recursive descent left whole -> ONE red in 499, and it is
+      FDMemTable_MintingWithASiblingChildMidInsert_DoesNotPostThatSibling. This
+      is the sharpest row in this table, and it is why that fixture exists. The
+      mutation above DELETES the open-row test outright, which disarms the
+      sibling clause and the descent together and cannot tell the two apart;
+      this one separates them. It keeps the descent, so both grandchild fixtures
+      and the untouched-dsEdit one stay green - their open row is caught one
+      level further down by the walk, which is left unnarrowed - and it narrows
+      ONLY the test applied to a DIRECT child, to datasets of the
+      TCustomClientDataSet family. That is literally the regression this shape
+      exists to prevent: a later change accepting the old "the FireDAC family
+      never reaches the post" sentence and scoping the sibling clause to match.
+      Measured, full rebuild: Tests Found 499, Tests Passed 498, Tests Failed 1,
+      on "Condition is False when True expected. [the SIBLING must still be
+      sitting in dsInsert, in the FIREDAC family too and at ONE level ...
+      Measured state: dsBrowse]". ONE red, and it is the new fixture - nothing
+      else in this project answers that question;
+    * dropping the RECURSIVE DESCENT alone -> 496 of 499, three reds, and they
+      are the three fixtures whose open row is more than one level down: the two
+      grandchild ones, both reporting "Measured state: dsBrowse", and the
+      untouched-dsEdit one, reporting "Expected [KEEP] but got [CTRL]" - the
+      untouched row was POSTED carrying what the control wrote. BOTH SIBLING
+      FIXTURES STAY GREEN under it, which is the complement of the row above and
+      what makes the pair a partition rather than two views of one thing: the
+      narrowing reddens the one level FireDAC shape and nothing else, this one
+      reddens everything BUT the one level shapes;
     * narrowing the open-row test to `and Modified` ->
       MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice ALONE,
       on that same KEEP/CTRL clause. Remove the OnUpdateData handler as well and
@@ -2489,6 +2511,8 @@ var
   LState: TDataSetState;
   LOtherToken: Integer;
   LRootToken: Integer;
+  LRows: Integer;
+  LTag: String;
 
   procedure Wire(const AChild: TFDMemTable);
   var
@@ -2533,14 +2557,35 @@ begin
   //   CheckBrowseMode, and "if Modified then Post" commits the row the operator
   //   had open.
   //
-  // So the isolation the FireDAC family gets is exactly ONE leg wide. The
-  // deDataSetChange leg dies at TFDDataSet.MasterChanged, which calls
+  // THE FIREDAC FAMILY HAS TWO MITIGATIONS OF ITS OWN, NOT ONE, and an earlier
+  // wording of this comment named only the first. It said the isolation that
+  // family gets is "exactly ONE leg wide", meaning the deDataSetChange leg,
+  // which dies at TFDDataSet.MasterChanged because that method calls
   // CheckMasterRange and not CheckBrowseMode - see
-  // LinkedAsTheRestClientDoes_MintingDoesNotPostTheChild. This leg does not die
-  // anywhere, and it does not need a mid level to get through: one hop is
-  // enough, because the ONLY state that would earn the early return is the
-  // master's own, and the master cannot be mid-edit at the instant it is about
-  // to enter dsEdit.
+  // LinkedAsTheRestClientDoes_MintingDoesNotPostTheChild. That is true, and it
+  // is not the whole count.
+  //
+  // THE SECOND ONE IS THE EXEMPTION ITSELF, ON THE OTHER HALF OF THE MINT. The
+  // write is Edit, assign, Post. Data.DB.pas, TDataSet.Post, runs UpdateRecord
+  // and then emits deCheckBrowseMode from INSIDE its dsEdit/dsInsert branch,
+  // before SetState(dsBrowse) - so at that instant the MASTER is in dsEdit.
+  // Both halves of the test in TFDMasterDataLink.DataEvent are then satisfied
+  // for any detail still sitting in dsEditModes, the early return DOES fire,
+  // and that detail is spared. The ClientDataSet family has no counterpart:
+  // TMasterDataLink in Data.DB.pas does not override DataEvent at all, so the
+  // event reaches TDataLink.DataEvent and is mapped onto CheckBrowseMode with
+  // no exception of any kind.
+  //
+  // AND IT SAVES NOTHING HERE, which is why the correction changes no verdict.
+  // The damage has already entered through the Edit one line earlier:
+  // TDataSet.Edit runs CheckBrowseMode BEFORE SetState(dsEdit), so on THAT
+  // emission the master is still in dsBrowse, the exemption does not fire, and
+  // the sibling is posted. By the time the Post leg comes round with its
+  // exemption armed, there is no open row left for it to spare. The claim this
+  // fixture measures is therefore correctly scoped to TDataSet.Edit, and it
+  // does not need a mid level to get through: one hop is enough, because the
+  // ONLY state that would earn the early return is the master's own, and the
+  // master cannot be mid-edit at the instant it is about to enter dsEdit.
   //
   // MEASURED BY MUTATION AND NOT BY VERSION, because the clause it defends is
   // already shipped and this fixture is therefore green as it stands. Remove
@@ -2618,6 +2663,23 @@ begin
 
       LOtherTable.Append;
       LState := LMidTable.State;
+      // POST OR CANCEL, and the state alone does not say which. dsBrowse is
+      // where BOTH exits land, so "Measured state: dsBrowse" on its own is
+      // consistent with the row having been thrown away as well as with it
+      // having been written out. These two go into the MESSAGE of the state
+      // clause rather than into a clause of their own, and the reason is that a
+      // clause of their own could not earn its place: State = dsInsert already
+      // entails that no Post happened, so a row-count assertion can never be
+      // the first to fail, and asserted after the state clause DUnitX would
+      // never reach it. In the message they cost no assertion and they land
+      // exactly where the question gets asked - in the red. Measured under the
+      // mutation that narrows the direct-child test to the ClientDataSet
+      // family: rows 1, tag HALF. The row was WRITTEN, not discarded.
+      LRows := LMidTable.RecordCount;
+      if LMidTable.IsEmpty then
+        LTag := '<empty>'
+      else
+        LTag := LMidTable.FieldByName(cTAG).AsString;
       LOtherToken := LOtherTable.FieldByName(cOWNERTOKEN).AsInteger;
       LRootToken := LRootTable.FieldByName(cROWTOKEN).AsInteger;
     finally
@@ -2651,7 +2713,11 @@ begin
     'mid-edit, and a master about to enter dsEdit is in dsBrowse - so writing ' +
     'an identity on the master row reaches a half typed row in another detail ' +
     'and commits whatever the operator had got to. Measured state: ' +
-    GetEnumName(TypeInfo(TDataSetState), Ord(LState)));
+    GetEnumName(TypeInfo(TDataSetState), Ord(LState)) +
+    ', saved rows in the sibling table: ' + IntToStr(LRows) +
+    ', tag on its current row: ' + LTag +
+    ' - which is what tells a POST from a CANCEL, since both of them land in ' +
+    'dsBrowse and only one of them writes the half typed row out');
   Assert.AreEqual(cNOTOKEN, LOtherToken,
     'and the child being typed records NO parentage - the price of refusing ' +
     'the write, stated rather than hidden: that child falls back to the ' +
@@ -2675,6 +2741,8 @@ var
   LOther: TFDMemTableAdapter<TAitNoCascade>;
   LState: TDataSetState;
   LOtherToken: Integer;
+  LRows: Integer;
+  LTag: String;
 
   procedure Wire(const AChild: TFDMemTable; const ASource: TDataSource;
     const AField: String);
@@ -2795,6 +2863,14 @@ begin
       // before DoBeforeInsert. TAitNoCascade has no details of its own.
       LOtherTable.Append;
       LState := LLeafTable.State;
+      // POST OR CANCEL - see the note in the one level twin. dsBrowse is where
+      // both exits land, so the count and the tag ride in the MESSAGE of the
+      // state clause instead of in a clause that could never fail first.
+      LRows := LLeafTable.RecordCount;
+      if LLeafTable.IsEmpty then
+        LTag := '<empty>'
+      else
+        LTag := LLeafTable.FieldByName(cTAG).AsString;
       LOtherToken := LOtherTable.FieldByName(cOWNERTOKEN).AsInteger;
     finally
       // Links down BEFORE anything else, deepest first - cancelling a row while
@@ -2831,7 +2907,10 @@ begin
     'too. deCheckBrowseMode does not stop at the level below the master, and ' +
     'TFDMasterDataLink only steps out of its way when the detail AND its own ' +
     'master are both mid-edit - which a mid level in dsBrowse is not. ' +
-    'Measured state: ' + GetEnumName(TypeInfo(TDataSetState), Ord(LState)));
+    'Measured state: ' + GetEnumName(TypeInfo(TDataSetState), Ord(LState)) +
+    ', saved rows in the grandchild table: ' + IntToStr(LRows) +
+    ', tag on its current row: ' + LTag +
+    ' - which is what tells a POST from a CANCEL, since both land in dsBrowse');
   Assert.AreEqual(cNOTOKEN, LOtherToken,
     'and the child being typed records NO parentage: the refusal is what ' +
     'protected the grandchild, and the price is asserted here so that "the ' +
