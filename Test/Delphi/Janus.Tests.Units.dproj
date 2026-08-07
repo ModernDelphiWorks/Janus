@@ -142,6 +142,7 @@
         <DCCReference Include="Common\Test.Janus.Model.AutoIncTree.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AsymKey.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.Nested.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.ReservedColumn.pas"/>
         <DCCReference Include="..\..\Examples\Delphi\Data\Object Lazy\Model.Atendimento.pas"/>
         <DCCReference Include="..\..\Examples\Delphi\Data\Object Lazy\Model.Exame.pas"/>
         <DCCReference Include="..\..\Examples\Delphi\Data\Object Lazy\Model.Procedimento.pas"/>

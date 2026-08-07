@@ -94,12 +94,21 @@ const
   ///
   ///  IT IS CREATED LAST ON PURPOSE - after the mapped columns, after the
   ///  internal state column that is then moved to index 0, and after the
-  ///  calculated fields. TBind._FillADTField and TBind._FillDataSetField copy
-  ///  source field N into ATarget.Fields[N + 1], which assumes exactly ONE
-  ///  column precedes the mapped ones; a column placed anywhere before them
-  ///  would shift every value one place to the right and no assertion in the
-  ///  suite would notice. Pinned by Test.Janus.AutoInc.Distribution
-  ///  .MappedColumnsKeepTheOffsetTheNestedFillReliesOn. </summary>
+  ///  calculated fields. The reason is NOT that the nested copiers always
+  ///  write to N + 1: TBind._FillADTField and the ADT/Mongo branch of
+  ///  TBind._FillDataSetField copy source field N into ATarget.Fields[N + 1],
+  ///  but the ordinary branch of TBind._FillDataSetField copies N into N. The
+  ///  reason is stronger than that and holds for all THREE loops: every one of
+  ///  them is bounded by the SOURCE's FieldCount, so a column appended at the
+  ///  END of the target is never reached and is inert. What would NOT be inert
+  ///  is an internal column placed BEFORE the mapped ones - it would break the
+  ///  + 1 the first two rely on and misalign the N-into-N of the third, and no
+  ///  assertion in the suite would notice. Pinned by
+  ///  Test.Janus.AutoInc.Distribution
+  ///  .MappedColumnsKeepTheOffsetTheNestedFillReliesOn.
+  ///  THE NAME IS RESERVED. TBind._AddReservedField refuses to create it over
+  ///  a column the entity already mapped under the same name, and says so.
+  ///  </summary>
   cRowTokenField = 'RowToken';
 
   /// <summary> Name of the column that carries the RowToken of the master row
