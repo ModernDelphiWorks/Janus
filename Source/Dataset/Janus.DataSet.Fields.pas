@@ -116,12 +116,37 @@ const
   ///  columns are needed and one is not enough: a mid row has to say both who
   ///  it is, for its own children, and whose child it is, for its parent.
   ///
-  ///  ZERO MEANS "NO PARENTAGE RECORDED", which is what a row created while the
-  ///  adapter's events were unhooked carries, since DoNewRecord is what writes
-  ///  it. TDataSetBaseAdapter<M>._IsOwnedByMasterRow answers True for such a
-  ///  row against every master, which is exactly the behaviour that shipped
-  ///  before this column existed. Pinned by Test.Janus.AutoInc.Distribution
-  ///  .UntokenisedRows_KeepTheHistoricalBehaviour. </summary>
+  ///  ZERO MEANS "NO PARENTAGE RECORDED", which is what a row created while
+  ///  THIS row's own adapter had its events unhooked carries, since
+  ///  TDataSetBaseAdapter<M>.DoNewRecord is what writes it.
+  ///  TDataSetBaseAdapter<M>._IsOwnedByMasterRow answers True for such a row
+  ///  against every master, which is exactly the behaviour that shipped before
+  ///  this column existed. Pinned by Test.Janus.AutoInc.Distribution
+  ///  .UntokenisedRows_KeepTheHistoricalBehaviour.
+  ///
+  ///  WHAT IT DOES *NOT* MEAN ANY MORE - issue #265. It used to be reached a
+  ///  second way, and that way was the dominant one: EVERY master row read from
+  ///  the store is itself untokenised, because TSessionDataSet<M>
+  ///  ._PopularDataSet appends with the adapter's events off and
+  ///  TBind.SetFieldToField skips both provenance columns by name - so a child
+  ///  typed under a listed master, with the CHILD's events perfectly live,
+  ///  recorded zero and was claimable by any other pending master. That is no
+  ///  longer a state this column can be in:
+  ///  TDataSetBaseAdapter<M>._EnsureMasterRowToken gives the master row an
+  ///  identity from the child's DoBeforeInsert - before the child row is even
+  ///  opened - so the child names a real parent.
+  ///
+  ///  ZERO IS STILL PRODUCED, AND THE LIST OF PRODUCERS IS NOT KEPT HERE. An
+  ///  earlier revision of this comment closed that list at three states and was
+  ///  already wrong by two when it shipped: a row typed under a master still
+  ///  mid-INSERT with its adapter muted, and a row typed while ANY detail of
+  ///  that master, at ANY depth, had a row open. The twin enumeration in
+  ///  TDataSetBaseAdapter<M>._EnsureMasterRowToken said FOUR while this one
+  ///  said three, and two closed lists in two units that disagree is worse than
+  ///  no list here at all. So this one makes no claim to be exhaustive: the
+  ///  MAINTAINED enumeration is the one on _EnsureMasterRowToken, which counts
+  ///  every exit that returns without minting, says which of them a consumer
+  ///  can reach, and names the fixture that pins each. </summary>
   cOwnerTokenField = 'OwnerToken';
 
 type

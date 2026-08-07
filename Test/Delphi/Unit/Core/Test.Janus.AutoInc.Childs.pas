@@ -1307,18 +1307,34 @@ begin
   // SECOND row is itself the proof that the row was still pending when the
   // second pass reached it, since _IsPendingInsertRow is what gates the write.
   //
-  // AND WHY THE SECOND PASS IS STILL ALLOWED TO WRITE HERE. Since issue #261
-  // was fixed, _AutoIncToChildRows also asks whether a pending child row
-  // BELONGS to the master row it is standing on, and the answer comes from the
-  // identity TDataSetBaseAdapter<M>.DoNewRecord records on every row it sees
-  // created. The two master rows below are appended with the adapter MUTED -
-  // which is what unhooks DoNewRecord - so no identity was ever recorded for
-  // them, and the cascade falls back to what it always did. That is not a
-  // narrative: the premise clause below reads the identity back and shows it
-  // is absent. The SAME shape with the events live is measured in
-  // Test.Janus.AutoInc.Distribution
-  // .FDMemTable_ChildrenTypedUnderTheFirstMaster_StayOnIt, and there the
-  // children stay on the master they were typed under.
+  // AND WHAT THE SECOND PASS DOES NOT DO ANY MORE - issue #265, and this
+  // paragraph replaces the one that stood here. Until #265 the two master rows
+  // below recorded NO identity, because appending them with the adapter muted
+  // is exactly what unhooks DoNewRecord, and _AutoIncToChildRows waves through
+  // any child whose parentage is unrecorded - so R1 wrote R2 children on its
+  // own pass and R2 wrote them again on its. This test pinned that as the
+  // documented fallback.
+  //
+  // It is not a fallback any more, it is closed.
+  // TDataSetBaseAdapter<M>._EnsureMasterRowToken gives a master ROW an identity
+  // the moment a child row starts being created under it, so a muted append no
+  // longer
+  // produces a master nobody can tell from another muted one. The children
+  // below are typed with their own events live, with the cursor on R2, and R2
+  // is the only row that writes them. The premise clauses further down still
+  // read 0 out of both master rows because they run BEFORE any child is typed -
+  // the identity is minted on demand, not at append time, and that ordering is
+  // what they now also document.
+  //
+  // WHY THE NAME OF THIS TEST IS STILL TRUE. The children are typed under R2,
+  // which is also the LAST pending master, so "every pending child ends on the
+  // last master key" holds under both readings; what changed is that it now
+  // holds because R2 is their PARENT rather than because it wrote last. The
+  // shape that tells the two apart - children typed under the FIRST of two
+  // untokenised masters - is Test.Janus.AutoInc.Distribution
+  // .TwoUnidentifiedPendingMasters_ChildOfTheFirstIsNotClaimedByTheSecond, and
+  // it is red against origin/develop and against the sentinel design that was
+  // measured and rejected.
   LGenCalls := 0;
   LGen := TRowsConnection.Create(dnSQLite, 1,
     procedure(const ADataSet: TFDMemTable)
@@ -1416,23 +1432,29 @@ begin
         'cannot tell which one the children ended on');
 
       LMid := WritesAt(cLEVELMID);
-      Assert.AreEqual(cGRANDS * 2, Length(LMid),
-        'every child row must have been written ONCE PER PENDING MASTER ROW - ' +
-        WriteLog);
+      Assert.AreEqual(cGRANDS, Length(LMid),
+        'every child row must have been written EXACTLY ONCE, by the master ' +
+        'row it was typed under. THIS CLAUSE CHANGED IN ISSUE #265 AND SAYS ' +
+        'SO: it used to read cGRANDS * 2 and to pin the second pass ' +
+        're-parenting the first pass work, because two masters appended with ' +
+        'the adapter muted recorded no identity and were therefore ' +
+        'indistinguishable from one another - so R1 wrote R2 children on its ' +
+        'own pass. TDataSetBaseAdapter<M>._EnsureMasterRowToken now gives a ' +
+        'master row an identity at the moment a child is stamped under it, so ' +
+        'there is no longer any such thing as two masters nobody can tell ' +
+        'apart, and the collapse this test used to document is gone rather ' +
+        'than narrowed. The FINAL STATE clauses below are untouched and still ' +
+        'pass - the children were typed under R2, which is also the last ' +
+        'pending master, so the name of this test is still literally what it ' +
+        'measures - ' + WriteLog);
       for LFor := 0 to cGRANDS - 1 do
       begin
-        Assert.AreEqual('R1', LMid[LFor].MasterTag,
-          'the first pass runs with the master on its first row - ' + WriteLog);
-        Assert.AreEqual(LKeyA, LMid[LFor].Value,
-          'and parents every child on that row key - ' + WriteLog);
-      end;
-      for LFor := cGRANDS to (cGRANDS * 2) - 1 do
-      begin
         Assert.AreEqual('R2', LMid[LFor].MasterTag,
-          'the second pass reaches the very same child rows, which is only ' +
-          'possible because they were still pending - ' + WriteLog);
+          'and the one write must be the pass of the master the children were ' +
+          'actually typed under. R1 appearing here is the cross claim issue ' +
+          '#265 closed - ' + WriteLog);
         Assert.AreEqual(LKeyB, LMid[LFor].Value,
-          'and re-parents them on the second master row - ' + WriteLog);
+          'carrying THAT row key - ' + WriteLog);
       end;
 
       Assert.AreEqual(0, CountWithKey(LChildTable, LKeyA),
