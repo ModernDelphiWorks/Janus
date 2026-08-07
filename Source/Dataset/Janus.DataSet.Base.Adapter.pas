@@ -93,6 +93,8 @@ type
     function _IsOwnedByMasterRow(const AChild: TDataSet;
       const AMasterToken: Integer): Boolean;
     function _MasterRowToken(const AMaster: TDataSet): Integer;
+    function _AnyDetailRowOpen(
+      const AAdapter: TDataSetBaseAdapter<M>): Boolean;
     procedure _RecurseOverChildRows(
       const AChildAdapter: TDataSetBaseAdapter<M>;
       const AMasterToken: Integer);
@@ -1212,6 +1214,56 @@ begin
   Result := AtomicIncrement(FRowTokenSeq);
 end;
 
+/// <summary> Says whether ANY detail of AAdapter, at ANY depth, is sitting on
+///  a row the operator has open. It ASKS and moves nothing: no cursor is
+///  advanced, no event is muted, no buffer is written.
+///  THE CASCADE IS RECURSIVE, SO THE REFUSAL HAS TO BE. Data.DB.pas,
+///  TDataSet.CheckBrowseMode, emits deCheckBrowseMode to its data sources
+///  FIRST and inspects its own state AFTER - so a detail sitting in dsBrowse
+///  stops nothing: its own CheckBrowseMode still emits the event onwards,
+///  reaching TMasterDataLink.CheckBrowseMode of ITS details, where
+///  "if Modified then Post" commits a row TWO levels below the master being
+///  written. Measured: with the middle level in dsBrowse and the leaf in
+///  dsInsert and Modified, a refusal that inspected only the direct children
+///  let the write through and the leaf came back dsBrowse - posted half typed.
+///  Pinned by MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild.
+///  NOT BUILT ON _RecurseOverChildRows, and the difference is not stylistic.
+///  That method walks the ROWS of ONE child adapter - First, Next and
+///  GotoBookmark - and runs SetAutoIncValueChilds on each of them, which
+///  WRITES. Both halves disqualify it here: advancing a detail's cursor is
+///  itself a CheckBrowseMode and would POST the very row this exists to
+///  protect, and the answer is needed BEFORE anything is written at all. The
+///  tree is a different one too - the ADAPTER tree that SetMasterObject builds
+///  in FMasterObject, not the rows of one level of it.
+///  NO CYCLE GUARD, on the assumption SetAutoIncValueChilds already makes and
+///  that SetMasterObject maintains: FMasterObject is a tree.
+///  PRIVATE AND NOT VIRTUAL on purpose - a new virtual moves the VMT slot of
+///  every virtual after it, and _MintRowToken is dispatched through a slot
+///  index resolved against another instantiation. See the comment on
+///  FRowTokenSeq.
+///  The nil and Active tests are DEFENSIVE and no fixture reaches them: a
+///  closed dataset answers dsInactive, which is not in dsEditModes, so they
+///  change no answer. They are kept because the loop they came from had them
+///  and removing them buys nothing. The DESCENT is deliberately outside them -
+///  a detail may be closed while its own details are not. </summary>
+function TDataSetBaseAdapter<M>._AnyDetailRowOpen(
+  const AAdapter: TDataSetBaseAdapter<M>): Boolean;
+var
+  LChild: TDataSetBaseAdapter<M>;
+begin
+  Result := False;
+  for LChild in AAdapter.FMasterObject.Values do
+  begin
+    if LChild = nil then
+      Continue;
+    if (LChild.FOrmDataSet <> nil) and LChild.FOrmDataSet.Active and
+       (LChild.FOrmDataSet.State in dsEditModes) then
+      Exit(True);
+    if _AnyDetailRowOpen(LChild) then
+      Exit(True);
+  end;
+end;
+
 /// <summary> A identidade da linha de master sob a qual um filho esta sendo
 ///  criado, CRIANDO-A se ela ainda nao existe.
 ///  POR QUE CRIAR EM VEZ DE MARCAR - issue #265. Uma linha de master lida do
@@ -1249,9 +1301,14 @@ end;
 ///  e so ela - com "Dataset not in edit or insert mode". Os filhos do cliente
 ///  REST tem MasterSource por construcao, nas duas familias.
 ///
-///  2. NENHUM IRMAO COM LINHA ABERTA - ver o laco abaixo. A perna de reentrada
-///  acima alcanca os OUTROS filhos do mesmo master, que nao estao em dsBrowse
-///  so porque este esta. Nao ha guarda que a cale e ainda deixe a escrita
+///  2. NENHUM DETALHE COM LINHA ABERTA, EM NIVEL NENHUM - ver
+///  _AnyDetailRowOpen.
+///  A perna de reentrada acima alcanca os OUTROS filhos do mesmo master, que
+///  nao estao em dsBrowse so porque este esta, E TAMBEM OS FILHOS DELES: o
+///  CheckBrowseMode de um detalhe emite o deCheckBrowseMode para as fontes
+///  dele antes de olhar o proprio estado, de modo que um nivel intermediario
+///  em dsBrowse nao interrompe a descida. Nao ha guarda que a cale e ainda
+///  deixe a escrita
 ///  acontecer: DisableControls cala o deCheckBrowseMode mas e o proprio
 ///  EnableControls que reemite o deDataSetChange, e o Post o emite de qualquer
 ///  jeito. Medido nos dois sentidos: com um irmao em dsInsert e Modified ele
@@ -1259,7 +1316,8 @@ end;
 ///  de blindada, e por isso NAO ha DisableControls aqui - acrescenta-lo de
 ///  volta hoje nao muda teste nenhum, medido, e uma clausula que nada defende
 ///  nao entra. Medido por
-///  MintingWithASiblingChildMidInsert_DoesNotPostThatSibling.
+///  MintingWithASiblingChildMidInsert_DoesNotPostThatSibling, para um nivel,
+///  e por MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild, para dois.
 ///
 ///  3. SO EM dsBrowse. Nao e sinonimo de "nao esta em dsEdit": cobre tambem o
 ///  master ainda em INSERCAO, e os dois casos sao recusados pelo mesmo motivo -
@@ -1276,12 +1334,14 @@ end;
 ///
 ///  SETE SAIDAS EM cNoRowToken, e a conta importa porque e o que sustenta o
 ///  "Refs" em vez do "Closes": AMaster nulo, dataset nulo, dataset fechado,
-///  dataset vazio, coluna ausente, linha fora de dsBrowse, e irmao com linha
-///  aberta. Em todas o filho fica sem proveniencia e cai no comportamento
+///  dataset vazio, coluna ausente, linha fora de dsBrowse, e detalhe com
+///  linha aberta em qualquer nivel. Em todas o filho fica sem proveniencia e
+///  cai no comportamento
 ///  historico - continua reivindicavel por qualquer master pendente, como
 ///  antes do #265. As QUATRO alcancaveis por um consumidor - dataset vazio,
-///  linha em dsEdit, linha em dsInsert sob adapter mudo, e irmao com linha
-///  aberta - estao fixadas pelas fixtures nomeadas acima. As outras tres
+///  linha em dsEdit, linha em dsInsert sob adapter mudo, e detalhe com linha
+///  aberta em qualquer nivel - estao fixadas pelas fixtures nomeadas acima.
+///  As outras tres
 ///  (AMaster nulo, dataset nulo ou fechado, coluna ausente) sao defensivas e
 ///  nenhuma fixture as alcanca.
 ///  PROCEDURE E NAO FUNCTION. O valor nao e devolvido porque nao pode ser
@@ -1299,7 +1359,6 @@ procedure TDataSetBaseAdapter<M>._EnsureMasterRowToken(
 var
   LDataSet: TDataSet;
   LField: TField;
-  LChild: TDataSetBaseAdapter<M>;
 begin
   if AMaster = nil then
     Exit;
@@ -1317,12 +1376,12 @@ begin
     Exit;
   if LDataSet.State <> dsBrowse then
     Exit;
-  // NENHUM OUTRO FILHO DESTE MASTER PODE ESTAR COM LINHA ABERTA. Escrever na
-  // linha do master notifica os detalhes por dois caminhos da RTL e os dois
-  // terminam em CheckBrowseMode do detalhe, que faz "if Modified then Post":
-  // o deCheckBrowseMode do Edit, quando os controles nao estao desabilitados,
-  // e o deDataSetChange que o Post e o EnableControls emitem, que desce por
-  // TDataLink.DataSetChanged -> RecordChanged(nil) ->
+  // NENHUM DETALHE DESTE MASTER, EM NIVEL NENHUM, PODE ESTAR COM LINHA ABERTA.
+  // Escrever na linha do master notifica os detalhes por dois caminhos da RTL
+  // e os dois terminam em CheckBrowseMode do detalhe, que faz
+  // "if Modified then Post": o deCheckBrowseMode do Edit, quando os controles
+  // nao estao desabilitados, e o deDataSetChange que o Post e o EnableControls
+  // emitem, que desce por TDataLink.DataSetChanged -> RecordChanged(nil) ->
   // TMasterDataLink.RecordChanged -> FOnMasterChange ->
   // TCustomClientDataSet.MasterChanged, cuja PRIMEIRA instrucao e
   // CheckBrowseMode. Medido: com um irmao em dsInsert e Modified, ele era
@@ -1331,12 +1390,17 @@ begin
   // escrita acontecer, entao a escrita nao acontece: o filho que esta sendo
   // digitado fica sem proveniencia e cai no comportamento historico, que e uma
   // perda estreita ao lado de comitar a linha que o operador nao terminou.
-  // Medido por MintingWithASiblingChildMidInsert_DoesNotPostThatSibling.
-  for LChild in AMaster.FMasterObject.Values do
-    if (LChild <> nil) and (LChild.FOrmDataSet <> nil) and
-       LChild.FOrmDataSet.Active and
-       (LChild.FOrmDataSet.State in dsEditModes) then
-      Exit;
+  // E RECURSIVO PORQUE A CASCATA E. Data.DB.pas, TDataSet.CheckBrowseMode,
+  // EMITE o deCheckBrowseMode para as suas fontes de dados antes de olhar o
+  // proprio estado - de modo que o nivel do meio estar em dsBrowse nao segura
+  // nada, e um neto aberto e Modified era postado. Uma recusa de um nivel so
+  // olhava para o meio, nao via nada aberto, e deixava a escrita passar.
+  // Medido por MintingWithASiblingChildMidInsert_DoesNotPostThatSibling, um
+  // nivel, e por MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild,
+  // dois. Ver _AnyDetailRowOpen, que e onde a caminhada esta e onde esta
+  // escrito por que ela nao e a de _RecurseOverChildRows.
+  if _AnyDetailRowOpen(AMaster) then
+    Exit;
   AMaster.DisableDataSetEvents;
   try
     LDataSet.Edit;

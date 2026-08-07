@@ -569,6 +569,8 @@ type
     [Test]
     procedure MintingWithASiblingChildMidInsert_DoesNotPostThatSibling;
     [Test]
+    procedure MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild;
+    [Test]
     procedure ChildTypedUnderAMutedMasterStillInserting_RecordsNoParentage;
     [Test]
     procedure ChildTypedUnderAnUnidentifiedMaster_MakesThatMasterIdentifyItself;
@@ -2183,6 +2185,165 @@ begin
   finally
     DropTree(LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
   end;
+end;
+
+procedure TTestAutoIncDistribution.MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild;
+var
+  LRootCds: TClientDataSet;
+  LMidCds: TClientDataSet;
+  LLeafCds: TClientDataSet;
+  LOtherCds: TClientDataSet;
+  LRoot: TClientDataSetAdapter<TAitRoot>;
+  LMid: TClientDataSetAdapter<TAitMid>;
+  LLeaf: TClientDataSetAdapter<TAitLeaf>;
+  LOther: TClientDataSetAdapter<TAitNoCascade>;
+  LState: TDataSetState;
+
+  procedure Wire(const AChild: TClientDataSet; const ASource: TDataSource;
+    const AField: String);
+  var
+    LM: TScrollMute;
+  begin
+    LM := MuteScroll(AChild);
+    try
+      AChild.MasterSource := ASource;
+      AChild.IndexFieldNames := AField;
+      AChild.MasterFields := AField;
+    finally
+      UnmuteScroll(AChild, LM);
+    end;
+  end;
+
+begin
+  // THE CASCADE IS RECURSIVE AND THE REFUSAL HAS TO BE TOO. Data.DB.pas,
+  // TDataSet.CheckBrowseMode, emits deCheckBrowseMode and THEN inspects its own
+  // state - so the mid level being in dsBrowse stops nothing: its
+  // CheckBrowseMode still emits the event to ITS data sources, reaching
+  // TMasterDataLink.CheckBrowseMode of the leaf, and there
+  // "if Modified then Post" commits a grandchild row the operator had open.
+  //
+  // WHY THIS IS OURS TO FIX AND NOT A LIMIT TO DECLARE. Against origin/develop
+  // nothing writes on the master row at all, so nothing cascades: this is a
+  // defect the mint INTRODUCES. Three-level trees are first class here -
+  // BuildTree makes one - and the REST client installs MasterSource at every
+  // level by construction.
+  //
+  // ClientDataSet family, because that is the one where MasterChanged reaches
+  // CheckBrowseMode - see the twin fixtures above.
+  LRootCds := TClientDataSet.Create(nil);
+  LMidCds := TClientDataSet.Create(nil);
+  LLeafCds := TClientDataSet.Create(nil);
+  LOtherCds := TClientDataSet.Create(nil);
+  try
+    LRoot := TClientDataSetAdapter<TAitRoot>.Create(FConn, LRootCds, -1, nil);
+    LMid := TClientDataSetAdapter<TAitMid>.Create(FConn, LMidCds, -1, LRoot);
+    LLeaf := TClientDataSetAdapter<TAitLeaf>.Create(FConn, LLeafCds, -1, LMid);
+    LOther := TClientDataSetAdapter<TAitNoCascade>.Create(FConn, LOtherCds, -1,
+                LRoot);
+    try
+      TCascadeAccess<TAitRoot>.Mute(LRoot);
+      try
+        LRootCds.Append;
+        LRootCds.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+        LRootCds.FieldByName(cTAG).AsString := cLOADEDTAG;
+        LRootCds.Post;
+      finally
+        TCascadeAccess<TAitRoot>.Unmute(LRoot);
+      end;
+      Assert.AreEqual(cNOTOKEN, TokenOfTaggedRow(LRootCds, cLOADEDTAG,
+                                                 cROWTOKEN),
+        'PREMISE: the root must be untokenised, or no mint fires at all');
+
+      Wire(LMidCds, TCascadeAccess<TAitRoot>.SourceOf(LRoot), cKEY);
+      Wire(LLeafCds, TCascadeAccess<TAitMid>.SourceOf(LMid), cOWNKEY);
+      Wire(LOtherCds, TCascadeAccess<TAitRoot>.SourceOf(LRoot), cKEY);
+
+      // A mid row for the leaf to hang under. Muted so it does not mint.
+      TCascadeAccess<TAitMid>.Mute(LMid);
+      try
+        LMidCds.Append;
+        LMidCds.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+        LMidCds.FieldByName(cOWNKEY).AsInteger := cMIDFIRST;
+        LMidCds.FieldByName(cTAG).AsString := 'M0';
+        LMidCds.Post;
+      finally
+        TCascadeAccess<TAitMid>.Unmute(LMid);
+      end;
+
+      // THE GRANDCHILD, left open and Modified. Muted so it does not mint.
+      TCascadeAccess<TAitLeaf>.Mute(LLeaf);
+      try
+        LLeafCds.Append;
+        // Every NotNull column filled, so that a Post which SHOULD NOT happen
+        // fails this test on its state clause instead of erroring on
+        // validation. The first run of this fixture did error that way, which
+        // is the same finding read through a worse message.
+        LLeafCds.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+        LLeafCds.FieldByName(cOWNKEY).AsInteger := cMIDFIRST;
+        LLeafCds.FieldByName(cTAG).AsString := 'HALF';
+      finally
+        TCascadeAccess<TAitLeaf>.Unmute(LLeaf);
+      end;
+      Assert.IsTrue(LLeafCds.State = dsInsert,
+        'PREMISE: the grandchild must be sitting in dsInsert');
+      Assert.IsTrue(LLeafCds.Modified,
+        'PREMISE: and Modified, or CheckBrowseMode would Cancel it instead of ' +
+        'Posting it and this test would measure the wrong branch');
+      Assert.IsTrue(LMidCds.State = dsBrowse,
+        'PREMISE: and the MID level must be in dsBrowse - that is the whole ' +
+        'point, a one level refusal looks at the mid, sees nothing open, and ' +
+        'lets the write through');
+
+      // THE MINT FIRES FROM THE OTHER BRANCH, and it has to. Appending to the
+      // MID would post the grandchild all by itself, with or without any mint:
+      // BeginInsertAppend runs CheckBrowseMode on the mid BEFORE DoBeforeInsert,
+      // and that CheckBrowseMode is already the top of the cascade. Measured -
+      // the first version of this fixture did exactly that and was red against
+      // origin/develop too, which would have made it evidence of nothing.
+      // TAitNoCascade is the root's OTHER child and has no details of its own,
+      // so its own Append cascades nowhere and the ONLY thing that can reach
+      // the open grandchild is the write the mint makes on the root row.
+      LOtherCds.Append;
+      LState := LLeafCds.State;
+    finally
+      // Links down BEFORE anything else, deepest first. Cancelling a row while
+      // its dataset is still ranged against a master re-enters the ranging and
+      // raises on its own, which would mask the state clause below with a
+      // teardown error - measured, twice.
+      LLeafCds.MasterFields := '';
+      LLeafCds.IndexFieldNames := '';
+      LLeafCds.MasterSource := nil;
+      LMidCds.MasterFields := '';
+      LMidCds.IndexFieldNames := '';
+      LMidCds.MasterSource := nil;
+      LOtherCds.MasterFields := '';
+      LOtherCds.IndexFieldNames := '';
+      LOtherCds.MasterSource := nil;
+      if LOtherCds.State in [dsInsert, dsEdit] then
+        LOtherCds.Cancel;
+      if LLeafCds.State in [dsInsert, dsEdit] then
+        LLeafCds.Cancel;
+      if LMidCds.State in [dsInsert, dsEdit] then
+        LMidCds.Cancel;
+      LOther.Free;
+      LLeaf.Free;
+      LMid.Free;
+      LRoot.Free;
+    end;
+  finally
+    LOtherCds.Free;
+    LLeafCds.Free;
+    LMidCds.Free;
+    LRootCds.Free;
+  end;
+
+  Assert.IsTrue(LState = dsInsert,
+    'the GRANDCHILD must still be sitting in dsInsert. deCheckBrowseMode does ' +
+    'not stop at the level below the master - every CheckBrowseMode it ' +
+    'triggers emits it again - so a refusal that only inspects the direct ' +
+    'children lets the write through and the row two levels down is committed ' +
+    'half typed. Measured state: ' +
+    GetEnumName(TypeInfo(TDataSetState), Ord(LState)));
 end;
 
 procedure TTestAutoIncDistribution.ChildTypedUnderAnUnidentifiedMaster_MakesThatMasterIdentifyItself;
