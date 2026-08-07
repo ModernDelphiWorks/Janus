@@ -508,7 +508,13 @@ begin
       LField := ADataSet.Fields[LFor];
       if LField.Tag > 0 then
         Continue;
-      if (LField.FieldKind <> fkData) or (LField.FieldName = cInternalField) then
+      // A exclusao por NOME e PLURAL: alem do estado da linha, as duas colunas
+      // de proveniencia. Nenhuma delas existe no IDBDataSet de origem, e o
+      // acesso por FieldValues[<nome>] levanta excecao para coluna ausente.
+      if (LField.FieldKind <> fkData) or
+         (LField.FieldName = cInternalField) or
+         (LField.FieldName = cRowTokenField) or
+         (LField.FieldName = cOwnerTokenField) then
         Continue;
 
       LReadOnly := LField.ReadOnly;
@@ -638,6 +644,15 @@ begin
   _SetCalcFieldDefsObjectClass(ADataSet, AObject);
   // Adicionar Fields Aggregates
   _SetAggregateFieldDefsObjectClass(ADataSet, AObject);
+  // TFields de PROVENIENCIA DA LINHA, criados por ULTIMO e deixados no fim da
+  // lista: _FillADTField e _FillDataSetField copiam o campo N da origem para
+  // ATarget.Fields[N + 1], de modo que qualquer coluna interna colocada ANTES
+  // das mapeadas deslocaria todos os valores uma posicao a direita. Ver o
+  // comentario de cRowTokenField em Janus.DataSet.Fields.
+  TFieldSingleton.GetInstance.AddField(ADataSet, cRowTokenField, ftInteger);
+  ADataSet.FieldByName(cRowTokenField).Visible := False;
+  TFieldSingleton.GetInstance.AddField(ADataSet, cOwnerTokenField, ftInteger);
+  ADataSet.FieldByName(cOwnerTokenField).Visible := False;
 end;
 
 procedure TBind._FillADTField(const AADTField: TADTField;

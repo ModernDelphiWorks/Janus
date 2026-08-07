@@ -141,7 +141,12 @@ type
     procedure ApplyUpdates(const ADataSets: array of IDBDataSet);
     function IsConnected: Boolean;
     function CreateQuery: IDBQuery;
-    function CreateDataSet(const ASQL: String = ''): IDBDataSet;
+    /// VIRTUAL so a fixture can answer DIFFERENT questions differently - the
+    /// generator asks for one row and a child re-open asks for the rows of a
+    /// table nothing ever saved. A double that answers both with the same
+    /// canned cursor cannot serve a test that needs to do both in one run.
+    /// See Test.Janus.AutoInc.Distribution.TTreeConnection.
+    function CreateDataSet(const ASQL: String = ''): IDBDataSet; virtual;
     function GetSQLScripts: String;
     function RowsAffected: UInt32;
     function GetDriver: TDriverName;
