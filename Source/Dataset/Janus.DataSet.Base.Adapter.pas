@@ -69,6 +69,8 @@ type
     function _IsOwnedByMasterRow(const AChild: TDataSet;
       const AMasterToken: Integer): Boolean;
     function _MasterRowToken(const AMaster: TDataSet): Integer;
+    function _EnsureMasterRowToken(
+      const AMaster: TDataSetBaseAdapter<M>): Integer;
     procedure _RecurseOverChildRows(
       const AChildAdapter: TDataSetBaseAdapter<M>;
       const AMasterToken: Integer);
@@ -190,23 +192,6 @@ const
   ///  convention. </summary>
   cNoRowToken = 0;
 
-  /// <summary> The value cOwnerTokenField carries when DoNewRecord DID run on
-  ///  the child row and the master it was created under had NO identity - the
-  ///  master itself having been appended with ITS adapter muted, which is what
-  ///  every row read from the store is: TSessionDataSet<M>._PopularDataSet
-  ///  appends with the events off and TBind.SetFieldToField skips the two
-  ///  provenance columns by name.
-  ///  WHY A SECOND VALUE AND NOT JUST ZERO. Zero conflates two states that need
-  ///  opposite answers, and conflating them is issue #265: "nobody ever
-  ///  recorded this row" - which must keep being written by whichever master is
-  ///  passing, because that is what shipped - and "this row WAS recorded, and
-  ///  its master had no identity" - which must NOT be handed to a different,
-  ///  identified master. Negative on purpose: FRowTokenSeq is an
-  ///  AtomicIncrement from zero, so a real identity is always positive and can
-  ///  never collide with this.
-  ///  Measured by Test.Janus.AutoInc.Distribution
-  ///  .LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey. </summary>
-  cOrphanOwnerToken = -1;
 
 { TDataSetBaseAdapter<M> }
 
@@ -1137,7 +1122,12 @@ end;
 ///  digitando.
 ///  Chamado de DoNewRecord, isto e, so quando os eventos do adapter estao
 ///  ligados. Uma linha criada com eles desligados fica em cNoRowToken e cai no
-///  comportamento historico - ver _IsOwnedByMasterRow. </summary>
+///  comportamento historico - ver _IsOwnedByMasterRow.
+///  A identidade do master vem de _EnsureMasterRowToken e nao de
+///  _MasterRowToken: uma linha de master que nao se identifica - toda linha
+///  lida do banco e uma - ganha identidade AQUI, para que o filho nomeie um pai
+///  concreto em vez de um "nenhum" que qualquer master interpreta a seu
+///  favor. Issue #265. </summary>
 procedure TDataSetBaseAdapter<M>._StampRowTokens;
 var
   LRowToken: TField;
@@ -1158,56 +1148,127 @@ begin
   if not Assigned(FOwnerMasterObject) then
     Exit;
   LMaster := TDataSetBaseAdapter<M>(FOwnerMasterObject);
-  LToken := _MasterRowToken(LMaster.FOrmDataSet);
-  // O master nao se identifica - foi lido do armazenamento, ou acrescentado com
-  // os eventos DELE desligados. Gravar cNoRowToken aqui perderia a unica
-  // informacao que esta linha tem para dar: que a pergunta FOI feita e a
-  // resposta foi "nenhuma". Ver cOrphanOwnerToken.
-  if LToken = cNoRowToken then
-    LToken := cOrphanOwnerToken;
+  LToken := _EnsureMasterRowToken(LMaster);
   LOwnerToken.AsInteger := LToken;
+end;
+
+/// <summary> A identidade da linha de master sob a qual um filho esta sendo
+///  criado, CRIANDO-A se ela ainda nao existe.
+///  POR QUE CRIAR EM VEZ DE MARCAR - issue #265. Uma linha de master lida do
+///  armazenamento nao tem identidade: TSessionDataSet<M>._PopularDataSet anexa
+///  com os eventos do adapter desligados, entao DoNewRecord nao roda, e
+///  TBind.SetFieldToField pula as duas colunas de proveniencia pelo nome. Como
+///  a folga de _IsOwnedByMasterRow deixa passar todo filho sem proveniencia,
+///  os filhos digitados sob esse master eram reivindicaveis por qualquer outro
+///  master pendente - que e o #261 na forma que o cliente encontra.
+///  A alternativa medida foi carimbar no FILHO um valor que dissesse "meu
+///  master nao se identificava" e recusar quem se identifica. Ela ESTREITA o
+///  buraco em vez de fechar: dois masters sem identidade continuam
+///  indistinguiveis entre si, e o primeiro deles escreve nos filhos do segundo.
+///  Medido por Test.Janus.AutoInc.Distribution
+///  .TwoUnidentifiedPendingMasters_ChildOfTheFirstIsNotClaimedByTheSecond, que
+///  fica VERMELHO com aquele desenho e verde com este.
+///  Dando identidade a linha do master aqui, o filho passa a nomear um pai
+///  CONCRETO, so esse pai casa, e nao existe mais estado intermediario nenhum
+///  para _IsOwnedByMasterRow interpretar - ela volta a ter as duas respostas
+///  do #264.
+///  O QUE ISTO CUSTA, e por que o custo e zero. A escrita e feita com os
+///  eventos do adapter DO MASTER desligados, de modo que o DoBeforePost dele
+///  nao roda e o cInternalField da linha NAO e promovido a dsEdit: uma linha
+///  vinda do banco continua nao-pendente e nao vira um UPDATE fantasma, e uma
+///  linha pendente continua pendente. Medido pelas clausulas de estado em
+///  LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey e
+///  MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired.
+///  QUANDO NAO HA RESPOSTA POSSIVEL responde cNoRowToken e nao inventa nada:
+///  dataset nulo, fechado, sem coluna, ou sem linha nenhuma. Sao os quatro
+///  produtores de zero de _MasterRowToken, e nenhum deles tem uma linha onde
+///  gravar. O filho fica entao em cNoRowToken e cai no comportamento historico,
+///  que e o certo: ninguem sabe de quem ele e filho.
+///  A GUARDA DE IsEmpty NAO ABRE EXCECAO PARA dsInsert, e isso foi medido e
+///  nao suposto. A suspeita era que um dataset parado na sua PRIMEIRA linha
+///  ainda nao postada respondesse IsEmpty e caisse fora - o que faria o filho
+///  digitado antes do Post do master perder a chave. Uma excecao para dsInsert
+///  foi escrita, e retira-la NAO avermelha teste nenhum, inclusive
+///  ChildTypedBeforeItsMasterRowIsPosted_StillReceivesTheKey, que existe para
+///  alcancar exatamente esse estado e passa dos dois jeitos: o dataset NAO
+///  responde IsEmpty ali. Uma clausula que nenhuma medicao defende nao entra,
+///  entao ela saiu.
+///  O Edit/Post so acontece em dsBrowse. Se o usuario ja esta editando ou
+///  inserindo, o valor vai no buffer corrente e sobe com o Post DELE - postar a
+///  edicao alheia no meio seria pior do que o problema, e o preco disso e
+///  medido por ChildTypedWhileTheMasterRowIsBeingEdited_DoesNotCommitThatEdit.
+///  A guarda de IsEmpty continua aqui e NENHUM teste a defende - retira-la nao
+///  avermelha nada. Ela fica porque espelha a de _MasterRowToken e porque
+///  cunhar exige uma linha onde gravar; esta escrito que e uma guarda sem
+///  medicao em vez de deixar parecer que tem.
+///  O CONTADOR e o mesmo FRowTokenSeq do #264, e cunhar aqui apenas o consome
+///  mais depressa. Ele e um Integer que so cresce por AtomicIncrement e nunca
+///  reseta, de modo que depois de 2^32 carimbos ele DA A VOLTA sem excecao e um
+///  valor pode se repetir. Nada aqui se apoia no sinal nem em unicidade
+///  eterna - a comparacao e sempre entre um filho e o master vivo ao lado dele,
+///  dentro de um mesmo ApplyUpdates - mas a volta existe e nao esta tratada.
+///  </summary>
+function TDataSetBaseAdapter<M>._EnsureMasterRowToken(
+  const AMaster: TDataSetBaseAdapter<M>): Integer;
+var
+  LDataSet: TDataSet;
+  LField: TField;
+  LStarted: Boolean;
+begin
+  Result := cNoRowToken;
+  if AMaster = nil then
+    Exit;
+  LDataSet := AMaster.FOrmDataSet;
+  if LDataSet = nil then
+    Exit;
+  if not LDataSet.Active then
+    Exit;
+  if LDataSet.IsEmpty then
+    Exit;
+  LField := LDataSet.FindField(cRowTokenField);
+  if LField = nil then
+    Exit;
+  Result := LField.AsInteger;
+  if Result <> cNoRowToken then
+    Exit;
+  if not (LDataSet.State in [dsBrowse, dsEdit, dsInsert]) then
+    Exit;
+  AMaster.DisableDataSetEvents;
+  try
+    LStarted := LDataSet.State = dsBrowse;
+    if LStarted then
+      LDataSet.Edit;
+    LField.AsInteger := AtomicIncrement(FRowTokenSeq);
+    Result := LField.AsInteger;
+    if LStarted then
+      LDataSet.Post;
+  finally
+    AMaster.EnableDataSetEvents;
+  end;
 end;
 
 /// <summary> Diz se a linha corrente do dataset filho foi criada sob a linha
 ///  de master identificada por AMasterToken.
-///  TRES respostas, e nao duas, porque ha TRES estados de proveniencia e nao
-///  dois - foi confundi-los que deixou o issue #261 pela metade, no issue
-///  #265:
-///
-///  1. cNoRowToken - NINGUEM registrou esta linha. DoNewRecord nunca rodou nela
-///     porque o adapter DO FILHO estava com os eventos desligados, ou a linha
-///     veio de um armazenamento que nao tem a coluna. Resposta True para
-///     qualquer master: e a linha recebe a chave como sempre recebeu, e tirar
-///     essa folga seria regressao silenciosa. Medido por
-///     Test.Janus.AutoInc.Distribution
-///     .ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster e por
-///     UntokenisedRows_KeepTheHistoricalBehaviour.
-///
-///  2. cOrphanOwnerToken - a linha FOI registrada e o master sob o qual ela
-///     nasceu nao se identificava. E o caso DOMINANTE: todo master lido do
-///     banco esta nesse estado, porque a carga anexa com os eventos
-///     desligados. Aqui a folga acaba - so um master que TAMBEM nao se
-///     identifica pode reivindicar a linha. Um master novo e pendente, que se
-///     identifica, nao leva os filhos de um master que veio da listagem.
-///     Medido por LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey e
-///     por MutedMasterAppend_WithARealKey_ItsChildKeepsThatKey.
-///
-///  3. qualquer outro valor - a linha nomeia um pai. So esse pai a escreve, e
-///     nem mesmo um master sem identidade a reivindica: e a garantia do
-///     issue #264 e ela continua de pe.
-///
-///  POR QUE O CASO 2 PRECISA DA FOLGA CONTRA UM MASTER SEM IDENTIDADE. Quando
-///  o proprio master que carimbou a linha e o que esta sendo inserido, a chave
-///  dele ainda era o placeholder de autoinc no instante da criacao, e o filho
-///  copiou o placeholder. Recusar ali deixaria o placeholder de pe em vez de
-///  repara-lo, que e pior do que o que foi entregue. Como esse master nao se
-///  identifica, AMasterToken chega cNoRowToken e a linha e escrita. Medido por
-///  MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired, que e
-///  VERDE contra o framework intocado e tem que continuar verde - e tambem por
-///  Test.Janus.AutoInc.Childs
-///  .TwoPendingMasterRows_WithNoRecordedParentage_EveryPendingChildEndsOnTheLastMasterKey,
-///  que e anterior a este issue: fazer o ramo do caso 2 recusar todo master
-///  avermelha os dois, e so os dois. </summary>
+///  A FOLGA E DE UM LADO SO, e isso e uma decisao medida. Quando o FILHO nao
+///  tem proveniencia registrada - linha acrescentada com os eventos do adapter
+///  filho desligados, ou lida de um armazenamento que nao tem a coluna - a
+///  resposta e True e a linha recebe a chave como sempre recebeu; tirar essa
+///  folga faria o filho deixar de ser escrito, que e regressao silenciosa.
+///  Medido por Test.Janus.AutoInc.Distribution
+///  .ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster e por
+///  UntokenisedRows_KeepTheHistoricalBehaviour.
+///  Do lado do MASTER nao ha folga: um filho que sabe de quem e filho nao e
+///  reapontado para uma linha de master que nao se identifica.
+///  DUAS RESPOSTAS, E NAO TRES - issue #265. Houve a tentacao de acrescentar
+///  aqui um terceiro estado, "registrado, e o meu master nao tinha
+///  identidade", e ela foi medida e recusada: aquele estado so consegue
+///  distinguir um master identificado de um nao identificado, e nao dois
+///  masters nao identificados entre si, de modo que o primeiro deles
+///  continuava escrevendo nos filhos do segundo. O caso deixou de existir na
+///  origem - _EnsureMasterRowToken da identidade a linha do master no instante
+///  do carimbo - e por isso este metodo nao precisa saber nada sobre ele.
+///  O zero que ainda chega aqui e SO o do filho que ninguem registrou.
+///  </summary>
 function TDataSetBaseAdapter<M>._IsOwnedByMasterRow(const AChild: TDataSet;
   const AMasterToken: Integer): Boolean;
 var
@@ -1219,11 +1280,6 @@ begin
     Exit;
   if LField.AsInteger = cNoRowToken then
     Exit;
-  if LField.AsInteger = cOrphanOwnerToken then
-  begin
-    Result := AMasterToken = cNoRowToken;
-    Exit;
-  end;
   Result := LField.AsInteger = AMasterToken;
 end;
 
