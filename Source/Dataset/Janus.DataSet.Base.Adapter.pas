@@ -252,6 +252,24 @@ begin
   inherited Create(ADataSet, APageSize, AMasterObject);
 end;
 
+/// <summary> IT DOES NOT UNREGISTER Self FROM ITS OWNER, and that is a known
+///  exposure rather than an oversight. FOwnerMasterObject is nilled here, but
+///  the owner's FMasterObject keeps the entry SetMasterObject added, so freeing
+///  a child adapter while its master is still alive leaves the master holding a
+///  pointer to freed memory - which _AnyDetailRowOpen and SetAutoIncValueChilds
+///  both dereference, and which no `= nil` test can catch, because a freed
+///  object is not nil.
+///  WHY THE OBVIOUS FIX IS NOT MADE HERE. Calling SetMasterObject(nil) would
+///  remove the entry, but it would do it by WRITING into the owner's
+///  dictionary, and there is no order that guarantees the owner is still there
+///  to be written to: TManagerDataSet holds its adapters in a TObjectDictionary
+///  created with doOwnsValues, so Free releases them in hash order and a master
+///  can go first. That trades a stale read for a stale write, which is worse.
+///  The exposure is older than issue #265 - RemoveAdapter has always been able
+///  to free one adapter out of a live tree - and is widened, not created, by
+///  _AnyDetailRowOpen walking every edge instead of the CascadeAutoInc ones.
+///  NO FIXTURE PINS IT: a test for it would have to assert on freed memory,
+///  which is undefined behaviour, so it is written down instead. </summary>
 destructor TDataSetBaseAdapter<M>.Destroy;
 begin
   FOrmDataSet := nil;
@@ -1226,7 +1244,14 @@ end;
 ///  written. Measured: with the middle level in dsBrowse and the leaf in
 ///  dsInsert and Modified, a refusal that inspected only the direct children
 ///  let the write through and the leaf came back dsBrowse - posted half typed.
-///  Pinned by MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild.
+///  Pinned by MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild and, in
+///  the family that was once said to be out of reach, by
+///  FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild - drop
+///  the descent and BOTH report "Measured state: dsBrowse".
+///  IT ASKS ABOUT STATE, NOT ABOUT Modified, and that is deliberate and
+///  measured - see the item 2 of the header of _EnsureMasterRowToken and
+///  MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice, which
+///  is where the price of the wider question is asserted.
 ///  NOT BUILT ON _RecurseOverChildRows, and the difference is not stylistic.
 ///  That method walks the ROWS of ONE child adapter - First, Next and
 ///  GotoBookmark - and runs SetAutoIncValueChilds on each of them, which
@@ -1235,17 +1260,50 @@ end;
 ///  protect, and the answer is needed BEFORE anything is written at all. The
 ///  tree is a different one too - the ADAPTER tree that SetMasterObject builds
 ///  in FMasterObject, not the rows of one level of it.
-///  NO CYCLE GUARD, on the assumption SetAutoIncValueChilds already makes and
-///  that SetMasterObject maintains: FMasterObject is a tree.
+///  NO CYCLE GUARD, and the guardian is NOT SetMasterObject. That method
+///  checks nothing: it removes Self from a previous owner and adds it to the
+///  new one, which keeps a child to ONE parent but does nothing to stop
+///  A.SetMasterObject(B) followed by B.SetMasterObject(A). What makes
+///  FMasterObject a tree is TManagerDataSet.AddAdapter<T, M> - it exits early
+///  when T is ALREADY registered and exits early when M is NOT, so every node
+///  is given a parent that already existed and no cycle can be built - plus,
+///  for an adapter constructed directly, the fourth argument of Create, which
+///  is the caller's to get right. SetAutoIncValueChilds rests on the same
+///  assumption; what differs is REACH. That one follows only the edges whose
+///  association carries CascadeAutoInc, this one reads FMasterObject.Values
+///  raw, at every depth - so it is a strict superset and every note about the
+///  shape of that dictionary binds harder here.
+///  NOTHING UNREGISTERS AN ADAPTER FROM ITS OWNER. Destroy nils its own
+///  FOwnerMasterObject and leaves the OWNER's FMasterObject holding the
+///  pointer, so freeing a child adapter while its master lives leaves a stale
+///  entry that this walk dereferences - and the LChild = nil test does not
+///  catch it, because a freed object is not nil. The exposure is older than
+///  this method, SetAutoIncValueChilds reads the same dictionary, but this
+///  method WIDENS it from the CascadeAutoInc edges to all of them and at every
+///  depth. Recorded rather than fixed - see the note on Destroy for why
+///  unregistering there is not free.
 ///  PRIVATE AND NOT VIRTUAL on purpose - a new virtual moves the VMT slot of
 ///  every virtual after it, and _MintRowToken is dispatched through a slot
 ///  index resolved against another instantiation. See the comment on
 ///  FRowTokenSeq.
-///  The nil and Active tests are DEFENSIVE and no fixture reaches them: a
-///  closed dataset answers dsInactive, which is not in dsEditModes, so they
-///  change no answer. They are kept because the loop they came from had them
-///  and removing them buys nothing. The DESCENT is deliberately outside them -
-///  a detail may be closed while its own details are not. </summary>
+///  THREE TESTS IN THE LOOP THAT NO FIXTURE REACHES, and they are NOT all
+///  unreachable for the same reason. LChild = nil and Active change no answer:
+///  SetMasterObject only ever adds Self, never nil, and a closed dataset
+///  answers dsInactive, which is not in dsEditModes. FOrmDataSet <> nil is a
+///  DIFFERENT sentence and must not be read as that one - deleting it does not
+///  change an answer, it dereferences nil. What puts it out of reach is that
+///  FOrmDataSet is assigned in Create and cleared only in Destroy, so no live
+///  adapter carries nil there. All three are kept because the loop they came
+///  from had them.
+///  THE DESCENT SITS OUTSIDE ALL THREE, and that is conservatism, not
+///  reachability. Data.DB.pas, TMasterDataLink.CheckBrowseMode, is
+///  "if FDataSet.Active then FDataSet.CheckBrowseMode" - so the RTL cascade
+///  STOPS at a closed level and nothing under it can be posted through that
+///  link. Descending anyway can only produce a false positive, which refuses a
+///  mint that was safe, and that is the harmless direction. We do not try to
+///  prove the level below is unreachable: the adapter tree walked here and the
+///  MasterSource tree the RTL walks are wired by different code, and only one
+///  of them is ours. </summary>
 function TDataSetBaseAdapter<M>._AnyDetailRowOpen(
   const AAdapter: TDataSetBaseAdapter<M>): Boolean;
 var
@@ -1293,13 +1351,22 @@ end;
 ///  FOnMasterChange -> TCustomClientDataSet.MasterChanged, cuja PRIMEIRA
 ///  instrucao e CheckBrowseMode (Datasnap.DBClient.pas). Um detalhe em
 ///  dsInsert e Modified alcancado por ai e POSTADO pela metade.
-///  MEDIDO NA FAMILIA CERTA, e a familia importa: TFDDataSet.MasterChanged
-///  chama CheckMasterRange e NAO CheckBrowseMode, entao a familia FireDAC nao
-///  chega a esse ponto e a fixture dela nao distingue as duas posicoes da
-///  chamada. O TClientDataSet chega. Voltar a chamada para o DoNewRecord
-///  derruba ClientDataSetLinkedAsTheRestClientDoes_MintingDoesNotPostTheChild -
-///  e so ela - com "Dataset not in edit or insert mode". Os filhos do cliente
-///  REST tem MasterSource por construcao, nas duas familias.
+///  MEDIDO NA FAMILIA CERTA, e a familia importa PARA ESTA PERNA: TFDDataSet
+///  .MasterChanged chama CheckMasterRange e NAO CheckBrowseMode, entao o
+///  deDataSetChange morre ali e a fixture FireDAC nao distingue as duas
+///  posicoes da chamada. O TClientDataSet chega. Voltar a chamada para o
+///  DoNewRecord derruba
+///  ClientDataSetLinkedAsTheRestClientDoes_MintingDoesNotPostTheChild - e so
+///  ela - com "Dataset not in edit or insert mode". Os filhos do cliente REST
+///  tem MasterSource por construcao, nas duas familias.
+///  E NAO SE LEIA ISSO COMO "A FAMILIA FIREDAC ESTA FORA DE ALCANCE", que e
+///  uma generalizacao falsa que este cabecalho ja carregou. A frase acima vale
+///  para UMA das duas pernas. A outra - Edit -> CheckBrowseMode ->
+///  deCheckBrowseMode - chega a familia FireDAC igualzinho: o
+///  TFDMasterDataLink.DataEvent so sai cedo naquele evento quando o detalhe E
+///  o master dele estao AMBOS em dsEditModes, o que um nivel do meio em
+///  dsBrowse nao satisfaz. Medido em arvore de tres niveis por
+///  FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild.
 ///
 ///  2. NENHUM DETALHE COM LINHA ABERTA, EM NIVEL NENHUM - ver
 ///  _AnyDetailRowOpen.
@@ -1308,16 +1375,42 @@ end;
 ///  CheckBrowseMode de um detalhe emite o deCheckBrowseMode para as fontes
 ///  dele antes de olhar o proprio estado, de modo que um nivel intermediario
 ///  em dsBrowse nao interrompe a descida. Nao ha guarda que a cale e ainda
-///  deixe a escrita
-///  acontecer: DisableControls cala o deCheckBrowseMode mas e o proprio
-///  EnableControls que reemite o deDataSetChange, e o Post o emite de qualquer
-///  jeito. Medido nos dois sentidos: com um irmao em dsInsert e Modified ele
-///  era postado COM e SEM DisableControls. Por isso a escrita e recusada em vez
-///  de blindada, e por isso NAO ha DisableControls aqui - acrescenta-lo de
-///  volta hoje nao muda teste nenhum, medido, e uma clausula que nada defende
-///  nao entra. Medido por
-///  MintingWithASiblingChildMidInsert_DoesNotPostThatSibling, para um nivel,
-///  e por MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild, para dois.
+///  deixe a escrita acontecer: DisableControls cala o deCheckBrowseMode mas e
+///  o proprio EnableControls que reemite o deDataSetChange, e o Post o emite
+///  de qualquer jeito. Medido nos dois sentidos: com um irmao em dsInsert e
+///  Modified ele era postado COM e SEM DisableControls. Por isso a escrita e
+///  recusada em vez de blindada, e por isso NAO ha DisableControls aqui -
+///  acrescenta-lo de volta hoje nao muda teste nenhum, medido, e uma clausula
+///  que nada defende nao entra. Medido por
+///  MintingWithASiblingChildMidInsert_DoesNotPostThatSibling, para um nivel, e
+///  por MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild, para dois.
+///  A DUAS FAMILIAS, E NAO SO A DO TClientDataSet - ver a correcao no item 1.
+///  Medido tambem por
+///  FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild:
+///  removida a descida recursiva, os DOIS gemeos de tres niveis medem
+///  "dsBrowse" para o neto, o do FireDAC junto com o do ClientDataSet.
+///  "ABERTA" QUER DIZER "State in dsEditModes" E NAO "Modified", E ISSO TEM UM
+///  PRECO QUE ESTA MEDIDO. Uma linha ja gravada, posta em dsEdit e nao tocada,
+///  seria CANCELADA e nao postada pelo CheckBrowseMode - nada se perderia - e
+///  a cunhagem e recusada assim mesmo, de modo que o filho que esta sendo
+///  digitado fica sem proveniencia a troco de nada visivel. Medido: com o neto
+///  nesse estado, estreitar o predicado com "and Modified" faz o OwnerToken do
+///  filho do outro ramo sair uma identidade real - 33 naquela corrida, um
+///  valor de sequencia e portanto dependente da ordem - onde hoje sai zero.
+///  POR QUE O PREDICADO NAO E ESTREITADO ASSIM MESMO, medido e nao suposto.
+///  Data.DB.pas, TDataSet.CheckBrowseMode, roda "UpdateRecord" ANTES de ler
+///  "Modified", e UpdateRecord emite deUpdateRecord para todo link e todo
+///  TDataSource ligado - que e exatamente o instante em que um controle
+///  data-aware escreve no campo o que o operador digitou. Essa escrita torna a
+///  linha Modified DENTRO do CheckBrowseMode, de modo que o Modified que um
+///  observador leria ANTES nao e o Modified que decide. Medido por
+///  MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice, que
+///  instala um OnUpdateData no lugar do controle: estreitado o predicado, o
+///  neto intocado volta com o valor do CONTROLE gravado, isto e, POSTADO.
+///  Segundo motivo, aritmetico em vez de temporal: dsSetKey esta em
+///  dsEditModes e o CheckBrowseMode POSTA um dataset em dsSetKey sem perguntar
+///  nada, onde "Modified" nao quer dizer coisa alguma - o estreitamento
+///  precisaria da sua propria excecao.
 ///
 ///  3. SO EM dsBrowse. Nao e sinonimo de "nao esta em dsEdit": cobre tambem o
 ///  master ainda em INSERCAO, e os dois casos sao recusados pelo mesmo motivo -
@@ -1334,16 +1427,21 @@ end;
 ///
 ///  SETE SAIDAS EM cNoRowToken, e a conta importa porque e o que sustenta o
 ///  "Refs" em vez do "Closes": AMaster nulo, dataset nulo, dataset fechado,
-///  dataset vazio, coluna ausente, linha fora de dsBrowse, e detalhe com
-///  linha aberta em qualquer nivel. Em todas o filho fica sem proveniencia e
-///  cai no comportamento
-///  historico - continua reivindicavel por qualquer master pendente, como
-///  antes do #265. As QUATRO alcancaveis por um consumidor - dataset vazio,
-///  linha em dsEdit, linha em dsInsert sob adapter mudo, e detalhe com linha
-///  aberta em qualquer nivel - estao fixadas pelas fixtures nomeadas acima.
-///  As outras tres
-///  (AMaster nulo, dataset nulo ou fechado, coluna ausente) sao defensivas e
-///  nenhuma fixture as alcanca.
+///  dataset vazio, coluna ausente, linha fora de dsBrowse, e detalhe com linha
+///  aberta em qualquer nivel. ESTA E A ENUMERACAO MANTIDA - o comentario de
+///  cOwnerTokenField em Janus.DataSet.Fields aponta para ca e nao repete a
+///  lista, porque duas listas fechadas em duas unidades ja discordaram uma vez.
+///  Em todas o filho fica sem proveniencia e cai no comportamento historico -
+///  continua reivindicavel por qualquer master pendente, como antes do #265.
+///  As QUATRO alcancaveis por um consumidor - dataset vazio, linha em dsEdit,
+///  linha em dsInsert sob adapter mudo, e detalhe com linha aberta em qualquer
+///  nivel - estao fixadas pelas fixtures nomeadas acima, e a quarta e mais
+///  larga do que parece: "aberta" e "State in dsEditModes", o que inclui uma
+///  linha em dsEdit que ninguem tocou e um dataset em dsSetKey. O preco disso
+///  esta medido e fixado, nao descrito - ver o item 2 e
+///  MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice.
+///  As outras tres (AMaster nulo, dataset nulo ou fechado, coluna ausente) sao
+///  defensivas e nenhuma fixture as alcanca.
 ///  PROCEDURE E NAO FUNCTION. O valor nao e devolvido porque nao pode ser
 ///  transportado com honestidade: entre a cunhagem e a leitura que
 ///  _StampRowTokens faz no DoNewRecord passam um Post, um Resync e a cascata de
@@ -1396,9 +1494,15 @@ begin
   // nada, e um neto aberto e Modified era postado. Uma recusa de um nivel so
   // olhava para o meio, nao via nada aberto, e deixava a escrita passar.
   // Medido por MintingWithASiblingChildMidInsert_DoesNotPostThatSibling, um
-  // nivel, e por MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild,
-  // dois. Ver _AnyDetailRowOpen, que e onde a caminhada esta e onde esta
-  // escrito por que ela nao e a de _RecurseOverChildRows.
+  // nivel, e por MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild e
+  // FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild, dois
+  // niveis nas DUAS familias - a do FireDAC tambem, ao contrario do que uma
+  // frase deste cabecalho chegou a afirmar. E "aberta" quer dizer
+  // "State in dsEditModes", nao "Modified": o preco dessa largura esta medido
+  // e fixado por
+  // MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice.
+  // Ver _AnyDetailRowOpen, que e onde a caminhada esta e onde esta escrito por
+  // que ela nao e a de _RecurseOverChildRows.
   if _AnyDetailRowOpen(AMaster) then
     Exit;
   AMaster.DisableDataSetEvents;

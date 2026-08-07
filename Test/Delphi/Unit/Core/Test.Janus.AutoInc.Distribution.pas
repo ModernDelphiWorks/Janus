@@ -230,7 +230,16 @@
       one level down: TFDDataSet.MasterChanged calls CheckMasterRange and NOT
       CheckBrowseMode, while TCustomClientDataSet.MasterChanged calls
       CheckBrowseMode first. The FireDAC twin is kept as the record of that
-      measurement;
+      measurement.
+      AND THAT ASYMMETRY IS ABOUT ONE LEG, NOT ABOUT THE FAMILY. It closes the
+      deDataSetChange leg for FireDAC and says nothing about the other one.
+      TFDMasterDataLink.DataEvent forwards deCheckBrowseMode unless the detail
+      AND its own master are BOTH in dsEditModes, so an Edit on the root walks
+      down a FireDAC tree exactly as it walks down a ClientDataSet one as soon
+      as there is a level in dsBrowse in between - see
+      FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild, which
+      exists because the un-narrowed sentence was an invitation to make the
+      guard ClientDataSet-only;
 
     * MintingWithASiblingChildMidInsert_DoesNotPostThatSibling catches the leg
       that survives the fix above. The child being typed is safe in dsBrowse,
@@ -248,7 +257,31 @@
 
     * ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow catches the
       IsEmpty guard. Data.DB.pas turns Edit on a rowless dataset into Insert, so
-      minting there would FABRICATE a master row.
+      minting there would FABRICATE a master row;
+
+    * FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild is the
+      FireDAC twin of the ClientDataSet three level fixture, and it exists
+      because a sentence in this file said the FireDAC family could not reach
+      the post at all. It can: the deDataSetChange leg dies at
+      TFDDataSet.MasterChanged, and the deCheckBrowseMode leg does not, because
+      TFDMasterDataLink.DataEvent only steps aside when the detail AND its own
+      master are both in dsEditModes. Measured: drop the recursive descent and
+      BOTH three level fixtures report the grandchild in dsBrowse;
+
+    * MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice pins a
+      DECISION rather than a defect. The guard asks `State in dsEditModes` and
+      never asks `Modified`, so it refuses the mint even for a saved row put
+      into dsEdit and never touched - one that CheckBrowseMode would Cancel, not
+      Post. Measured: narrowing the predicate with `and Modified` gives the
+      child of the other branch a real OwnerToken where it now records zero. It
+      is NOT narrowed, and the fixture says why with a measurement rather than
+      an argument: Data.DB.pas runs UpdateRecord BEFORE it reads Modified, and
+      UpdateRecord is exactly when a data-aware control writes the operator's
+      text into the field - so the fixture installs a TDataSource.OnUpdateData
+      where the control would be, and under the narrowed predicate the untouched
+      row comes back carrying what that handler wrote, which means it was
+      POSTED. dsSetKey is the second reason: it is in dsEditModes and
+      CheckBrowseMode posts it unconditionally, where Modified says nothing.
 
   THE TWO DESIGNS THAT WERE MEASURED AND WITHDRAWN
 
@@ -294,8 +327,28 @@
     * taking the value from AtomicIncrement(FRowTokenSeq) instead of the
       virtual _MintRowToken -> MintedMasterIdentity_ComesFromTheMasterOwnSequence
       alone;
-    * dropping the sibling-mid-edit loop ->
-      MintingWithASiblingChildMidInsert_DoesNotPostThatSibling alone;
+    * dropping the open-row test on the child itself, which is the only clause
+      of _AnyDetailRowOpen that ever answers True ->
+      MintingWithASiblingChildMidInsert_DoesNotPostThatSibling,
+      MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild,
+      FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild and
+      MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice, FOUR,
+      and so does dropping the call to it from _EnsureMasterRowToken - removing
+      that single test disarms the walk at every depth at once;
+    * dropping the RECURSIVE DESCENT alone -> the three fixtures whose open row
+      is more than one level down: the two grandchild ones, both reporting
+      "Measured state: dsBrowse", and the untouched-dsEdit one, reporting
+      "Expected [KEEP] but got [CTRL]" - the untouched row was POSTED carrying
+      what the control wrote;
+    * narrowing the open-row test to `and Modified` ->
+      MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice ALONE,
+      on that same KEEP/CTRL clause. Remove the OnUpdateData handler as well and
+      the mutation still reddens that one fixture, but on the PRICE clause
+      instead, "Expected [0] but got [33]", with the KEEP clause now GREEN
+      because an untouched row really is Cancelled when no control writes into
+      it. That pair is the whole argument: the handler does not change which
+      test is red, it changes whether the finding is "a row was committed
+      behind the operator's back" or only "a child lost its parentage";
     * dropping the IsEmpty guard ->
       ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow alone;
     * minting from any state instead of only dsBrowse ->
@@ -505,6 +558,10 @@ type
     FConn: IDBConnection;
     FTree: TTreeConnection;
     FRest: IRESTConnection;
+    /// The dataset ControlWritesDuringUpdateRecord writes into. A field rather
+    /// than a closure because TDataSource.OnUpdateData is a plain TNotifyEvent
+    /// and hands back the SOURCE, not the dataset.
+    FControlDataSet: TDataSet;
     procedure SeedTwoMastersThenChildrenUnderTheFirst(const AMaster,
       AChild: TDataSet; const AChildRows: Integer);
     function KeyOfMasterRow(const AMaster: TDataSet;
@@ -532,6 +589,7 @@ type
       const AColumn: String): String;
     procedure AssertColumnsFollowTheMapping(const ADataSet: TDataSet;
       const AClass: TClass; const AWhere: String);
+    procedure ControlWritesDuringUpdateRecord(ASender: TObject);
   public
     [Setup]
     procedure Setup;
@@ -570,6 +628,10 @@ type
     procedure MintingWithASiblingChildMidInsert_DoesNotPostThatSibling;
     [Test]
     procedure MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild;
+    [Test]
+    procedure FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild;
+    [Test]
+    procedure MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice;
     [Test]
     procedure ChildTypedUnderAMutedMasterStillInserting_RecordsNoParentage;
     [Test]
@@ -655,6 +717,12 @@ const
   /// so a test cannot import it and must not pretend to.
   cNOTOKEN = 0;
   cEDITEDTAG  = 'EDITING';
+  /// The two tags the UNTOUCHED-dsEdit fixture tells apart: what a grandchild
+  /// row was COMMITTED with, and what a data-aware control writes into it
+  /// during deUpdateRecord. Both a Post and a Cancel leave the dataset in
+  /// dsBrowse, so reading the tag back is the only way to say which happened.
+  cKEEPTAG    = 'KEEP';
+  cCTRLTAG    = 'CTRL';
 
 type
   TScrollMute = record
@@ -1836,11 +1904,25 @@ begin
   //
   // THIS FIXTURE DOES NOT DEMONSTRATE THAT, AND SAYS SO. TFDDataSet
   // .MasterChanged calls CheckMasterRange and NOT CheckBrowseMode, so the
-  // FireDAC family never reaches the post. It passes with the mint in
-  // DoBeforeInsert and with the mint in DoNewRecord alike - measured. It is
-  // kept as the record of that measurement and as a guard that the FireDAC
-  // wiring itself stays harmless; the fixture that DOES discriminate is
+  // FireDAC family never reaches the post THROUGH THIS LEG. It passes with the
+  // mint in DoBeforeInsert and with the mint in DoNewRecord alike - measured.
+  // It is kept as the record of that measurement and as a guard that the
+  // FireDAC wiring itself stays harmless; the fixture that DOES discriminate is
   // ClientDataSetLinkedAsTheRestClientDoes_MintingDoesNotPostTheChild.
+  //
+  // THE THREE WORDS "THROUGH THIS LEG" ARE A CORRECTION, and it is left visible
+  // like the one below it. This comment used to end at "never reaches the
+  // post", full stop, and that generalisation is FALSE: it disposes of the
+  // deDataSetChange leg only. The OTHER leg - Edit -> CheckBrowseMode ->
+  // deCheckBrowseMode - reaches the FireDAC family too, because
+  // TFDMasterDataLink.DataEvent steps aside on that event only when the detail
+  // AND its own master are both in dsEditModes, which a level sitting in
+  // dsBrowse is not. Measured with a three level FDMemTable tree in
+  // FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild: remove
+  // the recursive descent from the guard and the FireDAC grandchild comes back
+  // dsBrowse, posted half typed, exactly like the ClientDataSet one. Without
+  // that fixture nothing would stop a later change from narrowing the guard to
+  // the ClientDataSet family on the strength of the sentence above.
   //
   // An earlier revision of this comment blamed TFDMasterDataLink.DataEvent's
   // delayed-scroll branch for swallowing deCheckBrowseMode. That was wrong -
@@ -2198,6 +2280,7 @@ var
   LLeaf: TClientDataSetAdapter<TAitLeaf>;
   LOther: TClientDataSetAdapter<TAitNoCascade>;
   LState: TDataSetState;
+  LOtherToken: Integer;
 
   procedure Wire(const AChild: TClientDataSet; const ASource: TDataSource;
     const AField: String);
@@ -2257,6 +2340,18 @@ begin
       Wire(LMidCds, TCascadeAccess<TAitRoot>.SourceOf(LRoot), cKEY);
       Wire(LLeafCds, TCascadeAccess<TAitMid>.SourceOf(LMid), cOWNKEY);
       Wire(LOtherCds, TCascadeAccess<TAitRoot>.SourceOf(LRoot), cKEY);
+      // ASSERTED, not merely installed. Three links carry this fixture, and a
+      // link that quietly failed to establish would leave it green measuring
+      // nothing - the grandchild would survive because nothing could reach it,
+      // which is the reading this fixture exists to exclude.
+      Assert.IsNotNull(LMidCds.MasterSource,
+        'PREMISE: the root -> mid link must really be installed');
+      Assert.IsNotNull(LLeafCds.MasterSource,
+        'PREMISE: the mid -> leaf link must really be installed - it carries ' +
+        'the second hop, which is the whole subject here');
+      Assert.IsNotNull(LOtherCds.MasterSource,
+        'PREMISE: and the root -> other link, which is what lets the mint fire ' +
+        'from a branch with no details of its own');
 
       // A mid row for the leaf to hang under. Muted so it does not mint.
       TCascadeAccess<TAitMid>.Mute(LMid);
@@ -2305,6 +2400,7 @@ begin
       // the open grandchild is the write the mint makes on the root row.
       LOtherCds.Append;
       LState := LLeafCds.State;
+      LOtherToken := LOtherCds.FieldByName(cOWNERTOKEN).AsInteger;
     finally
       // Links down BEFORE anything else, deepest first. Cancelling a row while
       // its dataset is still ranged against a master re-enters the ranging and
@@ -2343,6 +2439,407 @@ begin
     'triggers emits it again - so a refusal that only inspects the direct ' +
     'children lets the write through and the row two levels down is committed ' +
     'half typed. Measured state: ' +
+    GetEnumName(TypeInfo(TDataSetState), Ord(LState)));
+  Assert.AreEqual(cNOTOKEN, LOtherToken,
+    'and the child being typed records NO parentage. Without this clause the ' +
+    'fixture cannot tell "the grandchild survived because we refused" from ' +
+    '"the grandchild survived because nothing reached it": the refusal is ' +
+    'what has to be visible, and its price is paid right here. It is asserted ' +
+    'SECOND on purpose - the state clause carries the measured state in its ' +
+    'message and DUnitX stops at the first failing one');
+end;
+
+procedure TTestAutoIncDistribution.FDMemTable_MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild;
+var
+  LRootTable: TFDMemTable;
+  LMidTable: TFDMemTable;
+  LLeafTable: TFDMemTable;
+  LOtherTable: TFDMemTable;
+  LRoot: TFDMemTableAdapter<TAitRoot>;
+  LMid: TFDMemTableAdapter<TAitMid>;
+  LLeaf: TFDMemTableAdapter<TAitLeaf>;
+  LOther: TFDMemTableAdapter<TAitNoCascade>;
+  LState: TDataSetState;
+  LOtherToken: Integer;
+
+  procedure Wire(const AChild: TFDMemTable; const ASource: TDataSource;
+    const AField: String);
+  var
+    LM: TScrollMute;
+  begin
+    LM := MuteScroll(AChild);
+    try
+      AChild.MasterSource := ASource;
+      AChild.IndexFieldNames := AField;
+      AChild.MasterFields := AField;
+    finally
+      UnmuteScroll(AChild, LM);
+    end;
+  end;
+
+begin
+  // THE FIREDAC FAMILY IS AFFECTED TOO, AND THE SENTENCE THAT SAID OTHERWISE
+  // WAS TOO BROAD. LinkedAsTheRestClientDoes_MintingDoesNotPostTheChild says
+  // TFDDataSet.MasterChanged calls CheckMasterRange and not CheckBrowseMode,
+  // "so the FireDAC family never reaches the post". The premise is right and
+  // the conclusion is not: it disposes of ONE of the two legs. The other leg
+  // reaches the FireDAC family exactly as it reaches the ClientDataSet one, and
+  // a three level tree is where it shows:
+  //
+  //   Data.DB.pas, TDataSet.Edit -> CheckBrowseMode ->
+  //   DataEvent(deCheckBrowseMode) -> FireDAC.Comp.DataSet.pas,
+  //   TFDMasterDataLink.DataEvent, which returns early on that event ONLY when
+  //   the detail AND its own master are BOTH in dsEditModes. Here the mid is in
+  //   dsBrowse, so it does not: it calls inherited, TMasterDataLink
+  //   .CheckBrowseMode runs the MID's CheckBrowseMode, that one emits
+  //   deCheckBrowseMode onwards, and the LEAF's link is reached with the leaf
+  //   in dsInsert and ITS master - the mid - in dsBrowse, so it does not return
+  //   early either. "if Modified then Post" then commits a grandchild row the
+  //   operator had open.
+  //
+  // WHY IT IS PERMANENT AND NOT A PROBE. The sentence it corrects is an
+  // invitation to narrow the guard to the ClientDataSet family, and nothing
+  // else in this project would go red if someone accepted it. This is the twin
+  // of MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild, in the family
+  // that was claimed to be out of reach.
+  LRootTable := TFDMemTable.Create(nil);
+  LMidTable := TFDMemTable.Create(nil);
+  LLeafTable := TFDMemTable.Create(nil);
+  LOtherTable := TFDMemTable.Create(nil);
+  try
+    LRoot := TFDMemTableAdapter<TAitRoot>.Create(FConn, LRootTable, -1, nil);
+    LMid := TFDMemTableAdapter<TAitMid>.Create(FConn, LMidTable, -1, LRoot);
+    LLeaf := TFDMemTableAdapter<TAitLeaf>.Create(FConn, LLeafTable, -1, LMid);
+    LOther := TFDMemTableAdapter<TAitNoCascade>.Create(FConn, LOtherTable, -1,
+                LRoot);
+    try
+      TCascadeAccess<TAitRoot>.Mute(LRoot);
+      try
+        LRootTable.Append;
+        LRootTable.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+        LRootTable.FieldByName(cTAG).AsString := cLOADEDTAG;
+        LRootTable.Post;
+      finally
+        TCascadeAccess<TAitRoot>.Unmute(LRoot);
+      end;
+      Assert.AreEqual(cNOTOKEN, TokenOfTaggedRow(LRootTable, cLOADEDTAG,
+                                                 cROWTOKEN),
+        'PREMISE: the root must be untokenised, or no mint fires at all');
+
+      Wire(LMidTable, TCascadeAccess<TAitRoot>.SourceOf(LRoot), cKEY);
+      Wire(LLeafTable, TCascadeAccess<TAitMid>.SourceOf(LMid), cOWNKEY);
+      Wire(LOtherTable, TCascadeAccess<TAitRoot>.SourceOf(LRoot), cKEY);
+      // ASSERTED, not merely installed. Three links carry this fixture, and a
+      // link that quietly failed to establish would leave it green measuring
+      // nothing - the grandchild would survive because nothing could reach it.
+      Assert.IsNotNull(LMidTable.MasterSource,
+        'PREMISE: the root -> mid link must really be installed');
+      Assert.IsNotNull(LLeafTable.MasterSource,
+        'PREMISE: the mid -> leaf link must really be installed - it carries ' +
+        'the second hop this fixture exists for');
+      Assert.IsNotNull(LOtherTable.MasterSource,
+        'PREMISE: and the root -> other link, which is what lets the mint fire ' +
+        'from a branch with no details of its own');
+
+      // A mid row for the leaf to hang under. Muted so it does not mint.
+      TCascadeAccess<TAitMid>.Mute(LMid);
+      try
+        LMidTable.Append;
+        LMidTable.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+        LMidTable.FieldByName(cOWNKEY).AsInteger := cMIDFIRST;
+        LMidTable.FieldByName(cTAG).AsString := 'M0';
+        LMidTable.Post;
+      finally
+        TCascadeAccess<TAitMid>.Unmute(LMid);
+      end;
+
+      // THE GRANDCHILD, left open and Modified. Muted so it does not mint.
+      TCascadeAccess<TAitLeaf>.Mute(LLeaf);
+      try
+        LLeafTable.Append;
+        // Every NotNull column filled, so a Post that SHOULD NOT happen fails
+        // this test on its state clause instead of erroring on validation.
+        LLeafTable.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+        LLeafTable.FieldByName(cOWNKEY).AsInteger := cMIDFIRST;
+        LLeafTable.FieldByName(cTAG).AsString := 'HALF';
+      finally
+        TCascadeAccess<TAitLeaf>.Unmute(LLeaf);
+      end;
+      Assert.IsTrue(LLeafTable.State = dsInsert,
+        'PREMISE: the grandchild must be sitting in dsInsert');
+      Assert.IsTrue(LLeafTable.Modified,
+        'PREMISE: and Modified, or CheckBrowseMode would Cancel it instead of ' +
+        'Posting it and this test would measure the wrong branch');
+      Assert.IsTrue(LMidTable.State = dsBrowse,
+        'PREMISE: and the MID level must be in dsBrowse - which is also what ' +
+        'keeps TFDMasterDataLink.DataEvent from returning early, since that ' +
+        'early return needs the detail AND its master both in dsEditModes');
+
+      // THE MINT FIRES FROM THE OTHER BRANCH, for the same reason as in the
+      // ClientDataSet twin: appending to the MID would post the grandchild all
+      // by itself, since BeginInsertAppend runs CheckBrowseMode on the mid
+      // before DoBeforeInsert. TAitNoCascade has no details of its own.
+      LOtherTable.Append;
+      LState := LLeafTable.State;
+      LOtherToken := LOtherTable.FieldByName(cOWNERTOKEN).AsInteger;
+    finally
+      // Links down BEFORE anything else, deepest first - cancelling a row while
+      // its dataset is still ranged re-enters the ranging and raises on its own.
+      LLeafTable.MasterFields := '';
+      LLeafTable.IndexFieldNames := '';
+      LLeafTable.MasterSource := nil;
+      LMidTable.MasterFields := '';
+      LMidTable.IndexFieldNames := '';
+      LMidTable.MasterSource := nil;
+      LOtherTable.MasterFields := '';
+      LOtherTable.IndexFieldNames := '';
+      LOtherTable.MasterSource := nil;
+      if LOtherTable.State in [dsInsert, dsEdit] then
+        LOtherTable.Cancel;
+      if LLeafTable.State in [dsInsert, dsEdit] then
+        LLeafTable.Cancel;
+      if LMidTable.State in [dsInsert, dsEdit] then
+        LMidTable.Cancel;
+      LOther.Free;
+      LLeaf.Free;
+      LMid.Free;
+      LRoot.Free;
+    end;
+  finally
+    LOtherTable.Free;
+    LLeafTable.Free;
+    LMidTable.Free;
+    LRootTable.Free;
+  end;
+
+  Assert.IsTrue(LState = dsInsert,
+    'the GRANDCHILD must still be sitting in dsInsert, in the FIREDAC family ' +
+    'too. deCheckBrowseMode does not stop at the level below the master, and ' +
+    'TFDMasterDataLink only steps out of its way when the detail AND its own ' +
+    'master are both mid-edit - which a mid level in dsBrowse is not. ' +
+    'Measured state: ' + GetEnumName(TypeInfo(TDataSetState), Ord(LState)));
+  Assert.AreEqual(cNOTOKEN, LOtherToken,
+    'and the child being typed records NO parentage: the refusal is what ' +
+    'protected the grandchild, and the price is asserted here so that "the ' +
+    'grandchild survived because we refused" cannot be read as "the ' +
+    'grandchild survived because nothing reached it". SECOND, so that the ' +
+    'clause above gets to report the measured state first');
+end;
+
+/// The handler a fixture installs where a data-aware control would sit. VCL
+/// controls do not write the value the operator typed into the FIELD as it is
+/// typed - TFieldDataLink holds it and writes it when the dataset fires
+/// deUpdateRecord, which Data.DB.pas, TDataSet.CheckBrowseMode does through
+/// UpdateRecord IMMEDIATELY BEFORE it reads Modified. TDataSource.OnUpdateData
+/// is fired from the same event, in the same instant, and is the hook a fixture
+/// can install without a windowed control. See
+/// MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice.
+procedure TTestAutoIncDistribution.ControlWritesDuringUpdateRecord(
+  ASender: TObject);
+begin
+  if FControlDataSet = nil then
+    Exit;
+  if not (FControlDataSet.State in dsEditModes) then
+    Exit;
+  FControlDataSet.FieldByName(cTAG).AsString := cCTRLTAG;
+end;
+
+procedure TTestAutoIncDistribution.MintingWithAnUntouchedGrandchildInEdit_IsRefusedAndThatIsThePrice;
+var
+  LRootCds: TClientDataSet;
+  LMidCds: TClientDataSet;
+  LLeafCds: TClientDataSet;
+  LOtherCds: TClientDataSet;
+  LRoot: TClientDataSetAdapter<TAitRoot>;
+  LMid: TClientDataSetAdapter<TAitMid>;
+  LLeaf: TClientDataSetAdapter<TAitLeaf>;
+  LOther: TClientDataSetAdapter<TAitNoCascade>;
+  LControl: TDataSource;
+  LState: TDataSetState;
+  LTag: String;
+  LOtherToken: Integer;
+
+  procedure Wire(const AChild: TClientDataSet; const ASource: TDataSource;
+    const AField: String);
+  var
+    LM: TScrollMute;
+  begin
+    LM := MuteScroll(AChild);
+    try
+      AChild.MasterSource := ASource;
+      AChild.IndexFieldNames := AField;
+      AChild.MasterFields := AField;
+    finally
+      UnmuteScroll(AChild, LM);
+    end;
+  end;
+
+begin
+  // WHERE THE REFUSAL IS WIDER THAN THE HAZARD, AND WHY IT STAYS THAT WAY.
+  // _AnyDetailRowOpen asks `State in dsEditModes` and never asks `Modified`,
+  // while the RTL step it defends against - Data.DB.pas, TDataSet
+  // .CheckBrowseMode - runs `UpdateRecord; if Modified then Post else Cancel`.
+  // So a detail sitting in dsEdit that the operator never touched would be
+  // CANCELLED, not posted, and refusing the mint for it costs the child being
+  // typed its parentage for nothing visible. Measured, with this shape: the
+  // OwnerToken is a real identity under the one level refusal that shipped in
+  // the previous revision, and cNOTOKEN as shipped now.
+  //
+  // IT IS STILL NOT NARROWED TO `Modified`, and the reason is in the RTL line
+  // ABOVE the one everybody quotes: `UpdateRecord` comes FIRST, and it fires
+  // deUpdateRecord at every attached link and data source - Data.DB.pas,
+  // TDataSet.UpdateRecord and TDataSource.DataEvent. That is exactly when a
+  // data-aware control writes what the operator typed into the field, and that
+  // write makes the row Modified. The `Modified` an outsider could read BEFORE
+  // CheckBrowseMode runs is therefore not the `Modified` CheckBrowseMode
+  // decides on, and this fixture installs a TDataSource.OnUpdateData that does
+  // what a control does, so the difference is measured rather than argued.
+  // Second reason, arithmetic rather than temporal: dsSetKey is in dsEditModes
+  // (Data.DB.pas) and CheckBrowseMode POSTS a dsSetKey dataset unconditionally,
+  // where `Modified` says nothing at all - so the narrowing would need its own
+  // exception anyway.
+  //
+  // THIS FIXTURE PINS THE DECISION, NOT A DEFECT. Its clauses are what go red
+  // if the predicate is narrowed, and the price clause is what goes red if the
+  // refusal ever stops being paid for.
+  LRootCds := TClientDataSet.Create(nil);
+  LMidCds := TClientDataSet.Create(nil);
+  LLeafCds := TClientDataSet.Create(nil);
+  LOtherCds := TClientDataSet.Create(nil);
+  LControl := TDataSource.Create(nil);
+  try
+    LRoot := TClientDataSetAdapter<TAitRoot>.Create(FConn, LRootCds, -1, nil);
+    LMid := TClientDataSetAdapter<TAitMid>.Create(FConn, LMidCds, -1, LRoot);
+    LLeaf := TClientDataSetAdapter<TAitLeaf>.Create(FConn, LLeafCds, -1, LMid);
+    LOther := TClientDataSetAdapter<TAitNoCascade>.Create(FConn, LOtherCds, -1,
+                LRoot);
+    try
+      TCascadeAccess<TAitRoot>.Mute(LRoot);
+      try
+        LRootCds.Append;
+        LRootCds.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+        LRootCds.FieldByName(cTAG).AsString := cLOADEDTAG;
+        LRootCds.Post;
+      finally
+        TCascadeAccess<TAitRoot>.Unmute(LRoot);
+      end;
+      Assert.AreEqual(cNOTOKEN, TokenOfTaggedRow(LRootCds, cLOADEDTAG,
+                                                 cROWTOKEN),
+        'PREMISE: the root must be untokenised, or no mint fires at all');
+
+      Wire(LMidCds, TCascadeAccess<TAitRoot>.SourceOf(LRoot), cKEY);
+      Wire(LLeafCds, TCascadeAccess<TAitMid>.SourceOf(LMid), cOWNKEY);
+      Wire(LOtherCds, TCascadeAccess<TAitRoot>.SourceOf(LRoot), cKEY);
+      Assert.IsNotNull(LMidCds.MasterSource,
+        'PREMISE: the root -> mid link must really be installed');
+      Assert.IsNotNull(LLeafCds.MasterSource,
+        'PREMISE: the mid -> leaf link must really be installed - it is what ' +
+        'would carry the post down to the grandchild');
+      Assert.IsNotNull(LOtherCds.MasterSource,
+        'PREMISE: and the root -> other link, which is what lets the mint fire ' +
+        'from a branch with no details of its own');
+
+      TCascadeAccess<TAitMid>.Mute(LMid);
+      try
+        LMidCds.Append;
+        LMidCds.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+        LMidCds.FieldByName(cOWNKEY).AsInteger := cMIDFIRST;
+        LMidCds.FieldByName(cTAG).AsString := 'M0';
+        LMidCds.Post;
+      finally
+        TCascadeAccess<TAitMid>.Unmute(LMid);
+      end;
+
+      // THE GRANDCHILD IS COMMITTED FIRST, and then only OPENED. That is what
+      // separates this fixture from the one above it: there the open row is
+      // half typed and would be POSTED, here it is a saved row put into dsEdit
+      // and never touched, which CheckBrowseMode would CANCEL. Nothing is at
+      // risk, and the refusal happens anyway.
+      TCascadeAccess<TAitLeaf>.Mute(LLeaf);
+      try
+        LLeafCds.Append;
+        LLeafCds.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+        LLeafCds.FieldByName(cOWNKEY).AsInteger := cMIDFIRST;
+        LLeafCds.FieldByName(cTAG).AsString := cKEEPTAG;
+        LLeafCds.Post;
+        LLeafCds.Edit;
+      finally
+        TCascadeAccess<TAitLeaf>.Unmute(LLeaf);
+      end;
+      Assert.IsTrue(LLeafCds.State = dsEdit,
+        'PREMISE: the grandchild must be sitting in dsEdit');
+      Assert.IsFalse(LLeafCds.Modified,
+        'PREMISE: and NOT Modified - that is the whole point. A Modified row ' +
+        'is the case the fixture above already measures');
+      Assert.IsTrue(LMidCds.State = dsBrowse,
+        'PREMISE: and the MID level must be in dsBrowse, so that the only open ' +
+        'row anywhere in the tree is the untouched one two levels down');
+
+      // The control goes on LAST, so that none of the writes above runs through
+      // it. From here on the leaf is wired the way a grid wires it.
+      FControlDataSet := LLeafCds;
+      LControl.DataSet := LLeafCds;
+      LControl.OnUpdateData := ControlWritesDuringUpdateRecord;
+
+      LOtherCds.Append;
+      LState := LLeafCds.State;
+      // Read from the FIELD, not from a saved copy: under a narrowed predicate
+      // the leaf is POSTED carrying what the control wrote, and under a
+      // narrowed predicate WITHOUT the control it is CANCELLED back to what it
+      // was committed with. Both end in dsBrowse, so the state clause alone
+      // cannot tell them apart and this one is what makes the control
+      // load-bearing.
+      LTag := LLeafCds.FieldByName(cTAG).AsString;
+      LOtherToken := LOtherCds.FieldByName(cOWNERTOKEN).AsInteger;
+    finally
+      LControl.OnUpdateData := nil;
+      LControl.DataSet := nil;
+      FControlDataSet := nil;
+      LLeafCds.MasterFields := '';
+      LLeafCds.IndexFieldNames := '';
+      LLeafCds.MasterSource := nil;
+      LMidCds.MasterFields := '';
+      LMidCds.IndexFieldNames := '';
+      LMidCds.MasterSource := nil;
+      LOtherCds.MasterFields := '';
+      LOtherCds.IndexFieldNames := '';
+      LOtherCds.MasterSource := nil;
+      if LOtherCds.State in [dsInsert, dsEdit] then
+        LOtherCds.Cancel;
+      if LLeafCds.State in [dsInsert, dsEdit] then
+        LLeafCds.Cancel;
+      if LMidCds.State in [dsInsert, dsEdit] then
+        LMidCds.Cancel;
+      LOther.Free;
+      LLeaf.Free;
+      LMid.Free;
+      LRoot.Free;
+    end;
+  finally
+    LControl.Free;
+    LOtherCds.Free;
+    LLeafCds.Free;
+    LMidCds.Free;
+    LRootCds.Free;
+  end;
+
+  Assert.AreEqual(cKEEPTAG, LTag,
+    'the grandchild must still carry the value it was COMMITTED with. ' +
+    'ASSERTED FIRST because it is the strongest of the three: an untouched ' +
+    'dsEdit row that comes back carrying what the CONTROL wrote was POSTED, ' +
+    'not Cancelled, which is what Data.DB.pas produces when UpdateRecord runs ' +
+    'BEFORE Modified is read. That is the whole answer to "why not just ask ' +
+    'Modified" - the Modified an outsider reads is not the one that decides');
+  Assert.AreEqual(cNOTOKEN, LOtherToken,
+    'THE PRICE, ASSERTED RATHER THAN DESCRIBED. The mint was refused even ' +
+    'though the only open row in the whole tree was an UNTOUCHED dsEdit two ' +
+    'levels down, which CheckBrowseMode would have Cancelled and not Posted ' +
+    'had no control been attached - so the child being typed records no ' +
+    'parentage and falls back to the behaviour that shipped before issue ' +
+    '#265, and stays claimable by any pending master. THIS IS A DECLARED ' +
+    'LIMIT, not a defect');
+  Assert.IsTrue(LState = dsEdit,
+    'and it must still be open. Measured state: ' +
     GetEnumName(TypeInfo(TDataSetState), Ord(LState)));
 end;
 

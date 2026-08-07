@@ -134,10 +134,19 @@ const
   ///  longer a state this column can be in:
   ///  TDataSetBaseAdapter<M>._EnsureMasterRowToken gives the master row an
   ///  identity from the child's DoBeforeInsert - before the child row is even
-  ///  opened - so the child names a real parent. Zero now means what it says,
-  ///  and reaches only three states: a row whose own adapter was muted, a row
-  ///  typed with the master table EMPTY, and a row typed while the master row
-  ///  is mid-edit. All three are pinned. </summary>
+  ///  opened - so the child names a real parent.
+  ///
+  ///  ZERO IS STILL PRODUCED, AND THE LIST OF PRODUCERS IS NOT KEPT HERE. An
+  ///  earlier revision of this comment closed that list at three states and was
+  ///  already wrong by two when it shipped: a row typed under a master still
+  ///  mid-INSERT with its adapter muted, and a row typed while ANY detail of
+  ///  that master, at ANY depth, had a row open. The twin enumeration in
+  ///  TDataSetBaseAdapter<M>._EnsureMasterRowToken said FOUR while this one
+  ///  said three, and two closed lists in two units that disagree is worse than
+  ///  no list here at all. So this one makes no claim to be exhaustive: the
+  ///  MAINTAINED enumeration is the one on _EnsureMasterRowToken, which counts
+  ///  every exit that returns without minting, says which of them a consumer
+  ///  can reach, and names the fixture that pins each. </summary>
   cOwnerTokenField = 'OwnerToken';
 
 type
