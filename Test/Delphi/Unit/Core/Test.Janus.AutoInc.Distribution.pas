@@ -357,11 +357,13 @@
       and so does dropping the call to it from _EnsureMasterRowToken - removing
       that single test disarms the walk at every depth at once. Both families
       at both depths, and the count was FOUR until the one level FireDAC shape
-      was measured. Three of the five say the state out loud - the two
-      grandchild ones and the FireDAC sibling all report
-      "Measured state: dsBrowse" - while the ClientDataSet sibling asserts its
-      price FIRST and so fails on "Expected [0] but got [33]" and never gets to
-      report a state at all;
+      was measured. FOUR of the five say the state out loud - the two grandchild
+      ones and BOTH siblings all report "Measured state: dsBrowse" - and the
+      fifth, the untouched-dsEdit one, reports the value the control wrote
+      because that is the stronger finding there. The ClientDataSet sibling used
+      to be the exception, asserting its price FIRST and so failing on
+      "Expected [0] but got [33]" without ever printing a state; its two clauses
+      were swapped into the convention the rest of the file follows;
     * NARROWING THE DIRECT CHILD TEST TO THE ClientDataSet FAMILY, with the
       recursive descent left whole -> ONE red in 499, and it is
       FDMemTable_MintingWithASiblingChildMidInsert_DoesNotPostThatSibling. This
@@ -2238,17 +2240,28 @@ begin
     LRootCds.Free;
   end;
 
-  Assert.AreEqual(cNOTOKEN, LOtherToken,
-    'and the child that was being typed records NO parentage - refusing to ' +
-    'write is how the sibling is protected, so the price is paid here and is ' +
-    'stated rather than hidden: that child falls back to the historical ' +
-    'behaviour');
   Assert.IsTrue(LState = dsInsert,
     'the sibling must STILL be sitting in dsInsert. Writing an identity on ' +
     'the master row may not reach a half typed row in another detail and ' +
     'commit it - what would go to the database is whatever the operator had ' +
     'got to. Measured state: ' +
     GetEnumName(TypeInfo(TDataSetState), Ord(LState)));
+  // STATE FIRST, PRICE SECOND, which is the convention this file already
+  // legislates and this fixture was the only one outside it. The sentence is in
+  // MintingWithAGrandchildRowOpen_DoesNotPostThatGrandchild, on its own price
+  // clause: "It is asserted SECOND on purpose - the state clause carries the
+  // measured state in its message and DUnitX stops at the first failing one".
+  // With the price asserted first this fixture failed on
+  // "Expected [0] but got [33]" and never printed a state at all. Worse than
+  // terse: 33 asserts THE MINT FIRED, which is not the same proposition as THE
+  // SIBLING WAS POSTED. In a regression where the mint fires and the sibling
+  // survives for some other reason, that message would send the reader to the
+  // wrong place. The state clause names what this fixture is about.
+  Assert.AreEqual(cNOTOKEN, LOtherToken,
+    'and the child that was being typed records NO parentage - refusing to ' +
+    'write is how the sibling is protected, so the price is paid here and is ' +
+    'stated rather than hidden: that child falls back to the historical ' +
+    'behaviour');
 end;
 
 procedure TTestAutoIncDistribution.ChildTypedUnderAMutedMasterStillInserting_RecordsNoParentage;
