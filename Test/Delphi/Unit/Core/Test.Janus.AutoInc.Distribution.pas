@@ -156,83 +156,101 @@
   the database is untokenised, and every child typed under one of them was
   claimable by any other pending master.
 
-  Seven tests were written for #265 and RUN against the untouched framework,
-  and
-  this is what they did THERE - re-measured against the file exactly as it is
-  committed, not against an earlier draft of it:
+  Nine tests were written for #265 and RUN against the untouched framework or,
+  where they measure a hazard the fix itself could introduce, against the
+  candidate that had it. All numbers below were re-measured against the file
+  exactly as it is committed.
 
-    * ChildTypedUnderAnUnidentifiedMaster_MakesThatMasterIdentifyItself - RED.
-      It reports all three of its numbers in one run: a child typed under a
-      muted master recorded 0 whether that master key was real or the
-      placeholder, while a child typed under a live master already recorded a
-      positive identity. 0 is the value _IsOwnedByMasterRow waves through for
-      EVERYBODY, so the first two children belonged to whoever asked;
+  RED AGAINST origin/develop:
 
-    * LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey - RED ON THE
-      RESULT: the child typed under a master LOADED FROM THE STORE, key 17,
-      came out on 101, the brand new master's generated key. Every premise
-      passed, so the run also established that the loaded master really carries
-      a real key, really is NOT pending, really has no row identity, and that
-      the shipped _GetMasterValues really had written 17 into the child at
-      creation time;
-
-    * MutedMasterAppend_WithARealKey_ItsChildKeepsThatKey - RED ON THE RESULT,
-      the same 101, with the same untokenised master reached by muting the
-      adapter by hand instead of by loading;
-
+    * ChildTypedUnderAnUnidentifiedMaster_MakesThatMasterIdentifyItself -
+      the three arms in one message: [muted master, real key=0] [muted master,
+      placeholder=0] [live master=positive]. 0 is what _IsOwnedByMasterRow
+      waves through for EVERYBODY, so the first two children belonged to
+      whoever asked;
+    * LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey - RESULT: the
+      child of the master LOADED FROM THE STORE on key 17 came out on 101;
+    * MutedMasterAppend_WithARealKey_ItsChildKeepsThatKey - RESULT: the same;
     * TwoUnidentifiedPendingMasters_ChildOfTheFirstIsNotClaimedByTheSecond -
-      RED ON THE RESULT: the child typed under the FIRST of two untokenised
-      masters came out on 201, the second one's key;
+      RESULT: the child of the FIRST of two untokenised masters came out on the
+      SECOND's key;
+    * MintedMasterIdentity_ComesFromTheMasterOwnSequence - vacuously, since
+      nothing is minted there at all;
+    * and, in the neighbouring unit, Test.Janus.AutoInc.Childs
+      .TwoPendingMasterRows_WithNoRecordedParentage_EveryPendingChildEndsOnTheLastMasterKey,
+      whose write log is the sharpest evidence in the series: FOUR writes,
+      [mid C0 <- 101 while the master sat on R1/101] twice and then the same two
+      rows again on R2 - the first master writing the second master's children,
+      inside the shipped ApplyInserter.
 
-    * MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired - GREEN,
-      and it had to stay green. There the muted master's key is still the
-      autoinc placeholder and the master IS pending, so it generates a key and
-      the cascade REPAIRS its own child. A parentage rule that simply refused
-      every child of an unidentified master turns this one red, leaving a -1
-      foreign key where the framework used to put a real one;
+  GREEN AGAINST origin/develop, and required to stay green:
+  MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired,
+  ChildTypedBeforeItsMasterRowIsPosted_StillReceivesTheKey,
+  ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow,
+  ChildTypedWhileTheMasterRowIsBeingEdited_DoesNotCommitThatEdit,
+  the two link fixtures, UntokenisedRows_KeepTheHistoricalBehaviour and
+  ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster. The dsEdit one is
+  green there because it now asserts the SAME answer develop gives - no
+  parentage recorded - which is the trade this issue chose over writing into an
+  edit the operator has not finished; what it pins is that the fix does not
+  change it. The two link fixtures are green there for the plain reason that
+  nothing is minted on develop at all; they exist to catch the fix, not the
+  defect, and the mutation table below is where they earn their place.
 
-    * ChildTypedBeforeItsMasterRowIsPosted_StillReceivesTheKey - GREEN, and it
-      had to stay green too. Nothing is muted there at all: the master row is
-      simply not POSTED yet, which is what a master-detail form looks like while
-      the operator fills the header and starts adding items.
+  THREE TESTS MEASURE THE FIX AGAINST ITSELF, and they exist because two
+  candidate designs were shipped-and-withdrawn before this one:
 
-    * ChildTypedWhileTheMasterRowIsBeingEdited_DoesNotCommitThatEdit - RED, on
-      its last clause: the child of a LOADED master in dsEdit came out naming
-      nobody. Its two state clauses - the master is still in dsEdit and the
-      value being typed is still in the buffer - pass on origin/develop, which
-      is the point: they are there to say that the fix does not disturb an edit
-      in progress, and they can only prove that if they also held before.
+    * MintedMasterIdentity_ComesFromTheMasterOwnSequence catches minting the
+      master's identity out of the CHILD's counter. FRowTokenSeq is a class var
+      of a GENERIC class, so there is one per instantiation, and the mint runs
+      with Self being the child adapter. Measured on the second candidate:
+      [live M1=27] [minted M2=125] [live M3=28] - the master row was handed 125
+      out of the mid entity's sequence while its own sat at 27, so a later
+      master would eventually be handed 125 too and issue #261 would come back
+      through a collision instead of through a zero;
 
-  A SEVENTH RED SITS IN THE NEIGHBOURING UNIT.
-  Test.Janus.AutoInc.Childs
-  .TwoPendingMasterRows_WithNoRecordedParentage_EveryPendingChildEndsOnTheLastMasterKey
-  is red against origin/develop because #265 rewrote what its write-count clause
-  measures. Its own body says why, and its write log is the sharpest single
-  piece of evidence in this series: against untouched develop it reads FOUR
-  writes - [mid C0 <- 101 while the master sat on R1/101] twice, then the same
-  two rows again on R2 - which is the first master writing the second master's
-  children, in the shipped ApplyInserter, spelled out.
+    * ClientDataSetLinkedAsTheRestClientDoes_MintingDoesNotPostTheChild catches
+      the same candidate writing on the master row from inside the CHILD's
+      OnNewRecord. With a master-detail link installed - which the REST client
+      installs on every child by construction, in both families - the Edit on
+      the master reaches the detail's CheckBrowseMode through the RTL, and the
+      detail is in dsInsert and already Modified, so it gets POSTED half typed.
+      Moving the call to DoBeforeInsert, where the child is still in dsBrowse,
+      is what fixes it: put it back in DoNewRecord and this fixture is the ONLY
+      red, with "Dataset not in edit or insert mode".
+      THE FAMILY MATTERS AND THE FIREDAC TWIN DOES NOT DISCRIMINATE.
+      TFDMasterDataLink.DataEvent has a delayed-scroll branch that captures the
+      event and returns BEFORE the deCheckBrowseMode guard, so the FireDAC
+      detail is never reached and LinkedAsTheRestClientDoes_MintingDoesNotPostTheChild
+      passes under both placements. That was measured, not assumed, and it is
+      why the ClientDataSet twin was written afterwards rather than skipped as
+      a duplicate. The FireDAC one is kept as the record of that measurement;
 
-  THE DESIGN THAT WAS MEASURED AND REJECTED
+    * ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow catches the
+      IsEmpty guard. Data.DB.pas turns Edit on a rowless dataset into Insert, so
+      minting there would FABRICATE a master row.
 
-  The first answer to this issue marked the CHILD instead: a sentinel meaning
-  "recorded, and my master had no identity", refused to any master that DOES
-  identify itself. It passed everything above except the fourth, and the fourth
-  is the point. A sentinel can separate an identified master from an
-  unidentified one; it cannot separate two unidentified masters from each other,
-  so the first of them still wrote the children of the second. That narrows the
-  hole instead of closing it, and the test that catches it -
-  TwoUnidentifiedPendingMasters_ChildOfTheFirstIsNotClaimedByTheSecond - was
-  written to make the difference measurable rather than arguable.
+  THE TWO DESIGNS THAT WERE MEASURED AND WITHDRAWN
 
-  What ships instead removes the state rather than labelling it:
-  _EnsureMasterRowToken gives the master ROW an identity at the instant a child
-  is stamped under it, so the child names a concrete parent and
-  _IsOwnedByMasterRow keeps the two answers #264 gave it. The one thing that
-  had to be checked is that writing on the master row does not disturb it: the
-  write is made with the MASTER's adapter muted, so DoBeforePost cannot promote
-  the row to dsEdit, and both the loaded-master and the pending-master tests
-  assert the marker on THAT row afterwards.
+  FIRST: mark the CHILD with a sentinel meaning "recorded, and my master had no
+  identity", and refuse it to any master that DOES identify itself. It passed
+  everything except TwoUnidentifiedPendingMasters..., and that is the point: a
+  sentinel separates an identified master from an unidentified one, but not two
+  unidentified masters from each other, so the first still wrote the second's
+  children. It narrowed the hole instead of closing it.
+
+  SECOND: mint the master's identity, but from inside the child's DoNewRecord
+  and with AtomicIncrement written there. Two independent defects, both now
+  pinned: the counter belonged to the child's instantiation, and the write
+  reached the detail through the master-detail link and posted it.
+
+  WHAT SHIPS removes the state rather than labelling it, and does the writing
+  where it is safe: TDataSetBaseAdapter<M>.DoBeforeInsert calls
+  _EnsureMasterRowToken while the child row is still in dsBrowse and not yet
+  Modified, the value comes from the MASTER's own sequence through the virtual
+  _MintRowToken, and the write happens only on a dsBrowse master row that has a
+  row at all, with the master's controls disabled. _IsOwnedByMasterRow keeps the
+  two answers #264 gave it.
 
   WHY THE #265 FIXTURES BUILD THREE LEVELS FOR A TWO LEVEL QUESTION
 
@@ -320,6 +338,7 @@ uses
   Classes,
   SysUtils,
   Variants,
+  TypInfo,
   Generics.Collections,
   DUnitX.TestFramework,
   Datasnap.DBClient,
@@ -448,6 +467,7 @@ type
   public
     class procedure ApplyAll(const A: TDataSetBaseAdapter<M>);
     class procedure Propagate(const A: TDataSetBaseAdapter<M>);
+    class function SourceOf(const A: TDataSetBaseAdapter<M>): TDataSource;
     class procedure Mute(const A: TDataSetBaseAdapter<M>);
     class procedure Unmute(const A: TDataSetBaseAdapter<M>);
   end;
@@ -511,6 +531,14 @@ type
     procedure Recursion_WithNoPendingChildRow_StillReachesTheGrandchildren;
 
     // --- issue #265: the master that came out of the store ------------------
+    [Test]
+    procedure ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow;
+    [Test]
+    procedure MintedMasterIdentity_ComesFromTheMasterOwnSequence;
+    [Test]
+    procedure LinkedAsTheRestClientDoes_MintingDoesNotPostTheChild;
+    [Test]
+    procedure ClientDataSetLinkedAsTheRestClientDoes_MintingDoesNotPostTheChild;
     [Test]
     procedure ChildTypedUnderAnUnidentifiedMaster_MakesThatMasterIdentifyItself;
     [Test]
@@ -826,6 +854,12 @@ end;
 class procedure TCascadeAccess<M>.Propagate(const A: TDataSetBaseAdapter<M>);
 begin
   TCascadeAccess<M>(A).SetAutoIncValueChilds;
+end;
+
+class function TCascadeAccess<M>.SourceOf(
+  const A: TDataSetBaseAdapter<M>): TDataSource;
+begin
+  Result := TCascadeAccess<M>(A).FOrmDataSource;
 end;
 
 class procedure TCascadeAccess<M>.Mute(const A: TDataSetBaseAdapter<M>);
@@ -1579,8 +1613,9 @@ begin
 end;
 
 /// The CONTROL. Nothing muted anywhere: the master identifies itself, so the
-/// child must record THAT identity and not the orphan value. Without it a
-/// framework that wrote the sentinel unconditionally would look right.
+/// child must record THAT identity, and it must be a DIFFERENT one from the
+/// identities minted in the other two arms. Without it a framework that handed
+/// out one shared number would look right.
 function TTestAutoIncDistribution.OwnerTokenOfAChildUnderALiveMaster: Integer;
 var
   LRootTable: TFDMemTable;
@@ -1604,6 +1639,314 @@ begin
   finally
     DropTree(LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
   end;
+end;
+
+procedure TTestAutoIncDistribution.ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow;
+var
+  LRootTable: TFDMemTable;
+  LMidTable: TFDMemTable;
+  LLeafTable: TFDMemTable;
+  LRoot: TFDMemTableAdapter<TAitRoot>;
+  LMid: TFDMemTableAdapter<TAitMid>;
+  LLeaf: TFDMemTableAdapter<TAitLeaf>;
+begin
+  // THE GUARD THE RTL DEFENDS ON ITS OWN, and the one whose absence no test
+  // used to notice. Data.DB.pas, TDataSet.Edit, first line of the body:
+  // "if not (State in [dsEdit, dsInsert]) then if FRecordCount = 0 then Insert"
+  // - Edit on a dataset with no rows is not an error, it is an INSERT. So
+  // minting an identity on an EMPTY master would write into an insertion
+  // buffer and the Post that follows would FABRICATE a master row that nobody
+  // asked for, which then walks ApplyInserter and reaches the database.
+  //
+  // Removing the IsEmpty guard reddened NOTHING before this test existed. That
+  // was not evidence the guard was redundant; it was a hole - no fixture had
+  // ever typed a child with the master table empty. Here is one.
+  BuildTree(FConn, LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  try
+    Assert.AreEqual(0, RowCount(LRootTable),
+      'PREMISE: the master table must be EMPTY, which is the whole condition ' +
+      'under test');
+
+    LMidTable.Append;
+    LMidTable.FieldByName(cOWNKEY).AsInteger := 0;
+    LMidTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+    LMidTable.FieldByName(cTAG).AsString := 'C0';
+    LMidTable.Post;
+
+    Assert.AreEqual(0, RowCount(LRootTable),
+      'the master table must STILL be empty. A row appearing here is one the ' +
+      'framework invented while trying to give a master an identity, and it ' +
+      'would be inserted for real on the next ApplyUpdates - ' +
+      DumpColumn(LRootTable, cKEY));
+    Assert.AreEqual(1, RowCount(LMidTable),
+      'and the child must have been typed normally');
+    Assert.AreEqual(cNOTOKEN, TokenOfTaggedRow(LMidTable, 'C0', cOWNERTOKEN),
+      'while recording NO parentage: there was no master row to name, so the ' +
+      'row falls back to the historical behaviour instead of naming an ' +
+      'identity that belongs to nothing');
+  finally
+    DropTree(LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  end;
+end;
+
+procedure TTestAutoIncDistribution.MintedMasterIdentity_ComesFromTheMasterOwnSequence;
+var
+  LRootTable: TFDMemTable;
+  LMidTable: TFDMemTable;
+  LLeafTable: TFDMemTable;
+  LRoot: TFDMemTableAdapter<TAitRoot>;
+  LMid: TFDMemTableAdapter<TAitMid>;
+  LLeaf: TFDMemTableAdapter<TAitLeaf>;
+  LFirst: Integer;
+  LMinted: Integer;
+  LThird: Integer;
+  LDump: String;
+begin
+  // WHICH COUNTER MINTED IT. FRowTokenSeq is a `class var` of a GENERIC class,
+  // so there is one counter PER INSTANTIATION: TDataSetBaseAdapter<TAitRoot>
+  // and TDataSetBaseAdapter<TAitMid> each have their own. The comment on that
+  // field states the invariant the whole parentage check rests on - both sides
+  // of every comparison are minted by the SAME counter - and minting the
+  // MASTER identity from inside the CHILD DoNewRecord is the one place where
+  // that can quietly stop being true, because Self there is the child adapter.
+  //
+  // WHY THE ARITHMETIC BELOW IS DECISIVE AND NOT A COINCIDENCE. Exactly three
+  // things in this test can consume the ROOT counter: the live append of the
+  // first master, the mint, and the live append of the third. If the mint
+  // consumes it, the three values are consecutive and BOTH clauses hold. If the
+  // mint consumes some OTHER counter, then the first and third master are
+  // consecutive to EACH OTHER - LThird = LFirst + 1 - and the two clauses below
+  // become mutually unsatisfiable: LMinted = LFirst + 1 and
+  // LThird = LMinted + 1 would need LThird = LFirst + 2. So at least one of
+  // them MUST fail, whatever the counters happened to hold when this test
+  // started. No fixture ordering can make it pass by luck.
+  //
+  // The middle master is muted-appended so that it arrives WITHOUT an identity,
+  // which is the only state that reaches the mint at all.
+  BuildTree(FConn, LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  try
+    LRootTable.Append;
+    LRootTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+    LRootTable.FieldByName(cTAG).AsString := 'M1';
+    LRootTable.Post;
+    LFirst := TokenOfTaggedRow(LRootTable, 'M1', cROWTOKEN);
+    Assert.IsTrue(LFirst > cNOTOKEN,
+      'PREMISE: a master appended with the events LIVE must identify itself');
+
+    TCascadeAccess<TAitRoot>.Mute(LRoot);
+    try
+      LRootTable.Append;
+      LRootTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LRootTable.FieldByName(cTAG).AsString := 'M2';
+      LRootTable.Post;
+    finally
+      TCascadeAccess<TAitRoot>.Unmute(LRoot);
+    end;
+    Assert.AreEqual(cNOTOKEN, TokenOfTaggedRow(LRootTable, 'M2', cROWTOKEN),
+      'PREMISE: the muted append must have left the middle master WITHOUT an ' +
+      'identity, or nothing is minted and this test measures nothing');
+
+    LMidTable.Append;
+    LMidTable.FieldByName(cOWNKEY).AsInteger := 0;
+    LMidTable.FieldByName(cTAG).AsString := 'C0';
+    LMidTable.Post;
+    LMinted := TokenOfTaggedRow(LRootTable, 'M2', cROWTOKEN);
+
+    LRootTable.Append;
+    LRootTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+    LRootTable.FieldByName(cTAG).AsString := 'M3';
+    LRootTable.Post;
+    LThird := TokenOfTaggedRow(LRootTable, 'M3', cROWTOKEN);
+
+    LDump := ' - measured: [live M1=' + IntToStr(LFirst) + '] [minted M2=' +
+             IntToStr(LMinted) + '] [live M3=' + IntToStr(LThird) + ']';
+    Assert.AreEqual(LFirst + 1, LMinted,
+      'the identity minted for the middle master must be the NEXT value of ' +
+      'the MASTER sequence. Taking it from the child adapter sequence instead ' +
+      'hands the master a number another master row can later be handed too, ' +
+      'and issue #261 comes back through a collision rather than a zero' +
+      LDump);
+    Assert.AreEqual(LMinted + 1, LThird,
+      'and the next live master must follow it, which is the same statement ' +
+      'read from the other side: the mint has to CONSUME the master sequence, ' +
+      'not merely produce a number that looks like one of its values' + LDump);
+  finally
+    DropTree(LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  end;
+end;
+
+procedure TTestAutoIncDistribution.LinkedAsTheRestClientDoes_MintingDoesNotPostTheChild;
+var
+  LRootTable: TFDMemTable;
+  LMidTable: TFDMemTable;
+  LLeafTable: TFDMemTable;
+  LRoot: TFDMemTableAdapter<TAitRoot>;
+  LMid: TFDMemTableAdapter<TAitMid>;
+  LLeaf: TFDMemTableAdapter<TAitLeaf>;
+  LMute: TScrollMute;
+  LState: TDataSetState;
+begin
+  // THE MASTER-DETAIL LINK, which the REST client installs on every child by
+  // construction - TRESTFDMemTableAdapter<M> sets MasterSource, MasterFields
+  // and IndexFieldNames on each child dataset, and TRESTClientDataSetAdapter<M>
+  // does the same. No fixture in this suite had ever combined that link with a
+  // master row carrying no identity, which is exactly the pair the mint needs.
+  //
+  // WHAT GOES WRONG WITHOUT A GUARD, straight out of the RTL of Studio 37.0:
+  //   Data.DB.pas TDataSet.Edit -> CheckBrowseMode -> DataEvent(deCheckBrowseMode)
+  //   -> NotifyDataSources := not (ControlsDisabled or (State = dsBlockRead))
+  //   -> every TDataSource -> TDataLink.DataEvent -> TMasterDataLink.CheckBrowseMode
+  //   -> the DETAIL CheckBrowseMode -> if Modified then Post else Cancel.
+  // The detail is in dsInsert and ALREADY Modified, because _StampRowTokens
+  // writes the child own RowToken BEFORE it asks for the master identity, and
+  // TDataSet clears FModified only after DoOnNewRecord returns. So the child
+  // row is POSTED from inside its own OnNewRecord, half typed.
+  //
+  // MUTING THE ADAPTER DOES NOT HELP AND THAT IS THE LESSON.
+  // DisableDataSetEvents unhooks the ORM own handlers; it does not touch
+  // FDataSources, and the RTL line above tests ControlsDisabled and nothing
+  // else. Only DisableControls silences it - which is what _HasPendingRows and
+  // _AutoIncToChildRows already do elsewhere in the same unit.
+  //
+  // The FireDAC guard does not cover it either: TFDMasterDataLink.DataEvent
+  // exits early on deCheckBrowseMode only when BOTH datasets are in dsEditModes,
+  // and the master here is in dsBrowse - the very state the mint treats as the
+  // safe one.
+  BuildTree(FConn, LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  try
+    TCascadeAccess<TAitRoot>.Mute(LRoot);
+    try
+      LRootTable.Append;
+      LRootTable.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+      LRootTable.FieldByName(cTAG).AsString := cLOADEDTAG;
+      LRootTable.Post;
+    finally
+      TCascadeAccess<TAitRoot>.Unmute(LRoot);
+    end;
+    Assert.AreEqual(cNOTOKEN, TokenOfTaggedRow(LRootTable, cLOADEDTAG,
+                                               cROWTOKEN),
+      'PREMISE: the master must have no identity, or no mint happens and the ' +
+      'link below is never exercised');
+    Assert.IsTrue(LRootTable.State = dsBrowse,
+      'PREMISE: and it must be in dsBrowse, which is the state the mint acts on');
+
+    // Exactly the wiring TRESTFDMemTableAdapter<M> installs. Muted while it is
+    // installed because setting the link re-ranges and therefore scrolls.
+    LMute := MuteScroll(LMidTable);
+    try
+      LMidTable.MasterSource := TCascadeAccess<TAitRoot>.SourceOf(LRoot);
+      LMidTable.IndexFieldNames := cKEY;
+      LMidTable.MasterFields := cKEY;
+    finally
+      UnmuteScroll(LMidTable, LMute);
+    end;
+    Assert.IsNotNull(LMidTable.MasterSource,
+      'PREMISE: the link must really be installed');
+
+    LMidTable.Append;
+    // CAPTURED, NOT ASSERTED HERE. The teardown of a linked pair is noisy
+    // enough to raise on its own, and an exception there would be reported as
+    // an ERROR and bury the measurement. The state is read the instant Append
+    // returns and the clause that reads it sits after the cleanup.
+    LState := LMidTable.State;
+  finally
+    // Teardown, and every line of it is an artefact of this fixture rather
+    // than of anything under test. The half-typed row is abandoned first; then
+    // the link comes down BEFORE the adapters are freed, because the
+    // TDataSource it points at belongs to the master ADAPTER and DropTree
+    // frees adapters first. Measured: with the mint disabled entirely this
+    // fixture faulted on teardown just the same, which is how the fault was
+    // told apart from the behaviour being measured.
+    if LMidTable.State in [dsInsert, dsEdit] then
+      LMidTable.Cancel;
+    LMidTable.MasterFields := '';
+    LMidTable.IndexFieldNames := '';
+    LMidTable.MasterSource := nil;
+    DropTree(LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  end;
+
+  Assert.IsTrue(LState = dsInsert,
+    'the child must STILL be in dsInsert when Append returns. Anything the ' +
+    'framework does to the MASTER row while the child sits half typed must ' +
+    'not travel down the master-detail link and post it - the operator has ' +
+    'not finished the row, and what reaches the database is whatever happened ' +
+    'to be in the buffer at that instant. Measured state: ' +
+    GetEnumName(TypeInfo(TDataSetState), Ord(LState)));
+end;
+
+procedure TTestAutoIncDistribution.ClientDataSetLinkedAsTheRestClientDoes_MintingDoesNotPostTheChild;
+var
+  LRootCds: TClientDataSet;
+  LMidCds: TClientDataSet;
+  LRoot: TClientDataSetAdapter<TAitRoot>;
+  LMid: TClientDataSetAdapter<TAitMid>;
+  LState: TDataSetState;
+  LMute: TScrollMute;
+begin
+  // THE SAME SHAPE IN THE OTHER FAMILY, and it is not a spare copy. The
+  // FireDAC variant above turned out NOT to discriminate: TFDMasterDataLink
+  // .DataEvent has a delayed-scroll branch that captures the event and returns
+  // BEFORE the deCheckBrowseMode guard, so the detail CheckBrowseMode is never
+  // reached and the hazard the RTL chain describes does not fire there.
+  // TClientDataSet uses the plain RTL TMasterDataLink, which has no such
+  // branch - so if the chain bites anywhere in this framework, it bites here.
+  // Written after measuring that the FireDAC one could not tell the two
+  // placements apart, rather than assumed to be redundant with it.
+  LRootCds := TClientDataSet.Create(nil);
+  LMidCds := TClientDataSet.Create(nil);
+  try
+    LRoot := TClientDataSetAdapter<TAitRoot>.Create(FConn, LRootCds, -1, nil);
+    LMid := TClientDataSetAdapter<TAitMid>.Create(FConn, LMidCds, -1, LRoot);
+    try
+      TCascadeAccess<TAitRoot>.Mute(LRoot);
+      try
+        LRootCds.Append;
+        LRootCds.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+        LRootCds.FieldByName(cTAG).AsString := cLOADEDTAG;
+        LRootCds.Post;
+      finally
+        TCascadeAccess<TAitRoot>.Unmute(LRoot);
+      end;
+      Assert.AreEqual(cNOTOKEN, TokenOfTaggedRow(LRootCds, cLOADEDTAG,
+                                                 cROWTOKEN),
+        'PREMISE: the master must have no identity, or nothing is minted and ' +
+        'the link below is never exercised');
+      Assert.IsTrue(LRootCds.State = dsBrowse,
+        'PREMISE: and it must be in dsBrowse, the state the mint acts on');
+
+      LMute := MuteScroll(LMidCds);
+      try
+        LMidCds.MasterSource := TCascadeAccess<TAitRoot>.SourceOf(LRoot);
+        LMidCds.IndexFieldNames := cKEY;
+        LMidCds.MasterFields := cKEY;
+      finally
+        UnmuteScroll(LMidCds, LMute);
+      end;
+      Assert.IsNotNull(LMidCds.MasterSource,
+        'PREMISE: the link must really be installed');
+
+      LMidCds.Append;
+      LState := LMidCds.State;
+
+      if LMidCds.State in [dsInsert, dsEdit] then
+        LMidCds.Cancel;
+      LMidCds.MasterFields := '';
+      LMidCds.IndexFieldNames := '';
+      LMidCds.MasterSource := nil;
+    finally
+      LMid.Free;
+      LRoot.Free;
+    end;
+  finally
+    LMidCds.Free;
+    LRootCds.Free;
+  end;
+
+  Assert.IsTrue(LState = dsInsert,
+    'the child must STILL be in dsInsert when Append returns. Giving the ' +
+    'master row an identity while a child sits half typed must not travel ' +
+    'down the master-detail link and post it. Measured state: ' +
+    GetEnumName(TypeInfo(TDataSetState), Ord(LState)));
 end;
 
 procedure TTestAutoIncDistribution.ChildTypedUnderAnUnidentifiedMaster_MakesThatMasterIdentifyItself;
@@ -1747,9 +2090,10 @@ begin
   // WHAT IT GUARDS. _MasterRowToken answers cNoRowToken for FOUR different
   // reasons - no dataset, closed, IsEmpty, no column - and a dataset sitting on
   // its FIRST unposted insert answers IsEmpty. Promoting every one of those
-  // zeros to the orphan sentinel would make this child unclaimable by the very
-  // master it was typed under, which on origin/develop received the key
-  // normally.
+  // minting on every one of those zeros - rather than only where there IS a
+  // row to write on and it is safe to write - would reach a master row that
+  // cannot take the write, and this child would stop receiving the key it
+  // received on origin/develop.
   BuildTree(FConn, LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
   try
     LRootTable.Append;
@@ -1837,10 +2181,16 @@ begin
     Assert.AreEqual(cEDITEDTAG, LRootTable.FieldByName(cTAG).AsString,
       'and the value they were typing must still be in the buffer, ' +
       'untouched');
-    Assert.IsTrue(TokenOfTaggedRow(LMidTable, 'C0', cOWNERTOKEN) > cNOTOKEN,
-      'while the child still comes out naming a concrete parent - the ' +
-      'identity is written into the open buffer, so refusing to Post costs ' +
-      'nothing');
+    Assert.AreEqual(cNOTOKEN, TokenOfTaggedRow(LMidTable, 'C0', cOWNERTOKEN),
+      'AND THE PRICE OF THAT, STATED RATHER THAN HIDDEN: the child comes out ' +
+      'naming NOBODY, and falls back to the pre-#265 behaviour of being ' +
+      'claimable by whichever pending master is passing. Writing the token ' +
+      'into the open buffer instead would leave Modified=True on an edit the ' +
+      'operator has not finished - which the local family would swallow but ' +
+      'TRESTDataSetAdapter<M>.ApplyUpdater turns into a PUT, and which a ' +
+      'Cancel would undo, putting the master back on 0 while this child still ' +
+      'named a number and making _IsOwnedByMasterRow refuse its own parent. ' +
+      'The narrower loss was chosen over the silent write');
   finally
     DropTree(LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
   end;
@@ -1976,7 +2326,7 @@ begin
   // hand instead of by loading, and with the key set to a REAL one and the row
   // left NOT PENDING - which is precisely the state _PopularDataSet leaves a
   // loaded row in, as the test above measures. Written separately because the
-  // fork the sentinel decision turns on is "was the muted master key real or a
+  // fork this issue turned on is "was the muted master key real or a
   // placeholder", and that question has to be asked WITHOUT the load machinery
   // in the way.
   BuildTree(FConn, LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
@@ -2102,8 +2452,8 @@ begin
     // NOT ASSERTED HERE, AND HERE IT MATTERS MOST. This test has to be GREEN
     // against the untouched framework - that is its entire evidential value -
     // so it may not carry a clause that only the fix can satisfy. That the two
-    // arms of the fork record the SAME orphan value, and therefore differ only
-    // in the master key, is measured by
+    // arms of the fork both end up naming a concrete parent, and therefore
+    // differ only in the master key, is measured by
     // ChildTypedUnderAnUnidentifiedMaster_MakesThatMasterIdentifyItself, which asserts both
     // arms in one run.
 
@@ -2139,35 +2489,39 @@ var
   LInternal: TField;
   LKeyB: Integer;
 begin
-  // WHICH OF THE TWO UNTOKENISED CLASSES THIS PINS - rewritten for issue #265,
-  // because that issue split the class this test used to name in one.
+  // WHAT THIS PINS AFTER #265 - rewritten, because that issue changed what the
+  // OTHER untokenised state even is.
   //
-  // Until #265 there was ONE untokenised state and this test was its whole
-  // boundary. There are TWO now, and they are told apart by whether
-  // DoNewRecord ever ran on the CHILD:
+  // This test mutes BOTH adapters, so the child row is appended without its own
+  // adapter ever seeing it: DoNewRecord never runs on it, cOwnerTokenField is
+  // never written and reads back as the 0 a TField answers for NULL. Such a row
+  // is still written by whichever pending master is passing, last one wins,
+  // because refusing it would regress everything that shipped.
   //
-  //   * NOBODY RECORDED THE ROW - cOwnerTokenField never written, reads back
-  //     as the 0 a TField answers for NULL. THIS test, and only this one:
-  //     BOTH adapters are muted for the whole set-up, so the child row was
-  //     appended without the child adapter ever seeing it. Such a row is
-  //     still written by whichever pending master is passing, last one wins,
-  //     because refusing it would regress everything that shipped;
-  //
-  //   * THE ROW WAS RECORDED AND ITS MASTER HAD NO IDENTITY - the child
-  //     adapter was LIVE and the MASTER was the muted one, which is what every
-  //     master read from the store is. That row carries cOrphanOwnerToken and
-  //     is NOT claimable by a different, identified master. Measured by
-  //     LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey and
-  //     MutedMasterAppend_WithARealKey_ItsChildKeepsThatKey, and its own
-  //     boundary - the master that DOES repair its own child - by
-  //     MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired.
+  // THE OTHER STATE NO LONGER EXISTS. Until #265, a child typed with its own
+  // events LIVE under a master that had no identity - which every master read
+  // from the store is - also recorded 0, and was therefore claimable by any
+  // pending master. That is not a state any more:
+  // TDataSetBaseAdapter<M>._EnsureMasterRowToken gives the master ROW an
+  // identity before the child row is even opened, so the child names a concrete
+  // parent. Measured by
+  // LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey,
+  // MutedMasterAppend_WithARealKey_ItsChildKeepsThatKey and
+  // TwoUnidentifiedPendingMasters_ChildOfTheFirstIsNotClaimedByTheSecond.
   //
   // WHAT DID NOT CHANGE. This test was GREEN before #265 and is green after,
-  // unedited in its set-up and in its result. That is not luck: the sentinel
-  // is written by DoNewRecord, and DoNewRecord is exactly what this set-up
-  // prevents from running. The premise clause added below is what says so out
-  // loud, so the day someone makes the muted append record something this test
-  // reddens instead of quietly changing meaning again.
+  // unedited in its set-up and in its result. That is not luck: minting is
+  // reached from the CHILD's DoBeforeInsert, and this set-up is exactly what
+  // stops the child adapter's events from running at all. The premise clause
+  // below is what says so out loud, so the day someone makes a muted append
+  // record something, this test reddens instead of quietly changing meaning
+  // again.
+  //
+  // TWO STATES STILL REACH 0 and both fall back here: this one, and a child
+  // typed while the master table has no row at all - measured by
+  // ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow - plus a child
+  // typed while the master row is being edited, measured by
+  // ChildTypedWhileTheMasterRowIsBeingEdited_DoesNotCommitThatEdit.
   //
   // It is still the ONLY test in this file that mutes BOTH adapters, and it
   // still writes the pending marker by hand, for the reason it always did: a
@@ -2212,10 +2566,10 @@ begin
       Assert.AreEqual(1, CountWithColumn(LChildTable, cOWNERTOKEN, cNOTOKEN),
         'PREMISE - AND THE CLAUSE THAT KEEPS THIS TEST HONEST AFTER #265: the ' +
         'child must carry the NEVER RECORDED value. Its own adapter was muted, ' +
-        'so DoNewRecord never ran on it and nothing was written at all. Take ' +
-        'the mute off the CHILD and _EnsureMasterRowToken mints an identity ' +
-        'for the master and this row names it, which is a different boundary ' +
-        'measured by four other tests in this file - ' +
+        'so neither DoBeforeInsert nor DoNewRecord ran on it and nothing was ' +
+        'written at all. Take the mute off the CHILD and _EnsureMasterRowToken ' +
+        'gives the master an identity and this row names it, which is a ' +
+        'different boundary measured by five other tests in this file - ' +
         DumpColumn(LChildTable, cOWNERTOKEN));
 
       TCascadeAccess<TAitRoot>.ApplyAll(LMaster);

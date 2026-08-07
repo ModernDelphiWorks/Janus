@@ -1317,7 +1317,8 @@ begin
   //
   // It is not a fallback any more, it is closed.
   // TDataSetBaseAdapter<M>._EnsureMasterRowToken gives a master ROW an identity
-  // at the instant a child is stamped under it, so a muted append no longer
+  // the moment a child row starts being created under it, so a muted append no
+  // longer
   // produces a master nobody can tell from another muted one. The children
   // below are typed with their own events live, with the cursor on R2, and R2
   // is the only row that writes them. The premise clauses further down still

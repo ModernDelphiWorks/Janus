@@ -133,8 +133,11 @@ const
   ///  recorded zero and was claimable by any other pending master. That is no
   ///  longer a state this column can be in:
   ///  TDataSetBaseAdapter<M>._EnsureMasterRowToken gives the master row an
-  ///  identity at the instant the child is stamped, so the child names a real
-  ///  parent. Zero now means what it says and nothing else. </summary>
+  ///  identity from the child's DoBeforeInsert - before the child row is even
+  ///  opened - so the child names a real parent. Zero now means what it says,
+  ///  and reaches only three states: a row whose own adapter was muted, a row
+  ///  typed with the master table EMPTY, and a row typed while the master row
+  ///  is mid-edit. All three are pinned. </summary>
   cOwnerTokenField = 'OwnerToken';
 
 type
