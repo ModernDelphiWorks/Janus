@@ -157,7 +157,9 @@
     choice, not a limit - TwoPendingMasterRows_ in this same file drives the
     real ApplyInternal, and so do
     Test.Janus.Apply.Loops.ApplyInserter_DoesNotRepointAChildRowOfAnotherMaster
-    and every test in Test.Janus.AutoInc.Distribution. The recursion tests need
+    and the FOUR level 2 tests of Test.Janus.AutoInc.Distribution. Its own
+    recursion tests do NOT - they call Propagate exactly as these do, so at
+    level 3 no test in either file goes through Apply. The recursion tests need
     three mid rows carrying three DIFFERENT own keys, which is a state to be
     arranged rather than generated, and the shape those tests already had was
     kept.

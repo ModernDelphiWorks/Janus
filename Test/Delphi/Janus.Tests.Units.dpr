@@ -44,6 +44,7 @@ uses
   Test.Janus.Model.AutoIncTree in 'Common\Test.Janus.Model.AutoIncTree.pas',
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
   Test.Janus.Model.Nested in 'Common\Test.Janus.Model.Nested.pas',
+  Test.Janus.Model.ReservedColumn in 'Common\Test.Janus.Model.ReservedColumn.pas',
   Model.Atendimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Atendimento.pas',
   Model.Exame       in '..\..\Examples\Delphi\Data\Object Lazy\Model.Exame.pas',
   Model.Procedimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Procedimento.pas',

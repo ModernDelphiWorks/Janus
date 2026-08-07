@@ -68,8 +68,10 @@ type
     procedure _StampRowTokens;
     function _IsOwnedByMasterRow(const AChild: TDataSet;
       const AMasterToken: Integer): Boolean;
+    function _MasterRowToken(const AMaster: TDataSet): Integer;
     procedure _RecurseOverChildRows(
-      const AChildAdapter: TDataSetBaseAdapter<M>);
+      const AChildAdapter: TDataSetBaseAdapter<M>;
+      const AMasterToken: Integer);
     procedure _AutoIncToChildRows(const AMaster, AChild: TDataSet;
       const AAssociation: TAssociationMapping);
     function _HasPendingRows(const AAdapter: TDataSetBaseAdapter<M>): Boolean;
@@ -1123,7 +1125,6 @@ var
   LRowToken: TField;
   LOwnerToken: TField;
   LMaster: TDataSetBaseAdapter<M>;
-  LMasterToken: TField;
 begin
   if FOrmDataSet = nil then
     Exit;
@@ -1138,14 +1139,7 @@ begin
   if not Assigned(FOwnerMasterObject) then
     Exit;
   LMaster := TDataSetBaseAdapter<M>(FOwnerMasterObject);
-  if LMaster.FOrmDataSet = nil then
-    Exit;
-  if not LMaster.FOrmDataSet.Active then
-    Exit;
-  LMasterToken := LMaster.FOrmDataSet.FindField(cRowTokenField);
-  if LMasterToken = nil then
-    Exit;
-  LOwnerToken.AsInteger := LMasterToken.AsInteger;
+  LOwnerToken.AsInteger := _MasterRowToken(LMaster.FOrmDataSet);
 end;
 
 /// <summary> Diz se a linha corrente do dataset filho foi criada sob a linha
@@ -1176,6 +1170,35 @@ begin
   Result := LField.AsInteger = AMasterToken;
 end;
 
+/// <summary> A identidade da linha de master sobre a qual o cursor esta
+///  parado, ou cNoRowToken quando nao ha resposta - dataset nulo, fechado,
+///  VAZIO, ou sem a coluna, que e o caso de um dataset criado por codigo que
+///  nao passou por SetInternalInitFieldDefsObjectClass.
+///  UM lugar so, porque os TRES sitios que precisam desta resposta -
+///  _StampRowTokens ao carimbar a proveniencia de uma linha nova,
+///  _AutoIncToChildRows ao filtrar os filhos, e SetAutoIncValueChilds ao
+///  passar o mesmo filtro para a recursao - tem que responder sobre a MESMA
+///  linha; tres leituras escritas a mao sao tres chances de divergirem.
+///  A guarda de IsEmpty acompanha _HasPendingRows: ler um TField de um
+///  dataset sem linha nenhuma nao tem significado. </summary>
+function TDataSetBaseAdapter<M>._MasterRowToken(
+  const AMaster: TDataSet): Integer;
+var
+  LField: TField;
+begin
+  Result := cNoRowToken;
+  if AMaster = nil then
+    Exit;
+  if not AMaster.Active then
+    Exit;
+  if AMaster.IsEmpty then
+    Exit;
+  LField := AMaster.FindField(cRowTokenField);
+  if LField = nil then
+    Exit;
+  Result := LField.AsInteger;
+end;
+
 /// <summary> Percorre as linhas PENDENTES do adapter filho e dispara a cascata
 ///  do nivel seguinte UMA VEZ POR LINHA, com o cursor do filho parado sobre
 ///  ela.
@@ -1189,11 +1212,20 @@ end;
 ///  Percorre por BOOKMARK pela mesma razao que _AutoIncToChildRows: a escrita
 ///  do nivel de baixo pode reordenar o filho quando ele esta indexado pela
 ///  coluna que esta sendo reescrita.
-///  SEM NENHUMA LINHA PENDENTE recursa uma unica vez, de onde o cursor
-///  estiver, que e exatamente o que este metodo substituiu - um filho ja
-///  gravado tem chave propria e os seus filhos continuam a receber. </summary>
+///  SEM NENHUMA LINHA PENDENTE DESTE MASTER recursa uma unica vez, de onde o
+///  cursor estiver, que e exatamente o que este metodo substituiu - um filho
+///  ja gravado tem chave propria e os seus filhos continuam a receber.
+///  O PAR DE FILTROS E O MESMO DE _AutoIncToChildRows, e pelo mesmo motivo:
+///  marcar toda linha pendente do filho, sem perguntar de quem ela e filha,
+///  faz a recursao entrar tambem sobre as linhas de OUTRO master pendente. O
+///  resultado final nao mudava - naquele instante nenhum filho foi gravado
+///  ainda e o ApplyInternal do proprio nivel filho reescreve depois - mas
+///  SetAutoIncValueChilds roda uma vez por master pendente, de modo que com P
+///  masters, N filhos e M netos o ciclo Edit/Post do nivel 3 saia de O(N*M)
+///  para O(P*N*M). Filtrar aqui e mais barato E mais preciso. </summary>
 procedure TDataSetBaseAdapter<M>._RecurseOverChildRows(
-  const AChildAdapter: TDataSetBaseAdapter<M>);
+  const AChildAdapter: TDataSetBaseAdapter<M>;
+  const AMasterToken: Integer);
 var
   LDataSet: TDataSet;
   LMarks: TList<TBookmark>;
@@ -1205,14 +1237,15 @@ begin
     Exit;
   if not LDataSet.Active then
     Exit;
-  LMarks := TList<TBookmark>.Create;
   LMark := LDataSet.GetBookmark;
   LDataSet.DisableControls;
+  LMarks := TList<TBookmark>.Create;
   try
     LDataSet.First;
     while not LDataSet.Eof do
     begin
-      if _IsPendingInsertRow(LDataSet) then
+      if _IsPendingInsertRow(LDataSet) and
+         _IsOwnedByMasterRow(LDataSet, AMasterToken) then
         LMarks.Add(LDataSet.GetBookmark);
       LDataSet.Next;
     end;
@@ -1250,7 +1283,6 @@ var
   LMasterField: TField;
   LChildField: TField;
   LMasterToken: Integer;
-  LTokenField: TField;
   LFor: Integer;
   LCol: Integer;
 begin
@@ -1277,10 +1309,7 @@ begin
       Exit;
     // A identidade da linha de master sobre a qual estamos parados. Lida ANTES
     // de mexer no filho, porque e o cursor do master que a define.
-    LMasterToken := cNoRowToken;
-    LTokenField := AMaster.FindField(cRowTokenField);
-    if LTokenField <> nil then
-      LMasterToken := LTokenField.AsInteger;
+    LMasterToken := _MasterRowToken(AMaster);
     LSource := _DetachMasterLink(AChild);
     AChild.DisableControls;
     try
@@ -1323,11 +1352,18 @@ var
   LAssociation: TAssociationMapping;
   LAssociations: TAssociationMappingList;
   LDataSetChild: TDataSetBaseAdapter<M>;
+  LMasterToken: Integer;
 begin
   LAssociations := TMappingExplorer
                      .GetMappingAssociation(FCurrentInternal.ClassType);
   if LAssociations = nil then
     Exit;
+  // Lida ANTES de mexer em qualquer filho, porque e o cursor do MASTER que a
+  // define e nada abaixo o move. A mesma resposta vai para os dois filtros: o
+  // de _AutoIncToChildRows, que decide QUAIS linhas do filho recebem a chave,
+  // e o de _RecurseOverChildRows, que decide sobre quais delas a recursao
+  // entra.
+  LMasterToken := _MasterRowToken(FOrmDataSet);
   for LAssociation in LAssociations do
   begin
     if not (TCascadeAction.CascadeAutoInc in LAssociation.CascadeActions) then
@@ -1366,7 +1402,7 @@ begin
       // AfterScroll que reabre - e portanto apaga - os netos ainda nao
       // gravados.
       if LDataSetChild.FMasterObject.Count > 0 then
-        _RecurseOverChildRows(LDataSetChild);
+        _RecurseOverChildRows(LDataSetChild, LMasterToken);
     finally
       LDataSetChild.EnableDataSetEvents;
     end;

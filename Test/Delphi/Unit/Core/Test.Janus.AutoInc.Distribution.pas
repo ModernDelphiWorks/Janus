@@ -31,7 +31,7 @@
       cursor wherever _AutoIncToChildRows' own `finally` left it, so every leaf
       is parented on THAT mid row whichever mid row it was typed under.
 
-  THE ORDERING THAT MAKES THE STATE REACHABLE, WITH NOTHING MUTED
+  THE ORDERING THAT MAKES THE STATE REACHABLE
 
   Two pending masters each able to hold pending children is not reachable in
   the local family by typing the children first: TDataSetAdapter<M>.DoNewRecord
@@ -42,11 +42,37 @@
   lose yet, and ApplyInternal disables events before it walks, so the typed
   children arrive at ApplyInserter intact.
 
-  Every test below uses that ordering. NO adapter is muted anywhere in the
-  set-up, no marker is written by hand, and no handler is installed - what runs
-  is the configuration Janus ships. The one exception is
-  UntokenisedRows_KeepTheHistoricalBehaviour, which mutes ON PURPOSE and says
-  why in its own body.
+  THREE tests use that ordering, through
+  SeedTwoMastersThenChildrenUnderTheFirst:
+  Premise_OrderBReachesTwoPendingMastersAndTwoPendingChildren,
+  FDMemTable_ChildrenTypedUnderTheFirstMaster_StayOnIt and
+  ClientDataSet_ChildrenTypedUnderTheFirstMaster_StayOnIt. The two REST
+  fixtures interleave master and children instead - they can, and the next
+  section says why - and the two recursion fixtures build a three level tree
+  under ONE root, so neither shape applies to them.
+
+  WHAT IS MUTED, AND WHERE - THREE EXCEPTIONS, NOT ONE
+
+  Most of the file runs the configuration Janus ships: no adapter muted in the
+  set-up, no marker written by hand, no handler installed. THREE tests are
+  exceptions, and each says why in its own body:
+
+    * UntokenisedRows_KeepTheHistoricalBehaviour mutes BOTH adapters for the
+      whole set-up and writes the pending marker by hand - having no row
+      provenance at all is the very thing it measures;
+    * ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster mutes the
+      CHILD adapter only, and writes that child's pending marker by hand, so
+      that the master identifies itself and the child does not;
+    * Recursion_WithNoPendingChildRow_StillReachesTheGrandchildren unhooks the
+      mid table's BeforePost for one write, to set the ALREADY SAVED marker
+      that the adapter's own BeforePost would otherwise flip straight back.
+
+  Separately, and in every test, the MEASUREMENT helpers - RowCount,
+  CountWithColumn, DumpColumn, KeyOfMasterRow - unhook BeforeScroll and
+  AfterScroll while they walk, through MuteScroll. That is not set-up: walking
+  with the adapter's AfterScroll live re-opens, and therefore empties, the
+  children of the row the walk lands on, so measuring would change what is
+  being measured.
 
   THE REST FAMILY REACHES A STRONGER STATE
 
@@ -74,6 +100,22 @@
   second master's key in both REST families; and the two leaves typed under the
   middle mid row came out on the FIRST mid row's key, not the middle one and
   not the last one. A fix whose tests were never red is a fix nobody can grade.
+
+  FOUR OF THOSE FIVE GO THROUGH THE SHIPPED APPLY, NOT FIVE
+
+  The two local and the two REST fixtures drive ApplyInternal, which is the
+  whole path: ApplyInserter -> the session's Insert -> SetAutoIncValueChilds.
+  Recursion_LeavesTypedUnderTheMiddleMidRow_CarryThatMidRowKey does NOT. It
+  calls SetAutoIncValueChilds directly, through TCascadeAccess.Propagate, and
+  FORGES the state ApplyInserter would have left the master in - Edit plus the
+  new key, not yet posted. That is a real gap and it is stated rather than
+  hidden: the level 3 walk is measured over a hand-made master state, so what
+  that test pins is the walk, not the walk's caller. NOTHING in this file - and
+  nothing in Test.Janus.AutoInc.Childs, whose recursion tests call Propagate
+  the same way - drives level 3 through a real ApplyInternal. Level 2 is
+  covered end to end four times over; level 3 is covered from
+  SetAutoIncValueChilds down. Say so rather than let the count of five stand
+  in for it.
 
   HOW EACH CLAUSE WAS SHOWN TO BIND
 
@@ -149,6 +191,7 @@ uses
   Janus.RestFactory.Interfaces,
   Janus.Client.Methods,
   Test.Janus.Model.Nested,
+  Test.Janus.Model.ReservedColumn,
   Test.Janus.Model.AutoIncTree,
   Test.Janus.Cursor.Double,
   Test.Janus.MasterDetail.Link;
@@ -172,8 +215,15 @@ type
   public
     constructor CreateTree(const AStep: Integer);
     function CreateDataSet(const ASQL: String = ''): IDBDataSet; override;
-    /// How many times the generator was asked. Zero means no key was ever
-    /// generated, which would make every key assertion vacuous.
+    /// How many times the generator was asked. READ by the two local-family
+    /// tests, and the number they assert is one call per PENDING ROW OF THE
+    /// WHOLE HIERARCHY - not one per master. ApplyInternal runs its own three
+    /// Apply* loops and then calls ApplyInternal on every child adapter, so
+    /// the two master rows and the two child rows are four inserts and four
+    /// generated keys. Zero would make every key clause in those tests
+    /// vacuous. The REST fixtures answer from TSeqRestConnection instead, and
+    /// the two recursion fixtures call Propagate without ever inserting, so
+    /// none of the four reads this.
     property SequenceCalls: Integer read FSequenceCalls;
   end;
 
@@ -260,6 +310,13 @@ type
     // --- the latent position site the new column must not disturb ----------
     [Test]
     procedure MappedColumnsKeepTheOffsetTheNestedFillReliesOn;
+
+    // --- the two names the new columns took out of circulation -------------
+    [Test]
+    [TestCase('RowToken', 'RowToken')]
+    [TestCase('OwnerToken', 'OwnerToken')]
+    procedure EntityColumnNamedLikeAReservedOne_SaysWhichNameIsReserved(
+      const AReserved: String);
   end;
 
 implementation
@@ -290,6 +347,7 @@ const
   /// Spelled out rather than imported from Janus.DataSet.Fields, so a rename
   /// of the shipped constant shows up as a red instead of as silent agreement.
   cOWNERTOKEN = 'OwnerToken';
+  cROWTOKEN   = 'RowToken';
 
 type
   TScrollMute = record
@@ -598,8 +656,6 @@ begin
         'every child row must carry the PENDING marker written by the shipped ' +
         'TDataSetBaseAdapter<M>.DoBeforePost - nothing here writes it by hand, ' +
         'and _IsPendingInsertRow is what gates the write under test');
-      Assert.AreEqual(2, RowCount(LMasterTable),
-        'and counting the children must not have cost a master row');
     finally
       LChild.Free;
       LMaster.Free;
@@ -641,6 +697,12 @@ begin
       Assert.AreNotEqual(LKeyA, LKeyB,
         'PREMISE: the two masters must carry DIFFERENT keys, or this test ' +
         'cannot tell which one the children ended on');
+      Assert.AreEqual(2 + cCHILDROWS, FTree.SequenceCalls,
+        'PREMISE: the generator double must have been asked ONCE PER PENDING ' +
+        'ROW that ApplyInternal inserted - the two master rows, and then the ' +
+        'child rows, because ApplyInternal calls ApplyInternal on every child ' +
+        'adapter after its own loops. Zero would make every key clause here ' +
+        'vacuous');
 
       Assert.AreEqual(cCHILDROWS, CountWithColumn(LChildTable, cKEY, LKeyA),
         'every child row was typed with the cursor on the FIRST master, so ' +
@@ -691,6 +753,10 @@ begin
         'PREMISE: the first master must have received a generated key');
       Assert.AreNotEqual(LKeyA, LKeyB,
         'PREMISE: the two masters must carry DIFFERENT keys');
+      Assert.AreEqual(2 + cCHILDROWS, FTree.SequenceCalls,
+        'PREMISE: and the same count in this family - TClientDataSetAdapter<M> ' +
+        'carries its own ApplyInserter and its own ApplyInternal, so the ' +
+        'number is measured here rather than inferred from the FDMemTable one');
 
       Assert.AreEqual(cCHILDROWS, CountWithColumn(LChildCds, cKEY, LKeyA),
         'the ClientDataSet family must keep the children on the master they ' +
@@ -1201,15 +1267,24 @@ begin
   LColumns := TMappingExplorer.GetMappingColumn(AClass);
   Assert.IsNotNull(LColumns,
     AWhere + ': the fixture must really have a column mapping');
+  Assert.IsTrue(LColumns.Count > 0,
+    AWhere + ': and that mapping must have columns in it - the loop below is ' +
+    'the whole guard, and an empty list would walk it zero times and pass ' +
+    'in silence');
   LIndex := 1;
   for LColumn in LColumns do
   begin
     Assert.AreEqual(LColumn.ColumnName, ADataSet.Fields[LIndex].FieldName,
       AWhere + ': mapped column ' + IntToStr(LIndex - 1) + ' must sit at ' +
-      'field index ' + IntToStr(LIndex) + '. TBind._FillADTField and ' +
-      'TBind._FillDataSetField copy source field N into ' +
-      'ATarget.Fields[N + 1], so a second internal column placed before the ' +
-      'mapped ones would silently write every value one column to the right');
+      'field index ' + IntToStr(LIndex) + '. The three nested-fill loops do ' +
+      'NOT agree on an offset: TBind._FillADTField and the ADT/Mongo branch ' +
+      'of TBind._FillDataSetField copy source field N into ' +
+      'ATarget.Fields[N + 1], while the ordinary branch of ' +
+      'TBind._FillDataSetField copies N into N. What all THREE share is that ' +
+      'each is bounded by the SOURCE FieldCount, which is why a column added ' +
+      'at the END of the target is inert - and why a second internal column ' +
+      'placed BEFORE the mapped ones is not: it would break the + 1 the ' +
+      'first two rely on and misalign the N-into-N of the third, silently');
     Inc(LIndex);
   end;
 end;
@@ -1255,6 +1330,60 @@ begin
     end;
   finally
     LParentTable.Free;
+  end;
+end;
+
+// ---------------------------------------------------------------------------
+// The two names the new columns took out of circulation
+// ---------------------------------------------------------------------------
+
+procedure TTestAutoIncDistribution.EntityColumnNamedLikeAReservedOne_SaysWhichNameIsReserved(
+  const AReserved: String);
+var
+  LTable: TFDMemTable;
+  LMessage: String;
+begin
+  // WHAT THIS DEFENDS. Creating the two provenance columns on EVERY dataset
+  // the framework opens turned their names into RESERVED ones, and an entity
+  // that has been mapping a column called ROWTOKEN or OWNERTOKEN since before
+  // issue #261 now collides with them inside an adapter constructor. The
+  // MAPPED column is the one created first, under the FindField in
+  // TBind.SetInternalInitFieldDefsObjectClass, so it is always the internal
+  // creation that fails. Without a guard it fails with the message MEASURED by
+  // taking the guard out and running this very test: 'A component named
+  // RowToken already exists'. That one is TComponent's rather than TDataSet's;
+  // it says nothing about a reservation, nothing about which entity, and
+  // nothing about what to do next.
+  //
+  // The fixture entities spell their columns in LOWER CASE. FindField is
+  // case-insensitive, so they collide exactly as hard, and a guard that
+  // compared names itself instead of asking the dataset would miss them.
+  LMessage := '';
+  LTable := TFDMemTable.Create(nil);
+  try
+    try
+      if AReserved = cROWTOKEN then
+        TFDMemTableAdapter<TResRowToken>.Create(FConn, LTable, -1, nil).Free
+      else
+        TFDMemTableAdapter<TResOwnerToken>.Create(FConn, LTable, -1, nil).Free;
+    except
+      on E: Exception do
+        LMessage := E.Message;
+    end;
+    Assert.AreNotEqual('', LMessage,
+      'building an adapter over an entity that maps ' + AReserved + ' must ' +
+      'FAIL - the framework is about to create a column of that very name ' +
+      'on the same dataset, and silently reusing the entity''s column would ' +
+      'let the cascade write over mapped data');
+    Assert.IsTrue(Pos('"' + AReserved + '" is RESERVED', LMessage) > 0,
+      'and the message must name the colliding column and call it reserved, ' +
+      'rather than leave the reader with the component-name clash quoted ' +
+      'above - got: ' + LMessage);
+    Assert.IsTrue(Pos('Rename', LMessage) > 0,
+      'and it must say what to do about it, since the only fix is on the ' +
+      'model side - got: ' + LMessage);
+  finally
+    LTable.Free;
   end;
 end;
 

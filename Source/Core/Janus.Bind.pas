@@ -95,6 +95,8 @@ type
       const AObject: TObject); overload;
     procedure _FillDataSetField(const ADataSet: TDataSet;
       const AObject: TObject); overload;
+    procedure _AddReservedField(const ADataSet: TDataSet;
+      const AFieldName: String);
   protected
     constructor Create;
   public
@@ -644,15 +646,47 @@ begin
   _SetCalcFieldDefsObjectClass(ADataSet, AObject);
   // Adicionar Fields Aggregates
   _SetAggregateFieldDefsObjectClass(ADataSet, AObject);
-  // TFields de PROVENIENCIA DA LINHA, criados por ULTIMO e deixados no fim da
-  // lista: _FillADTField e _FillDataSetField copiam o campo N da origem para
-  // ATarget.Fields[N + 1], de modo que qualquer coluna interna colocada ANTES
-  // das mapeadas deslocaria todos os valores uma posicao a direita. Ver o
+  // TFields de PROVENIENCIA DA LINHA, criados por ULTIMO e deixados no FIM da
+  // lista. A razao nao e que os copiadores aninhados escrevam sempre em
+  // N + 1 - eles NAO escrevem: _FillADTField e o ramo ADT/Mongo de
+  // _FillDataSetField copiam o campo N da origem para ATarget.Fields[N + 1],
+  // mas o ramo comum de _FillDataSetField copia N para N. A razao e mais
+  // forte e vale para os TRES lacos: todos sao limitados pelo FieldCount da
+  // ORIGEM, de modo que uma coluna acrescentada no FIM do alvo nunca e
+  // alcancada e e inocua. O que NAO seria inocuo e uma coluna interna posta
+  // ANTES das mapeadas: quebraria o + 1 dos dois primeiros e desalinharia o
+  // N para N do terceiro, e nenhuma assercao da suite notaria. Ver o
   // comentario de cRowTokenField em Janus.DataSet.Fields.
-  TFieldSingleton.GetInstance.AddField(ADataSet, cRowTokenField, ftInteger);
-  ADataSet.FieldByName(cRowTokenField).Visible := False;
-  TFieldSingleton.GetInstance.AddField(ADataSet, cOwnerTokenField, ftInteger);
-  ADataSet.FieldByName(cOwnerTokenField).Visible := False;
+  _AddReservedField(ADataSet, cRowTokenField);
+  _AddReservedField(ADataSet, cOwnerTokenField);
+end;
+
+/// <summary> Cria um dos TFields de PROVENIENCIA DA LINHA, recusando-se a
+///  faze-lo em cima de uma coluna que a entidade ja mapeou com esse nome.
+///  POR QUE A GUARDA. cRowTokenField e cOwnerTokenField sao NOMES RESERVADOS a
+///  partir do momento em que passaram a ser criados aqui, e uma entidade que
+///  mapeie uma coluna chamada ROWTOKEN ou OWNERTOKEN cairia dentro do
+///  construtor do adapter com a mensagem MEDIDA "A component named RowToken
+///  already exists" - que e do TComponent, nao do TDataSet, nao nomeia a
+///  entidade e nao tem uma palavra sobre a reserva. As colunas MAPEADAS ja sao
+///  criadas sob um FindField logo acima; aqui a resposta certa nao e reusar o
+///  campo alheio - ele tem o tipo e o significado da entidade, e a cascata
+///  escreveria por cima - e sim dizer ao autor do model o que renomear.
+///  Medido por Test.Janus.AutoInc.Distribution
+///  .EntityColumnNamedLikeAReservedOne_SaysWhichNameIsReserved. </summary>
+procedure TBind._AddReservedField(const ADataSet: TDataSet;
+  const AFieldName: String);
+begin
+  if ADataSet.FindField(AFieldName) <> nil then
+    raise Exception.CreateFmt('The column name "%s" is RESERVED by Janus. ' +
+      'It is the row-provenance column the CascadeAutoInc walk uses to tell ' +
+      'which pending child row belongs to which master row, and it is ' +
+      'created on every dataset the framework opens. Rename the mapped ' +
+      'column of the entity - or its [Column] alias - to something else. ' +
+      'The two reserved names are "%s" and "%s".',
+      [AFieldName, cRowTokenField, cOwnerTokenField]);
+  TFieldSingleton.GetInstance.AddField(ADataSet, AFieldName, ftInteger);
+  ADataSet.FieldByName(AFieldName).Visible := False;
 end;
 
 procedure TBind._FillADTField(const AADTField: TADTField;
