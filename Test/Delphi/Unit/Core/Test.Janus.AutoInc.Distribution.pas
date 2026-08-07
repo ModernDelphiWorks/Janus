@@ -1377,8 +1377,8 @@ begin
       'let the cascade write over mapped data');
     Assert.IsTrue(Pos('"' + AReserved + '" is RESERVED', LMessage) > 0,
       'and the message must name the colliding column and call it reserved, ' +
-      'rather than leave the reader with a duplicate-field-name - got: ' +
-      LMessage);
+      'rather than leave the reader with the component-name clash quoted ' +
+      'above - got: ' + LMessage);
     Assert.IsTrue(Pos('Rename', LMessage) > 0,
       'and it must say what to do about it, since the only fix is on the ' +
       'model side - got: ' + LMessage);
