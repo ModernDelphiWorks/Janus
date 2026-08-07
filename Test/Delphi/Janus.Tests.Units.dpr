@@ -91,6 +91,9 @@ uses
   /// Cursor advance regression — sibling of 1ad296b
   Test.Janus.Cursor.Advance in 'Unit\Core\Test.Janus.Cursor.Advance.pas',
   Test.Janus.AutoInc.Childs in 'Unit\Core\Test.Janus.AutoInc.Childs.pas',
+  /// Issue #261 - the cascade must reach the children of the parent row they
+  /// were typed under, in all four DataSet families
+  Test.Janus.AutoInc.Distribution in 'Unit\Core\Test.Janus.AutoInc.Distribution.pas',
   Test.Janus.Apply.Loops in 'Unit\Core\Test.Janus.Apply.Loops.pas',
   /// RESTful\Common property/getter wiring — first coverage of that folder
   Test.Janus.RestFactory.MethodToken in 'Unit\RESTful\Test.Janus.RestFactory.MethodToken.pas',

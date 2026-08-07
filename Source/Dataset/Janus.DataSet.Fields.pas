@@ -75,6 +75,46 @@ const
   ///  WithBeforePostLive group for the event. </summary>
   cInternalField = 'InternalField';
 
+  /// <summary> Name of the column that carries the IDENTITY OF THE ROW, minted
+  ///  by TDataSetBaseAdapter<M>.DoNewRecord on every row the framework sees
+  ///  created. It is not a key and never reaches the database: nothing in
+  ///  TBind.SetPropertyToField or TBind.SetFieldToProperty looks at it, both
+  ///  being driven by the column MAPPING rather than by the dataset's fields.
+  ///
+  ///  WHY IT EXISTS. TDataSetBaseAdapter<M>._AutoIncToChildRows has to answer
+  ///  "which pending child rows belong to the master row I am standing on",
+  ///  and every other way of asking was measured and failed: the master-detail
+  ///  range filters on the master's CURRENT key, which by cascade time is the
+  ///  NEW one while the children still hold the old; a bookmark's second dword
+  ///  is a position in the view and moves when the first pending row leaves the
+  ///  filter; and capturing the child set before the key swap cannot work
+  ///  because TBind.SetInternalInitFieldDefsObjectClass gives every autoinc
+  ///  primary key DefaultExpression '-1', so every pending row of every level
+  ///  sits on -1 at the same instant.
+  ///
+  ///  IT IS CREATED LAST ON PURPOSE - after the mapped columns, after the
+  ///  internal state column that is then moved to index 0, and after the
+  ///  calculated fields. TBind._FillADTField and TBind._FillDataSetField copy
+  ///  source field N into ATarget.Fields[N + 1], which assumes exactly ONE
+  ///  column precedes the mapped ones; a column placed anywhere before them
+  ///  would shift every value one place to the right and no assertion in the
+  ///  suite would notice. Pinned by Test.Janus.AutoInc.Distribution
+  ///  .MappedColumnsKeepTheOffsetTheNestedFillReliesOn. </summary>
+  cRowTokenField = 'RowToken';
+
+  /// <summary> Name of the column that carries the RowToken of the master row
+  ///  that was current when this row was created - "whose child am I". Two
+  ///  columns are needed and one is not enough: a mid row has to say both who
+  ///  it is, for its own children, and whose child it is, for its parent.
+  ///
+  ///  ZERO MEANS "NO PARENTAGE RECORDED", which is what a row created while the
+  ///  adapter's events were unhooked carries, since DoNewRecord is what writes
+  ///  it. TDataSetBaseAdapter<M>._IsOwnedByMasterRow answers True for such a
+  ///  row against every master, which is exactly the behaviour that shipped
+  ///  before this column existed. Pinned by Test.Janus.AutoInc.Distribution
+  ///  .UntokenisedRows_KeepTheHistoricalBehaviour. </summary>
+  cOwnerTokenField = 'OwnerToken';
+
 type
   IFieldSingleton = interface
     ['{47DDCFB7-6EB9-41A9-A41F-D9474D7A1E85}']

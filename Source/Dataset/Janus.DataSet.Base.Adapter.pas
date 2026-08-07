@@ -41,6 +41,16 @@ uses
 type
  TDataSetBaseAdapter<M: class, constructor> = class(TDataSetAbstract<M>)
   private
+  class var
+    /// <summary> Source of row identities for cRowTokenField. Monotonic, and
+    ///  never compared across entity types: a child copies the token out of
+    ///  its master's own row, so both sides of every comparison
+    ///  _IsOwnedByMasterRow makes were minted by the SAME instantiation of
+    ///  this counter. Two adapters over the same entity - which is the REST
+    ///  client's normal shape - therefore cannot hand out the same identity,
+    ///  which is the only collision that would matter. </summary>
+    FRowTokenSeq: Integer;
+  private
     FOrmDataSetEvents: TDataSetLocal;
     FPageSize: Integer;
     procedure _ExecuteOneToOne(AObject: M; AProperty: TRttiProperty;
@@ -55,6 +65,11 @@ type
     function _DetachMasterLink(const ADataSet: TDataSet): TObject;
     procedure _RestoreMasterLink(const ADataSet: TDataSet; const ASource: TObject);
     function _IsPendingInsertRow(const ADataSet: TDataSet): Boolean;
+    procedure _StampRowTokens;
+    function _IsOwnedByMasterRow(const AChild: TDataSet;
+      const AMasterToken: Integer): Boolean;
+    procedure _RecurseOverChildRows(
+      const AChildAdapter: TDataSetBaseAdapter<M>);
     procedure _AutoIncToChildRows(const AMaster, AChild: TDataSet;
       const AAssociation: TAssociationMapping);
     function _HasPendingRows(const AAdapter: TDataSetBaseAdapter<M>): Boolean;
@@ -160,6 +175,18 @@ uses
   MetaDbDiff.mapping.explorer,
   MetaDbDiff.mapping.attributes,
   MetaDbDiff.types.mapping;
+
+const
+  /// <summary> The value cRowTokenField and cOwnerTokenField carry when the
+  ///  framework never saw the row created - a row appended while the adapter's
+  ///  events were unhooked, or read back from a store that has no such column.
+  ///  It is the zero a TField answers for a NULL integer, so it costs no
+  ///  default expression and no migration.
+  ///  DECLARED HERE, in the implementation, and not beside the two column
+  ///  names: nothing outside this unit needs it, and the public surface of a
+  ///  framework the community consumes is not the place to put a private
+  ///  convention. </summary>
+  cNoRowToken = 0;
 
 { TDataSetBaseAdapter<M> }
 
@@ -845,6 +872,11 @@ procedure TDataSetBaseAdapter<M>.DoNewRecord(DataSet: TDataSet);
 begin
   if Assigned(FDataSetEvents.OnNewRecord) then
     FDataSetEvents.OnNewRecord(DataSet);
+  // Registra QUEM E esta linha e DE QUEM ela e filha. Fora do teste
+  // FMasterObject.Count > 0 abaixo de proposito: aquele teste pergunta "eu
+  // tenho filhos", e o ultimo nivel da hierarquia - justamente o que mais
+  // precisa dizer de quem e filho - responde nao.
+  _StampRowTokens;
   // Busca valor da tabela master, caso aqui seja uma tabela detalhe.
   if FMasterObject.Count > 0 then
     _GetMasterValues;
@@ -1071,6 +1103,136 @@ begin
   Result := (LField = nil) or (LField.AsInteger = Integer(dsInsert));
 end;
 
+/// <summary> Grava a proveniencia da linha que esta sendo criada: uma
+///  identidade PROPRIA, nova a cada linha, e a identidade da linha do master
+///  que estava corrente neste instante. As duas sao necessarias e uma so nao
+///  serve: uma linha de nivel intermediario precisa dizer QUEM ELA E, para os
+///  seus proprios filhos, e DE QUEM ELA E FILHA, para o seu pai.
+///  ESTE E O UNICO MOMENTO EM QUE A RESPOSTA EXISTE. Depois que a insercao
+///  comeca, o master ja carrega a chave NOVA e os filhos ainda carregam a
+///  ANTIGA, e nenhuma comparacao de chave consegue separa-los - foi assim que
+///  o range master-detail, o bookmark e a captura previa do conjunto filho
+///  falharam, cada um medido. Aqui ninguem precisa comparar nada: o cursor do
+///  master esta, por construcao, sobre a linha sob a qual o usuario esta
+///  digitando.
+///  Chamado de DoNewRecord, isto e, so quando os eventos do adapter estao
+///  ligados. Uma linha criada com eles desligados fica em cNoRowToken e cai no
+///  comportamento historico - ver _IsOwnedByMasterRow. </summary>
+procedure TDataSetBaseAdapter<M>._StampRowTokens;
+var
+  LRowToken: TField;
+  LOwnerToken: TField;
+  LMaster: TDataSetBaseAdapter<M>;
+  LMasterToken: TField;
+begin
+  if FOrmDataSet = nil then
+    Exit;
+  LRowToken := FOrmDataSet.FindField(cRowTokenField);
+  if LRowToken = nil then
+    Exit;
+  LRowToken.AsInteger := AtomicIncrement(FRowTokenSeq);
+  LOwnerToken := FOrmDataSet.FindField(cOwnerTokenField);
+  if LOwnerToken = nil then
+    Exit;
+  LOwnerToken.AsInteger := cNoRowToken;
+  if not Assigned(FOwnerMasterObject) then
+    Exit;
+  LMaster := TDataSetBaseAdapter<M>(FOwnerMasterObject);
+  if LMaster.FOrmDataSet = nil then
+    Exit;
+  if not LMaster.FOrmDataSet.Active then
+    Exit;
+  LMasterToken := LMaster.FOrmDataSet.FindField(cRowTokenField);
+  if LMasterToken = nil then
+    Exit;
+  LOwnerToken.AsInteger := LMasterToken.AsInteger;
+end;
+
+/// <summary> Diz se a linha corrente do dataset filho foi criada sob a linha
+///  de master identificada por AMasterToken.
+///  A FOLGA E DE UM LADO SO, e isso e uma decisao medida. Quando o FILHO nao
+///  tem proveniencia registrada - linha acrescentada com os eventos do adapter
+///  filho desligados, ou lida de um armazenamento que nao tem a coluna - a
+///  resposta e True e a linha recebe a chave como sempre recebeu; tirar essa
+///  folga faria o filho deixar de ser escrito, que e regressao silenciosa.
+///  Medido por Test.Janus.AutoInc.Distribution
+///  .ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster.
+///  Do lado do MASTER nao ha folga: um filho que sabe de quem e filho nao e
+///  reapontado para uma linha de master que nao se identifica. Quando NENHUM
+///  dos dois se identifica os dois valores sao cNoRowToken e a comparacao
+///  responde True sozinha - que e o comportamento historico, medido por
+///  UntokenisedRows_KeepTheHistoricalBehaviour. </summary>
+function TDataSetBaseAdapter<M>._IsOwnedByMasterRow(const AChild: TDataSet;
+  const AMasterToken: Integer): Boolean;
+var
+  LField: TField;
+begin
+  Result := True;
+  LField := AChild.FindField(cOwnerTokenField);
+  if LField = nil then
+    Exit;
+  if LField.AsInteger = cNoRowToken then
+    Exit;
+  Result := LField.AsInteger = AMasterToken;
+end;
+
+/// <summary> Percorre as linhas PENDENTES do adapter filho e dispara a cascata
+///  do nivel seguinte UMA VEZ POR LINHA, com o cursor do filho parado sobre
+///  ela.
+///  POR QUE ISTO E METADE DO CONSERTO. Marcar cada neto com o pai certo nao
+///  adianta se a recursao entra uma unica vez: SetAutoIncValueChilds recursava
+///  uma vez por ADAPTER filho, montada em qualquer linha que o `finally` de
+///  _AutoIncToChildRows tivesse deixado corrente - a primeira - e os netos
+///  digitados sob qualquer outra linha nao eram alcancados por ninguem. A
+///  identidade diz QUAIS linhas escrever; a caminhada e o que faz a escrita
+///  acontecer mais de uma vez. Nenhuma das duas metades resolve sozinha.
+///  Percorre por BOOKMARK pela mesma razao que _AutoIncToChildRows: a escrita
+///  do nivel de baixo pode reordenar o filho quando ele esta indexado pela
+///  coluna que esta sendo reescrita.
+///  SEM NENHUMA LINHA PENDENTE recursa uma unica vez, de onde o cursor
+///  estiver, que e exatamente o que este metodo substituiu - um filho ja
+///  gravado tem chave propria e os seus filhos continuam a receber. </summary>
+procedure TDataSetBaseAdapter<M>._RecurseOverChildRows(
+  const AChildAdapter: TDataSetBaseAdapter<M>);
+var
+  LDataSet: TDataSet;
+  LMarks: TList<TBookmark>;
+  LMark: TBookmark;
+  LFor: Integer;
+begin
+  LDataSet := AChildAdapter.FOrmDataSet;
+  if LDataSet = nil then
+    Exit;
+  if not LDataSet.Active then
+    Exit;
+  LMarks := TList<TBookmark>.Create;
+  LMark := LDataSet.GetBookmark;
+  LDataSet.DisableControls;
+  try
+    LDataSet.First;
+    while not LDataSet.Eof do
+    begin
+      if _IsPendingInsertRow(LDataSet) then
+        LMarks.Add(LDataSet.GetBookmark);
+      LDataSet.Next;
+    end;
+    if LMarks.Count = 0 then
+      AChildAdapter.SetAutoIncValueChilds
+    else
+      for LFor := 0 to LMarks.Count -1 do
+      begin
+        LDataSet.GotoBookmark(LMarks[LFor]);
+        AChildAdapter.SetAutoIncValueChilds;
+      end;
+  finally
+    if LDataSet.BookmarkValid(LMark) then
+      LDataSet.GotoBookmark(LMark);
+    LDataSet.FreeBookmark(LMark);
+    LDataSet.EnableControls;
+    LMarks.Free;
+  end;
+end;
+
 /// <summary> Escreve a chave do master em cada linha elegivel do dataset filho.
 ///  Percorre por BOOKMARK de proposito: quando o filho esta indexado pela
 ///  propria coluna que esta sendo reescrita - o que
@@ -1087,6 +1249,8 @@ var
   LSource: TObject;
   LMasterField: TField;
   LChildField: TField;
+  LMasterToken: Integer;
+  LTokenField: TField;
   LFor: Integer;
   LCol: Integer;
 begin
@@ -1111,14 +1275,25 @@ begin
     end;
     if LMasterFields.Count = 0 then
       Exit;
+    // A identidade da linha de master sobre a qual estamos parados. Lida ANTES
+    // de mexer no filho, porque e o cursor do master que a define.
+    LMasterToken := cNoRowToken;
+    LTokenField := AMaster.FindField(cRowTokenField);
+    if LTokenField <> nil then
+      LMasterToken := LTokenField.AsInteger;
     LSource := _DetachMasterLink(AChild);
     AChild.DisableControls;
     try
       // 1a passada: marca as linhas elegiveis ANTES de escrever qualquer uma.
+      // DOIS filtros, e nao um: pendente de insercao - senao a linha ja
+      // pertence a outro master e gravado - E filha DESTA linha de master. O
+      // segundo e o que impede que uma segunda linha de master pendente, na sua
+      // propria passagem por ApplyInserter, reaponte os filhos da primeira.
       AChild.First;
       while not AChild.Eof do
       begin
-        if _IsPendingInsertRow(AChild) then
+        if _IsPendingInsertRow(AChild) and
+           _IsOwnedByMasterRow(AChild, LMasterToken) then
           LMarks.Add(AChild.GetBookmark);
         AChild.Next;
       end;
@@ -1182,12 +1357,19 @@ begin
     LDataSetChild.DisableDataSetEvents;
     try
       _AutoIncToChildRows(FOrmDataSet, LDataSetChild.FOrmDataSet, LAssociation);
+      // Populando em hierarquia de varios niveis: netos, bisnetos...
+      // UMA VEZ POR LINHA do filho, e nao uma vez por adapter filho: o neto
+      // pertence a uma linha determinada do meio, e so com o cursor do meio
+      // parado sobre ela e que a chave que chega ao neto e a do pai dele.
+      // O par de mute acima passou a cobrir tambem esta chamada porque agora
+      // ela ANDA no cursor do filho, e andar com os eventos ligados dispara o
+      // AfterScroll que reabre - e portanto apaga - os netos ainda nao
+      // gravados.
+      if LDataSetChild.FMasterObject.Count > 0 then
+        _RecurseOverChildRows(LDataSetChild);
     finally
       LDataSetChild.EnableDataSetEvents;
     end;
-    // Populando em hierarquia de varios niveis: netos, bisnetos...
-    if LDataSetChild.FMasterObject.Count > 0 then
-      LDataSetChild.SetAutoIncValueChilds;
   end;
 end;
 

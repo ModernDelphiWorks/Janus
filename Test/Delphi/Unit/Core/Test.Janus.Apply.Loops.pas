@@ -685,7 +685,15 @@ begin
                         'Lookup');
       Assert.AreEqual(cInternalField, LTable.Fields[0].FieldName,
         'a lookup field added after construction must not displace it');
-      Assert.AreEqual(fkLookup, LTable.Fields[4].FieldKind,
+      // BY NAME, not by index. This clause exists only to prove the fixture
+      // really added a lookup field, and an index was never what it was
+      // measuring: TBind.SetInternalInitFieldDefsObjectClass appends the two
+      // row-provenance columns after the mapped and calculated ones, so a
+      // field added at run time lands after those too. The position that IS
+      // load-bearing is field 0, asserted above, and the offset of the mapped
+      // columns, asserted by Test.Janus.AutoInc.Distribution
+      // .MappedColumnsKeepTheOffsetTheNestedFillReliesOn.
+      Assert.AreEqual(fkLookup, LTable.FieldByName('LKDESC').FieldKind,
         'the fixture must really add a lookup field');
     finally
       LLookup.Free;
