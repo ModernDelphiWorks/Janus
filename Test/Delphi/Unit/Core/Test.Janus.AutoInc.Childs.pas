@@ -1307,18 +1307,31 @@ begin
   // SECOND row is itself the proof that the row was still pending when the
   // second pass reached it, since _IsPendingInsertRow is what gates the write.
   //
-  // AND WHY THE SECOND PASS IS STILL ALLOWED TO WRITE HERE. Since issue #261
-  // was fixed, _AutoIncToChildRows also asks whether a pending child row
-  // BELONGS to the master row it is standing on, and the answer comes from the
-  // identity TDataSetBaseAdapter<M>.DoNewRecord records on every row it sees
-  // created. The two master rows below are appended with the adapter MUTED -
-  // which is what unhooks DoNewRecord - so no identity was ever recorded for
-  // them, and the cascade falls back to what it always did. That is not a
-  // narrative: the premise clause below reads the identity back and shows it
-  // is absent. The SAME shape with the events live is measured in
-  // Test.Janus.AutoInc.Distribution
+  // AND WHY THE SECOND PASS IS STILL ALLOWED TO WRITE HERE. Since issue
+  // #261 was fixed, _AutoIncToChildRows also asks whether a pending child
+  // row BELONGS to the master row it is standing on, and the answer comes
+  // from the identity TDataSetBaseAdapter<M>.DoNewRecord records on every
+  // row it sees created. The two master rows below are appended with the
+  // adapter MUTED - which is what unhooks DoNewRecord - so no identity was
+  // ever recorded for them, and the cascade falls back to what it always
+  // did. That is not a narrative: the premise clause below reads the
+  // identity back and shows it is absent. The SAME shape with the events
+  // live is measured in Test.Janus.AutoInc.Distribution
   // .FDMemTable_ChildrenTypedUnderTheFirstMaster_StayOnIt, and there the
   // children stay on the master they were typed under.
+  //
+  // WHICH SIDE THE FALLBACK NOW COMES FROM - issue #265. It is the MASTER
+  // side, and it stopped being the child side. The children below are typed
+  // with their OWN events live, so since #265 DoNewRecord DOES record
+  // something for them: cOwnerTokenField carries the orphan sentinel, which
+  // says "recorded, and my master had no identity". What keeps this test
+  // green is the other half of the same clause - a master that has no
+  // identity either may still claim such a child, because it may be the one
+  // that still owes it a key. Measured, not read: make the orphan branch of
+  // _IsOwnedByMasterRow refuse every master and THIS test reddens alongside
+  // Test.Janus.AutoInc.Distribution
+  // .MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired, and no
+  // other.
   LGenCalls := 0;
   LGen := TRowsConnection.Create(dnSQLite, 1,
     procedure(const ADataSet: TFDMemTable)

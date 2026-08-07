@@ -116,12 +116,34 @@ const
   ///  columns are needed and one is not enough: a mid row has to say both who
   ///  it is, for its own children, and whose child it is, for its parent.
   ///
-  ///  ZERO MEANS "NO PARENTAGE RECORDED", which is what a row created while the
-  ///  adapter's events were unhooked carries, since DoNewRecord is what writes
-  ///  it. TDataSetBaseAdapter<M>._IsOwnedByMasterRow answers True for such a
-  ///  row against every master, which is exactly the behaviour that shipped
-  ///  before this column existed. Pinned by Test.Janus.AutoInc.Distribution
-  ///  .UntokenisedRows_KeepTheHistoricalBehaviour. </summary>
+  ///  IT HAS THREE STATES, NOT TWO, and reading it as two is issue #265:
+  ///
+  ///    * ZERO - "NOBODY RECORDED THIS ROW". The zero a TField answers for a
+  ///      NULL integer, which is what a row appended while the row's OWN
+  ///      adapter had its events unhooked carries, since
+  ///      TDataSetBaseAdapter<M>.DoNewRecord is what writes the column.
+  ///      _IsOwnedByMasterRow answers True for such a row against every
+  ///      master, which is exactly the behaviour that shipped before this
+  ///      column existed. Pinned by Test.Janus.AutoInc.Distribution
+  ///      .UntokenisedRows_KeepTheHistoricalBehaviour;
+  ///
+  ///    * NEGATIVE (cOrphanOwnerToken) - "THIS ROW WAS RECORDED AND ITS MASTER
+  ///      HAD NO IDENTITY". THIS, AND NOT THE ONE ABOVE, IS THE DOMINANT
+  ///      PRODUCER OF UNTOKENISED PARENTAGE: every master row read from the
+  ///      store is untokenised, because TSessionDataSet<M>._PopularDataSet
+  ///      appends with the adapter's events off and TBind.SetFieldToField
+  ///      skips this column and cRowTokenField by name. A child typed under
+  ///      such a master - with the CHILD's events live - lands here. It is
+  ///      claimable only by a master that has no identity either, which is the
+  ///      one that could still owe it a key. Pinned by
+  ///      LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey and by
+  ///      MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired;
+  ///
+  ///    * POSITIVE - a named parent, and only that parent writes the row.
+  ///
+  ///  cOrphanOwnerToken itself lives in the implementation section of
+  ///  Janus.DataSet.Base.Adapter, next to cNoRowToken and for the same reason:
+  ///  nothing outside that unit reads either of them. </summary>
   cOwnerTokenField = 'OwnerToken';
 
 type

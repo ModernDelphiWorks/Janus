@@ -145,9 +145,95 @@
   Every assertion added here was then inverted on its own, and each inversion
   reddened its own test and no other.
 
+  ISSUE #265 - THE MASTER THAT CAME OUT OF THE STORE
+
+  #264 gave every row an identity and every child a parentage, both stamped in
+  DoNewRecord, and let a child with NO recorded parentage be written by
+  whichever master was passing. #265 is who ends up in that escape hatch:
+  loading rows appends them with the adapter's events DISABLED - see
+  TSessionDataSet<M>._PopularDataSet, reached from
+  TFDMemTableAdapter<M>.OpenSQLInternal - so EVERY master row that came from
+  the database is untokenised, and every child typed under one of them was
+  claimable by any other pending master.
+
+  Three tests were written and RUN against the untouched framework before a
+  line of Source changed, and what they measured there is:
+
+    * LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey - RED. The child
+      typed under a master LOADED FROM THE STORE, key 17, came out on 101, the
+      brand new master's generated key. Every premise passed, so the run also
+      established that the loaded master really carries a real key, really is
+      NOT pending, really has no row identity, and that the shipped
+      _GetMasterValues really had written 17 into the child at creation time;
+
+    * MutedMasterAppend_WithARealKey_ItsChildKeepsThatKey - RED, the same 101,
+      with the same untokenised master reached by muting the adapter by hand
+      instead of by loading;
+
+    * MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired - GREEN,
+      and it had to stay green. There the muted master's key is still the
+      autoinc placeholder and the master IS pending, so it generates a key and
+      the cascade REPAIRS its own child. A parentage check that simply refused
+      every orphaned child would turn this one red, leaving a -1 foreign key
+      where the framework used to put a real one.
+
+  THOSE LAST TWO ARE THE FORK, and the reason this issue needed a measurement
+  before a fix. They ask for opposite answers from a single sentinel - and the
+  measurement says the two are separable anyway, because THE CLAIMANT DIFFERS:
+  in B1 the master doing the claiming is a different, IDENTIFIED one; in B2 it
+  is the very master that stamped the child, and that one has no identity
+  either. So _IsOwnedByMasterRow answers three questions instead of two, and
+  cOrphanOwnerToken is claimable only by a master that is itself untokenised.
+
+  WHY THE #265 FIXTURES BUILD THREE LEVELS FOR A TWO LEVEL QUESTION
+
+  BuildTree creates a leaf adapter that never receives a row. It is there
+  because TDataSetBaseAdapter<M>.DoNewRecord calls _GetMasterValues only
+  `if FMasterObject.Count > 0` - only when the level being typed HAS CHILDREN
+  OF ITS OWN. Without the leaf adapter the mid rows would never receive the
+  master's key at creation time and the fixtures would have to type the foreign
+  key by hand, which is precisely the value under test. With it, the foreign
+  key is written BY THE SHIPPED PATH and the assertion is about the framework
+  rather than about the fixture. Stated rather than hidden: in a two level
+  configuration _GetMasterValues does not run, and what a detail row carries in
+  its foreign key before the cascade is then whatever the consumer put there.
+
+  HOW THE TWO NEW SOURCE CLAUSES WERE SHOWN TO BIND - issue #265
+
+  Each was reverted on its own and the whole project re-run:
+
+    * never writing the orphan sentinel in _StampRowTokens reddens the three
+      #265 tests and nothing else;
+    * dropping the orphan branch of _IsOwnedByMasterRow altogether, or making
+      it refuse every master, reddens
+      MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired AND
+      Test.Janus.AutoInc.Childs
+      .TwoPendingMasterRows_WithNoRecordedParentage_EveryPendingChildEndsOnTheLastMasterKey
+      - a test that predates this issue, so the escape clause is defended by
+      something that was not written to defend it;
+    * making that branch accept every master - which is the two-state reading
+      #264 shipped - reddens
+      LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey and
+      MutedMasterAppend_WithARealKey_ItsChildKeepsThatKey, and nothing else.
+
+  So neither half stands alone: the sentinel without the escape breaks a
+  guarantee that was working, and the escape without the sentinel is the defect.
+
+  Every assertion added by #265 was then inverted on its own - 30 runs - and
+  each inversion reddened its own test and no other.
+  UntokenisedRows_KeepTheHistoricalBehaviour was NOT edited into agreement: its
+  set-up and its result clause are untouched and it never went red at any point
+  in this work. What changed there is the doc and two premise clauses that name
+  which of the two untokenised states it speaks for.
+
   WHAT IS NOT MEASURED HERE
 
-  No live database and no live REST server. The generator is a double that
+  No live database and no live REST server. NO REST FIXTURE FOR #265 EITHER:
+  the loaded-master shape is measured in the LOCAL family only, through the
+  local load path, and the claim that the REST family reaches a stronger form of
+  the same state - both masters holding their own children at once - rests on
+  the two RestFDMemTable/RestClientDataSet tests above rather than on a run of
+  its own. The generator is a double that
   answers the one SQLITE_SEQUENCE query the SQLite dialect sends, and the REST
   server is a double that answers the one `params` element
   TSessionRestFul<M>.Insert parses. Whether a row identity survives a REST
@@ -227,6 +313,46 @@ type
     property SequenceCalls: Integer read FSequenceCalls;
   end;
 
+  /// <summary> The cursor double for the LOADED MASTER fixtures - issue #265.
+  ///  It answers THREE questions where TTreeConnection answers two:
+  ///
+  ///    * the sequence query, recognised by SQLITE_SEQUENCE, with ONE row and a
+  ///      NEW number every call, so no two masters land on the same key;
+  ///    * ONE NOMINATED SELECT, cLOADSQL, with one row that is an `aitroot` row
+  ///      exactly as a database hands it back - key ALREADY REAL, no
+  ///      placeholder;
+  ///    * everything else with ZERO rows, which is the truth for the child
+  ///      re-open TDataSetAdapter<M>.DoAfterScroll fires in a fixture where
+  ///      nothing was ever saved.
+  ///
+  ///  The load answer is keyed on a SQL STRING THE FIXTURE CHOOSES, because
+  ///  TDMLCommandFactory.GeneratorSelect passes ASQL to CreateDataSet untouched
+  ///  - so OpenSQLInternal(cLOADSQL) reaches this double verbatim and nothing
+  ///  here has to guess what the SQLite generator would have produced. What is
+  ///  under test is the LOAD PATH, not the SELECT text. </summary>
+  TStoreConnection = class(TRowsConnection)
+  private
+    FNext: Integer;
+    FStep: Integer;
+    FLoadedKey: Integer;
+    FHeld: IDBDataSet;
+    FSequenceCalls: Integer;
+    FLoadCalls: Integer;
+    function _MakeSequence: IDBDataSet;
+    function _MakeLoadedRoot: IDBDataSet;
+    function _MakeEmpty: IDBDataSet;
+  public
+    constructor CreateStore(const AStep: Integer; const ALoadedKey: Integer);
+    function CreateDataSet(const ASQL: String = ''): IDBDataSet; override;
+    /// How many times the generator was asked - read as a PREMISE, so that a
+    /// key clause can never pass on a run where nothing was generated.
+    property SequenceCalls: Integer read FSequenceCalls;
+    /// How many times the nominated SELECT was answered. One means the fixture
+    /// really went through the shipped load path; zero would make the whole
+    /// test vacuous.
+    property LoadCalls: Integer read FLoadCalls;
+  end;
+
   /// <summary> An IRESTConnection whose POST answers the `params` element
   ///  TSessionRestFul<M>.Insert parses, so that TRESTDataSetAdapter<M>
   ///  .ApplyInserter reaches SetAutoIncValueChilds at all - it only does so
@@ -269,6 +395,19 @@ type
       AChild: TDataSet; const AChildRows: Integer);
     function KeyOfMasterRow(const AMaster: TDataSet;
       const ALast: Boolean): Integer;
+    function KeyOfTaggedRow(const ADataSet: TDataSet;
+      const ATag: String): Integer;
+    function TokenOfTaggedRow(const ADataSet: TDataSet; const ATag: String;
+      const AColumn: String): Integer;
+    procedure BuildTree(const AConnection: IDBConnection;
+      out ARootTable, AMidTable, ALeafTable: TFDMemTable;
+      out ARoot: TFDMemTableAdapter<TAitRoot>;
+      out AMid: TFDMemTableAdapter<TAitMid>;
+      out ALeaf: TFDMemTableAdapter<TAitLeaf>);
+    procedure DropTree(var ARootTable, AMidTable, ALeafTable: TFDMemTable;
+      var ARoot: TFDMemTableAdapter<TAitRoot>;
+      var AMid: TFDMemTableAdapter<TAitMid>;
+      var ALeaf: TFDMemTableAdapter<TAitLeaf>);
     function CountWithColumn(const ADataSet: TDataSet; const AColumn: String;
       const AValue: Integer): Integer;
     function RowCount(const ADataSet: TDataSet): Integer;
@@ -300,6 +439,14 @@ type
 
     [Test]
     procedure Recursion_WithNoPendingChildRow_StillReachesTheGrandchildren;
+
+    // --- issue #265: the master that came out of the store ------------------
+    [Test]
+    procedure LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey;
+    [Test]
+    procedure MutedMasterAppend_WithARealKey_ItsChildKeepsThatKey;
+    [Test]
+    procedure MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired;
 
     // --- the boundary of the fix -------------------------------------------
     [Test]
@@ -348,6 +495,29 @@ const
   /// of the shipped constant shows up as a red instead of as silent agreement.
   cOWNERTOKEN = 'OwnerToken';
   cROWTOKEN   = 'RowToken';
+  /// issue #265. The SQL the loaded-master fixture hands to the shipped
+  /// OpenSQLInternal, and which TStoreConnection answers with one row.
+  cLOADSQL    = 'JANUS-TEST-LOAD-AITROOT';
+  /// The key that row arrives with. REAL - it came from the store - and
+  /// different from every number the sequence double hands out (cSTEP, 2*cSTEP,
+  /// ...), so "the child kept its own key" and "the child was re-parented" can
+  /// never be the same number.
+  cLOADEDKEY  = 17;
+  cLOADEDTAG  = 'LOADED';
+  cNEWTAG     = 'NEW';
+  /// The value TBind.SetInternalInitFieldDefsObjectClass puts in an autoinc
+  /// primary key as DefaultExpression - the PENDING PLACEHOLDER. Spelled out
+  /// here rather than read off the field, because fixture B exists precisely to
+  /// tell a placeholder key apart from a real one.
+  cPLACEHOLDER = -1;
+  /// The value cOwnerTokenField carries when DoNewRecord DID run on the child
+  /// and the master it was created under had NO identity. Spelled out here for
+  /// the same reason as the two names above: Janus declares it in the
+  /// IMPLEMENTATION section of Janus.DataSet.Base.Adapter, so a test cannot
+  /// import it and must not pretend to.
+  /// AGAINST THE UNTOUCHED FRAMEWORK THIS WAS 0 - the same value a row nobody
+  /// ever recorded carries - and that conflation is issue #265.
+  cORPHANTOKEN = -1;
 
 type
   TScrollMute = record
@@ -428,6 +598,113 @@ begin
   end
   else
     Result := _Make(0, 0);
+end;
+
+{ TStoreConnection }
+
+constructor TStoreConnection.CreateStore(const AStep: Integer;
+  const ALoadedKey: Integer);
+begin
+  inherited Create(TDriverName.dnSQLite, 0,
+    procedure(const ADataSet: TFDMemTable)
+    begin
+      ADataSet.FieldDefs.Add(cSEQCOLUMN, ftInteger);
+    end,
+    procedure(const ADataSet: TFDMemTable; const AIndex: Integer)
+    begin
+      ADataSet.FieldByName(cSEQCOLUMN).AsInteger := 0;
+    end,
+    'store');
+  FNext := 0;
+  FStep := AStep;
+  FLoadedKey := ALoadedKey;
+  FSequenceCalls := 0;
+  FLoadCalls := 0;
+end;
+
+function TStoreConnection._MakeSequence: IDBDataSet;
+var
+  LTable: TFDMemTable;
+begin
+  LTable := TFDMemTable.Create(nil);
+  try
+    LTable.ResourceOptions.SilentMode := True;
+    LTable.FieldDefs.Add(cSEQCOLUMN, ftInteger);
+    LTable.CreateDataSet;
+    LTable.Append;
+    LTable.FieldByName(cSEQCOLUMN).AsInteger := FNext;
+    LTable.Post;
+    LTable.First;
+  except
+    LTable.Free;
+    raise;
+  end;
+  // TDriverDataSet<T> takes ownership of LTable and frees it on destruction.
+  FHeld := TSpyResultSet.CreateSpy(LTable, 1, 'store-seq');
+  Result := FHeld;
+end;
+
+/// One `aitroot` row as the database hands it back. TBind.SetFieldToField walks
+/// the TARGET dataset and asks the source for every MAPPED column by name, so
+/// the schema here has to carry all of them - and only them: the internal and
+/// the two provenance columns are excluded by name on the target side, which is
+/// the very reason the loaded row ends up with no identity.
+function TStoreConnection._MakeLoadedRoot: IDBDataSet;
+var
+  LTable: TFDMemTable;
+begin
+  LTable := TFDMemTable.Create(nil);
+  try
+    LTable.ResourceOptions.SilentMode := True;
+    LTable.FieldDefs.Add(cKEY, ftInteger);
+    LTable.FieldDefs.Add(cTAG, ftString, 20);
+    LTable.CreateDataSet;
+    LTable.Append;
+    LTable.FieldByName(cKEY).AsInteger := FLoadedKey;
+    LTable.FieldByName(cTAG).AsString := cLOADEDTAG;
+    LTable.Post;
+    LTable.First;
+  except
+    LTable.Free;
+    raise;
+  end;
+  FHeld := TSpyResultSet.CreateSpy(LTable, 1, 'store-load');
+  Result := FHeld;
+end;
+
+function TStoreConnection._MakeEmpty: IDBDataSet;
+var
+  LTable: TFDMemTable;
+begin
+  LTable := TFDMemTable.Create(nil);
+  try
+    LTable.ResourceOptions.SilentMode := True;
+    LTable.FieldDefs.Add(cSEQCOLUMN, ftInteger);
+    LTable.CreateDataSet;
+  except
+    LTable.Free;
+    raise;
+  end;
+  FHeld := TSpyResultSet.CreateSpy(LTable, 0, 'store-empty');
+  Result := FHeld;
+end;
+
+function TStoreConnection.CreateDataSet(const ASQL: String): IDBDataSet;
+begin
+  if Pos(cSEQTABLE, UpperCase(ASQL)) > 0 then
+  begin
+    Inc(FSequenceCalls);
+    Inc(FNext, FStep);
+    Result := _MakeSequence;
+  end
+  else
+  if Pos(cLOADSQL, UpperCase(ASQL)) > 0 then
+  begin
+    Inc(FLoadCalls);
+    Result := _MakeLoadedRoot;
+  end
+  else
+    Result := _MakeEmpty;
 end;
 
 { TSeqRestConnection }
@@ -545,6 +822,77 @@ begin
   finally
     UnmuteScroll(AMaster, LMute);
   end;
+end;
+
+/// Reads a column of the row carrying a given `tag`, instead of the row at a
+/// given POSITION. The loaded-master fixtures need it: KeyOfMasterRow(First) and
+/// KeyOfMasterRow(Last) name POSITIONS, and a fixture whose two masters arrive
+/// by two DIFFERENT routes - one from the store, one appended - must not have
+/// its assertions depend on which route lands where.
+function TTestAutoIncDistribution.TokenOfTaggedRow(const ADataSet: TDataSet;
+  const ATag: String; const AColumn: String): Integer;
+var
+  LMute: TScrollMute;
+begin
+  Result := MaxInt;
+  LMute := MuteScroll(ADataSet);
+  try
+    ADataSet.First;
+    while not ADataSet.Eof do
+    begin
+      if ADataSet.FieldByName(cTAG).AsString = ATag then
+      begin
+        Result := ADataSet.FieldByName(AColumn).AsInteger;
+        Break;
+      end;
+      ADataSet.Next;
+    end;
+  finally
+    UnmuteScroll(ADataSet, LMute);
+  end;
+end;
+
+function TTestAutoIncDistribution.KeyOfTaggedRow(const ADataSet: TDataSet;
+  const ATag: String): Integer;
+begin
+  Result := TokenOfTaggedRow(ADataSet, ATag, cKEY);
+end;
+
+/// The THREE level tree the issue #265 fixtures share, and three levels rather
+/// than two ON PURPOSE. TDataSetBaseAdapter<M>.DoNewRecord calls
+/// _GetMasterValues only `if FMasterObject.Count > 0` - that is, only when the
+/// level being typed HAS CHILDREN OF ITS OWN. With root and mid alone the mid
+/// rows never receive the master's key at creation time and the fixture would
+/// have to type the foreign key by hand, which is exactly the state under test.
+/// With the leaf adapter present the mid level has children, _GetMasterValues
+/// fires, and the child's foreign key is written BY THE SHIPPED PATH. No leaf
+/// ROW is ever typed - the leaf adapter is there for that gate alone.
+procedure TTestAutoIncDistribution.BuildTree(const AConnection: IDBConnection;
+  out ARootTable, AMidTable, ALeafTable: TFDMemTable;
+  out ARoot: TFDMemTableAdapter<TAitRoot>;
+  out AMid: TFDMemTableAdapter<TAitMid>;
+  out ALeaf: TFDMemTableAdapter<TAitLeaf>);
+begin
+  ARootTable := TFDMemTable.Create(nil);
+  AMidTable := TFDMemTable.Create(nil);
+  ALeafTable := TFDMemTable.Create(nil);
+  ARoot := TFDMemTableAdapter<TAitRoot>.Create(AConnection, ARootTable, -1, nil);
+  AMid := TFDMemTableAdapter<TAitMid>.Create(AConnection, AMidTable, -1, ARoot);
+  ALeaf := TFDMemTableAdapter<TAitLeaf>.Create(AConnection, ALeafTable, -1,
+             AMid);
+end;
+
+procedure TTestAutoIncDistribution.DropTree(var ARootTable, AMidTable,
+  ALeafTable: TFDMemTable; var ARoot: TFDMemTableAdapter<TAitRoot>;
+  var AMid: TFDMemTableAdapter<TAitMid>;
+  var ALeaf: TFDMemTableAdapter<TAitLeaf>);
+begin
+  ALeaf.Free;
+  AMid.Free;
+  ARoot.Free;
+  ALeafTable.Free;
+  AMidTable.Free;
+  ARootTable.Free;
 end;
 
 function TTestAutoIncDistribution.CountWithColumn(const ADataSet: TDataSet;
@@ -1107,6 +1455,271 @@ begin
 end;
 
 // ---------------------------------------------------------------------------
+// Issue #265 - the master that came out of the store
+// ---------------------------------------------------------------------------
+
+procedure TTestAutoIncDistribution.LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey;
+var
+  LRootTable: TFDMemTable;
+  LMidTable: TFDMemTable;
+  LLeafTable: TFDMemTable;
+  LRoot: TFDMemTableAdapter<TAitRoot>;
+  LMid: TFDMemTableAdapter<TAitMid>;
+  LLeaf: TFDMemTableAdapter<TAitLeaf>;
+  LStore: TStoreConnection;
+  LConn: IDBConnection;
+  LNewKey: Integer;
+begin
+  // THE DOMINANT SHAPE, and NOTHING IS MUTED BY THIS TEST. The master row is
+  // put on the table by the SHIPPED LOAD - TFDMemTableAdapter<M>.OpenSQLInternal
+  // -> TSessionDataSet<M>.OpenSQL -> _PopularDataSet - which mutes the adapter
+  // events itself, on its own second line. That is the whole point: the muting
+  // is the framework, not the fixture, so what is measured is a state a
+  // consumer reaches by listing rows and typing under one of them.
+  //
+  // ORDERING. The second master goes in while the child table is still empty,
+  // then the cursor goes back to the LOADED master, and only then is the child
+  // typed - see the unit header. TDataSetAdapter<M>.DoNewRecord empties the
+  // children before it does anything else, so the other order loses them.
+  LStore := TStoreConnection.CreateStore(cSTEP, cLOADEDKEY);
+  LConn := LStore;
+  BuildTree(LConn, LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  try
+    LRoot.OpenSQLInternal(cLOADSQL);
+
+    Assert.AreEqual(1, LStore.LoadCalls,
+      'PREMISE: the nominated SELECT must really have been answered - zero ' +
+      'means the fixture never went through the load path and everything ' +
+      'below is vacuous');
+    Assert.AreEqual(1, RowCount(LRootTable),
+      'PREMISE: the load must have put exactly one master row on the table');
+    Assert.AreEqual(cLOADEDKEY, KeyOfTaggedRow(LRootTable, cLOADEDTAG),
+      'PREMISE: and that row must carry the REAL key the store sent, not a ' +
+      'placeholder - ' + DumpColumn(LRootTable, cKEY));
+    Assert.AreEqual(0,
+      CountWithColumn(LRootTable, cInternalField, Integer(dsInsert)),
+      'PREMISE: a row read from the store is NOT pending - _PopularDataSet ' +
+      'writes -1 into the internal column - so ApplyInserter will never walk ' +
+      'it and it will never generate a key');
+    Assert.AreEqual(0, TokenOfTaggedRow(LRootTable, cLOADEDTAG, cROWTOKEN),
+      'PREMISE - AND THIS IS THE DEFECT ITSELF: the loaded master carries NO ' +
+      'row identity. DoNewRecord never ran because the load muted the events, ' +
+      'and TBind.SetFieldToField skips the column by name, so it stays NULL ' +
+      'and reads back as cNoRowToken');
+
+    LRootTable.Append;
+    LRootTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+    LRootTable.FieldByName(cTAG).AsString := cNEWTAG;
+    LRootTable.Post;
+    Assert.AreNotEqual(0, TokenOfTaggedRow(LRootTable, cNEWTAG, cROWTOKEN),
+      'PREMISE: the master appended with the events LIVE must identify ' +
+      'itself - otherwise the two masters are indistinguishable and this test ' +
+      'measures nothing');
+
+    // Back to the LOADED master, child table still empty.
+    LRootTable.First;
+    Assert.AreEqual(cLOADEDKEY, LRootTable.FieldByName(cKEY).AsInteger,
+      'PREMISE: the cursor must be back on the loaded master before the ' +
+      'child is typed');
+
+    LMidTable.Append;
+    LMidTable.FieldByName(cOWNKEY).AsInteger := 0;
+    LMidTable.FieldByName(cTAG).AsString := 'C0';
+    LMidTable.Post;
+
+    Assert.AreEqual(1, CountWithColumn(LMidTable, cKEY, cLOADEDKEY),
+      'PREMISE: the SHIPPED _GetMasterValues must have written the loaded ' +
+      'master REAL key into the child foreign key at creation time - nothing ' +
+      'in this test types it - ' + DumpColumn(LMidTable, cKEY));
+    Assert.AreEqual(cORPHANTOKEN, TokenOfTaggedRow(LMidTable, 'C0',
+                                                   cOWNERTOKEN),
+      'PREMISE - AND THE OTHER HALF OF THE DEFECT. The child must record that ' +
+      'the question WAS asked and the answer was "no identity". Against the ' +
+      'UNTOUCHED framework this read 0, the very same value a row nobody ever ' +
+      'recorded carries, and that conflation is what let the brand new master ' +
+      'claim this child');
+
+    TCascadeAccess<TAitRoot>.ApplyAll(LRoot);
+
+    LNewKey := KeyOfTaggedRow(LRootTable, cNEWTAG);
+    Assert.IsTrue(LNewKey > 0,
+      'PREMISE: the pending master must have received a generated key, or ' +
+      'the cascade had nothing to propagate');
+    Assert.AreNotEqual(cLOADEDKEY, LNewKey,
+      'PREMISE: the two masters must carry DIFFERENT keys, or this test ' +
+      'cannot tell which one the child ended on');
+
+    Assert.AreEqual(1, CountWithColumn(LMidTable, cKEY, cLOADEDKEY),
+      'the child was typed under the master that came from the STORE and ' +
+      'must still carry that master key - ' + DumpColumn(LMidTable, cKEY));
+    Assert.AreEqual(0, CountWithColumn(LMidTable, cKEY, LNewKey),
+      'and must NOT have been re-parented onto the brand new master, which ' +
+      'is what a parentage check that waves through every untokenised child ' +
+      'produces - ' + DumpColumn(LMidTable, cKEY));
+  finally
+    DropTree(LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  end;
+end;
+
+procedure TTestAutoIncDistribution.MutedMasterAppend_WithARealKey_ItsChildKeepsThatKey;
+var
+  LRootTable: TFDMemTable;
+  LMidTable: TFDMemTable;
+  LLeafTable: TFDMemTable;
+  LRoot: TFDMemTableAdapter<TAitRoot>;
+  LMid: TFDMemTableAdapter<TAitMid>;
+  LLeaf: TFDMemTableAdapter<TAitLeaf>;
+  LNewKey: Integer;
+begin
+  // FIXTURE B1 - the FIRST arm of the fork nothing in this suite told apart.
+  // Same untokenised master as the test above, reached by MUTING the adapter by
+  // hand instead of by loading, and with the key set to a REAL one and the row
+  // left NOT PENDING - which is precisely the state _PopularDataSet leaves a
+  // loaded row in, as the test above measures. Written separately because the
+  // fork the sentinel decision turns on is "was the muted master key real or a
+  // placeholder", and that question has to be asked WITHOUT the load machinery
+  // in the way.
+  BuildTree(FConn, LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  try
+    TCascadeAccess<TAitRoot>.Mute(LRoot);
+    try
+      LRootTable.Append;
+      LRootTable.FieldByName(cKEY).AsInteger := cLOADEDKEY;
+      LRootTable.FieldByName(cTAG).AsString := cLOADEDTAG;
+      LRootTable.Post;
+    finally
+      TCascadeAccess<TAitRoot>.Unmute(LRoot);
+    end;
+    Assert.AreEqual(0, TokenOfTaggedRow(LRootTable, cLOADEDTAG, cROWTOKEN),
+      'PREMISE: the muted append must have left the master with NO identity');
+    Assert.AreEqual(0,
+      CountWithColumn(LRootTable, cInternalField, Integer(dsInsert)),
+      'PREMISE: and NOT pending - the muted append never reached ' +
+      'DoBeforePost, so the internal column kept its -1 default, exactly ' +
+      'like a loaded row');
+
+    LRootTable.Append;
+    LRootTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+    LRootTable.FieldByName(cTAG).AsString := cNEWTAG;
+    LRootTable.Post;
+    LRootTable.First;
+
+    LMidTable.Append;
+    LMidTable.FieldByName(cOWNKEY).AsInteger := 0;
+    LMidTable.FieldByName(cTAG).AsString := 'C0';
+    LMidTable.Post;
+    Assert.AreEqual(1, CountWithColumn(LMidTable, cKEY, cLOADEDKEY),
+      'PREMISE: the shipped _GetMasterValues must have copied the master ' +
+      'REAL key into the child at creation time - ' +
+      DumpColumn(LMidTable, cKEY));
+    Assert.AreEqual(cORPHANTOKEN, TokenOfTaggedRow(LMidTable, 'C0',
+                                                   cOWNERTOKEN),
+      'PREMISE: and the child must record that its master had no identity - ' +
+      'against the untouched framework this read 0');
+
+    TCascadeAccess<TAitRoot>.ApplyAll(LRoot);
+
+    LNewKey := KeyOfTaggedRow(LRootTable, cNEWTAG);
+    Assert.IsTrue(LNewKey > 0,
+      'PREMISE: the pending master must have received a generated key');
+    Assert.AreEqual(1, CountWithColumn(LMidTable, cKEY, cLOADEDKEY),
+      'THE FORK, ARM ONE: the master key was already REAL and the child ' +
+      'already carries it, so there is nothing for any cascade to repair - ' +
+      'the child must keep it - ' + DumpColumn(LMidTable, cKEY));
+    Assert.AreEqual(0, CountWithColumn(LMidTable, cKEY, LNewKey),
+      'and must not be claimed by the other, pending master - ' +
+      DumpColumn(LMidTable, cKEY));
+  finally
+    DropTree(LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  end;
+end;
+
+procedure TTestAutoIncDistribution.MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired;
+var
+  LRootTable: TFDMemTable;
+  LMidTable: TFDMemTable;
+  LLeafTable: TFDMemTable;
+  LRoot: TFDMemTableAdapter<TAitRoot>;
+  LMid: TFDMemTableAdapter<TAitMid>;
+  LLeaf: TFDMemTableAdapter<TAitLeaf>;
+  LKey: Integer;
+begin
+  // FIXTURE B2 - the SECOND arm, and the one that says what the fix may NOT do.
+  // The master is muted-appended too, so it has no identity either - but its
+  // key is still the PENDING PLACEHOLDER that
+  // TBind.SetInternalInitFieldDefsObjectClass puts in an autoinc primary key as
+  // DefaultExpression, and the row IS pending, so ApplyInserter walks it and
+  // generates a real key. The child was typed under it with the events LIVE, so
+  // it carries the placeholder in its foreign key and must be REPAIRED by the
+  // cascade.
+  //
+  // ONE MASTER, not two, and that is the difference from B1 rather than an
+  // omission: the question here is whether a master REPAIRS ITS OWN child, and
+  // a second pending master would only re-ask B1.
+  //
+  // The pending marker is written BY HAND, with the adapter still muted, for
+  // the same reason UntokenisedRows_KeepTheHistoricalBehaviour writes it: the
+  // muted append never reaches DoBeforePost. That is the one thing forged here,
+  // and it is forged on the MASTER, never on the child.
+  BuildTree(FConn, LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  try
+    TCascadeAccess<TAitRoot>.Mute(LRoot);
+    try
+      LRootTable.Append;
+      LRootTable.FieldByName(cTAG).AsString := cLOADEDTAG;
+      LRootTable.Post;
+      LRootTable.Edit;
+      LRootTable.FieldByName(cInternalField).AsInteger := Integer(dsInsert);
+      LRootTable.Post;
+    finally
+      TCascadeAccess<TAitRoot>.Unmute(LRoot);
+    end;
+    Assert.AreEqual(cPLACEHOLDER, KeyOfTaggedRow(LRootTable, cLOADEDTAG),
+      'PREMISE: the master key must still be the autoinc PLACEHOLDER - this ' +
+      'test is the arm of the fork where there IS something to repair - ' +
+      DumpColumn(LRootTable, cKEY));
+    Assert.AreEqual(0, TokenOfTaggedRow(LRootTable, cLOADEDTAG, cROWTOKEN),
+      'PREMISE: and the master must have NO identity, same as in B1 - the ' +
+      'key is the only thing that differs between the two arms');
+    Assert.AreEqual(1,
+      CountWithColumn(LRootTable, cInternalField, Integer(dsInsert)),
+      'PREMISE: the master must be PENDING, or ApplyInserter never walks it ' +
+      'and no key is ever generated to repair anything with');
+
+    LMidTable.Append;
+    LMidTable.FieldByName(cOWNKEY).AsInteger := 0;
+    LMidTable.FieldByName(cTAG).AsString := 'C0';
+    LMidTable.Post;
+    Assert.AreEqual(cPLACEHOLDER, KeyOfTaggedRow(LMidTable, 'C0'),
+      'PREMISE: the shipped _GetMasterValues copied the PLACEHOLDER into the ' +
+      'child foreign key, because that is all the master had - ' +
+      DumpColumn(LMidTable, cKEY));
+    Assert.AreEqual(cORPHANTOKEN, TokenOfTaggedRow(LMidTable, 'C0',
+                                                   cOWNERTOKEN),
+      'PREMISE: and the child records the SAME orphan parentage as in B1 - ' +
+      'the two arms differ ONLY in the master key, so a fix that answered ' +
+      'them differently could not be reading the token');
+
+    TCascadeAccess<TAitRoot>.ApplyAll(LRoot);
+
+    LKey := KeyOfTaggedRow(LRootTable, cLOADEDTAG);
+    Assert.IsTrue(LKey > 0,
+      'PREMISE: the pending master must have received a generated key');
+    Assert.AreEqual(1, CountWithColumn(LMidTable, cKEY, LKey),
+      'THE FORK, ARM TWO: the child was still on the placeholder and its own ' +
+      'master is the one being inserted, so the cascade must REPAIR it. A ' +
+      'parentage check that refuses this child leaves the placeholder ' +
+      'standing, which is worse than what shipped - ' +
+      DumpColumn(LMidTable, cKEY));
+    Assert.AreEqual(0, CountWithColumn(LMidTable, cKEY, cPLACEHOLDER),
+      'and no child row may be left on the placeholder - ' +
+      DumpColumn(LMidTable, cKEY));
+  finally
+    DropTree(LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
+  end;
+end;
+
+// ---------------------------------------------------------------------------
 // The boundary of the fix
 // ---------------------------------------------------------------------------
 
@@ -1119,18 +1732,39 @@ var
   LInternal: TField;
   LKeyB: Integer;
 begin
-  // WHAT THIS FIXES IN PLACE, and it is a limit rather than a feature. The
-  // parentage a pending child row carries is recorded when the row is created,
-  // by TDataSetBaseAdapter<M>.DoNewRecord. A row that never went through that
-  // event - because the caller had the adapter's events unhooked - carries no
-  // parentage at all, and for such a row the cascade cannot do better than
-  // what it always did: stamp it on every pending master in turn, last one
-  // wins.
+  // WHICH OF THE TWO UNTOKENISED CLASSES THIS PINS - rewritten for issue #265,
+  // because that issue split the class this test used to name in one.
   //
-  // The set-up below is exactly that case, and it is the ONLY test in this
-  // file that mutes anything. It exists so the boundary is a measurement
-  // instead of a silence: a later change that made untokenised rows behave
-  // differently would show up here rather than in a consumer.
+  // Until #265 there was ONE untokenised state and this test was its whole
+  // boundary. There are TWO now, and they are told apart by whether
+  // DoNewRecord ever ran on the CHILD:
+  //
+  //   * NOBODY RECORDED THE ROW - cOwnerTokenField never written, reads back
+  //     as the 0 a TField answers for NULL. THIS test, and only this one:
+  //     BOTH adapters are muted for the whole set-up, so the child row was
+  //     appended without the child adapter ever seeing it. Such a row is
+  //     still written by whichever pending master is passing, last one wins,
+  //     because refusing it would regress everything that shipped;
+  //
+  //   * THE ROW WAS RECORDED AND ITS MASTER HAD NO IDENTITY - the child
+  //     adapter was LIVE and the MASTER was the muted one, which is what every
+  //     master read from the store is. That row carries cOrphanOwnerToken and
+  //     is NOT claimable by a different, identified master. Measured by
+  //     LoadedMaster_ChildTypedUnderIt_KeepsTheLoadedMastersKey and
+  //     MutedMasterAppend_WithARealKey_ItsChildKeepsThatKey, and its own
+  //     boundary - the master that DOES repair its own child - by
+  //     MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired.
+  //
+  // WHAT DID NOT CHANGE. This test was GREEN before #265 and is green after,
+  // unedited in its set-up and in its result. That is not luck: the sentinel
+  // is written by DoNewRecord, and DoNewRecord is exactly what this set-up
+  // prevents from running. The premise clause added below is what says so out
+  // loud, so the day someone makes the muted append record something this test
+  // reddens instead of quietly changing meaning again.
+  //
+  // It is still the ONLY test in this file that mutes BOTH adapters, and it
+  // still writes the pending marker by hand, for the reason it always did: a
+  // muted append never reaches DoBeforePost.
   LMasterTable := TFDMemTable.Create(nil);
   LChildTable := TFDMemTable.Create(nil);
   try
@@ -1168,6 +1802,17 @@ begin
         TCascadeAccess<TAitMid>.Unmute(LChild);
         TCascadeAccess<TAitRoot>.Unmute(LMaster);
       end;
+      Assert.AreEqual(1, CountWithColumn(LChildTable, cOWNERTOKEN, 0),
+        'PREMISE - AND THE CLAUSE THAT KEEPS THIS TEST HONEST AFTER #265: the ' +
+        'child must carry the NEVER RECORDED value, not the orphan sentinel. ' +
+        'Its adapter was muted, so DoNewRecord never ran on it and nothing ' +
+        'was written at all. Take the mute off the CHILD and this reads ' +
+        'cORPHANTOKEN, which is a different boundary measured by three other ' +
+        'tests in this file - ' + DumpColumn(LChildTable, cOWNERTOKEN));
+      Assert.AreEqual(0, CountWithColumn(LChildTable, cOWNERTOKEN,
+                                         cORPHANTOKEN),
+        'PREMISE: and it must NOT carry the orphan sentinel - the two values ' +
+        'are the two untokenised classes and this test speaks for one of them');
 
       TCascadeAccess<TAitRoot>.ApplyAll(LMaster);
 
