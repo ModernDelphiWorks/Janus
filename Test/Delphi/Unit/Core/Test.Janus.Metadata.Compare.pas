@@ -72,9 +72,14 @@ type
 implementation
 
 const
-  // Number of create/free cycles for the leak smoke test. ReportMemoryLeaksOnShutdown
-  // is enabled by Janus.Tests.Units.dpr (round 63 #186), so any leaked instance
-  // surfaces at executor shutdown.
+  // Number of create/free cycles for the leak test below. Measured, not assumed:
+  // Janus.Tests.Units.dpr does NOT enable ReportMemoryLeaksOnShutdown (it is only
+  // set in Examples/*.dpr, never in Test/Delphi), and DUnitX's own "Tests Leaked"
+  // counter does not catch this class of leak either - both were proven blind by
+  // mutating TMetadataModelAbstract.Destroy to skip FModelMetadata.Free and
+  // watching the full suite stay green. Detection here depends entirely on the
+  // GetHeapStatus().TotalAllocated comparison in Lifecycle_RepeatedCreateFree_DoesNotLeak
+  // below.
   CLifecycleCycles = 50;
 
 { TTestJanusMetadataCompare }
