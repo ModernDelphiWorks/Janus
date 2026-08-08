@@ -32,8 +32,10 @@ uses
   DataEngine.FactoryInterfaces,
   /// WiRL
   /// Pinned to delphi-blocks/WiRL @ aac8562c810b98fef590f3035f56bdf9ea3bad76
-  /// (2026-07-13). WiRL.Core.Engine was split; the REST engine that hosts
-  /// applications now lives in WiRL.Engine.REST as TWiRLRESTEngine.
+  /// (2026-07-13), registered in docs-src/docs/janus/user/guides/restful.md.
+  /// WiRL.Core.Engine was split into four engines; TWiRLRESTEngine
+  /// (WiRL.Engine.REST) is the only one that hosts applications and resources,
+  /// which is exactly what this component needs.
   WiRL.Engine.REST;
 
 type

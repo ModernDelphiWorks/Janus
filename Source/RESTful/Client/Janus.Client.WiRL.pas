@@ -24,7 +24,8 @@
   WiRL pin
   --------
   Written against delphi-blocks/WiRL @ aac8562c810b98fef590f3035f56bdf9ea3bad76
-  (2026-07-13). See Docs/Dependencies/WiRL.md for what moved and why.
+  (2026-07-13). The pin and what moved are registered in
+  docs-src/docs/janus/user/guides/restful.md.
 
   Three client units this driver used to depend on no longer exist upstream:
   WiRL.Client.Resource.JSON, WiRL.Client.SubResource[.JSON] and
