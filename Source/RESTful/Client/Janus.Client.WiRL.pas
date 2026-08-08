@@ -39,12 +39,21 @@
     placeholder substitution (WiRL.Client.CustomResource.pas:284-301, with the
     old positional logic left commented out at :294-297). Janus feeds
     positional segments, so they are appended to the resource path here.
-  - TWiRLClientToken -> the token round trip moved to the server side auth
-    resources (WiRL.Core.Auth.Resource.pas:70-130), which answer a
-    TWiRLLoginResponse carrying the access_token property (:31-40). The client
-    performs that POST itself and then sends an Authorization Bearer header,
-    which is the idiom the WiRL demo uses
-    (Demos/03.Authorization/Client.Form.Main.pas:138-176).
+  - TWiRLClientToken -> NOT a migration. Read this before trusting it.
+    The extinct component POSTed a form-encoded username/password body
+    (WiRL.Client.Token.pas:88-99 at tag v3.0.1), i.e. it talked to
+    TWiRLAuthFormResource. AcquireAccessToken below POSTs an empty body with
+    an Authorization Basic header, i.e. it talks to TWiRLAuthBasicResource.
+    Upstream offers three flavours - Form (WiRL.Core.Auth.Resource.pas:88),
+    Basic (:98-107) and Body (:110-119) - and these are DIFFERENT endpoints,
+    so this is a NEW capability in a different auth flavour, not a port of
+    the old one. It follows the idiom of the WiRL demo
+    (Demos/03.Authorization/Client.Form.Main.pas:138-176) and it is NOT
+    exercised at runtime by anything in this repository.
+    What keeps this from being a regression: the old component was a shell.
+    At f6d6c50 FRESTToken appeared only at :52, :100, :101, :425 and :426 -
+    declared, created, wired to the application, handed credentials, and
+    never asked to POST. No token was ever fetched.
   - TWiRLClient no longer exposes Request/Response; each call answers an
     IWiRLResponse (WiRL.http.Client.Interfaces.pas:113-163), so the status
     code is captured per call.
@@ -257,9 +266,11 @@ begin
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autenticacao
-  SetAuthenticatorTypeValues;
   try
+    // Define valores de autenticacao. Dentro do try porque pode fazer I/O
+    // (login), e uma falha aqui nao pode deixar os params sujos para a
+    // chamada seguinte.
+    SetAuthenticatorTypeValues;
     // DoBeforeCommand
     DoBeforeCommand;
 
@@ -325,9 +336,11 @@ begin
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autenticacao
-  SetAuthenticatorTypeValues;
   try
+    // Define valores de autenticacao. Dentro do try porque pode fazer I/O
+    // (login), e uma falha aqui nao pode deixar os params sujos para a
+    // chamada seguinte.
+    SetAuthenticatorTypeValues;
     // DoBeforeCommand
     DoBeforeCommand;
 
@@ -377,9 +390,17 @@ var
   LJSON: TJSONValue;
   LToken: TJSONValue;
 begin
-  /// <summary> Sucessor do extinto TWiRLClientToken: faz o POST de login no
-  ///   resource de autenticacao do WiRL e devolve o "access_token" do
-  ///   TWiRLLoginResponse. </summary>
+  /// <summary> Login contra o resource de autenticacao Basic do WiRL
+  ///   (TWiRLAuthBasicResource), devolvendo o "access_token" do
+  ///   TWiRLLoginResponse.
+  ///
+  ///   Nao levanta: o WiRL levanta EWiRLClientProtocolException de dentro da
+  ///   chamada (WiRL.http.Client.pas:169-172, chamado em :241), e deixar essa
+  ///   excecao escapar daqui driblaria o contrato de erro do Janus
+  ///   (FErrorCommand / EJanusRESTException), que so existe dentro de
+  ///   DoRequest. Login que falha degrada para "sem token" e a requisicao
+  ///   seguinte carrega a falha pelo caminho normal (tipicamente 401).
+  /// </summary>
   Result := '';
   if Length(FMethodToken) = 0 then
     Exit;
@@ -390,9 +411,14 @@ begin
     LTokenResource.Accept := TMediaType.APPLICATION_JSON;
     LTokenResource.Headers.Authorization :=
       TBasicAuth.Create(FAuthenticator.Username, FAuthenticator.Password);
-    LResponse := LTokenResource.Post<string, IWiRLResponse>('');
-    if LResponse.StatusCode >= 400 then
-      Exit;
+    try
+      LResponse := LTokenResource.Post<string, IWiRLResponse>('');
+    except
+      /// <summary> Cobre EWiRLClientProtocolException (4xx/5xx) e
+      ///   EWiRLSocketException, ambas filhas de EWiRLClientException. </summary>
+      on EWiRLClientException do
+        Exit;
+    end;
     LJSON := TJSONObject.ParseJSONValue(LResponse.ContentText);
     if LJSON = nil then
       Exit;
@@ -414,17 +440,15 @@ end;
 procedure TRESTClientWiRL.SetAuthenticatorTypeValues;
 begin
   case FAuthenticator.AuthenticatorType of
-    atNoAuth:
-      begin
-        FRESTResource.Headers.Authorization := '';
-        Exit;
-      end;
+    /// <summary> No-op, como em f6d6c50 e como no driver MARS
+    ///   (Janus.Client.MARS.pas:412-413): nem cabecalho nem login.
+    ///   atBasicAuth continuar inerte e defeito pre-existente, nao desta
+    ///   issue; escrever Authorization vazio em atNoAuth ADICIONARIA um
+    ///   cabecalho vazio (WiRL.http.Headers.pas:427-440 cai no Add da :440).
+    /// </summary>
+    atNoAuth,
     atBasicAuth:
-      begin
-        FRESTResource.Headers.Authorization :=
-          TBasicAuth.Create(FAuthenticator.Username, FAuthenticator.Password);
-        Exit;
-      end;
+      Exit;
     atBearerToken,
     atOAuth1,
     atOAuth2:
