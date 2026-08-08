@@ -124,10 +124,10 @@ end;
 procedure TAppResource.delete(Context: TWebContext);
 var
   LAppResource: TAppResourceBase;
-  LQuery: TRESTQuery;
+  LQuery: TRESTQueryParse;
   LResult: string;
 begin
-  LQuery := TRESTQuery.Create;
+  LQuery := TRESTQueryParse.Create;
   LAppResource := TAppResourceBase.Create(TRESTServerDMVC.GetConnection);
   try
     // Parse da Query passada na URI

@@ -131,9 +131,9 @@ end;
 function TAppResource.delete(resource: string;
                              filter: string): string;
 var
-  LQuery: TRESTQuery;
+  LQuery: TRESTQueryParse;
 begin
-  LQuery := TRESTQuery.Create;
+  LQuery := TRESTQueryParse.Create;
   try
     // Parse da Query passada na URI
     LQuery.ParseQuery(resource);
