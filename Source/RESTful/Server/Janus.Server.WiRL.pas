@@ -31,7 +31,10 @@ uses
   /// Janus Conexao
   DataEngine.FactoryInterfaces,
   /// WiRL
-  WiRL.Core.Engine;
+  /// Pinned to delphi-blocks/WiRL @ aac8562c810b98fef590f3035f56bdf9ea3bad76
+  /// (2026-07-13). WiRL.Core.Engine was split; the REST engine that hosts
+  /// applications now lives in WiRL.Engine.REST as TWiRLRESTEngine.
+  WiRL.Engine.REST;
 
 type
   TRESTServerWiRL = class(TJanusComponent)
@@ -39,8 +42,8 @@ type
     class var
     FConnection: IDBConnection;
   private
-    FWiRLEngine: TWiRLEngine;
-    procedure SetWiRLEngine(const Value: TWiRLEngine);
+    FWiRLEngine: TWiRLRESTEngine;
+    procedure SetWiRLEngine(const Value: TWiRLRESTEngine);
     procedure SetConnection(const AConnection: IDBConnection);
     procedure AddResource;
   public
@@ -48,7 +51,7 @@ type
     destructor Destroy; override;
     class function GetConnection: IDBConnection;
     property Connection: IDBConnection read GetConnection write SetConnection;
-    property WiRLEngine: TWiRLEngine read FWiRLEngine write SetWiRLEngine;
+    property WiRLEngine: TWiRLRESTEngine read FWiRLEngine write SetWiRLEngine;
   published
 
   end;
@@ -93,7 +96,7 @@ begin
   FConnection := AConnection;
 end;
 
-procedure TRESTServerWiRL.SetWiRLEngine(const Value: TWiRLEngine);
+procedure TRESTServerWiRL.SetWiRLEngine(const Value: TWiRLRESTEngine);
 begin
   /// <summary> Atualiza o valor da VAR </summary>
   FWiRLEngine := Value;

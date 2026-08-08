@@ -20,6 +20,35 @@
   @abstract(Telagram : https://t.me/Janus)
 }
 
+{
+  WiRL pin
+  --------
+  Written against delphi-blocks/WiRL @ aac8562c810b98fef590f3035f56bdf9ea3bad76
+  (2026-07-13). See Docs/Dependencies/WiRL.md for what moved and why.
+
+  Three client units this driver used to depend on no longer exist upstream:
+  WiRL.Client.Resource.JSON, WiRL.Client.SubResource[.JSON] and
+  WiRL.Client.Token. Their capabilities are reached now as follows.
+
+  - Resource/SubResource pair -> a single TWiRLClientResource whose Resource
+    property carries the whole path. TWiRLClientCustomResource.GetPath still
+    builds engine/app/resource (WiRL.Client.CustomResource.pas:266-281), so
+    the URL shape is unchanged.
+  - Positional path params -> WiRL replaced PathParamsValues with named
+    placeholder substitution (WiRL.Client.CustomResource.pas:284-301, with the
+    old positional logic left commented out at :294-297). Janus feeds
+    positional segments, so they are appended to the resource path here.
+  - TWiRLClientToken -> the token round trip moved to the server side auth
+    resources (WiRL.Core.Auth.Resource.pas:70-130), which answer a
+    TWiRLLoginResponse carrying the access_token property (:31-40). The client
+    performs that POST itself and then sends an Authorization Bearer header,
+    which is the idiom the WiRL demo uses
+    (Demos/03.Authorization/Client.Form.Main.pas:138-176).
+  - TWiRLClient no longer exposes Request/Response; each call answers an
+    IWiRLResponse (WiRL.http.Client.Interfaces.pas:113-163), so the status
+    code is captured per call.
+}
+
 unit Janus.Client.WiRL;
 
 interface
@@ -37,23 +66,31 @@ uses
   Janus.Client.RestException,
 
   WiRL.Client.CustomResource,
-  WiRL.Client.Resource, WiRL.Client.Resource.JSON, WiRL.Client.Application,
-  WiRL.http.Client, WiRL.http.Client.Indy, WiRL.Client.SubResource,
-  WiRL.Client.SubResource.JSON, WiRL.Client.Messaging.Resource,
-  WiRL.http.Request, WiRL.http.Response, WiRL.Core.Utils, WiRL.Client.Token;
+  WiRL.Client.Resource,
+  WiRL.Client.Application,
+  WiRL.http.Client,
+  WiRL.http.Client.Indy,
+  WiRL.http.Client.Interfaces,
+  WiRL.http.Accept.MediaType,
+  WiRL.http.Headers,
+  WiRL.http.URL,
+  WiRL.Core.Classes,
+  WiRL.Core.Utils;
 
 type
   TRESTClientWiRL = class(TJanusClient)
   private
     FRESTClient: TWiRLClient;
     FRESTClientApp: TWiRLClientApplication;
-    FRESTResource: TWiRLClientResourceJSON;
-    FRESTSubResource: TWiRLClientSubResourceJSON;
-    FRESTToken: TWiRLClientToken;
+    FRESTResource: TWiRLClientResource;
+    FAccessToken: string;
     procedure SetProxyParamsClientValue;
     procedure SetProxyParamsBodyValue(var AParams: string);
     procedure SetAuthenticatorTypeValues;
     procedure SetParamValues;
+    function AcquireAccessToken: string;
+    function DoRequest(const AResource, ASubResource, AHttpMethod,
+      ABody: string): string;
     function DoGET(const AResource, ASubResource: string): string;
     function DoPOST(const AResource, ASubResource: string): string;
     function DoPUT(const AResource, ASubResource: string): string;
@@ -92,13 +129,8 @@ begin
   FRESTClient := TWiRLClient.Create(Self);
   FRESTClientApp := TWiRLClientApplication.Create(Self);
   FRESTClientApp.Client := FRESTClient;
-  FRESTResource := TWiRLClientResourceJSON.Create(Self);
+  FRESTResource := TWiRLClientResource.Create(Self);
   FRESTResource.Application := FRESTClientApp;
-  FRESTSubResource := TWiRLClientSubResourceJSON.Create(Self);
-  FRESTSubResource.Application := FRESTClientApp;
-  FRESTSubResource.ParentResource := FRESTResource;
-  FRESTToken := TWiRLClientToken.Create(Self);
-  FRESTToken.Application := FRESTClientApp;
   FAPIContext := 'app';
   FRESTContext := 'rest';
   /// <summary> Monta a URL base </summary>
@@ -107,7 +139,6 @@ end;
 
 destructor TRESTClientWiRL.Destroy;
 begin
-  FRESTSubResource.Free;
   FRESTResource.Free;
   FRESTClientApp.Free;
   FRESTClient.Free;
@@ -116,159 +147,91 @@ end;
 
 procedure TRESTClientWiRL.DoAfterCommand;
 begin
-  FStatusCode := FRESTClient.Response.StatusCode;
+  /// <summary> FStatusCode ja foi alimentado por DoRequest, pois o
+  ///   TWiRLClient nao expoe mais uma propriedade Response. </summary>
   inherited;
+end;
+
+function TRESTClientWiRL.DoRequest(const AResource, ASubResource, AHttpMethod,
+  ABody: string): string;
+var
+  LResponse: IWiRLResponse;
+  LContent: string;
+begin
+  Result := '';
+  LContent := '';
+  FRequestMethod := AHttpMethod;
+  /// <summary> Define valores dos parametros </summary>
+  SetParamValues;
+  try
+    if AHttpMethod = 'POST' then
+      LResponse := FRESTResource.Post<string, IWiRLResponse>(ABody)
+    else
+    if AHttpMethod = 'PUT' then
+      LResponse := FRESTResource.Put<string, IWiRLResponse>(ABody)
+    else
+    if AHttpMethod = 'DELETE' then
+      LResponse := FRESTResource.Delete<IWiRLResponse>
+    else
+      LResponse := FRESTResource.Get<IWiRLResponse>;
+    FStatusCode := LResponse.StatusCode;
+    Result := LResponse.ContentText;
+  except
+    on E: Exception do
+    begin
+      if E is EWiRLClientProtocolException then
+      begin
+        FStatusCode := EWiRLClientProtocolException(E).StatusCode;
+        LContent := EWiRLClientProtocolException(E).ResponseText;
+      end
+      else
+        FStatusCode := 0;
+      if Assigned(FErrorCommand) then
+        FErrorCommand(GetFullURL,
+                      AResource,
+                      ASubResource,
+                      FRequestMethod,
+                      E.Message,
+                      FStatusCode)
+      else
+        raise EJanusRESTException
+                .Create(GetFullURL,
+                        AResource,
+                        ASubResource,
+                        FRequestMethod,
+                        LContent,
+                        E.Message,
+                        FStatusCode);
+    end;
+  end;
 end;
 
 function TRESTClientWiRL.DoDELETE(const AResource, ASubResource: string): string;
 begin
-  FRequestMethod := 'DELETE';
-  /// <summary> Define valores dos parametros </summary>
-  SetParamValues;
-  /// <summary> DELETE </summary>
-  FRESTSubResource.DELETE(nil,
-                          procedure
-                          begin
-                            FResponseString := FRESTResource.Response.ToJSON;
-                          end,
-                          procedure(E: Exception)
-                          begin
-                            if Assigned(FErrorCommand) then
-                              FErrorCommand(GetBaseURL,
-                                            AResource,
-                                            ASubResource,
-                                            FRequestMethod,
-                                            E.Message,
-                                            FRESTClient.Response.StatusCode)
-                            else
-                              raise EJanusRESTException
-                                      .Create(FRESTClient.WiRLEngineURL,
-                                              AResource,
-                                              ASubResource,
-                                              FRequestMethod,
-                                              E.Message,
-                                              FRESTClient.Response.StatusCode);
-                          end );
-  Result := FResponseString;
+  Result := DoRequest(AResource, ASubResource, 'DELETE', '');
 end;
 
 function TRESTClientWiRL.DoGET(const AResource, ASubResource: string): string;
 begin
-  FRequestMethod := 'GET';
-  /// <summary> Define valores dos parametros </summary>
-  SetParamValues;
-  /// <summary> GET </summary>
-  Result := FRESTSubResource.GETAsString(nil, nil,
-                                         procedure(E: Exception)
-                                         begin
-                                           if Assigned(FErrorCommand) then
-                                             FErrorCommand(GetBaseURL,
-                                                           AResource,
-                                                           ASubResource,
-                                                           FRequestMethod,
-                                                           E.Message,
-                                                           FRESTClient.Response.StatusCode)
-                                           else
-                                             raise EJanusRESTException
-                                                     .Create(FRESTClient.WiRLEngineURL,
-                                                             AResource,
-                                                             ASubResource,
-                                                             FRequestMethod,
-                                                             E.Message,
-                                                             FRESTClient.Response.StatusCode);
-                                         end );
+  Result := DoRequest(AResource, ASubResource, 'GET', '');
 end;
 
 function TRESTClientWiRL.DoPOST(const AResource, ASubResource: string): string;
 var
   LParams: string;
 begin
-  FRequestMethod := 'POST';
   /// <summary> Define valores dos parametros </summary>
   SetProxyParamsBodyValue(LParams);
-  /// <summary> POST </summary>
-  FRESTSubResource.POST(procedure(AContent: TMemoryStream)
-                        var
-                          LWriter: TStreamWriter;
-                        begin
-                          LWriter := TStreamWriter.Create(AContent);
-                          try
-                            LWriter.Write(LParams);
-                            AContent.Position := 0;
-                          finally
-                            LWriter.Free;
-                          end;
-                        end,
-                        procedure (AResponse: TStream)
-                        begin
-                          AResponse.Position := 0;
-                          FResponseString := StreamToString(AResponse);
-                        end,
-                        procedure(E: Exception)
-                        begin
-                          if Assigned(FErrorCommand) then
-                            FErrorCommand(GetBaseURL,
-                                          AResource,
-                                          ASubResource,
-                                          FRequestMethod,
-                                          E.Message,
-                                          FRESTClient.Response.StatusCode)
-                          else
-                            raise EJanusRESTException
-                                    .Create(FRESTClient.WiRLEngineURL,
-                                            AResource,
-                                            ASubResource,
-                                            FRequestMethod,
-                                            E.Message,
-                                            FRESTClient.Response.StatusCode);
-                        end );
-  Result := FResponseString;
+  Result := DoRequest(AResource, ASubResource, 'POST', LParams);
 end;
 
 function TRESTClientWiRL.DoPUT(const AResource, ASubResource: string): string;
 var
   LParams: string;
 begin
-  FRequestMethod := 'PUT';
   /// <summary> Define valores dos parametros </summary>
   SetProxyParamsBodyValue(LParams);
-  /// <summary> PUT </summary>
-  FRESTSubResource.PUT(procedure(AContent: TMemoryStream)
-                       var
-                         LWriter: TStreamWriter;
-                       begin
-                         LWriter := TStreamWriter.Create(AContent);
-                         try
-                           LWriter.Write(LParams);
-                           AContent.Position := 0;
-                         finally
-                           LWriter.Free;
-                         end;
-                       end,
-                       procedure (AResponse: TStream)
-                       begin
-                         AResponse.Position := 0;
-                         FResponseString := StreamToString(AResponse);
-                       end,
-                       procedure(E: Exception)
-                       begin
-                         if Assigned(FErrorCommand) then
-                           FErrorCommand(GetBaseURL,
-                                         AResource,
-                                         ASubResource,
-                                         FRequestMethod,
-                                         E.Message,
-                                         FRESTClient.Response.StatusCode)
-                         else
-                           raise EJanusRESTException
-                                   .Create(FRESTClient.WiRLEngineURL,
-                                           AResource,
-                                           ASubResource,
-                                           FRequestMethod,
-                                           E.Message,
-                                           FRESTClient.Response.StatusCode);
-                       end );
-  Result := FResponseString;
+  Result := DoRequest(AResource, ASubResource, 'PUT', LParams);
 end;
 
 function TRESTClientWiRL.Execute(const AURL: string;
@@ -280,9 +243,8 @@ function TRESTClientWiRL.Execute(const AURL: string;
     FRESTClient.WiRLEngineURL := GetBaseURL;
     FRESTClientApp.AppName := '';
     FRESTResource.Resource := '';
-    FRESTSubResource.Resource := '';
-    FRESTSubResource.PathParamsValues.Clear;
-    FRESTSubResource.QueryParams.Clear;
+    FRESTResource.PathParams.Clear;
+    FRESTResource.QueryParams.Clear;
   end;
 
 begin
@@ -346,10 +308,11 @@ function TRESTClientWiRL.Execute(const AResource, ASubResource: string;
       FRESTClientApp.AppName := RemoveContextServerUse(FRESTClientApp.AppName);
 
     FRESTClient.WiRLEngineURL := GetBaseURL;
-    FRESTResource.Resource := AResource;
-    FRESTSubResource.Resource := ASubResource;
-    FRESTSubResource.PathParamsValues.Clear;
-    FRESTSubResource.QueryParams.Clear;
+    // O WiRL nao tem mais o par Resource/SubResource: o caminho inteiro vai
+    // na propriedade Resource e GetPath o combina com engine e app.
+    FRESTResource.Resource := TWiRLURL.CombinePath([AResource, ASubResource]);
+    FRESTResource.PathParams.Clear;
+    FRESTResource.QueryParams.Clear;
   end;
 
 begin
@@ -406,24 +369,79 @@ begin
   Result := ReplaceStr(Value, '/Janus', '');
 end;
 
+function TRESTClientWiRL.AcquireAccessToken: string;
+var
+  LTokenResource: TWiRLClientResource;
+  LResponse: IWiRLResponse;
+  LJSON: TJSONValue;
+  LToken: TJSONValue;
+begin
+  /// <summary> Sucessor do extinto TWiRLClientToken: faz o POST de login no
+  ///   resource de autenticacao do WiRL e devolve o "access_token" do
+  ///   TWiRLLoginResponse. </summary>
+  Result := '';
+  if Length(FMethodToken) = 0 then
+    Exit;
+  LTokenResource := TWiRLClientResource.Create(nil);
+  try
+    LTokenResource.Application := FRESTClientApp;
+    LTokenResource.Resource := FMethodToken;
+    LTokenResource.Accept := TMediaType.APPLICATION_JSON;
+    LTokenResource.Headers.Authorization :=
+      TBasicAuth.Create(FAuthenticator.Username, FAuthenticator.Password);
+    LResponse := LTokenResource.Post<string, IWiRLResponse>('');
+    if LResponse.StatusCode >= 400 then
+      Exit;
+    LJSON := TJSONObject.ParseJSONValue(LResponse.ContentText);
+    if LJSON = nil then
+      Exit;
+    try
+      if LJSON is TJSONObject then
+      begin
+        LToken := TJSONObject(LJSON).GetValue('access_token');
+        if LToken <> nil then
+          Result := LToken.Value;
+      end;
+    finally
+      LJSON.Free;
+    end;
+  finally
+    LTokenResource.Free;
+  end;
+end;
+
 procedure TRESTClientWiRL.SetAuthenticatorTypeValues;
 begin
   case FAuthenticator.AuthenticatorType of
-    atNoAuth:;
-    atBasicAuth:;
+    atNoAuth:
+      begin
+        FRESTResource.Headers.Authorization := '';
+        Exit;
+      end;
+    atBasicAuth:
+      begin
+        FRESTResource.Headers.Authorization :=
+          TBasicAuth.Create(FAuthenticator.Username, FAuthenticator.Password);
+        Exit;
+      end;
     atBearerToken,
     atOAuth1,
     atOAuth2:
       begin
         if Length(FAuthenticator.Token) > 0 then
         begin
-          FRESTClient.Request.HeaderFields.AddPair('Authorization', 'Bearer ' + FAuthenticator.Token);
+          FRESTResource.Headers.Authorization :=
+            TBearerAuth.Create(FAuthenticator.Token);
           Exit;
         end;
       end;
   end;
-  FRESTToken.UserName := FAuthenticator.Username;
-  FRESTToken.Password := FAuthenticator.Password;
+  /// <summary> Sem token explicito: obtem um com as credenciais e o
+  ///   reaproveita nas chamadas seguintes. </summary>
+  if (Length(FAccessToken) = 0) and (Length(FAuthenticator.Username) > 0) then
+    FAccessToken := AcquireAccessToken;
+  if Length(FAccessToken) > 0 then
+    FRESTResource.Headers.Authorization := TBearerAuth.Create(FAccessToken);
 end;
 
 procedure TRESTClientWiRL.SetBaseURL;
@@ -436,12 +454,16 @@ procedure TRESTClientWiRL.SetParamValues;
 var
   LFor: Integer;
 begin
-  /// <summary> Params </summary>
+  /// <summary> Params
+  ///   O WiRL trocou PathParamsValues posicional por substituicao nomeada
+  ///   de {name}; os segmentos posicionais do Janus vao no proprio caminho.
+  /// </summary>
   for LFor := 0 to FParams.Count -1 do
-    FRESTSubResource.PathParamsValues.Add(FParams.Items[LFor].AsString);
+    FRESTResource.Resource := TWiRLURL.CombinePath([FRESTResource.Resource,
+                                                    FParams.Items[LFor].AsString]);
   /// <summary> Query Params </summary>
   for LFor := 0 to FQueryParams.Count -1 do
-    FRESTSubResource.QueryParams.Add(FQueryParams.Items[LFor].AsString);
+    FRESTResource.QueryParams.Add(FQueryParams.Items[LFor].AsString);
 end;
 
 procedure TRESTClientWiRL.SetProxyParamsBodyValue(var AParams: string);
