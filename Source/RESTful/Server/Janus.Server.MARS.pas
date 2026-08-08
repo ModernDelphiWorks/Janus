@@ -33,7 +33,6 @@ uses
   DataEngine.FactoryInterfaces,
   /// MARS
   MARS.Core.Engine,
-  MARS.Core.Application,
   MARS.Core.Application.Interfaces;
 
 type
