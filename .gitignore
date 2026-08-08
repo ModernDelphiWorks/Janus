@@ -76,6 +76,7 @@ Test/Delphi/*.bat
 /Test/Delphi/Janus.Tests.LiveBindings.res
 /Test/Delphi/Janus.Tests.RESTfulDriver.res
 /Test/Delphi/Janus.Tests.RESTHorse.res
+/Test/Delphi/Janus.Tests.RESTMARS.res
 /Test/Delphi/Janus.Tests.RESTOracle.res
 
 # Compiled Lazarus output directory

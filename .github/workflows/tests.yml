@@ -89,6 +89,17 @@ jobs:
       #     separate decision, not a side effect of the REST configuration.
       #   Janus.Tests.RESTOracle - needs a live Oracle; its 12 tests error out
       #     without one, so it cannot be a gate on a runner without a database.
+      #   Janus.Tests.RESTMARS - needs MARS-Curiosity, which is not vendored in
+      #     this repository and is not a sibling checkout the way MetaDbDiff,
+      #     FluentSQL, DataEngine and JsonFlow are; the project locates it
+      #     through its MARSDIR property. This runner has no copy, so the
+      #     project cannot build here and cannot be a gate. Consequence, stated
+      #     plainly: Janus.Server.Resource.MARS and Janus.Server.MARS are
+      #     compiled by a developer running Janus.Tests.RESTMARS locally and by
+      #     NOTHING in CI. That is strictly better than the state before the
+      #     project existed - where no machine compiled them at all - but it is
+      #     not cover. Closing it means vendoring MARS or provisioning it on
+      #     the runner, which is a separate decision.
       - name: Compile and run the DUnitX projects
         run: |
           $rsvars = "${{ steps.delphi-env.outputs.RSVARS_PATH }}"
