@@ -33,7 +33,8 @@ uses
   DataEngine.FactoryInterfaces,
   /// MARS
   MARS.Core.Engine,
-  MARS.Core.Application;
+  MARS.Core.Application,
+  MARS.Core.Application.Interfaces;
 
 type
   TRESTServerMARS = class(TJanusComponent)
@@ -64,15 +65,15 @@ uses
 
 procedure TRESTServerMARS.AddResource;
 var
-  LPair: TPair<string, TMARSApplication>;
+  LPair: TPair<string, IMARSApplication>;
 begin
   if FMARSEngine = nil then
     Exit;
 
-  if FMARSEngine.Applications.Count = 0 then
+  if FMARSEngine.GetApplications.Count = 0 then
     Exit;
 
-  for LPair in FMARSEngine.Applications do
+  for LPair in FMARSEngine.GetApplications do
     LPair.Value.AddResource('Janus.Server.Resource.MARS.TAppResource');
 end;
 
