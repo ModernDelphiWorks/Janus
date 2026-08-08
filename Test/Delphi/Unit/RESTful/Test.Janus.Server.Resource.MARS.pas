@@ -73,6 +73,31 @@
   Still no socket: MARS is the routing layer, and those tests call the resource
   method directly.
 
+  NOT COVERED HERE - $count, and exactly why
+
+  Four of the five OData options are asserted end to end. $count is not, and it
+  cannot be through this resource. The plumbing stops short:
+
+    TRESTQueryParse.SetCount stores the flag; ResolverFindAll and its siblings
+    read AQuery.Count and write TAppResourceBase.FResultCount; the value is
+    then only reachable through TAppResourceBase.ResultCount.
+
+    Janus.Server.Horse.pas:107-109 reads exactly that and emits a ResultCount
+    HTTP header.
+
+    Janus.Server.Resource.MARS has no equivalent. TAppResource keeps its
+    TAppResourceBase in a PRIVATE field with no accessor, and select returns
+    only the TJSONValue. The count is computed and discarded.
+
+  So on the MARS driver $count is declared on the endpoint and inert in the
+  response - measured, not assumed: deleting LQuery.SetCount(count) from
+  select changes nothing any caller can see, and the whole suite stays green.
+  Closing it means giving the MARS adapter a way to surface the count, which is
+  a product decision about the response contract, not a test change. It is left
+  alone and pinned by
+  Select_TheCountOption_ChangesNothingTheAdapterReturns, which will go red the
+  day someone closes it.
+
   KNOWN DEBT, NOT AN OVERSIGHT
 
   TRESTServerMARS.AddResource reads the engine's applications through
@@ -328,6 +353,25 @@ type
     /// $orderby must reach the query: the same rows in a decided order.
     [Test]
     procedure Select_TheOrderByOptionReachesTheQuery;
+
+    /// The body of delete had no execution cover at all. $filter is the ONLY
+    /// way a MARS caller can name the row to remove - the endpoint declares no
+    /// id parameter - so when the filter does not reach the query, ParseDelete
+    /// finds nothing by filter, falls through to its id branch and raises
+    /// 'The delete method needs the ID parameter!'. The verb then fails loudly
+    /// and completely. It does NOT quietly delete the wrong rows; this test
+    /// asserts both halves - Bob goes, Alice and Carol stay.
+    [Test]
+    procedure Delete_TheFilterOptionReachesTheQuery;
+
+    /// Characterisation of a DECLARED GAP, and it does not close it. $count is
+    /// the one option this fixture cannot verify reaches the query, because
+    /// the MARS adapter throws the answer away - see NOT COVERED HERE in the
+    /// unit header. Deleting LQuery.SetCount(count) from select leaves this
+    /// green, and every other test green too. It is here so the gap is a
+    /// recorded fact with a tripwire on it, not an oversight.
+    [Test]
+    procedure Select_TheCountOption_ChangesNothingTheAdapterReturns;
   end;
 
 implementation
@@ -916,6 +960,93 @@ begin
   finally
     LRows.Free;
   end;
+end;
+
+procedure TTestServerResourceMARSOverARealQuery.Delete_TheFilterOptionReachesTheQuery;
+var
+  LResource: TAppResource;
+  LAnswer: TJSONValue;
+  LReply: string;
+  LFailure: string;
+  LRemaining: TJSONArray;
+begin
+  LResource := TAppResource.Create;
+  try
+    LReply := '';
+    LFailure := '';
+    try
+      LAnswer := LResource.delete(cSEEDED_RESOURCE, 'name eq ''Bob''');
+      try
+        LReply := LAnswer.ToJSON;
+      finally
+        LAnswer.Free;
+      end;
+    except
+      on E: Exception do
+        LFailure := E.Message;
+    end;
+  finally
+    LResource.Free;
+  end;
+
+  Assert.AreEqual('', LFailure,
+    'delete refused the request outright. $filter is the only way its ' +
+    'endpoint can name a row - there is no id parameter - so a filter that ' +
+    'never reaches the query leaves ParseDelete demanding an id. Got: ' +
+    LFailure);
+  Assert.IsTrue(Pos('successfully', LReply) > 0,
+    'delete did not report success. Got: ' + LReply);
+
+  LRemaining := SelectCustomers('name ne ''''', 'name', '', '');
+  try
+    Assert.AreEqual('Alice,Carol', NamesIn(LRemaining),
+      'The row set after delete is wrong: the filtered row must be gone and ' +
+      'the other two must survive. Got: ' + LRemaining.ToJSON);
+  finally
+    LRemaining.Free;
+  end;
+end;
+
+procedure TTestServerResourceMARSOverARealQuery.Select_TheCountOption_ChangesNothingTheAdapterReturns;
+var
+  LWithout: string;
+  LWith: string;
+  LResource: TAppResource;
+  LAnswer: TJSONValue;
+begin
+  LWithout := '';
+  LWith := '';
+
+  LResource := TAppResource.Create;
+  try
+    LAnswer := LResource.select(cSEEDED_RESOURCE, '', 'name', '', '', '');
+    try
+      LWithout := LAnswer.ToJSON;
+    finally
+      LAnswer.Free;
+    end;
+  finally
+    LResource.Free;
+  end;
+
+  LResource := TAppResource.Create;
+  try
+    LAnswer := LResource.select(cSEEDED_RESOURCE, '', 'name', '', '', 'true');
+    try
+      LWith := LAnswer.ToJSON;
+    finally
+      LAnswer.Free;
+    end;
+  finally
+    LResource.Free;
+  end;
+
+  Assert.AreEqual(LWithout, LWith,
+    'The MARS adapter has started reflecting $count in what it returns. That ' +
+    'is a real improvement and it INVALIDATES this test: $count is now ' +
+    'observable, so replace this characterisation with an assertion that the ' +
+    'option actually reaches the query, the way $filter and $orderby are ' +
+    'asserted above.');
 end;
 
 initialization
