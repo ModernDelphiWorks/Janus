@@ -68,9 +68,19 @@ uses
   DUnitX.Loggers.Console,
   DUnitX.Loggers.Xml.NUnit,
   Janus.Test.Runner in 'Common\Janus.Test.Runner.pas',
-  /// Models - so the mapping repository is in a realistic, populated state
+  Janus.Test.Bootstrap in 'Common\Janus.Test.Bootstrap.pas',
+  /// DML generator registration - this unit's initialization block registers
+  /// the SQLite factory with TDriverRegister. Without it, the behavioural
+  /// fixture's first real query AVs deep in the TDictionary miss path, the
+  /// same way Janus.Tests.RESTHorse documents.
+  Janus.DML.Generator.SQLite,
+  /// Models - so the mapping repository is in a realistic, populated state.
+  /// RestHorseTest.Models is reused rather than duplicated: it is a plain set
+  /// of mapped entity classes with no Horse dependency, and the behavioural
+  /// fixture queries its customer_test table through SQLite.
   MetaDbDiff.Mapping.Register,
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
+  RestHorseTest.Models in 'RESTHorse\Support\RestHorseTest.Models.pas',
   /// The units this project exists to compile
   Janus.Server.Resource.MARS,
   Janus.Server.MARS,
@@ -78,6 +88,7 @@ uses
   Test.Janus.Server.Resource.MARS in 'Unit\RESTful\Test.Janus.Server.Resource.MARS.pas';
 
 begin
+  TJanusTestBootstrap.RegisterFireDACSilent;
 {$IFDEF TESTINSIGHT}
   TestInsight.DUnitX.RunRegisteredTests;
   Exit;

@@ -53,14 +53,35 @@
       the endpoint table MARS itself derives and asserts the full verb set.
 
     - The five OData query parameters are matched by their literal names
-      ('$filter', '$orderby', '$top', '$skip', '$count'). A typo in any of them
-      compiles perfectly and produces an endpoint that ignores the option.
-      Select_* asserts each name.
+      ('$filter', '$orderby', '$top', '$skip', '$count') AND each name must
+      stay on the parameter that carries it. A typo compiles; so does trading
+      $top and $skip between the `top` and `skip` parameters, and that trade
+      survives any assertion phrased as "all five names are present" - the set
+      is unchanged. MARS would then inject the caller's skip into top and the
+      caller's top into skip, inverting pagination in production against a
+      green suite. Select_BindsEachODataOptionToItsOwnParameter asserts the
+      whole binding table in declaration order, which is what catches it.
 
-  Nothing here opens a socket, and nothing here needs a database. The two
-  behavioural tests deliberately drive the resource with a resource name that
-  is not in the mapping repository, so the call returns through the documented
-  error contract before any connection is touched.
+  SHAPE IS ONLY HALF OF IT
+
+  Everything described above inspects declarations. No declaration can tell you
+  whether an option the caller supplied actually REACHES the query that gets
+  built: delete `LQuery.SetFilter(filter)` from select and every attribute is
+  still exactly where it was. TTestServerResourceMARSOverARealQuery closes that
+  half by running the resource against a real SQLite file - the same DataEngine
+  factory the green RESTHorse suite uses - with a real table and real rows.
+  Still no socket: MARS is the routing layer, and those tests call the resource
+  method directly.
+
+  KNOWN DEBT, NOT AN OVERSIGHT
+
+  TRESTServerMARS.AddResource reads the engine's applications through
+  GetApplications, which hands back the raw dictionary. The idiomatic successor
+  in current MARS is EnumerateApplications, which takes the engine's critical
+  section for the duration of the walk. GetApplications takes no lock. This is
+  not a regression - the code it replaced did not lock either, and the setter
+  runs at wiring time - but it is a deliberate choice recorded here rather than
+  an accident.
 
   NOT FIXED HERE - two defects this fixture uncovered on its first two runs
 
@@ -69,17 +90,23 @@
   defect and neither is this project's to repair; they are recorded because the
   only reason nobody had met them is that nobody had ever run this code.
 
-  1. An empty resource name is a range check error, not a rejection.
+  1. An empty resource name crashes the parser instead of being rejected.
 
      ParseResourceNameAndID does
          repeat Inc(LFor); LChar := AValue[LFor]; ... until (LFor >= LLength)
 
      A `repeat` runs its body before it tests its condition, so on an empty
-     argument it reads AValue[1] of a zero-length string. These test projects
-     build with range checking ON, so it surfaces as a range check error. With
-     range checking OFF - which is what Release does - it reads out of bounds
-     instead, silently. That is why the tests below drive the resource with
-     '/', a URI the parser consumes safely, and never with ''.
+     argument it reads AValue[1] of a zero-length string. Measured on both
+     builds with a standalone probe of that exact loop:
+
+         range checks ON   ERangeError      'Range check error'
+         range checks OFF  EAccessViolation 'Read of address 00000000'
+
+     So it is NOT a debug-only nicety and NOT a silent out-of-bounds read in
+     Release: an empty Delphi string is a nil pointer, and dereferencing it is
+     a hard AV either way. The difference between the two builds is only which
+     exception class arrives. That is why the tests below drive the resource
+     with '/', a URI the parser consumes safely, and never with ''.
 
   2. The `else raise` in select and delete is dead code.
 
@@ -103,8 +130,24 @@ uses
   Classes,
   SysUtils,
   Rtti,
+  JSON,
+  IOUtils,
   Generics.Collections,
   DUnitX.TestFramework,
+  // DataEngine - the headless SQLite connection the behavioural tests need
+  DataEngine.FactoryInterfaces,
+  DataEngine.FactoryConnection,
+  DataEngine.FactoryFireDac,
+  FireDAC.Comp.Client,
+  FireDAC.Stan.Def,
+  FireDAC.Stan.Intf,
+  FireDAC.Stan.Async,
+  FireDAC.Phys.Intf,
+  FireDAC.Phys.SQLite,
+  FireDAC.Phys.SQLiteDef,
+  // Models, reused from the RESTHorse support tree
+  MetaDbDiff.Mapping.Register,
+  RestHorseTest.Models,
   // MARS
   MARS.Core.Engine,
   MARS.Core.Registry,
@@ -138,7 +181,7 @@ type
     function MethodHasAttribute(const AMethodName: string;
       const AAttributeClass: TCustomAttributeClass): Boolean;
     function MethodProduces(const AMethodName, AMediaType: string): Boolean;
-    function MethodQueryParamNames(const AMethodName: string): TArray<string>;
+    function MethodQueryParamBindings(const AMethodName: string): string;
     function Contains(const AValues: TArray<string>; const AValue: string): Boolean;
   public
     [Setup]
@@ -194,13 +237,23 @@ type
     [Test]
     procedure Endpoints_AllHangOffTheJanusPath;
 
-    /// The five OData options are matched by literal name. A typo compiles.
+    /// The method-level Path attributes, verbatim. MARS normalises the
+    /// combined endpoint path - it strips the leading separator and the
+    /// trailing '?' - so the endpoint table CANNOT see the difference between
+    /// '/{resource}?' and '/{resource}'. Only the raw attribute can, and that
+    /// '?' is what makes the segment optional on select.
     [Test]
-    procedure Select_DeclaresTheFiveODataQueryParams;
+    procedure Methods_DeclareTheirPathsVerbatim;
 
-    /// delete filters by '$filter' and by nothing else.
+    /// The five OData options are matched by literal name AND must each stay
+    /// bound to the parameter that carries them. A typo compiles; so does a
+    /// swap, and the swap is the one that survives a set-membership test.
     [Test]
-    procedure Delete_DeclaresTheFilterQueryParam;
+    procedure Select_BindsEachODataOptionToItsOwnParameter;
+
+    /// delete filters by '$filter', bound to `filter`, and by nothing else.
+    [Test]
+    procedure Delete_BindsFilterToItsOwnParameter;
 
     /// insert and update take their payload from the request body.
     [Test]
@@ -226,6 +279,57 @@ type
     procedure Select_TheEmptyResourceGuard_IsUnreachable;
   end;
 
+  { Everything above inspects SHAPE - attributes, registry entries, endpoint
+    tables. Shape cannot answer the other half of the threat model: whether an
+    option the caller supplied actually REACHES the query that is built. Delete
+    `LQuery.SetFilter(filter)` from TAppResource.select and every shape
+    assertion still passes, because the attribute it is named after is still
+    there.
+
+    So this fixture runs the resource for real, against a real SQLite file
+    through the same DataEngine factory the green RESTHorse suite uses, with a
+    real table and real rows. No socket: MARS is only the routing layer, and
+    these tests call the resource method directly. The models are reused from
+    RESTHorse rather than duplicated. }
+  [TestFixture]
+  TTestServerResourceMARSOverARealQuery = class
+  private
+    FDConnection: TFDConnection;
+    FConnection: IDBConnection;
+    /// Drives TAppResource.select and returns the row set it produced.
+    function SelectCustomers(const AFilter, AOrderBy, ATop,
+      ASkip: string): TJSONArray;
+    function NamesIn(const ARows: TJSONArray): string;
+  public
+    [SetupFixture]
+    procedure SetupFixture;
+    [TearDownFixture]
+    procedure TearDownFixture;
+    [Setup]
+    procedure Setup;
+
+    /// The premise every test below rests on: with no option at all, the
+    /// resource returns the whole seeded table. If this is not three rows,
+    /// none of the filtering assertions mean anything.
+    [Test]
+    procedure Select_WithNoOption_ReturnsEveryRow;
+
+    /// $filter must reach the query. This is the test that fails when the
+    /// SetFilter call is deleted from select - the shape assertions cannot.
+    [Test]
+    procedure Select_TheFilterOptionReachesTheQuery;
+
+    /// $top and $skip must reach the query as themselves. Deliberately
+    /// asymmetric (top=1, skip=2), so swapping the two inside the method body
+    /// changes both the row count and the row returned.
+    [Test]
+    procedure Select_TopAndSkipReachTheQueryUncrossed;
+
+    /// $orderby must reach the query: the same rows in a decided order.
+    [Test]
+    procedure Select_TheOrderByOptionReachesTheQuery;
+  end;
+
 implementation
 
 const
@@ -234,6 +338,10 @@ const
   /// A URI whose every character is consumed by the parser without producing
   /// a resource name. NOT '' - see the unit header.
   cRESOURCE_PARSING_TO_NOTHING = '/';
+  /// TCustomerTest, addressed the way a caller addresses it over the wire.
+  /// TRESTQueryParse.GetResourceName puts the 'T' back on.
+  cSEEDED_RESOURCE = 'CustomerTest';
+  cTEST_DB_PATH    = 'janus_rest_mars_test.db';
 
 { TTestServerResourceMARS }
 
@@ -283,17 +391,24 @@ begin
       Exit(True);
 end;
 
-function TTestServerResourceMARS.MethodQueryParamNames(
-  const AMethodName: string): TArray<string>;
+function TTestServerResourceMARS.MethodQueryParamBindings(
+  const AMethodName: string): string;
 var
   LParameter: TRttiParameter;
   LAttribute: TCustomAttribute;
+  LPairs: TArray<string>;
 begin
-  Result := [];
+  /// Each entry is `<formal parameter name>-><query option name>`, in
+  /// declaration order. The pairing is the point: asserting only the SET of
+  /// option names cannot see two attributes swapped between two parameters,
+  /// and that swap is silent in every other way.
+  LPairs := [];
   for LParameter in MethodOf(AMethodName).GetParameters do
     for LAttribute in LParameter.GetAttributes do
       if LAttribute is QueryParamAttribute then
-        Result := Result + [QueryParamAttribute(LAttribute).Name];
+        LPairs := LPairs +
+          [LParameter.Name + '->' + QueryParamAttribute(LAttribute).Name];
+  Result := string.Join(', ', LPairs);
 end;
 
 function TTestServerResourceMARS.Contains(const AValues: TArray<string>;
@@ -481,36 +596,62 @@ begin
     'segment: ' + LStray);
 end;
 
-procedure TTestServerResourceMARS.Select_DeclaresTheFiveODataQueryParams;
-var
-  LNames: TArray<string>;
+procedure TTestServerResourceMARS.Methods_DeclareTheirPathsVerbatim;
+
+  function PathOf(const AMethodName: string): string;
+  var
+    LAttribute: TCustomAttribute;
+  begin
+    Result := '';
+    for LAttribute in MethodOf(AMethodName).GetAttributes do
+      if LAttribute is PathAttribute then
+        Exit(PathAttribute(LAttribute).Value);
+  end;
+
+begin
+  Assert.AreEqual(cJANUS_RESOURCE_PATH,
+    PathAttribute(ResourceType.GetAttribute<PathAttribute>).Value,
+    'The class-level Path of TAppResource changed.');
+
+  /// select and delete accept the segment as OPTIONAL - that is the '?'.
+  /// Dropping it makes the segment mandatory and quietly changes which URLs
+  /// route, while every endpoint-table assertion keeps passing.
+  Assert.AreEqual('/{resource}?', PathOf('select'),
+    'select no longer accepts an optional {resource} segment.');
+  Assert.AreEqual('/{resource}', PathOf('insert'),
+    'The insert path changed.');
+  Assert.AreEqual('/{resource}', PathOf('update'),
+    'The update path changed.');
+  Assert.AreEqual('/{resource}', PathOf('delete'),
+    'The delete path changed.');
+end;
+
+procedure TTestServerResourceMARS.Select_BindsEachODataOptionToItsOwnParameter;
 begin
   Assert.IsTrue(MethodHasAttribute('select', GETAttribute),
     'select is no longer a GET endpoint.');
 
-  LNames := MethodQueryParamNames('select');
-  Assert.AreEqual(5, Length(LNames),
-    'select declares a different number of query parameters than the five ' +
-    'OData options.');
-  Assert.IsTrue(Contains(LNames, '$filter'), 'select lost the $filter option.');
-  Assert.IsTrue(Contains(LNames, '$orderby'), 'select lost the $orderby option.');
-  Assert.IsTrue(Contains(LNames, '$top'), 'select lost the $top option.');
-  Assert.IsTrue(Contains(LNames, '$skip'), 'select lost the $skip option.');
-  Assert.IsTrue(Contains(LNames, '$count'), 'select lost the $count option.');
+  /// One assertion on the whole binding table, in declaration order. A set
+  /// membership test cannot see $top and $skip traded between the `top` and
+  /// `skip` parameters - it still finds five names, all spelled correctly -
+  /// and MARS would then inject the caller's skip into top and vice versa,
+  /// inverting pagination against a green suite.
+  Assert.AreEqual(
+    'filter->$filter, orderby->$orderby, top->$top, skip->$skip, count->$count',
+    MethodQueryParamBindings('select'),
+    'The query options of select are no longer bound one-to-one to the ' +
+    'parameters that carry them. Two swapped attributes compile, keep the ' +
+    'option names spelled right, and silently cross the values.');
 end;
 
-procedure TTestServerResourceMARS.Delete_DeclaresTheFilterQueryParam;
-var
-  LNames: TArray<string>;
+procedure TTestServerResourceMARS.Delete_BindsFilterToItsOwnParameter;
 begin
   Assert.IsTrue(MethodHasAttribute('delete', DELETEAttribute),
     'delete is no longer a DELETE endpoint.');
 
-  LNames := MethodQueryParamNames('delete');
-  Assert.AreEqual(1, Length(LNames),
-    'delete declares a different number of query parameters than the single ' +
-    '$filter it selects rows with.');
-  Assert.IsTrue(Contains(LNames, '$filter'), 'delete lost the $filter option.');
+  Assert.AreEqual('filter->$filter', MethodQueryParamBindings('delete'),
+    'delete no longer selects rows by exactly one option, $filter, bound to ' +
+    'its own parameter.');
 end;
 
 procedure TTestServerResourceMARS.InsertAndUpdate_TakeTheirPayloadFromTheBody;
@@ -611,7 +752,177 @@ begin
   end;
 end;
 
+{ TTestServerResourceMARSOverARealQuery }
+
+procedure TTestServerResourceMARSOverARealQuery.SetupFixture;
+var
+  LServer: TRESTServerMARS;
+begin
+  FDConnection := TFDConnection.Create(nil);
+  FDConnection.Params.DriverID := 'SQLite';
+  FDConnection.Params.Database := cTEST_DB_PATH;
+  FDConnection.Params.Values['OpenMode'] := 'CreateUTF8';
+  FDConnection.ResourceOptions.SilentMode := True;
+  FDConnection.Connected := True;
+  FConnection := TFactoryFireDAC.Create(FDConnection, dnSQLite);
+
+  /// TCustomerTest is registered in this unit's initialization, NOT here.
+  /// TMappingExplorer.GetRepositoryMapping builds its repository ONCE, lazily,
+  /// from whatever TRegisterClass holds at the moment of the first lookup, and
+  /// caches it forever. The shape fixture above performs lookups, so by the
+  /// time this SetupFixture runs the snapshot is already sealed and a
+  /// registration here would never be seen.
+  FConnection.ExecuteDirect('DROP TABLE IF EXISTS customer_test');
+  FConnection.ExecuteDirect(
+    'CREATE TABLE customer_test (' +
+    '  id     INTEGER PRIMARY KEY AUTOINCREMENT,' +
+    '  name   VARCHAR(100) NOT NULL,' +
+    '  email  VARCHAR(200),' +
+    '  active INTEGER DEFAULT 1)');
+
+  /// TRESTServerMARS keeps the connection in a class var, so one assignment
+  /// serves every TAppResource this fixture builds.
+  LServer := TRESTServerMARS.Create(nil);
+  try
+    LServer.Connection := FConnection;
+  finally
+    LServer.Free;
+  end;
+end;
+
+procedure TTestServerResourceMARSOverARealQuery.TearDownFixture;
+begin
+  if Assigned(FConnection) then
+    FConnection.ExecuteDirect('DROP TABLE IF EXISTS customer_test');
+  FConnection := nil;
+  if Assigned(FDConnection) then
+  begin
+    FDConnection.Connected := False;
+    FreeAndNil(FDConnection);
+  end;
+  if TFile.Exists(cTEST_DB_PATH) then
+    TFile.Delete(cTEST_DB_PATH);
+end;
+
+procedure TTestServerResourceMARSOverARealQuery.Setup;
+begin
+  /// Three rows, distinct names, deliberately NOT inserted in name order, so
+  /// an $orderby that never reaches the query cannot pass by accident.
+  FConnection.ExecuteDirect('DELETE FROM customer_test');
+  FConnection.ExecuteDirect(
+    'INSERT INTO customer_test (id, name, active) VALUES (1, ''Carol'', 1)');
+  FConnection.ExecuteDirect(
+    'INSERT INTO customer_test (id, name, active) VALUES (2, ''Alice'', 1)');
+  FConnection.ExecuteDirect(
+    'INSERT INTO customer_test (id, name, active) VALUES (3, ''Bob'', 0)');
+end;
+
+function TTestServerResourceMARSOverARealQuery.SelectCustomers(const AFilter,
+  AOrderBy, ATop, ASkip: string): TJSONArray;
+var
+  LResource: TAppResource;
+  LValue: TJSONValue;
+begin
+  LResource := TAppResource.Create;
+  try
+    LValue := LResource.select(cSEEDED_RESOURCE, AFilter, AOrderBy, ATop,
+      ASkip, '');
+  finally
+    LResource.Free;
+  end;
+  Assert.IsNotNull(LValue, 'select returned no JSON at all.');
+  Assert.IsTrue(LValue is TJSONArray,
+    'select no longer answers a JSON array for a row set. Got: ' +
+    LValue.ToJSON);
+  Result := TJSONArray(LValue);
+end;
+
+function TTestServerResourceMARSOverARealQuery.NamesIn(
+  const ARows: TJSONArray): string;
+var
+  LIndex: Integer;
+  LNames: TArray<string>;
+begin
+  LNames := [];
+  for LIndex := 0 to ARows.Count - 1 do
+    LNames := LNames + [ARows.Items[LIndex].GetValue<string>('Name', '?')];
+  Result := string.Join(',', LNames);
+end;
+
+procedure TTestServerResourceMARSOverARealQuery.Select_WithNoOption_ReturnsEveryRow;
+var
+  LRows: TJSONArray;
+begin
+  LRows := SelectCustomers('', '', '', '');
+  try
+    Assert.AreEqual(3, LRows.Count,
+      'The seeded table did not come back whole, so no filtering assertion ' +
+      'in this fixture can be trusted. Got: ' + LRows.ToJSON);
+  finally
+    LRows.Free;
+  end;
+end;
+
+procedure TTestServerResourceMARSOverARealQuery.Select_TheFilterOptionReachesTheQuery;
+var
+  LRows: TJSONArray;
+begin
+  LRows := SelectCustomers('name eq ''Bob''', '', '', '');
+  try
+    Assert.AreEqual(1, LRows.Count,
+      'The $filter the caller supplied did not reach the query - all three ' +
+      'seeded rows came back. Every attribute-shape assertion in this unit ' +
+      'still passes when that happens; only this one does not. Got: ' +
+      LRows.ToJSON);
+    Assert.AreEqual('Bob', NamesIn(LRows),
+      'The $filter reached the query but selected the wrong row.');
+  finally
+    LRows.Free;
+  end;
+end;
+
+procedure TTestServerResourceMARSOverARealQuery.Select_TopAndSkipReachTheQueryUncrossed;
+var
+  LRows: TJSONArray;
+begin
+  /// Ordered by id: Carol(1), Alice(2), Bob(3). Skipping two and taking one
+  /// leaves Bob. Crossing the two options takes two and skips one, which
+  /// answers Alice AND Bob - a different count and a different row.
+  LRows := SelectCustomers('', 'id', '1', '2');
+  try
+    Assert.AreEqual(1, LRows.Count,
+      'The page size did not reach the query as $top. Got: ' + LRows.ToJSON);
+    Assert.AreEqual('Bob', NamesIn(LRows),
+      'The page landed on the wrong row: $top and $skip did not reach the ' +
+      'query as themselves. Got: ' + LRows.ToJSON);
+  finally
+    LRows.Free;
+  end;
+end;
+
+procedure TTestServerResourceMARSOverARealQuery.Select_TheOrderByOptionReachesTheQuery;
+var
+  LRows: TJSONArray;
+begin
+  /// Insertion order is Carol, Alice, Bob. Ordering by name is a different
+  /// sequence, so an $orderby that never arrives cannot pass by luck.
+  LRows := SelectCustomers('name ne ''''', 'name', '', '');
+  try
+    Assert.AreEqual(3, LRows.Count,
+      'Expected the whole table back, ordered. Got: ' + LRows.ToJSON);
+    Assert.AreEqual('Alice,Bob,Carol', NamesIn(LRows),
+      'The $orderby the caller supplied did not reach the query - the rows ' +
+      'came back in insertion order. Got: ' + LRows.ToJSON);
+  finally
+    LRows.Free;
+  end;
+end;
+
 initialization
+  /// Must run before the FIRST mapping lookup anywhere in the binary - see the
+  /// comment in TTestServerResourceMARSOverARealQuery.SetupFixture.
+  TRegisterClass.RegisterEntity(TCustomerTest);
   TDUnitX.RegisterTestFixture(TTestServerResourceMARS);
+  TDUnitX.RegisterTestFixture(TTestServerResourceMARSOverARealQuery);
 
 end.

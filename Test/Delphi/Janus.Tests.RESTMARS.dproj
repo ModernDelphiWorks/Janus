@@ -12,9 +12,13 @@
         <Platform Condition="'$(Platform)'==''">Win32</Platform>
     </PropertyGroup>
     <PropertyGroup>
-        <!-- MARS-Curiosity does not live beside the Janus checkout. Override on
-             the command line with /p:MARSDIR=<path> or with an environment
-             variable of the same name. -->
+        <!-- MARS-Curiosity is the only dependency of this project that is not
+             a sibling of the Janus checkout. Resolution order:
+               1. /p:MARSDIR=<path>, or an environment variable of that name;
+               2. a sibling checkout, the way every other dependency resolves;
+               3. the machine this project was written on.
+             Prefer 1 or 2; 3 is a last resort so the project still opens. -->
+        <MARSDIR Condition="'$(MARSDIR)'=='' And Exists('$(MSBuildProjectDirectory)\..\..\..\MARS\Source')">$(MSBuildProjectDirectory)\..\..\..\MARS</MARSDIR>
         <MARSDIR Condition="'$(MARSDIR)'==''">D:\Delphi Tools\MARS</MARSDIR>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Config)'=='Base' or '$(Base)'!=''">
@@ -96,7 +100,9 @@
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
         <DCCReference Include="Common\Janus.Test.Runner.pas"/>
+        <DCCReference Include="Common\Janus.Test.Bootstrap.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AsymKey.pas"/>
+        <DCCReference Include="RESTHorse\Support\RestHorseTest.Models.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Server.Resource.MARS.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
