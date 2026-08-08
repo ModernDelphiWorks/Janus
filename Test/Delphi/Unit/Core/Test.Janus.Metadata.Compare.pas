@@ -179,7 +179,26 @@ procedure TTestJanusMetadataCompare.Lifecycle_RepeatedCreateFree_DoesNotLeak;
 var
   LFor: Integer;
   LFactory: TMetadataModelFactory;
+  LHeapBefore: THeapStatus;
+  LHeapAfter: THeapStatus;
 begin
+  // Proven by mutation (#197 review round): the version of this test that only
+  // asserted "no exception was raised" stayed green even when the destructor
+  // was mutated to skip FModelMetadata.Free entirely (a real, deliberate 50x
+  // leak) - and a first attempt using System.AllocMemCount ALSO stayed green
+  // under the same mutation (that counter is not wired to this Delphi
+  // version's default memory manager). GetHeapStatus().TotalAllocated, backed
+  // by the actual committed-heap accounting, is what reliably moved when the
+  // mutation was reintroduced - verified red, then green again after revert.
+  //
+  // One warm-up cycle runs OUTSIDE the measured window: the first Create/Free
+  // pair in the process can grow memory-manager bookkeeping (pool warm-up)
+  // that never recurs on later cycles, which would otherwise read as a false
+  // "leak" unrelated to TMetadataModelFactory.
+  LFactory := TMetadataModelFactory.Create(nil);
+  LFactory.Free;
+
+  LHeapBefore := GetHeapStatus;
   for LFor := 1 to CLifecycleCycles do
   begin
     LFactory := TMetadataModelFactory.Create(nil);
@@ -190,7 +209,13 @@ begin
       LFactory.Free;
     end;
   end;
-  Assert.Pass(Format('Completed %d create/free cycles without exception', [CLifecycleCycles]));
+  LHeapAfter := GetHeapStatus;
+
+  Assert.AreEqual(LHeapBefore.TotalAllocated, LHeapAfter.TotalAllocated,
+    Format('Live heap bytes must return to baseline after %d create/free cycles ' +
+           '(before=%d, after=%d) - a positive delta means FModelMetadata, or ' +
+           'something it owns, is not being freed',
+           [CLifecycleCycles, LHeapBefore.TotalAllocated, LHeapAfter.TotalAllocated]));
 end;
 
 initialization
