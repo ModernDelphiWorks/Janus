@@ -74,7 +74,11 @@ uses
   /// The ExistSequence guard around the cascade propagation — issue #240
   Test.Janus.Server.RestObjectSet.SuppliedKey in 'RESTHorse\Test.Janus.Server.RestObjectSet.SuppliedKey.pas',
   /// A key-only Update on the server side — issue #240
-  Test.Janus.Server.RestObjectSet.NoOpUpdate in 'RESTHorse\Test.Janus.Server.RestObjectSet.NoOpUpdate.pas';
+  Test.Janus.Server.RestObjectSet.NoOpUpdate in 'RESTHorse\Test.Janus.Server.RestObjectSet.NoOpUpdate.pas',
+  /// One owner carrying TWO lazy branches, to two different child classes
+  Test.Janus.Model.LazyTwoBranch in 'Common\Test.Janus.Model.LazyTwoBranch.pas',
+  /// The server side lazy load, whose only statement was commented out
+  Test.Janus.Server.RestObjectSet.LoadLazy in 'RESTHorse\Test.Janus.Server.RestObjectSet.LoadLazy.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
