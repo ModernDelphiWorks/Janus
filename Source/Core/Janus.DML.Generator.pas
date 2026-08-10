@@ -57,6 +57,7 @@ type
       procedure _GenerateJoinColumn(AClass: TClass; ATable: TTableMapping;
         const ASQL: IFluentSQL);
     function _IsType(const AID: TValue): Boolean;
+    function _GetGuidValue(AObject: TObject; AProperty: TRttiProperty): TGUID;
   protected
     FConnection: IDBConnection;
     FQueryCache: TQueryCache;
@@ -89,6 +90,65 @@ type
     function GetGeneratorQueryScopeWhere(const AClass: TClass): String;
     function GetGeneratorQueryScopeOrderBy(const AClass: TClass): String;
     function ExecuteSequence(const ASQL: String): Int64; virtual;
+
+    /// <summary> O LITERAL DE UMA COLUNA ftGuid, NA FORMA DESTE DIALETO.
+    ///
+    ///  ABSTRACT DE PROPOSITO, e essa e' a decisao de desenho da issue #284.
+    ///  O defeito que este metodo conserta E' UM SILENCIO: ftGuid nao tinha
+    ///  ramo em _GetPropertyValue, caia no `else`, virava '' e a guarda de
+    ///  GenerateSelectOneToOne (:172-173) e de GenerateSelectOneToOneMany
+    ///  (:235-236) emitia '1 = 0' - um master COM filhos no banco devolvendo
+    ///  NENHUM, sem excecao, sem log e sem SQL malformado.
+    ///
+    ///  Por que nao um campo FGuidFormat no molde do FDateFormat/FTimeFormat:
+    ///  esse molde e' DADO, nao comportamento, e um dialeto novo nasceria com
+    ///  o campo em '' - o literal sairia vazio, a guarda dispararia e o
+    ///  '1 = 0' VOLTARIA. A cura teria a mesma doenca. Um metodo abstract
+    ///  falha CEDO e ALTO: W1010 na lambda de fabrica do initialization e
+    ///  EAbstractError na criacao do gerador, antes de qualquer query - o
+    ///  mesmo estilo de Janus.Driver.Register.pas:64-66, que levanta excecao
+    ///  nomeada em vez de devolver nil.
+    ///
+    ///  O CONTRATO DO VALOR E' TGUID, E NAO String. E' o que as tres familias
+    ///  de comando ja exigem: Janus.Command.Inserter.pas:213-217,
+    ///  Janus.Command.Updater.pas:118-119 e Janus.Command.Deleter.pas:97-98
+    ///  fazem AsType<TGUID>.ToString. Os geradores Guid32Inc/Guid36Inc/
+    ///  Guid38Inc (Inserter:135-158) escrevem String via SetValue e pertencem
+    ///  ao mundo ftString - NAO sao a fonte do formato de uma coluna ftGuid.
+    /// </summary>
+    function GuidLiteral(const AGuid: TGUID): String; virtual; abstract;
+
+    /// <summary> A FORMA CANONICA - e por que os 12 dialetos SQL convergem.
+    ///
+    ///  QuotedStr(TGUID.ToString) = '{8-4-4-4-12}': 38 caracteres, chaves,
+    ///  hifens, hex MAIUSCULO. E' exatamente o texto que o INSERT desta casa
+    ///  grava (Janus.Command.Inserter.pas:213-217 -> TGUID.ToString) e que o
+    ///  UPDATE/DELETE usam no WHERE (Updater:118-119, Deleter:97-98).
+    ///
+    ///  E O DDL DESTA CASA GUARDA ESSE TEXTO NUMA COLUNA DE TEXTO:
+    ///  MetaDbDiff.Metadata.Extract.pas:429-445 emite CHAR(n) para PostgreSQL,
+    ///  Firebird, InterBase e MySQL, NCHAR2(n) para Oracle e 'GUID' no else -
+    ///  NUNCA `uuid` do PostgreSQL nem `uniqueidentifier` do SQL Server. Logo
+    ///  a comparacao e' TEXTO CONTRA TEXTO em todos eles, e a forma correta do
+    ///  literal CONVERGE. Isto esta escrito porque e' o que foi MEDIDO, e nao
+    ///  para justificar o desenho: a diferenca por dialeto que a doc oficial
+    ///  registra (SQLite compara sensivel a caixa via BINARY/memcmp; MySQL
+    ///  CHAR compara insensivel no collation padrao utf8mb4_0900_ai_ci; SQL
+    ///  Server trunca em silencio acima de 36 caracteres AO CONVERTER PARA
+    ///  uniqueidentifier) nao muda a forma do literal enquanto a coluna for a
+    ///  CHAR(n) que este ecossistema cria - emitir exatamente o texto gravado
+    ///  e' o que casa em todos os tres casos.
+    ///
+    ///  O VALOR DO DESPACHO POR DIALETO, ENTAO, E' O MECANISMO: quando um
+    ///  dialeto novo nascer - ou quando o DDL passar a emitir tipo nativo,
+    ///  ou quando IOptions.StoreGUIDAsOctet virar o armazenamento em OCTETS
+    ///  (Firebird CHAR(16) CHARACTER SET OCTETS, que exige CHAR_TO_UUID(...)
+    ///  ou x'...' e NAO string aspada) - o compilador exige que aquele dialeto
+    ///  RESPONDA, em vez de herdar em silencio o literal de outro banco.
+    ///  A leitura de StoreGUIDAsOctet NAO esta implementada aqui: e' outro
+    ///  eixo, mede-se contra banco vivo e nao entrou nesta issue.
+    /// </summary>
+    function CanonicalGuidLiteral(const AGuid: TGUID): String;
   public
     constructor Create; virtual;
     destructor Destroy; override;
@@ -532,6 +592,8 @@ end;
 
 function TDMLGeneratorAbstract._GetPropertyValue(AObject: TObject;
   AProperty: TRttiProperty; AFieldType: TFieldType): Variant;
+var
+  LGuid: TGUID;
 begin
   case AFieldType of
      ftString, ftWideString, ftMemo, ftWideMemo, ftFmtMemo:
@@ -562,9 +624,56 @@ begin
        end;
      ftBlob, ftGraphic, ftOraBlob, ftOraClob:
        Result := AProperty.GetNullableValue(AObject).AsType<TBlob>.ToBytes;
+     ftGuid:
+       begin
+         LGuid := _GetGuidValue(AObject, AProperty);
+         // FK GUID nao preenchida: o TGUID chega zerado (ou Nullable sem
+         // valor, ver _GetGuidValue). Devolver '' faz a guarda de :172-173 e
+         // :235-236 emitir '1 = 0' - o mesmo contrato de FK nula que o irmao
+         // REST ja pratica em Janus.RestDataSet.Adapter.pas:424-425. Emitir
+         // o literal do GUID zerado tambem casaria zero linhas, mas por
+         // acidente e nao por contrato.
+         if LGuid = TGUID.Empty then
+           Result := ''
+         else
+           Result := GuidLiteral(LGuid);
+       end;
   else
      Result := '';
   end;
+end;
+
+function TDMLGeneratorAbstract._GetGuidValue(AObject: TObject;
+  AProperty: TRttiProperty): TGUID;
+var
+  LValue: TValue;
+begin
+  LValue := AProperty.GetNullableValue(AObject);
+  // Nullable<TGUID> sem valor chega como Variant Null
+  // (MetaDbDiff.RTTI.Helper.pas:356-359). Vira GUID vazio, que o chamador
+  // converte na guarda '1 = 0'.
+  if LValue.IsEmpty then
+    Exit(TGUID.Empty);
+  if LValue.IsType<Variant> and VarIsNull(LValue.AsVariant) then
+    Exit(TGUID.Empty);
+  // Erro NOMEADO em vez do EInvalidCast cru de AsType<TGUID>. Uma coluna
+  // ftGuid sobre propriedade String e' o defeito latente que a issue #284
+  // descobriu no proprio repositorio (o modelo mergeado no PR #286 declarava
+  // [Column('cck3', ftGuid, 38)] property cck3: String) - e ele so' aparecia
+  // no INSERT, tarde e sem dizer o nome da coluna.
+  if not LValue.TryAsType<TGUID>(Result) then
+    raise Exception.CreateFmt(
+      'A coluna ftGuid mapeada na propriedade "%s" e do tipo "%s". ' +
+      'Uma coluna ftGuid exige propriedade TGUID (ou Nullable<TGUID>) - e o ' +
+      'contrato que Janus.Command.Inserter/Updater/Deleter ja praticam via ' +
+      'AsType<TGUID>.ToString. Para chave GUID guardada como TEXTO, declare a ' +
+      'coluna como ftString e use TGeneratorType.Guid32Inc/Guid36Inc/Guid38Inc.',
+      [AProperty.Name, AProperty.PropertyType.Name]);
+end;
+
+function TDMLGeneratorAbstract.CanonicalGuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := QuotedStr(AGuid.ToString);
 end;
 
 procedure TDMLGeneratorAbstract.SetConnection(const AConnaction: IDBConnection);

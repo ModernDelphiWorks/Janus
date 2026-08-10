@@ -35,6 +35,9 @@ type
   // Classe de banco de dados Interbase
   TDMLGeneratorInterbase = class(TDMLGeneratorFirebird)
   protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
   public
     constructor Create; override;
     destructor Destroy; override;
@@ -55,6 +58,25 @@ destructor TDMLGeneratorInterbase.Destroy;
 begin
 
   inherited;
+end;
+
+/// <summary> NAO MEDIDO CONTRA DOCUMENTACAO OFICIAL. docwiki.embarcadero.com
+///  responde HTTP 403 a fetch programatico em todos os caminhos tentados
+///  (Data_Types, Language Reference Guide, Function_List e os dois caminhos do
+///  LangRef.pdf), e ausencia em busca nao e' prova. Nao herda do Firebird por
+///  parentesco historico: enquanto a doc nao for lida, a afirmacao "e' igual ao
+///  Firebird" seria invencao.
+///  O que ESTA medido e' o lado desta casa: MetaDbDiff.Metadata.Extract.pas:432
+///  emite CHAR(n) para dnInterbase, ou seja a coluna guarda o texto de 38 que o
+///  INSERT gravou. Por isso o literal conservador - a mesma forma canonica dos
+///  demais - e' o certo aqui por construcao, independente do que a doc do
+///  InterBase disser sobre funcoes de UUID.
+///  Sem excecao de proposito: hoje este dialeto devolve '1 = 0' em silencio, e
+///  qualquer literal ja e' melhora. Para medir de verdade: abrir
+///  Function_List_(Language_Reference_Guide) num navegador. </summary>
+function TDMLGeneratorInterbase.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 initialization

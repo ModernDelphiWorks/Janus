@@ -41,6 +41,9 @@ type
   // Classe de banco de dados PostgreSQL
   TDMLGeneratorPostgreSQL = class(TDMLGeneratorAbstract)
   protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
     function GetGeneratorSelect(const ASQL: String; const AOrderBy: String = ''): String; override;
   public
     constructor Create; override;
@@ -156,6 +159,23 @@ function TDMLGeneratorPostgreSQL.GeneratorAutoIncNextValue(AObject: TObject;
 begin
   Result := ExecuteSequence(Format('SELECT NEXTVAL(''%s'')',
                                    [AAutoInc.Sequence.Name]));
+end;
+
+/// <summary> O PostgreSQL TEM tipo nativo `uuid`, e ele aceita a forma que
+///  este metodo emite: a doc lista explicitamente digitos MAIUSCULOS, chaves
+///  `{...}` e hifens omissiveis como entrada valida
+///  (https://www.postgresql.org/docs/current/datatype-uuid.html), e o literal
+///  de tipo `unknown` assume o tipo do outro lado da comparacao, portanto SEM
+///  cast (https://www.postgresql.org/docs/current/typeconv-oper.html).
+///  MAS O DDL DESTA CASA NAO CRIA `uuid`: MetaDbDiff.Metadata.Extract.pas:431
+///  emite CHAR(n) para dnPostgreSQL. Entao a comparacao aqui e' texto contra
+///  texto, e emitir `'...'::uuid` quebraria contra o proprio DDL da casa.
+///  A forma canonica serve nos DOIS mundos - e' o unico literal que casa
+///  tanto na coluna CHAR(n) que este ecossistema cria quanto numa coluna
+///  `uuid` de um schema alheio. </summary>
+function TDMLGeneratorPostgreSQL.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 initialization

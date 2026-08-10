@@ -42,6 +42,9 @@ type
   // Classe de conexao concreta com dbExpress
   TDMLGeneratorOracle = class(TDMLGeneratorAbstract)
   protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
     function GetGeneratorSelect(const ASQL: String; const AOrderBy: String = ''): String; override;
   public
     constructor Create; override;
@@ -175,6 +178,27 @@ function TDMLGeneratorOracle.GeneratorAutoIncNextValue(AObject: TObject;
 begin
   Result := ExecuteSequence(Format('SELECT %s.NEXTVAL FROM DUAL',
                                    [AAutoInc.Sequence.Name]));
+end;
+
+/// <summary> O Oracle NAO TEM tipo GUID/UUID - a tabela de tipos built-in nao
+///  o lista (https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/Data-Types.html);
+///  o caminho documentado e' RAW(16) com SYS_GUID()
+///  (https://docs.oracle.com/en/database/oracle/oracle-database/21/odpnt/featGUID.html).
+///  O DDL desta casa emite NCHAR2(n) para dnOracle
+///  (MetaDbDiff.Metadata.Extract.pas:434), ou seja coluna de TEXTO, e a forma
+///  canonica e' a que casa.
+///  RESSALVA MEDIDA, e ela e' real: MetaDbDiff.Metadata.Oracle.pas:103-104
+///  mapeia 'RAW' e 'LONG RAW' de volta para ftGuid. Contra uma coluna RAW(16)
+///  de schema alheio, a conversao implicita char->RAW le cada caractere como
+///  digito hex - chave e hifen NAO sao hex - e o literal correto seria
+///  HEXTORAW('32 hex') sem chave e sem hifen
+///  (https://docs.oracle.com/en/database/oracle/oracle-database/23/sqlrf/HEXTORAW.html).
+///  NAO MEDIDO contra Oracle vivo, e por isso NAO implementado: acertar esse
+///  caso exige saber qual DDL criou a coluna, informacao que nao chega
+///  aqui. </summary>
+function TDMLGeneratorOracle.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 initialization

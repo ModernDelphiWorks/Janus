@@ -33,6 +33,9 @@ uses
 type
   TDMLGeneratorNoSQL = class(TDMLGeneratorAbstract)
   protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
     function GetCriteriaSelectNoSQL(const AClass: TClass;
       const AID: TValue): String;
     function GetGeneratorSelectNoSQL(const ACriteria: String): String;
@@ -293,6 +296,21 @@ end;
 function TDMLGeneratorNoSQL.GetGeneratorSelectNoSQL(const ACriteria: String): String;
 begin
   Result := ACriteria + '& limit=%s& skip=%s';
+end;
+
+/// <summary> INALCANCAVEL NESTA FAMILIA, e concreto so' porque a classe precisa
+///  ser instanciavel. TDMLGeneratorNoSQL sobrescreve GenerateSelectOneToOne e
+///  GenerateSelectOneToOneMany para devolver '' (:84-94 desta unidade), entao
+///  _GetPropertyValue - e com ele o ramo ftGuid - nunca e' chamado por este
+///  caminho. TDMLGeneratorMongoDB herda as duas sobrescritas e por isso NAO
+///  redeclara este metodo: dar-lhe um literal SQL seria inventar comportamento
+///  que nao roda. O UUID do MongoDB nem literal SQL e': e' binData subtipo 4,
+///  construido por UUID("36 com hifen") ou BinData(4,"base64")
+///  (https://www.mongodb.com/docs/manual/reference/bson-types/), e o que o
+///  driver grava depende de UuidRepresentation. </summary>
+function TDMLGeneratorNoSQL.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 end.

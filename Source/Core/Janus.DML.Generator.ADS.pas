@@ -41,6 +41,10 @@ uses
 type
   // Classe de banco de dados ADS
   TDMLGeneratorADS = class(TDMLGeneratorAbstract)
+  protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
   public
     constructor Create; override;
     destructor Destroy; override;
@@ -175,6 +179,22 @@ begin
   Result := ExecuteSequence(Format('SELECT GEN_ID(%s, %s) FROM RDB$DATABASE;',
                                    [AAutoInc.Sequence.Name,
                            IntToStr(AAutoInc.Sequence.Increment)]));
+end;
+
+/// <summary> NAO MEDIDO CONTRA DOCUMENTACAO OFICIAL. O Advantage Database
+///  Server nao serve mais documentacao: devzone.advantagedatabase.com faz 301
+///  para community.sap.com em toda URL de webhelp. Snippets de busca afirmam
+///  que o ADS 11+ tem tipo GUID de 16 bytes e funcao NewID(), mas nenhuma
+///  pagina oficial abriu e isso NAO fica registrado como fato. ARMADILHA: a doc
+///  de `newid` que esta' no ar em help.sap.com e' do SAP ASE, produto
+///  DIFERENTE, e nao serve de citacao para o ADS. A doc do ADS hoje so' existe
+///  como CHM local (Advantage 12.0\Help\advantage.chm).
+///  Nao ha' arquivo de metadata para ADS em Source/Drivers.
+///  Fica a forma canonica, conservadora e marcada: hoje este dialeto devolve
+///  '1 = 0' em silencio e qualquer literal ja e' melhora. </summary>
+function TDMLGeneratorADS.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 initialization

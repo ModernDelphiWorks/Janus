@@ -41,6 +41,10 @@ uses
 type
   // Classe de banco de dados ElevateDB
   TDMLGeneratorElevateDB = class(TDMLGeneratorAbstract)
+  protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
   public
     constructor Create; override;
     destructor Destroy; override;
@@ -174,6 +178,24 @@ function TDMLGeneratorElevateDB.GeneratorAutoIncNextValue(AObject: TObject;
 begin
   Result := GeneratorAutoIncCurrentValue(AObject, AAutoInc)
           + AAutoInc.Sequence.Increment;
+end;
+
+/// <summary> O ElevateDB TEM tipo `GUID`, e a doc oficial o define assim,
+///  verbatim: "A string value that has an exact length of 38 characters. A GUID
+///  value is treated the same as a VARCHAR value."
+///  (https://www.elevatesoft.com/manual?action=viewtopic&id=edb2sql&topic=String_Types),
+///  e CURRENT_GUID() "returns a new GUID value as a 38-character string"
+///  (https://www.elevatesoft.com/manual?action=viewtopic&id=edb2sql&topic=current_guid).
+///  38 caracteres so' cabe na forma {8-4-4-4-12}, que e' a que este metodo
+///  emite, e "tratado como VARCHAR" significa literal de string aspado.
+///  NAO MEDIDO: a doc nao diz nada sobre chaves, hifens, caixa dos hex nem
+///  case-sensitivity da comparacao - a pagina de CAST tambem e' silente
+///  (https://www.elevatesoft.com/manual?action=viewtopic&id=edb2sql&topic=CAST).
+///  A forma de 38 e' inferencia a partir do comprimento documentado, nao um
+///  fato documentado. </summary>
+function TDMLGeneratorElevateDB.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 initialization

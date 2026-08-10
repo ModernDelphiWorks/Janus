@@ -42,6 +42,9 @@ type
   // Classe de conexao concreta com dbExpress
   TDMLGeneratorMySQL = class(TDMLGeneratorAbstract)
   protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
     function GetGeneratorSelect(const ASQL: String; const AOrderBy: String = ''): String; override;
   public
     constructor Create; override;
@@ -159,6 +162,24 @@ begin
                                    'FROM INFORMATION_SCHEMA.TABLES ' +
                                    'WHERE TABLE_SCHEMA = DATABASE() ' +
                                    'AND   UPPER(TABLE_NAME) IN (%s);', [QuotedStr(AAutoInc.Sequence.TableName)]));
+end;
+
+/// <summary> O MySQL NAO TEM tipo UUID - as categorias de tipo nao o incluem
+///  (https://dev.mysql.com/doc/refman/8.0/en/data-types.html); o caminho
+///  documentado e' BINARY(16) via UUID_TO_BIN() ou CHAR(36)
+///  (https://dev.mysql.com/doc/refman/8.0/en/miscellaneous-functions.html).
+///  O DDL desta casa emite CHAR(n) para dnMySQL
+///  (MetaDbDiff.Metadata.Extract.pas:433), entao e' o ramo CHAR, comparacao de
+///  texto, e a forma canonica e' a que casa.
+///  A CAIXA NAO E' PROBLEMA AQUI, e pela razao oposta a do SQLite: CHAR compara
+///  INSENSIVEL a caixa no collation padrao utf8mb4_0900_ai_ci
+///  (https://dev.mysql.com/doc/refman/8.0/en/case-sensitivity.html), logo o
+///  literal maiusculo casa com o texto gravado de qualquer forma.
+///  NAO MEDIDO: se uma string de 36 casa com BINARY(16) sem UUID_TO_BIN. Nao
+///  importa enquanto o DDL da casa emitir CHAR(n). </summary>
+function TDMLGeneratorMySQL.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 initialization
