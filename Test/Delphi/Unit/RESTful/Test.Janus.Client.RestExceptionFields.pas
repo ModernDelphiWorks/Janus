@@ -17,8 +17,9 @@
 
     Janus.Client.RestException  EJanusRESTException.Create - which argument
                                 is printed under which label
-    Janus.Client.MARS           the four raise sites of TRESTClientMARS, read
-                                back through the message the user receives
+    Janus.Client.MARS           all four raise sites of TRESTClientMARS, plus
+                                ResponseBodyOf, read back through the message
+                                the user receives
 
   WHY IT EXISTS
 
@@ -46,32 +47,43 @@
   Markers_AreAllDistinct asserts the premise first: if two markers were equal,
   a crossed pair could pass.
 
-  THE MARS SITES ARE EXERCISED, NOT SIMULATED
+  EVERY RAISE SITE IS DRIVEN, NONE IS ARGUED BY SIMILARITY
 
   Reading the constructor alone would prove the constructor and nothing about
-  the call sites. So TRESTClientMARS is pointed at a loopback port with nothing
-  listening and asked to GET, POST and DELETE. The connection is refused, MARS
-  hands the exception to the OnException handler Janus installed, and that
-  handler is the raise site under test. The verb is known ('GET'/'POST'/
-  'DELETE'), the resource and sub-resource carry their own markers, and the URL
-  is the component's own BaseURL - four values that must each land under their
-  own label.
+  the call sites. So TRESTClientMARS is really driven, once per verb - GET,
+  DELETE, PUT and POST - with the resource and sub-resource carrying their own
+  markers and the verb known from the call.
+
+  DoPUT gets its own test even though its argument list is currently identical
+  to DoDELETE's. "Identical to its sibling, so it needs no guard" is EXACTLY
+  the reasoning that let the DoPOST transposition reach production in the first
+  place, in this very file. Measured: shuffling the six String arguments of
+  DoPUT compiles with exit 0 and the suite stays green without this test.
+
+  TWO ENVIRONMENTS, BECAUSE ONE OF THEM CANNOT SEE THE MESSAGE/ERROR SWAP
+
+  The four per-verb tests point the client at a loopback port with nothing
+  listening. That covers the TRANSPORT failure path and the fallback branch of
+  ResponseBodyOf, but it cannot discriminate AMessage from AMessageError: with
+  a refused connection there is no server text at all, so 'Message : ' is
+  empty and a swap of the two would only be caught by luck.
+
+  So MARS_HttpError_BodyLandsUnderMessageAndReasonUnderError runs against a
+  live loopback stub answering 500 with a DISTINCT body marker and a DISTINCT
+  reason phrase. There the two fields carry two different named values and the
+  swap is caught BY DESIGN, not by accident of the environment. That test is
+  also what proves ResponseBodyOf reaches the body at all.
 
   WHAT THIS FIXTURE DOES NOT COVER
 
-  - TRESTClientMARS.DoPUT. Its argument list is byte-identical to DoDELETE's
-    and DoGET's; it is not separately driven here.
-  - The four sites in Janus.Client.DMVC. DelphiMVC does not compile on Studio
-    37 beyond the MVCFramework.RESTClient path, there is no Janus.Tests.RESTDMVC
-    project to host a fixture, and the DMVC error handler dereferences
-    FRESTResponse - which is nil exactly when the transport fails - so the
-    loopback trick used here would AV before reaching the raise. Those four
-    sites are covered by compilation only.
-  - 'Message : ' for MARS. At the raise site MARS has already freed the
-    response stream, so the field carries ResponseText (the HTTP reason
-    phrase), which a refused connection leaves empty. The assertions therefore
-    pin what that field must NOT be - the verb - which is exactly the swap
-    being guarded.
+  The four sites in Janus.Client.DMVC - by omission, not by impossibility.
+  There is no Janus.Tests.RESTDMVC project linking MVCFramework.RESTClient to
+  host a fixture, and building one was not attempted here. It is known to be
+  feasible: the client path compiles on Studio 37 (a throwaway harness proved
+  it while this fix was being made), and the raise site IS reachable against a
+  live server - DMVC's own Indy client swallows EIdHTTPProtocolException and
+  writes the body into the response object, so the interface is assigned and
+  the handler runs normally on an HTTP error.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
@@ -85,6 +97,10 @@ uses
   SysUtils,
   StrUtils,
   DUnitX.TestFramework,
+  IdContext,
+  IdCustomHTTPServer,
+  IdHTTPServer,
+  IdSocketHandle,
   Janus.Client,
   Janus.Client.Base,
   Janus.Client.Methods,
@@ -92,17 +108,41 @@ uses
   Janus.Client.RestException;
 
 type
+  /// <summary> Servidor minimo de emprestimo: responde QUALQUER documento com
+  ///   um erro HTTP cujo corpo e a razao sao marcadores distintos e
+  ///   nomeados. E o unico jeito de separar AMessage de AMessageError, que
+  ///   contra porta morta ficam ambos sem texto de servidor. </summary>
+  TStubErrorServer = class
+  private
+    FServer: TIdHTTPServer;
+    FPort: Integer;
+    FStatusCode: Integer;
+    FReasonPhrase: string;
+    FBody: string;
+    procedure DoCommandGet(AContext: TIdContext;
+      ARequestInfo: TIdHTTPRequestInfo; AResponseInfo: TIdHTTPResponseInfo);
+  public
+    constructor Create(const AStatusCode: Integer;
+      const AReasonPhrase, ABody: string);
+    destructor Destroy; override;
+    property Port: Integer read FPort;
+  end;
+
   [TestFixture]
   TTestRestExceptionFields = class
   private
     FClient: TRESTClientMARS;
+    FStub: TStubErrorServer;
     /// Value printed under ALabel, or a sentinel that can never be mistaken
     /// for a marker when the label is absent.
     function FieldOf(const AMessage, ALabel: String): String;
-    /// Drives one verb against the dead port and answers the message of the
-    /// EJanusRESTException that must come out of it.
+    /// Drives one verb and answers the message of the EJanusRESTException that
+    /// must come out of it.
     function CaptureRestException(
       const ARequestMethod: TRESTRequestMethodType): String;
+    /// The four values every raise site must place under its own label,
+    /// whatever the verb and whatever the failure mode.
+    procedure AssertCommonFields(const AMessage, AVerb: String);
   public
     [Setup]
     procedure Setup;
@@ -126,6 +166,11 @@ type
     [Test]
     procedure MARS_DELETE_EachValueLandsUnderItsOwnLabel;
 
+    /// TRESTClientMARS.DoPUT. Driven on its own merits, not excused as a
+    /// copy of DoDELETE - see the header.
+    [Test]
+    procedure MARS_PUT_EachValueLandsUnderItsOwnLabel;
+
     /// TRESTClientMARS.DoPOST - the site that shipped with E.Message and
     /// FRequestMethod transposed.
     [Test]
@@ -134,6 +179,11 @@ type
     /// The swap named on its own, so a regression reads as what it is.
     [Test]
     procedure MARS_POST_VerbIsNotPrintedAsTheMessage;
+
+    /// The only test that can tell AMessage from AMessageError, and the one
+    /// that proves ResponseBodyOf recovers the body from the Indy exception.
+    [Test]
+    procedure MARS_HttpError_BodyLandsUnderMessageAndReasonUnderError;
   end;
 
 implementation
@@ -156,12 +206,78 @@ const
   cERROR_MK     = 'restexc-mk-messageerror';
   cSTATUS_MK    = 599;
 
+  /// Live-stub markers. The body and the reason phrase must be TELLABLE
+  /// APART - that is the whole point of this pair.
+  cHTTP_STATUS  = 500;
+  cREASON_MK    = 'RestexcReasonPhraseMarker';
+  cBODY_MK      = 'restexc-server-body-marker';
+
   cABSENT       = '<<label-absent>>';
+
+{ TStubErrorServer }
+
+constructor TStubErrorServer.Create(const AStatusCode: Integer;
+  const AReasonPhrase, ABody: string);
+var
+  LBinding: TIdSocketHandle;
+  LFor: Integer;
+begin
+  inherited Create;
+  FStatusCode := AStatusCode;
+  FReasonPhrase := AReasonPhrase;
+  FBody := ABody;
+  FServer := TIdHTTPServer.Create(nil);
+  FServer.OnCommandGet := DoCommandGet;
+  FServer.OnCommandOther := DoCommandGet;
+  /// <summary> Procura uma porta livre em vez de fixar uma: uma porta ainda
+  ///   em TIME_WAIT de uma execucao anterior faria o bind falhar e a suite
+  ///   ficaria vermelha por motivo que nada tem a ver com o que se mede
+  ///   aqui. </summary>
+  for LFor := 0 to 39 do
+  begin
+    FPort := 9840 + LFor;
+    FServer.Bindings.Clear;
+    LBinding := FServer.Bindings.Add;
+    LBinding.IP := cDEADHOST;
+    LBinding.Port := FPort;
+    try
+      FServer.Active := True;
+      Exit;
+    except
+      on E: Exception do
+        ;
+    end;
+  end;
+  raise Exception.Create('Nenhuma porta livre para o stub HTTP de emprestimo.');
+end;
+
+destructor TStubErrorServer.Destroy;
+begin
+  if FServer.Active then
+    FServer.Active := False;
+  FServer.Free;
+  inherited;
+end;
+
+procedure TStubErrorServer.DoCommandGet(AContext: TIdContext;
+  ARequestInfo: TIdHTTPRequestInfo; AResponseInfo: TIdHTTPResponseInfo);
+begin
+  /// <summary> ResponseNo tem de vir ANTES de ResponseText: o setter de
+  ///   ResponseNo sobrescreve o texto com a razao padrao do codigo
+  ///   (IdCustomHTTPServer.pas, TIdHTTPResponseInfo.SetResponseNo). Na ordem
+  ///   trocada o marcador de razao seria descartado e o teste mediria
+  ///   'Internal Server Error'. </summary>
+  AResponseInfo.ResponseNo := FStatusCode;
+  AResponseInfo.ResponseText := FReasonPhrase;
+  AResponseInfo.ContentType := 'application/json';
+  AResponseInfo.ContentText := FBody;
+end;
 
 { TTestRestExceptionFields }
 
 procedure TTestRestExceptionFields.Setup;
 begin
+  FStub := nil;
   FClient := TRESTClientMARS.Create(nil);
   FClient.Host := cDEADHOST;
   FClient.Port := cDEADPORT;
@@ -170,6 +286,7 @@ end;
 procedure TTestRestExceptionFields.TearDown;
 begin
   FreeAndNil(FClient);
+  FreeAndNil(FStub);
 end;
 
 function TTestRestExceptionFields.FieldOf(const AMessage,
@@ -214,8 +331,26 @@ begin
       Result := E.Message;
   end;
   Assert.AreNotEqual('', Result,
-    'A chamada deveria ter levantado EJanusRESTException contra a porta morta '
-    + cDEADHOST + ':' + IntToStr(cDEADPORT) + '.');
+    'A chamada deveria ter levantado EJanusRESTException.');
+end;
+
+procedure TTestRestExceptionFields.AssertCommonFields(const AMessage,
+  AVerb: String);
+begin
+  Assert.AreEqual(FClient.BaseURL, FieldOf(AMessage, 'URL'),
+    'A URL do engine tem de sair sob URL.');
+  Assert.AreEqual(cRESOURCE, FieldOf(AMessage, 'Resource'),
+    'O recurso tem de sair sob Resource.');
+  Assert.AreEqual(cSUBRESOURCE, FieldOf(AMessage, 'SubResource'),
+    'O sub-recurso tem de sair sob SubResource.');
+  Assert.AreEqual(AVerb, FieldOf(AMessage, 'Method'),
+    'O verbo tem de sair sob Method.');
+  Assert.AreNotEqual(AVerb, FieldOf(AMessage, 'Message'),
+    'O verbo NAO pode sair sob Message.');
+  Assert.AreNotEqual(AVerb, FieldOf(AMessage, 'Error'),
+    'O verbo NAO pode sair sob Error.');
+  Assert.AreNotEqual('', FieldOf(AMessage, 'Error'),
+    'A mensagem da excecao local tem de sair sob Error.');
 end;
 
 procedure TTestRestExceptionFields.Markers_AreAllDistinct;
@@ -234,7 +369,9 @@ begin
     LSeen.Add(cMETHOD_MK);
     LSeen.Add(cMESSAGE_MK);
     LSeen.Add(cERROR_MK);
-    Assert.AreEqual(8, LSeen.Count, 'Marcadores repetidos invalidam o resto.');
+    LSeen.Add(cREASON_MK);
+    LSeen.Add(cBODY_MK);
+    Assert.AreEqual(10, LSeen.Count, 'Marcadores repetidos invalidam o resto.');
   finally
     LSeen.Free;
   end;
@@ -271,63 +408,25 @@ begin
 end;
 
 procedure TTestRestExceptionFields.MARS_GET_EachValueLandsUnderItsOwnLabel;
-var
-  LMessage: String;
 begin
-  LMessage := CaptureRestException(TRESTRequestMethodType.rtGET);
-
-  Assert.AreEqual(FClient.BaseURL, FieldOf(LMessage, 'URL'),
-    'A URL do engine tem de sair sob URL.');
-  Assert.AreEqual(cRESOURCE, FieldOf(LMessage, 'Resource'),
-    'O recurso tem de sair sob Resource.');
-  Assert.AreEqual(cSUBRESOURCE, FieldOf(LMessage, 'SubResource'),
-    'O sub-recurso tem de sair sob SubResource.');
-  Assert.AreEqual('GET', FieldOf(LMessage, 'Method'),
-    'O verbo tem de sair sob Method.');
-  Assert.AreNotEqual('GET', FieldOf(LMessage, 'Message'),
-    'O verbo NAO pode sair sob Message.');
-  Assert.AreNotEqual('GET', FieldOf(LMessage, 'Error'),
-    'O verbo NAO pode sair sob Error.');
-  Assert.AreNotEqual('', FieldOf(LMessage, 'Error'),
-    'A mensagem da excecao local tem de sair sob Error.');
+  AssertCommonFields(CaptureRestException(TRESTRequestMethodType.rtGET), 'GET');
 end;
 
 procedure TTestRestExceptionFields.MARS_DELETE_EachValueLandsUnderItsOwnLabel;
-var
-  LMessage: String;
 begin
-  LMessage := CaptureRestException(TRESTRequestMethodType.rtDELETE);
+  AssertCommonFields(CaptureRestException(TRESTRequestMethodType.rtDELETE),
+                     'DELETE');
+end;
 
-  Assert.AreEqual(FClient.BaseURL, FieldOf(LMessage, 'URL'),
-    'A URL do engine tem de sair sob URL.');
-  Assert.AreEqual(cRESOURCE, FieldOf(LMessage, 'Resource'),
-    'O recurso tem de sair sob Resource.');
-  Assert.AreEqual(cSUBRESOURCE, FieldOf(LMessage, 'SubResource'),
-    'O sub-recurso tem de sair sob SubResource.');
-  Assert.AreEqual('DELETE', FieldOf(LMessage, 'Method'),
-    'O verbo tem de sair sob Method.');
-  Assert.AreNotEqual('DELETE', FieldOf(LMessage, 'Message'),
-    'O verbo NAO pode sair sob Message.');
-  Assert.AreNotEqual('', FieldOf(LMessage, 'Error'),
-    'A mensagem da excecao local tem de sair sob Error.');
+procedure TTestRestExceptionFields.MARS_PUT_EachValueLandsUnderItsOwnLabel;
+begin
+  AssertCommonFields(CaptureRestException(TRESTRequestMethodType.rtPUT), 'PUT');
 end;
 
 procedure TTestRestExceptionFields.MARS_POST_EachValueLandsUnderItsOwnLabel;
-var
-  LMessage: String;
 begin
-  LMessage := CaptureRestException(TRESTRequestMethodType.rtPOST);
-
-  Assert.AreEqual(FClient.BaseURL, FieldOf(LMessage, 'URL'),
-    'A URL do engine tem de sair sob URL.');
-  Assert.AreEqual(cRESOURCE, FieldOf(LMessage, 'Resource'),
-    'O recurso tem de sair sob Resource.');
-  Assert.AreEqual(cSUBRESOURCE, FieldOf(LMessage, 'SubResource'),
-    'O sub-recurso tem de sair sob SubResource.');
-  Assert.AreEqual('POST', FieldOf(LMessage, 'Method'),
-    'O verbo tem de sair sob Method.');
-  Assert.AreNotEqual('', FieldOf(LMessage, 'Error'),
-    'A mensagem da excecao local tem de sair sob Error.');
+  AssertCommonFields(CaptureRestException(TRESTRequestMethodType.rtPOST),
+                     'POST');
 end;
 
 procedure TTestRestExceptionFields.MARS_POST_VerbIsNotPrintedAsTheMessage;
@@ -343,6 +442,35 @@ begin
     'O verbo saiu sob Message: AMethodType e AMessage estao trocados.');
   Assert.AreEqual('POST', FieldOf(LMessage, 'Method'),
     'O verbo tem de sair sob Method.');
+end;
+
+procedure TTestRestExceptionFields.MARS_HttpError_BodyLandsUnderMessageAndReasonUnderError;
+var
+  LMessage: String;
+begin
+  FStub := TStubErrorServer.Create(cHTTP_STATUS, cREASON_MK, cBODY_MK);
+  FClient.Port := FStub.Port;
+
+  LMessage := CaptureRestException(TRESTRequestMethodType.rtGET);
+
+  AssertCommonFields(LMessage, 'GET');
+
+  /// O par que so este ambiente consegue separar. Contra porta morta os dois
+  /// campos ficam sem texto de servidor e uma troca passaria batida.
+  Assert.AreEqual(cBODY_MK, FieldOf(LMessage, 'Message'),
+    'O CORPO da resposta tem de sair sob Message. Se sair a razao da linha ' +
+    'de status, ResponseBodyOf nao esta lendo ErrorMessage da ' +
+    'EIdHTTPProtocolException - e o corpo se perdeu.');
+  Assert.IsTrue(ContainsStr(FieldOf(LMessage, 'Error'), cREASON_MK),
+    'A razao da linha de status tem de sair sob Error, que e a mensagem da ' +
+    'excecao local. Encontrado: ' + FieldOf(LMessage, 'Error'));
+  Assert.AreNotEqual(cBODY_MK, FieldOf(LMessage, 'Error'),
+    'O corpo NAO pode sair sob Error: AMessage e AMessageError estao ' +
+    'trocados.');
+  Assert.IsFalse(ContainsStr(FieldOf(LMessage, 'Message'), cREASON_MK),
+    'E a razao NAO pode sair sob Message, pelo mesmo motivo.');
+  Assert.AreEqual(IntToStr(cHTTP_STATUS), FieldOf(LMessage, 'Status Code'),
+    'O codigo HTTP do servidor tem de sair sob Status Code.');
 end;
 
 initialization
