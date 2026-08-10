@@ -77,9 +77,10 @@ uses
   ///   (WiRL.Core.MessageBody.Default.pas:693-694); referencia-la e o que
   ///   garante o link. Ate agora so nao quebrava porque o app da aplicacao
   ///   lembrava de cita-la - o exemplo faz isso em Server.Forms.Main.pas:27 e
-  ///   Server.Resources.pas:26 - e o driver nao pode depender dessa memoria.
+  ///   Server.Resources.pas:25 - e o driver nao pode depender dessa memoria.
   ///   Vale por Janus.Server.Resource.WiRL tambem: as duas units se citam
-  ///   mutuamente na implementation, entao linkam sempre juntas.
+  ///   mutuamente na implementation (aqui na :64 e la na :76), entao linkam
+  ///   sempre juntas - medido com um .dpr que so nomeia o resource: 9/6.
   ///   Medido em harness sem a unit no .dpr: 0/0 writers/readers e HTTP 500
   ///   com a mensagem acima num GET; com ela, 9/6 e o GET chega ao recurso.
   /// </summary>
