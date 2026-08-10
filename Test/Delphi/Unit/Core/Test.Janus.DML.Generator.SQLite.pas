@@ -42,6 +42,7 @@ uses
   Janus.Command.Selecter,
   Janus.DML.Commands,
   Janus.DML.Interfaces,
+  Janus.Types.Nullable,
   Janus.DML.Generator,
   Janus.DML.Generator.SQLite,
   Janus.DML.Generator.PostgreSQL,
@@ -168,6 +169,52 @@ type
     property childs: TObjectList<TGuidOverStringChild> read Fchilds write Fchilds;
   end;
 
+  /// <summary> AN OPTIONAL GUID FOREIGN KEY - Nullable<TGUID>.
+  ///  This is the only shape that reaches the Variant-Null arm of
+  ///  TDMLGeneratorAbstract._GetGuidValue: for a Nullable<T> with HasValue
+  ///  False, GetNullableValue returns TValue.From<Variant>(Null)
+  ///  (MetaDbDiff.RTTI.Helper.pas:356-359), not a zeroed TGUID and not an
+  ///  empty TValue. A plain TGUID property can only ever be all-zeros, which
+  ///  is a DIFFERENT arm, so TCompMaster could never exercise this one - the
+  ///  arm shipped load-bearing and untested, and the whole suite stayed green
+  ///  with it deleted. Without it, an association whose optional GUID FK is
+  ///  simply not set raises the named wrong-type error instead of selecting
+  ///  zero children. </summary>
+  [Entity]
+  [Table('nguidchild', '')]
+  [PrimaryKey('ngckey', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'Primary key')]
+  TNullableGuidChild = class
+  private
+    Fngckey: Integer;
+    Fngcparent: TGUID;
+  public
+    [Column('ngckey', ftInteger)]
+    property ngckey: Integer read Fngckey write Fngckey;
+    [Column('ngcparent', ftGuid, 38)]
+    property ngcparent: TGUID read Fngcparent write Fngcparent;
+  end;
+
+  [Entity]
+  [Table('nguidmaster', '')]
+  [PrimaryKey('ngmkey', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'Primary key')]
+  TNullableGuidMaster = class
+  private
+    Fngmkey: Integer;
+    Fngmparent: Nullable<TGUID>;
+    Fchilds: TObjectList<TNullableGuidChild>;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    [Column('ngmkey', ftInteger)]
+    property ngmkey: Integer read Fngmkey write Fngmkey;
+    [Column('ngmparent', ftGuid, 38)]
+    property ngmparent: Nullable<TGUID> read Fngmparent write Fngmparent;
+    [Association(TMultiplicity.OneToMany, 'ngmparent', 'nguidchild', 'ngcparent')]
+    property childs: TObjectList<TNullableGuidChild> read Fchilds write Fchilds;
+  end;
+
   [TestFixture]
   TTestDMLGenerator = class
   private
@@ -176,6 +223,7 @@ type
     function CreateDetail: Tdetail;
     function CreateCompMaster: TCompMaster;
     function GuidSelect(const ADriver: TDriverName; const AMany: Boolean): String;
+    function NullableGuidSelect(const ASet: Boolean): String;
     function FindAssociation(AClass: TClass; const AClassNameRef: String): TAssociationMapping;
   public
     [Setup]
@@ -263,6 +311,10 @@ type
     procedure TestGuid_ADialectThatDoesNotImplementGuidLiteral_FailsLoudly;
     [Test]
     procedure TestGuid_AGuidColumnOverAStringProperty_RaisesANamedError;
+    [Test]
+    procedure TestGuid_ANullableGuidWithNoValue_BecomesTheZeroRowsGuard;
+    [Test]
+    procedure TestGuid_ANullableGuidWithAValue_ReachesTheDialectLiteral;
   end;
 
 implementation
@@ -1555,9 +1607,86 @@ begin
     'find Inserter:213-217 to learn it: message was "' + LMessage + '"');
 end;
 
+{ TNullableGuidMaster }
+
+constructor TNullableGuidMaster.Create;
+begin
+  Fchilds := TObjectList<TNullableGuidChild>.Create;
+end;
+
+destructor TNullableGuidMaster.Destroy;
+begin
+  Fchilds.Free;
+  inherited;
+end;
+
+function TTestDMLGenerator.NullableGuidSelect(const ASet: Boolean): String;
+var
+  LAssociation: TAssociationMapping;
+  LMaster: TNullableGuidMaster;
+  LSelecter: TCommandSelecter;
+begin
+  LMaster := TNullableGuidMaster.Create;
+  try
+    LMaster.ngmkey := 1;
+    if ASet then
+      LMaster.ngmparent := StringToGUID(cGUIDKEY);
+    LAssociation := FindAssociation(TNullableGuidMaster, 'TNullableGuidChild');
+    LSelecter := TCommandSelecter.Create(FConnection, dnSQLite, LMaster);
+    try
+      Result := LSelecter.GenerateSelectOneToOne(LMaster, TNullableGuidChild,
+                  LAssociation);
+    finally
+      LSelecter.Free;
+    end;
+  finally
+    LMaster.Free;
+  end;
+end;
+
+/// <summary> AN OPTIONAL GUID FK THAT WAS NEVER SET IS NOT A TYPE ERROR.
+///  This is the test the Variant-Null arm of _GetGuidValue never had. A
+///  Nullable<TGUID> with HasValue False arrives as TValue.From<Variant>(Null),
+///  and TryAsType<TGUID> REFUSES that - so without the arm the generator
+///  announces that the property is of the wrong type, on a model whose type is
+///  exactly right, for a foreign key that is simply empty. Measured, not
+///  assumed: delete the arm and this test dies with the named error in the
+///  message; the other nine GUID tests stay green, because a plain TGUID
+///  property can only ever be all-zeros and that is a different arm. </summary>
+procedure TTestDMLGenerator.TestGuid_ANullableGuidWithNoValue_BecomesTheZeroRowsGuard;
+begin
+  Assert.AreEqual(
+    'SELECT nguidchild.ngckey, nguidchild.ngcparent FROM nguidchild' +
+    ' WHERE 1 = 0',
+    NullableGuidSelect(False), False,
+    'An unset Nullable<TGUID> foreign key must select zero children, which is ' +
+    'what ''1 = 0'' means here - not raise, and not compare against the ' +
+    'all-zeros GUID. Whole string and ignoreCase False, because "it did not ' +
+    'raise" would also be satisfied by a WHERE that is quietly wrong.');
+end;
+
+/// <summary> AND THE SAME PROPERTY, WHEN IT DOES HAVE A VALUE, STILL REACHES
+///  THE DIALECT. The null arm above would also be satisfied by a generator
+///  that answered '1 = 0' for EVERY Nullable<TGUID>; this is the assertion
+///  that stops that reading. It also pins the unwrap: GetNullableValue returns
+///  the inner TGUID, not the Nullable<TGUID> record, so TryAsType succeeds and
+///  the literal comes from TDMLGeneratorSQLite.GuidLiteral like any other
+///  column. </summary>
+procedure TTestDMLGenerator.TestGuid_ANullableGuidWithAValue_ReachesTheDialectLiteral;
+begin
+  Assert.AreEqual(
+    'SELECT nguidchild.ngckey, nguidchild.ngcparent FROM nguidchild' +
+    ' WHERE nguidchild.ngcparent = ''' + cGUIDKEY + '''',
+    NullableGuidSelect(True), False,
+    'A Nullable<TGUID> that HAS a value is an ordinary GUID key and must ' +
+    'produce the ordinary canonical literal.');
+end;
+
 initialization
   TDUnitX.RegisterTestFixture(TTestDMLGenerator);
   TRegisterClass.RegisterEntity(TGuidOverStringChild);
   TRegisterClass.RegisterEntity(TGuidOverStringMaster);
+  TRegisterClass.RegisterEntity(TNullableGuidChild);
+  TRegisterClass.RegisterEntity(TNullableGuidMaster);
 
 end.

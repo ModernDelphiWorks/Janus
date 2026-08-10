@@ -650,11 +650,23 @@ var
   LValue: TValue;
 begin
   LValue := AProperty.GetNullableValue(AObject);
-  // Nullable<TGUID> sem valor chega como Variant Null
+  // Nullable<TGUID> SEM VALOR chega aqui como Variant Null
   // (MetaDbDiff.RTTI.Helper.pas:356-359). Vira GUID vazio, que o chamador
-  // converte na guarda '1 = 0'.
-  if LValue.IsEmpty then
-    Exit(TGUID.Empty);
+  // converte na guarda '1 = 0' - uma FK opcional nao preenchida nao e' erro.
+  // Sem esta linha o TryAsType abaixo falha e o codigo levanta o erro NOMEADO
+  // de tipo errado sobre uma FK legitimamente nula; e' o que a mutacao de
+  // Test.Janus.DML.Generator.SQLite prova ao matar
+  // TestGuid_ANullableGuidWithNoValue_BecomesTheZeroRowsGuard.
+  //
+  // NAO ha' guarda de LValue.IsEmpty aqui, e isso foi MEDIDO em vez de
+  // suposto. GetNullableValue so' devolve TValue vazio se um record chamado
+  // "Nullable<...>" nao tiver FHasValue ou FValue - o que Nullable<T>
+  // (Janus.Types.Nullable.pas:31-35) sempre tem. E mesmo nesse caso a guarda
+  // seria inutil: sobre um TValue vazio, IsType<Variant> devolve True,
+  // VarIsNull(AsVariant) devolve False SEM levantar, e TryAsType<TGUID>
+  // devolve True com TGUID.Empty - ou seja, a mesma resposta. Uma linha que
+  // nenhum caminho alcanca e cuja remocao nao muda resposta nenhuma e' codigo
+  // morto, e saiu.
   if LValue.IsType<Variant> and VarIsNull(LValue.AsVariant) then
     Exit(TGUID.Empty);
   // Erro NOMEADO em vez do EInvalidCast cru de AsType<TGUID>. Uma coluna
