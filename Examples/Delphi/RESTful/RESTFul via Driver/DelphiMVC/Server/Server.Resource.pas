@@ -35,8 +35,8 @@ uses
   /// Janus JSON
   Janus.Json,
   /// Janus conex�o database
-  Janus.Factory.FireDAC,
-  Janus.Factory.Interfaces,
+  DataEngine.FactoryFireDac,
+  DataEngine.FactoryInterfaces,
   /// Janus
   Janus.Container.ObjectSet,
   Janus.Container.ObjectSet.Interfaces,

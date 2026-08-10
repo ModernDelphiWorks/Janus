@@ -39,8 +39,8 @@ uses
   Janus.Model.Lookup in '..\Janus.Model.Lookup.pas',
   Janus.Model.Master in '..\Janus.Model.Master.pas',
   Server.Data.Module in 'Server.Data.Module.pas' {ServerDataModule: TDataModule},
-  Janus.Server.DMVC in '..\..\..\..\Source\RESTful Components\Server\Janus.Server.DMVC.pas',
-  Janus.Server.Resource.DMVC in '..\..\..\..\Source\RESTful Components\Server\Janus.Server.Resource.DMVC.pas';
+  Janus.Server.DMVC in '..\..\..\..\..\..\Source\RESTful\Server\Janus.Server.DMVC.pas',
+  Janus.Server.Resource.DMVC in '..\..\..\..\..\..\Source\RESTful\Server\Janus.Server.Resource.DMVC.pas';
 
 {$R *.res}
 
