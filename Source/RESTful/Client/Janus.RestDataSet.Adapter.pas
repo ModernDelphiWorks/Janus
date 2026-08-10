@@ -42,6 +42,30 @@ uses
   MetaDbDiff.mapping.exceptions,
   Janus.RestFactory.Interfaces;
 
+const
+  /// ISO-8601 para data/hora dentro do $filter, e a razao NAO e' a mesma nas
+  /// duas metades - cada uma foi medida:
+  ///  - DATA: o irmao local formata com FDateFormat, que e' campo do gerador
+  ///    de DML e tem CINCO valores distintos nos 13 dialetos - 'MM/dd/yyyy'
+  ///    no Firebird, 'dd/MM/yyyy' no MSSQL, 'yyyy-mm-dd' no NexusDB,
+  ///    'yyyy-MM-dd' no MySQL, 'DD/MM/CCYY' no ADS. Um cliente REST nao sabe
+  ///    qual banco esta do outro lado, entao copiar aquele formato e'
+  ///    impossivel daqui.
+  ///  - HORA: FTimeFormat NAO varia - e' 'HH:MM:SS' nos 13 geradores, e esse
+  ///    formato esta CORRETO (em FormatDateTime o 'M' depois de um 'H' e'
+  ///    minuto e nao mes; medido em probe). Aqui ele nao e' copiado por outro
+  ///    motivo: o valor nao vira SQL no cliente, vira literal OData na URL, e
+  ///    o idioma que ESTA familia ja fala no fio e' ISO-8601, fixado em
+  ///    TJanusJson (UseISO8601DateFormat := True). Manter as duas metades no
+  ///    mesmo idioma vale mais do que espelhar so a que por acaso e' uniforme.
+  /// OS DOIS-PONTOS VAO ENTRE ASPAS porque ':' em FormatDateTime e' o
+  /// PLACEHOLDER de TimeSeparator e sairia trocado pelo separador do locale.
+  /// Vive na interface, e nao na implementation, porque metodo de tipo
+  /// parametrizado declarado na interface nao pode usar simbolo local (E2506).
+  cISODATE     = 'yyyy-mm-dd';
+  cISODATETIME = 'yyyy-mm-dd"T"hh":"nn":"ss';
+  cISOTIME     = 'hh":"nn":"ss';
+
 type
   TRESTDataSetAdapter<M: class, constructor> = class(TDataSetBaseAdapter<M>)
   private
@@ -49,6 +73,9 @@ type
     procedure _ExecuteCheckNotNull;
     procedure _PopularDataSetChilds(const AObject: TObject);
     procedure _PopularDataSetOneToMany(const AObjectList: TObjectList<TObject>);
+    function _WhereAssociation(
+      const AOwnerObject: TDataSetBaseAdapter<M>): String;
+    function _FilterLiteral(const AField: TField): String;
   protected
     procedure PopularDataSetOneToOne(const AObject: TObject;
       const AAssociation: TAssociationMapping); virtual; abstract;
@@ -299,9 +326,203 @@ begin
   end;
 end;
 
-procedure TRESTDataSetAdapter<M>.LoadLazy(const AOwner: M);
+/// <summary> Monta o WHERE que filtra ESTE filho pela linha corrente do
+///  master, no idioma que a familia REST ja usa.
+///
+///  DE ONDE VEM CADA PONTA - medido, nao suposto. O par de listas da
+///  associacao tem dono: ColumnsName[i] e' coluna do MASTER e ColumnsNameRef[i]
+///  e' coluna do FILHO. Quem prova isso na propria familia REST e'
+///  TRESTFDMemTableAdapter<M>._FilterDataSetChilds, que alimenta MasterFields
+///  com ColumnsName e IndexFieldNames (do filho) com ColumnsNameRef. O gerador
+///  de SQL do irmao local diz o mesmo em TDMLGeneratorAbstract
+///  .GenerateSelectOneToOne: o lado esquerdo do WHERE e' ColumnsNameRef e o
+///  valor sai da coluna ColumnsName lida no owner.
+///
+///  QUAIS ASSOCIACOES ENTRAM: as mesmas que o irmao local escolhe em
+///  TSQLCommandExecutor<M>.SelectInternalAssociation - ClassNameRef igual a
+///  classe deste adapter, e associacao marcada Lazy e' PULADA. O Lazy aqui e'
+///  o 5o e ultimo parametro de [Association] (AMultiplicity, AColumnsName,
+///  ATableNameRef, AColumnsNameRef, ALazy - construtor unico, sem overload) e
+///  quer dizer "resolvido por proxy transparente de RTTI", nao "carregado sob
+///  demanda por este metodo" -
+///  TDataSetAdapter<M> diz isso com todas as letras no comentario de
+///  Janus.DataSet.Adapter.pas:262. Ou seja: pular e' o certo, e nao ha
+///  paradoxo nenhum com o nome LoadLazy.
+///
+///  AS TRES DIVERGENCIAS EM RELACAO AO SQL LOCAL - A LISTA E' COMPLETA:
+///  1) sem prefixo de tabela. O gerador local escreve `tabela.coluna` porque
+///     esta montando SQL; aqui o texto vira $filter na URL, e o servidor Janus
+///     resolve nome de coluna simples - e' o que TRESTDataSetAdapter<M>
+///     .RefreshDataSetOneToOneChilds ja manda e o que os testes de $filter do
+///     recurso REST usam.
+///  2) o valor sai do DATASET do master (FindField), nao de uma propriedade
+///     hidratada por RTTI. E' o mesmo atalho de RefreshDataSetOneToOneChilds e
+///     poupa o passo de Bind que o irmao local precisa dar antes. O QUE ESSE
+///     ATALHO CUSTA esta no item 3.
+///  3) a formatacao do valor e' feita AQUI, e nao herdada. Quem aspa no lado
+///     local e' TDMLGeneratorAbstract._GetPropertyValue
+///     (Janus.DML.Generator.pas:509-534), e ele fica no caminho da RTTI que o
+///     item 2 pulou. Sem repor isso, uma FK string sairia `col eq AB C` - erro
+///     de sintaxe com espaco, comparacao contra outra coluna sem espaco, e
+///     silenciosamente errada nos dois casos; GUID e codigo alfanumerico sao
+///     chave de primeira classe neste framework (TGeneratorType tem
+///     Guid32Inc/Guid36Inc/Guid38Inc). Entao _WhereAssociation despacha por
+///     LField.DataType com OS MESMOS GRUPOS de _GetPropertyValue, com duas
+///     diferencas declaradas:
+///       * ftGuid entra no grupo aspado. No irmao ele cai no `else` e vira
+///         string vazia, e aqui isso NEM seria absorvido pela guarda de valor
+///         nulo, porque ela le o CAMPO e o AsString de um GUID nao e' vazio -
+///         sairia `cck3 eq ` sem lado direito.
+///       * data e hora vao em ISO-8601 e nao em FDateFormat/FTimeFormat.
+///         As razoes sao DIFERENTES para cada metade e estao em cISODATE,
+///         acima: a de data e' variacao por dialeto; a de hora nao e' (o
+///         FTimeFormat e' igual nos 13 e esta correto), e' o fio ser OData.
+///     O `else` devolve o texto cru, que e' o certo para os tipos numericos.
+///     TODOS OS SETE RAMOS TEM TESTE, num unico $filter de chave composta -
+///     ver Load_ACompositeKeyJoinsWithAndAndQuotesEachTypeItsOwnWay.
+///
+///  OPERADOR COM ESPACOS, E ISSO NAO E' ESTILO. TSessionRestFul<M>
+///  ._ParseOperator troca ' = ' por ' eq ' com os espacos DENTRO do padrao;
+///  sem eles nada e' trocado. O servidor Janus ate aceita o texto sem
+///  traducao, porque _EmitSQL so mapeia word token e deixa o resto passar,
+///  mas ai o que sai nao e' OData e quebra em servidor estrito. Por isso
+///  ' = ' e nunca '='.
+///
+///  GUARD DE VALOR NULO: '1 = 0', o mesmo do gerador local, que vira '1 eq 0'
+///  na URL e casa zero linhas - em vez de um `coluna = ` sem lado direito.
+/// </summary>
+function TRESTDataSetAdapter<M>._WhereAssociation(
+  const AOwnerObject: TDataSetBaseAdapter<M>): String;
+var
+  LAssociations: TAssociationMappingList;
+  LAssociation: TAssociationMapping;
+  LField: TField;
+  LFor: Integer;
 begin
+  Result := '';
+  if AOwnerObject = nil then
+    Exit;
+  LAssociations := TMappingExplorer
+                     .GetMappingAssociation(AOwnerObject.FCurrentInternal.ClassType);
+  if LAssociations = nil then
+    Exit;
+  for LAssociation in LAssociations do
+  begin
+    if LAssociation.ClassNameRef <> FCurrentInternal.ClassName then
+      Continue;
+    if LAssociation.Lazy then
+      Continue;
+    Result := '';
+    for LFor := 0 to LAssociation.ColumnsNameRef.Count -1 do
+    begin
+      if LFor > 0 then
+        Result := Result + ' AND ';
+      LField := nil;
+      if LFor < LAssociation.ColumnsName.Count then
+        LField := AOwnerObject.FOrmDataSet
+                    .FindField(LAssociation.ColumnsName[LFor]);
+      if (LField = nil) or LField.IsNull or (LField.AsString = '') then
+        Result := Result + '1 = 0'
+      else
+        Result := Result + LAssociation.ColumnsNameRef[LFor] + ' = ' +
+                           _FilterLiteral(LField);
+    end;
+  end;
+end;
 
+/// <summary> O valor de UMA coluna do master, ja no formato em que pode entrar
+///  no $filter. Os grupos sao os de TDMLGeneratorAbstract._GetPropertyValue -
+///  ver a lista de divergencias em _WhereAssociation, item 3, que explica por
+///  que este passo precisa existir deste lado e o que ele muda de proposito.
+///  QuotedStr, e nao aspas na mao, porque ele tambem DOBRA a aspa de dentro do
+///  valor: um master chamado O'Brien sai `'O''Brien'` e nao termina a string
+///  no meio. </summary>
+function TRESTDataSetAdapter<M>._FilterLiteral(const AField: TField): String;
+begin
+  case AField.DataType of
+    ftString, ftWideString, ftMemo, ftWideMemo, ftFmtMemo, ftGuid:
+      Result := QuotedStr(AField.AsString);
+    ftDateTime, ftDate:
+      Result := QuotedStr(FormatDateTime(ifThen(AField.DataType = ftDate,
+                            cISODATE, cISODATETIME), AField.AsDateTime));
+    ftTime, ftTimeStamp, ftOraTimeStamp:
+      Result := QuotedStr(FormatDateTime(cISOTIME, AField.AsDateTime));
+    ftCurrency, ftBCD, ftFMTBcd, ftFloat:
+      Result := ReplaceStr(AField.AsString, ',', '.');
+  else
+    Result := AField.AsString;
+  end;
+end;
+
+/// <summary> O LAZY DA FAMILIA REST, OS DOIS RAMOS.
+///
+///  Este corpo estava VAZIO: pedir carga e pedir descarga davam exatamente o
+///  mesmo resultado - nada, e sem aviso. Issue #251.
+///
+///  OS DOIS ADAPTERS SAO IRMAOS, nao primos distantes: TRESTDataSetAdapter<M>
+///  e TDataSetAdapter<M> descendem os dois de TDataSetBaseAdapter<M>, e tudo
+///  que o LoadLazy local usa - SetMasterObject, FOwnerMasterObject,
+///  FCurrentInternal, Close - esta identico deste lado. Por isso a ESTRUTURA
+///  aqui e' a do irmao, guarda por guarda.
+///
+///  O QUE MUDA E' SO O PONTO DE ENTRADA DA CARGA. O irmao local monta SQL com
+///  FSession.SelectAssociation e entrega a OpenSQLInternal. Nenhum dos dois
+///  serve aqui: TSessionRestFul<M> nao sobrescreve SelectAssociation (herda a
+///  de TSessionAbstract<M>, que devolve string vazia) e o OpenSQLInternal dos
+///  adapters REST nem le o ASQL que recebe - chama FSession.Find, o recurso
+///  inteiro. O ponto de entrada IRMAO resolve: OpenWhereInternal e' declarado
+///  virtual abstract no MESMO ancestral que OpenSQLInternal, os dois adapters
+///  REST o sobrescrevem HONRANDO o AWhere, e ele desce em FSession.FindWhere,
+///  que emite GET recurso?$filter=... Ou seja: filtro de verdade, e nao a
+///  tabela filha inteira.
+///
+///  A FLAG DE "JA CARREGADO" E' `FOrmDataSet.Active`, COPIADA DO IRMAO LOCAL.
+///  O #248 mostrou que essa flag mente enquanto o dataset nunca fecha, e a
+///  resposta la foi fazer Close fechar de verdade, mantendo a flag. A pergunta
+///  e' a MESMA nas duas familias; responder diferente so aqui seria inventar.
+///
+///  O RAMO DE DESCARGA nao precisa de SQL nenhum: SetMasterObject(nil) desfaz
+///  o registro no master e Close fecha o dataset, ambos em
+///  TDataSetBaseAdapter<M>.
+///
+///  O QUE ESTE LOAD NAO FAZ: nao aplica o [OrderBy] da entidade. O gerador
+///  local anexa ORDER BY ao SELECT; aqui isso seria o segundo argumento de
+///  OpenWhereInternal ($orderby) e nenhum caminho da familia REST o monta
+///  hoje, entao nao foi inventado um.
+///
+///  OpenDataSetChilds, logo acima, continua com corpo vazio. E' lacuna irma e
+///  NAO faz parte da #251. </summary>
+procedure TRESTDataSetAdapter<M>.LoadLazy(const AOwner: M);
+var
+  LOwnerObject: TDataSetBaseAdapter<M>;
+  LWhere: String;
+begin
+  if AOwner <> nil then
+  begin
+    if FOwnerMasterObject <> nil then
+      Exit;
+    if FOrmDataSet.Active then
+      Exit;
+
+    SetMasterObject(AOwner);
+    LOwnerObject := TDataSetBaseAdapter<M>(FOwnerMasterObject);
+    if LOwnerObject <> nil then
+    begin
+      LWhere := _WhereAssociation(LOwnerObject);
+      if Length(LWhere) > 0 then
+        OpenWhereInternal(LWhere);
+    end;
+  end
+  else
+  begin
+    if FOwnerMasterObject = nil then
+      Exit;
+    if not TDataSetBaseAdapter<M>(FOwnerMasterObject).FOrmDataSet.Active then
+      Exit;
+
+    SetMasterObject(nil);
+    Close;
+  end;
 end;
 
 procedure TRESTDataSetAdapter<M>.NextPacket;
