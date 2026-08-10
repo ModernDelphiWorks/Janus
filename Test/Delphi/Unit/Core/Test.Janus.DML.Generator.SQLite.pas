@@ -1321,6 +1321,13 @@ end;
 ///  memcmp, i.e. case-SENSITIVE (https://www.sqlite.org/datatype3.html). A
 ///  lowercased assertion would go green against a literal that matches nothing.
 ///
+///  HENCE THE THIRD ARGUMENT, False, AND IT IS NOT DECORATION. Assert.AreEqual
+///  for strings takes an ignoreCase parameter and DEFAULTS IT TO True.
+///  Measured, not read: with the default in place, the mutation that
+///  lowercases the emitted literal SURVIVED all four assertions - the fixture
+///  claimed a character-by-character comparison in its own comment and was not
+///  making one. With False it dies.
+///
 ///  SEVEN TERMS, BECAUSE ONE WOULD PROVE ALMOST NOTHING. With a single column
 ///  the ' AND ' separator is never written, so ' OR ' would look identical;
 ///  and with both ends spelled the same, ColumnsNameRef could be read as
@@ -1338,7 +1345,7 @@ var
 begin
   LSQL := GuidSelect(dnSQLite, False);
 
-  Assert.AreEqual(cSELECTCOMPCHILD + cWHERESQLITE, LSQL,
+  Assert.AreEqual(cSELECTCOMPCHILD + cWHERESQLITE, LSQL, False,
     'The ftGuid term is the whole issue: before #284 ftGuid had no branch in ' +
     '_GetPropertyValue, fell into the else (Janus.DML.Generator.pas:536-537), ' +
     'became '''' and the null-FK guard (:172-173) wrote ''1 = 0'' - a master ' +
@@ -1365,7 +1372,7 @@ var
 begin
   LSQL := GuidSelect(dnSQLite, True);
 
-  Assert.AreEqual(cSELECTCOMPCHILD + cWHERESQLITE, LSQL,
+  Assert.AreEqual(cSELECTCOMPCHILD + cWHERESQLITE, LSQL, False,
     'GenerateSelectOneToOneMany carries its own copy of the guard (:235-236) ' +
     'and its own call to _GetPropertyValue (:211). The issue names only the ' +
     'OneToOne sibling; the defect was in both.');
@@ -1397,7 +1404,7 @@ var
 begin
   LSQL := GuidSelect(dnPostgreSQL, False);
 
-  Assert.AreEqual(cSELECTCOMPCHILD + cWHEREPOSTGRES, LSQL,
+  Assert.AreEqual(cSELECTCOMPCHILD + cWHEREPOSTGRES, LSQL, False,
     'TDMLGeneratorPostgreSQL.GuidLiteral is the one consulted here. Mutate ' +
     'it and this test dies while the SQLite twin stays green - that, and not ' +
     'a difference in the text, is what makes the dispatch per-dialect.');
@@ -1412,7 +1419,7 @@ var
 begin
   LSQL := GuidSelect(dnPostgreSQL, True);
 
-  Assert.AreEqual(cSELECTCOMPCHILD + cWHEREPOSTGRES, LSQL,
+  Assert.AreEqual(cSELECTCOMPCHILD + cWHEREPOSTGRES, LSQL, False,
     'The second method on the second dialect. Four cells, because the two ' +
     'axes are independent: a fix applied to one method or wired into one ' +
     'generator would leave three of them red.');

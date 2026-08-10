@@ -1023,6 +1023,12 @@ begin
     ' AND cck4 eq ''2026-08-10'' AND cck5 eq 1234.56' +
     ' AND cck6 eq ''2026-08-10T14:07:53'' AND cck7 eq ''14:07:53''',
     FServer.LastFilter,
+    /// ignoreCase = False, added by #284. Assert.AreEqual for strings defaults
+    /// it to True, and this assertion contains a GUID: with the default, the
+    /// hex digits could arrive in any case and the test would still be green,
+    /// which is exactly the half of the proof the sibling fixture had to add.
+    /// Twin of a defect being fixed, fixed with it.
+    False,
     'ONE ORDERED STRING, EVERY BRANCH OF THE VALUE FORMATTING. The separator ' +
     'between terms is '' AND '': with a single column it is never written at ' +
     'all, so '' OR '' would look identical and select the wrong rows the ' +
