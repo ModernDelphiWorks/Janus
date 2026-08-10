@@ -76,12 +76,53 @@
   same technique Test.Janus.AutoInc.Childs.NoPendingLeafRow_TheProbeRecordsNo
   WriteAtAll relies on.
 
+  THE MUTATION LOG, AND THE THREE THAT SURVIVE
+
+  Every line below was applied to the fix, built and run. The suite is
+  Janus.Tests.Units, 533 tests, 0 failures unmutated.
+
+    * REMOVING THE GUARD from SetAutoIncValueChilds reddens
+      Local_TheGrandchildKeyIsNeverWrittenWithTheMidPlaceholder and
+      Rest_TheGrandchildKeepsItsOwnValueInsteadOfTheMidPlaceholder - those two,
+      and nothing else in the suite.
+
+    * MAKING _AutoIncKeyIsGenerated ALWAYS REFUSE reddens 27, including
+      Local_AMidRowThatAlreadyCarriesItsKey_StillStampsTheGrandchild and the
+      whole Test.Janus.AutoInc.Childs recursion group. That is the over-broad
+      reading of #262 - "do not recurse over pending rows" - and this is its
+      price in one number.
+
+    * REMOVING `if not LPrimaryKey.AutoIncrement` reddens
+      NotIncKey_MinusOneIsAnOrdinaryKeyAndIsStillPropagated alone.
+
+    * REMOVING THE GUARD **AND** weakening this file's local clause to a
+      row-only reading - "the grandchild ends on its parent's key" instead of
+      "the placeholder was never written" - leaves the LOCAL test GREEN over the
+      live defect, and only the REST test red. That is the measurement that
+      earns the TField.OnChange form, and it is also the proof that the two
+      family tests are not each other's copy: they see different things.
+
+    * SURVIVING, and declared rather than hidden: removing
+      `if not (LField.DataType in cINTEGERKINDS)` changes nothing here. No
+      entity in this test tree has a non-integral autoinc primary key, so
+      nothing reaches the branch. The shape that would - an ftGuid key under
+      CascadeAutoInc - is contradictory by construction, and is where issue #284
+      lives; NOT MEASURED.
+
+    * SURVIVING, likewise declared: removing
+      `if LPrimaryKey.Columns.IndexOf(AAssociation.ColumnsName[LFor]) < 0`
+      changes nothing here. Every association in this tree names the declaring
+      entity's own primary key - Test.Janus.Model.AsymKey records that as eight
+      of eight across the models Janus.Tests.Units compiles - so no association
+      reaches the branch. An association propagating a NON-key column that reads
+      -1 is NOT MEASURED.
+
   WHAT IS NOT MEASURED HERE
 
   No live database and no live REST server: the generator is TTreeConnection and
   the server is TSeqRestConnection, both from Test.Janus.AutoInc.Distribution.
   The ClientDataSet and RESTClientDataSet families are not driven. Four levels
-  are not driven. A non-autoinc intermediate key is not driven.
+  are not driven.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
@@ -107,6 +148,7 @@ uses
   Janus.RestDataSet.FDMemTable,
   Janus.RestFactory.Interfaces,
   Test.Janus.Model.AutoIncTree,
+  Test.Janus.Model.NotIncKey,
   Test.Janus.AutoInc.Distribution;
 
 type
@@ -152,6 +194,12 @@ type
     /// a blanket "do not recurse over pending rows" would redden this alone.
     [Test]
     procedure Local_AMidRowThatAlreadyCarriesItsKey_StillStampsTheGrandchild;
+
+    /// The third side, and the one that says WHERE the placeholder reading is
+    /// allowed to apply at all: on a key declared NotInc no placeholder is ever
+    /// written, so -1 there is an ordinary value and must still travel.
+    [Test]
+    procedure NotIncKey_MinusOneIsAnOrdinaryKeyAndIsStillPropagated;
   end;
 
 implementation
@@ -397,6 +445,56 @@ begin
     'level 3 must receive the middle level own key: the guard is on the ' +
     'VALUE of the key, not on the pending state of the row, and a middle row ' +
     'whose key already exists must still stamp its grandchildren');
+end;
+
+procedure TTestAutoIncUngeneratedKey.
+  NotIncKey_MinusOneIsAnOrdinaryKeyAndIsStillPropagated;
+var
+  LRootTable: TFDMemTable;
+  LChildTable: TFDMemTable;
+  LRoot: TFDMemTableAdapter<TNikRoot>;
+  LChild: TFDMemTableAdapter<TNikChild>;
+begin
+  // The one entity family in the tree whose primary key is TAutoIncType.NotInc.
+  // TBind.SetInternalInitFieldDefsObjectClass writes the placeholder
+  // DefaultExpression ONLY for an autoinc key, so -1 here was typed by whoever
+  // owns the row and is a key like any other.
+  LRootTable := TFDMemTable.Create(nil);
+  LChildTable := TFDMemTable.Create(nil);
+  try
+    LRoot := TFDMemTableAdapter<TNikRoot>.Create(FConn, LRootTable, -1, nil);
+    LChild := TFDMemTableAdapter<TNikChild>.Create(FConn, LChildTable, -1,
+                LRoot);
+    try
+      LRootTable.Append;
+      LRootTable.FieldByName('nik_id').AsInteger := cPLACEHOLDER;
+      LRootTable.FieldByName(cTAG).AsString := 'R1';
+      LRootTable.Post;
+      LChildTable.Append;
+      LChildTable.FieldByName('child_id').AsInteger := 1;
+      LChildTable.FieldByName('nik_id').AsInteger := cLEAFSEED;
+      LChildTable.FieldByName(cTAG).AsString := 'C1';
+      LChildTable.Post;
+
+      Assert.AreEqual(cPLACEHOLDER, FirstRowValue(LRootTable, 'nik_id'),
+        'PREMISE: the master must really be sitting on -1');
+      Assert.AreEqual(cLEAFSEED, FirstRowValue(LChildTable, 'nik_id'),
+        'PREMISE: the child must start on the sentinel');
+
+      TCascadeAccess<TNikRoot>.Propagate(LRoot);
+
+      Assert.AreEqual(cPLACEHOLDER, FirstRowValue(LChildTable, 'nik_id'),
+        'a -1 on a NotInc key is an ordinary value and must still be ' +
+        'propagated: the placeholder reading belongs to autoinc keys alone, ' +
+        'and reading it here would refuse a key the consumer typed');
+    finally
+      LChild.Free;
+      LRoot.Free;
+    end;
+  finally
+    LChildTable.Free;
+    LRootTable.Free;
+  end;
 end;
 
 initialization

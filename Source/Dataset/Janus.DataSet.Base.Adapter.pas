@@ -1773,7 +1773,15 @@ end;
 ///  ainda e o ApplyInternal do proprio nivel filho reescreve depois - mas
 ///  SetAutoIncValueChilds roda uma vez por master pendente, de modo que com P
 ///  masters, N filhos e M netos o ciclo Edit/Post do nivel 3 saia de O(N*M)
-///  para O(P*N*M). Filtrar aqui e mais barato E mais preciso. </summary>
+///  para O(P*N*M). Filtrar aqui e mais barato E mais preciso.
+///  O QUE ESTE METODO NAO DECIDE SOZINHO - issue #262. Entrar na recursao sobre
+///  uma linha nao quer dizer que alguma coisa sera escrita a partir dela:
+///  SetAutoIncValueChilds recusa a associacao cuja chave ainda e o placeholder
+///  de AutoInc, que e o estado de toda linha pendente que nao passou pelo
+///  proprio ApplyInserter. A caminhada continua a mesma; quem decide o que se
+///  propaga e _AutoIncKeyIsGenerated, e decide por VALOR de chave e nao por
+///  estado da linha - por estado, esta caminhada inteira ficaria sem
+///  proposito. </summary>
 procedure TDataSetBaseAdapter<M>._RecurseOverChildRows(
   const AChildAdapter: TDataSetBaseAdapter<M>;
   const AMasterToken: Integer);

@@ -110,8 +110,8 @@ const
   ///  is a position in the view and moves when the first pending row leaves the
   ///  filter; and capturing the child set before the key swap cannot work
   ///  because TBind.SetInternalInitFieldDefsObjectClass gives every autoinc
-  ///  primary key DefaultExpression '-1', so every pending row of every level
-  ///  sits on -1 at the same instant.
+  ///  primary key cAutoIncNotGenerated as DefaultExpression, so every pending
+  ///  row of every level sits on that same value at the same instant.
   ///
   ///  IT IS CREATED LAST ON PURPOSE - after the mapped columns, after the
   ///  internal state column that is then moved to index 0, and after the

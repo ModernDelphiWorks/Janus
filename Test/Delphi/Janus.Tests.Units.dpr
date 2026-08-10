@@ -42,6 +42,7 @@ uses
   MetaDbDiff.Mapping.Register,
   Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
   Test.Janus.Model.AutoIncTree in 'Common\Test.Janus.Model.AutoIncTree.pas',
+  Test.Janus.Model.NotIncKey in 'Common\Test.Janus.Model.NotIncKey.pas',
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
   /// The composite association whose seven columns are seven different types -
   /// the only model in the repo with a ftGuid column next to siblings. Issue
