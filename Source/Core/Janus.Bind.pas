@@ -633,8 +633,12 @@ begin
   begin
     if LPrimaryKey.AutoIncrement then
     begin
+      // The literal used to be spelled here and read, unnamed, three units
+      // away. cAutoIncNotGenerated is that value under a name - see the note on
+      // it in Janus.DataSet.Fields.
       for LFor := 0 to LPrimaryKey.Columns.Count -1 do
-        ADataSet.FieldByName(LPrimaryKey.Columns[LFor]).DefaultExpression := '-1';
+        ADataSet.FieldByName(LPrimaryKey.Columns[LFor]).DefaultExpression :=
+          IntToStr(cAutoIncNotGenerated);
     end;
   end;
   // TField para controle interno ao Dataset
