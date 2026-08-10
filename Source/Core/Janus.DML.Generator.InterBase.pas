@@ -66,7 +66,7 @@ end;
 ///  LangRef.pdf), e ausencia em busca nao e' prova. Nao herda do Firebird por
 ///  parentesco historico: enquanto a doc nao for lida, a afirmacao "e' igual ao
 ///  Firebird" seria invencao.
-///  O que ESTA medido e' o lado desta casa: MetaDbDiff.Metadata.Extract.pas:432
+///  O que ESTA medido e' o lado desta casa: MetaDbDiff.Metadata.Extract.pas:442
 ///  emite CHAR(n) para dnInterbase, ou seja a coluna guarda o texto de 38 que o
 ///  INSERT gravou. Por isso o literal conservador - a mesma forma canonica dos
 ///  demais - e' o certo aqui por construcao, independente do que a doc do

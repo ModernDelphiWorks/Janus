@@ -185,7 +185,7 @@ end;
 ///  o caminho documentado e' RAW(16) com SYS_GUID()
 ///  (https://docs.oracle.com/en/database/oracle/oracle-database/21/odpnt/featGUID.html).
 ///  O DDL desta casa emite NCHAR2(n) para dnOracle
-///  (MetaDbDiff.Metadata.Extract.pas:434), ou seja coluna de TEXTO, e a forma
+///  (MetaDbDiff.Metadata.Extract.pas:444), ou seja coluna de TEXTO, e a forma
 ///  canonica e' a que casa.
 ///  RESSALVA MEDIDA, e ela e' real: MetaDbDiff.Metadata.Oracle.pas:103-104
 ///  mapeia 'RAW' e 'LONG RAW' de volta para ftGuid. Contra uma coluna RAW(16)

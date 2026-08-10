@@ -300,7 +300,7 @@ end;
 
 /// <summary> INALCANCAVEL NESTA FAMILIA, e concreto so' porque a classe precisa
 ///  ser instanciavel. TDMLGeneratorNoSQL sobrescreve GenerateSelectOneToOne e
-///  GenerateSelectOneToOneMany para devolver '' (:84-94 desta unidade), entao
+///  GenerateSelectOneToOneMany para devolver '' (:87-97 desta unidade), entao
 ///  _GetPropertyValue - e com ele o ramo ftGuid - nunca e' chamado por este
 ///  caminho. TDMLGeneratorMongoDB herda as duas sobrescritas e por isso NAO
 ///  redeclara este metodo: dar-lhe um literal SQL seria inventar comportamento

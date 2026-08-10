@@ -349,7 +349,7 @@ const
   /// to a dot, DateTime through FDateFormat too and Time through FTimeFormat.
   /// MEASURED AND NOT FIXED HERE: the cck6 term is ftDateTime and comes out as
   /// '2026-08-10' - the TIME IS DROPPED, because the ftDateTime branch shares
-  /// FDateFormat with ftDate (Janus.DML.Generator.pas:518-520). That is a
+  /// FDateFormat with ftDate (Janus.DML.Generator.pas:612-615). That is a
   /// pre-existing defect of a different branch, it is pinned here instead of
   /// being hidden by a substring assertion, and it is not what #284 is about.
   cWHEREGUIDKEY =
@@ -1354,7 +1354,7 @@ begin
   // TWO GLOBALS ARE PINNED, AND FOR OPPOSITE REASONS.
   //   DecimalSeparator ',' - the Currency term goes through the global
   //     FormatSettings, and on a machine that already dots the number the
-  //     ReplaceStr in _GetPropertyValue (Janus.DML.Generator.pas:526-527)
+  //     ReplaceStr in _GetPropertyValue (Janus.DML.Generator.pas:623)
   //     does nothing, so deleting it would survive.
   //   TimeSeparator ':'    - ':' inside a FormatDateTime pattern is the
   //     PLACEHOLDER for this setting, not a literal colon. Pinning it is what
@@ -1419,22 +1419,22 @@ begin
 
   Assert.AreEqual(cSELECTCOMPCHILD + cWHERESQLITE, LSQL, False,
     'The ftGuid term is the whole issue: before #284 ftGuid had no branch in ' +
-    '_GetPropertyValue, fell into the else (Janus.DML.Generator.pas:536-537), ' +
-    'became '''' and the null-FK guard (:172-173) wrote ''1 = 0'' - a master ' +
+    '_GetPropertyValue, fell into the else (Janus.DML.Generator.pas:649-650), ' +
+    'became '''' and the null-FK guard (:254-255) wrote ''1 = 0'' - a master ' +
     'WITH children returning none, in silence.');
 
   Assert.IsFalse(ContainsText(LSQL, '1 = 0'),
     'Explicit negative anchor. A test that only counted rows would go green ' +
     'against ''1 = 0'' whenever the scenario has zero children for some other ' +
     'reason; the equality above already pins the WHERE, but this names the ' +
-    'defect - Janus.DML.Generator.pas:172-173 - so a future reader knows what ' +
+    'defect - Janus.DML.Generator.pas:254-255 - so a future reader knows what ' +
     'this fixture is holding down.');
 end;
 
 /// <summary> THE TWIN METHOD, WHICH THE ISSUE DOES NOT EVEN MENTION.
-///  GenerateSelectOneToOneMany (Janus.DML.Generator.pas:199-261) is a DIFFERENT
-///  method with its OWN copy of the call (:211) and its OWN copy of the guard
-///  (:235-236). Covering only GenerateSelectOneToOne would leave half of the
+///  GenerateSelectOneToOneMany (Janus.DML.Generator.pas:281-343) is a DIFFERENT
+///  method with its OWN copy of the call (:293) and its OWN copy of the guard
+///  (:317-318). Covering only GenerateSelectOneToOne would leave half of the
 ///  defect with no test, and deleting the ftGuid branch would still be caught
 ///  - by the other test, not by this one. Hence a second full assertion rather
 ///  than a shared one. </summary>
@@ -1445,8 +1445,8 @@ begin
   LSQL := GuidSelect(dnSQLite, True);
 
   Assert.AreEqual(cSELECTCOMPCHILD + cWHERESQLITE, LSQL, False,
-    'GenerateSelectOneToOneMany carries its own copy of the guard (:235-236) ' +
-    'and its own call to _GetPropertyValue (:211). The issue names only the ' +
+    'GenerateSelectOneToOneMany carries its own copy of the guard (:317-318) ' +
+    'and its own call to _GetPropertyValue (:293). The issue names only the ' +
     'OneToOne sibling; the defect was in both.');
 
   Assert.IsFalse(ContainsText(LSQL, '1 = 0'),
@@ -1504,7 +1504,7 @@ end;
 ///  '1 = 0' is not the defect - it is the correct answer for an association
 ///  whose foreign key is not set. The defect was reaching it with a key that
 ///  WAS set. An unset TGUID key is TGUID.Empty, and the ftGuid branch maps it
-///  back to '' on purpose so the existing guard (:172-173) keeps its meaning;
+///  back to '' on purpose so the existing guard (:254-255) keeps its meaning;
 ///  emitting the all-zeros literal would also match zero rows, but by accident
 ///  instead of by contract. Without this test, deleting the TGUID.Empty check
 ///  would survive every other assertion in this file. </summary>

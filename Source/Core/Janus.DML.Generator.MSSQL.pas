@@ -208,7 +208,7 @@ end;
 
 /// <summary> O SQL Server TEM tipo nativo `uniqueidentifier`, mas O DDL DESTA
 ///  CASA NAO O CRIA: dnMSSQL cai no `else` de
-///  MetaDbDiff.Metadata.Extract.pas:435, que emite 'GUID'. A comparacao aqui
+///  MetaDbDiff.Metadata.Extract.pas:445, que emite 'GUID'. A comparacao aqui
 ///  e' texto contra texto e a forma canonica e' a que casa.
 ///  DUAS ARMADILHAS DOCUMENTADAS, que so' mordem se a coluna FOR mesmo
 ///  `uniqueidentifier` num schema alheio:

@@ -361,7 +361,7 @@ end;
 ///     ATALHO CUSTA esta no item 3.
 ///  3) a formatacao do valor e' feita AQUI, e nao herdada. Quem aspa no lado
 ///     local e' TDMLGeneratorAbstract._GetPropertyValue
-///     (Janus.DML.Generator.pas:536-563), e ele fica no caminho da RTTI que o
+///     (Janus.DML.Generator.pas:598-652), e ele fica no caminho da RTTI que o
 ///     item 2 pulou. Sem repor isso, uma FK string sairia `col eq AB C` - erro
 ///     de sintaxe com espaco, comparacao contra outra coluna sem espaco, e
 ///     silenciosamente errada nos dois casos; GUID e codigo alfanumerico sao

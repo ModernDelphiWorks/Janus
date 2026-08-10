@@ -185,7 +185,7 @@ end;
 ///  (https://www.firebirdsql.org/refdocs/langrefupd25-intfunc-uuid_to_char.html),
 ///  e CHAR_TO_UUID() aceita hex em caixa mista.
 ///  O DDL desta casa emite CHAR(n) para dnFirebird
-///  (MetaDbDiff.Metadata.Extract.pas:432) e guarda o texto de 38 que o INSERT
+///  (MetaDbDiff.Metadata.Extract.pas:441) e guarda o texto de 38 que o INSERT
 ///  gravou - texto contra texto, sensivel a caixa, forma canonica.
 ///  DUAS RESSALVAS MEDIDAS:
 ///    * com IOptions.StoreGUIDAsOctet ligada, o DDL vira CHAR(n) CHARACTER SET

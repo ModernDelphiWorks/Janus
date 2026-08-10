@@ -169,7 +169,7 @@ end;
 ///  documentado e' BINARY(16) via UUID_TO_BIN() ou CHAR(36)
 ///  (https://dev.mysql.com/doc/refman/8.0/en/miscellaneous-functions.html).
 ///  O DDL desta casa emite CHAR(n) para dnMySQL
-///  (MetaDbDiff.Metadata.Extract.pas:433), entao e' o ramo CHAR, comparacao de
+///  (MetaDbDiff.Metadata.Extract.pas:443), entao e' o ramo CHAR, comparacao de
 ///  texto, e a forma canonica e' a que casa.
 ///  A CAIXA NAO E' PROBLEMA AQUI, e pela razao oposta a do SQLite: CHAR compara
 ///  INSENSIVEL a caixa no collation padrao utf8mb4_0900_ai_ci

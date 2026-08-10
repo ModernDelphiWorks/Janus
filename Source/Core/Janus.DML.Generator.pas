@@ -98,8 +98,8 @@ type
     ///  ABSTRACT DE PROPOSITO, e essa e' a decisao de desenho da issue #284.
     ///  O defeito que este metodo conserta E' UM SILENCIO: ftGuid nao tinha
     ///  ramo em _GetPropertyValue, caia no `else`, virava '' e a guarda de
-    ///  GenerateSelectOneToOne (:172-173) e de GenerateSelectOneToOneMany
-    ///  (:235-236) emitia '1 = 0' - um master COM filhos no banco devolvendo
+    ///  GenerateSelectOneToOne (:254-255) e de GenerateSelectOneToOneMany
+    ///  (:317-318) emitia '1 = 0' - um master COM filhos no banco devolvendo
     ///  NENHUM, sem excecao, sem log e sem SQL malformado.
     ///
     ///  Por que nao um campo FGuidFormat no molde do FDateFormat/FTimeFormat:
@@ -148,8 +148,10 @@ type
     ///  (Firebird CHAR(16) CHARACTER SET OCTETS, que exige CHAR_TO_UUID(...)
     ///  ou x'...' e NAO string aspada) - o compilador exige que aquele dialeto
     ///  RESPONDA, em vez de herdar em silencio o literal de outro banco.
-    ///  A leitura de StoreGUIDAsOctet NAO esta implementada aqui: e' outro
-    ///  eixo, mede-se contra banco vivo e nao entrou nesta issue.
+    ///  O SUPORTE a StoreGUIDAsOctet nao esta implementado: e' outro eixo e
+    ///  mede-se contra banco vivo. Mas ele tambem nao passa em silencio - ver
+    ///  _GuardStoreGUIDAsOctet, que levanta erro nomeado quando a opcao esta
+    ///  ligada, em vez de emitir um literal de texto contra coluna binaria.
     /// </summary>
     function CanonicalGuidLiteral(const AGuid: TGUID): String;
   public
@@ -631,9 +633,9 @@ begin
        begin
          LGuid := _GetGuidValue(AObject, AProperty);
          // FK GUID nao preenchida: o TGUID chega zerado (ou Nullable sem
-         // valor, ver _GetGuidValue). Devolver '' faz a guarda de :172-173 e
-         // :235-236 emitir '1 = 0' - o mesmo contrato de FK nula que o irmao
-         // REST ja pratica em Janus.RestDataSet.Adapter.pas:424-425. Emitir
+         // valor, ver _GetGuidValue). Devolver '' faz a guarda de :254-255 e
+         // :317-318 emitir '1 = 0' - o mesmo contrato de FK nula que o irmao
+         // REST ja pratica em Janus.RestDataSet.Adapter.pas:439-440. Emitir
          // o literal do GUID zerado tambem casaria zero linhas, mas por
          // acidente e nao por contrato.
          if LGuid = TGUID.Empty then
