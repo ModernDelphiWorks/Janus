@@ -132,12 +132,15 @@ uses
   /// <summary> Obrigatoria: o caminho generico do cliente WiRL
   ///   (TWiRLClientCustomResource.GenericHttpRequest -> ObjectToStream ->
   ///   Application.WriterRegistry.FindWriter, WiRL.Client.CustomResource.pas:
-  ///   417-433 e 465-481) passa por MessageBodyWriter em TODA requisicao,
+  ///   466-514 e 417-433) passa por MessageBodyWriter em TODA requisicao,
   ///   GET inclusive. Sem esta unit linkada o registro fica vazio e o WiRL
   ///   levanta EWiRLServerException 'MessageBodyWriters registry is empty'
-  ///   (WiRL.Core.MessageBodyWriter.pas:201 e :213) - que NAO descende de
-  ///   EWiRLClientException e por isso escaparia do contrato de erro do
-  ///   Janus. E o que a propria demo do WiRL faz
+  ///   (WiRL.Core.MessageBodyWriter.pas:201 e :213). Por DoRequest essa
+  ///   excecao AINDA e convertida (o except de :200-201 e generico), mas
+  ///   EWiRLServerException NAO descende de EWiRLClientException, e o
+  ///   except de AcquireAccessToken (:430-431) so cobre a segunda - entao
+  ///   pelo caminho do bearer ela escapa crua e OnErrorCommand nao dispara.
+  ///   E o que a propria demo do WiRL faz
   ///   (Demos/03.Authorization/Client.Form.Main.pas:80). </summary>
   WiRL.Core.MessageBody.Default;
 

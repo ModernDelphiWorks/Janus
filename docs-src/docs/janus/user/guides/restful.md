@@ -148,17 +148,26 @@ driver serve às duas.
 
 O cliente do WiRL atual só tem um caminho: `Get<T>`, `Post<T,V>`, `Put<T,V>` e
 `Delete<T>` caem todos em `TWiRLClientCustomResource.GenericHttpRequest<T,V>`
-(`WiRL.Client.CustomResource.pas:465-481`), que **antes de qualquer I/O**
+(`WiRL.Client.CustomResource.pas:466-514`), que **antes de qualquer I/O**
 chama `ObjectToStream<T>` (`:417-433`) e este pede um writer a
 `Application.WriterRegistry.FindWriter`.
 
 Se nenhuma unit de MessageBody estiver **linkada no binário**, o registro está
 vazio e o WiRL levanta `EWiRLServerException` com
 `MessageBodyWriters registry is empty` (`WiRL.Core.MessageBodyWriter.pas:201`
-e `:213`) — em **toda** requisição, `GET` inclusive, mesmo sem corpo. Pior:
-`EWiRLServerException` **não** descende de `EWiRLClientException`, então
-escapa crua do `DoRequest` do driver, `OnErrorCommand` não dispara e
-`EJanusRESTException` não é levantada.
+e `:213`) — em **toda** requisição, `GET` inclusive, mesmo sem corpo.
+
+Por `DoRequest` essa exceção **ainda é convertida**: o `except on E: Exception`
+de `Janus.Client.WiRL.pas:200-201` é genérico, então mesmo com o registro
+vazio o `GET` levanta `EJanusRESTException` e o `OnErrorCommand` dispara,
+carregando a mensagem no campo de erro. O escape cru está **noutro lugar**:
+`EWiRLServerException` **não** descende de `EWiRLClientException`
+(`WiRL.Core.Exceptions.pas:167` contra `WiRL.http.Client.Interfaces.pas:29`),
+e o `except` de `AcquireAccessToken` (`Janus.Client.WiRL.pas:430-431`) só
+cobre a segunda. Como `SetAuthenticatorTypeValues` (`:477-478`) chama
+`AcquireAccessToken` dentro de um `try..finally` sem `except`, pelo caminho
+do bearer com credenciais a exceção **escapa crua** e o `OnErrorCommand`
+não dispara.
 
 Por isso `Janus.Client.WiRL.pas` traz `WiRL.Core.MessageBody.Default` no `uses`
 da seção `implementation` — é o que a própria demo do upstream faz
