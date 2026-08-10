@@ -79,11 +79,29 @@
   THE MUTATION LOG - WHAT DIES, AND THE FIVE THAT SURVIVE
 
   Every line below was applied to the shipped fix, built and run, one at a time.
-  Unmutated the suite is Janus.Tests.Units, 544 tests, 0 failures. Every number
-  here was re-measured from scratch at the commit that carries this file; an
-  earlier revision of this log quoted a suite size and a mutation count that had
-  both moved under it, which is the whole reason the counts now say when they
-  were taken rather than being copied forward.
+  Unmutated the suite is Janus.Tests.Units, 544 tests, 0 failures, MEASURED ON
+  THE BRANCH THAT CARRIES THIS FILE, rebased onto e64680c. Every number below
+  was re-taken there from scratch rather than carried forward, and that is the
+  point of the next paragraph.
+
+  THE EARLIER NUMBERS OF THIS SERIES ARE HISTORY, AND ARE STAMPED HERE
+
+  Three commit messages of this branch quote suite sizes that were true when
+  they were written and were moved by a later rebase. They are left exactly as
+  written - a commit message is the record of a run, not a claim about now - and
+  the anchor is put here instead, because this is the file a reader lands on:
+
+    * 723d62d - "Units 532 tests, 2 failures ... Basal at 6a1401d was 529/0":
+      MEASURED AT 6a1401d, before the rebase onto e64680c.
+    * a4c075c - "Units 532 tests, 0 failures. Was 532 / 2 one commit ago":
+      MEASURED AT 6a1401d, same rebase.
+    * f62d8bb - "Units 533 / 0 ... RESTMARS 33 / 0, RESTWiRL 19 / 0":
+      MEASURED AT 6a1401d. The per-project numbers other than Units did not
+      move; the Units one did, 533 -> 544.
+
+  None of those three values was recomputed to produce this note, and none
+  should be: read them as the size of their own run. Today's number is the 544
+  above, and it was measured, not scaled.
 
   KILLED
 

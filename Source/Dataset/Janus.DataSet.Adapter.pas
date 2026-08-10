@@ -134,7 +134,10 @@ end;
 ///  only - the First and the bookmark restore - and does work on one of them,
 ///  because of the LCurrentPK = FLastPKValue early exit. Nothing here holds
 ///  the frequency: making the injection happen once in the whole life of the
-///  adapter leaves the suite at 529 green. What the test above fixes is that
+///  adapter leaves the suite at 529 green - a run MEASURED AT COMMIT 3079877,
+///  where that was the whole of Janus.Tests.Units. The suite has grown since,
+///  so read the figure as the size of that run and not as today's baseline;
+///  re-run the mutation rather than scaling it. What the test above fixes is that
 ///  the suppression does not swallow the call, and nothing more.
 ///
 ///  NOT MEASURED: the paging leg (NextPacket) rides on that same `inherited`

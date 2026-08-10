@@ -93,7 +93,9 @@
   Every part of the repair is suppressed on its own and made to kill a
   DIFFERENT set - the two scrolls of _ExecuteOneToMany look alike and are not,
   and neither does the OTHER branch's single scroll. Baseline for all eight:
-  529 found, 529 passed.
+  529 found, 529 passed - MEASURED AT COMMIT 3079877. Those two numbers are the
+  size of THAT run and are left exactly as they were recorded; the suite has
+  grown since, so they are history, not a standing claim about its size.
 
     m1. the suppression is never consulted (DoAfterScroll re-opens always)
         -> 5 red: ReadingCurrentOnTheGrandparent, ClientDataSet_ReadingCurrent,
@@ -134,7 +136,9 @@
   A MUTATION THAT SURVIVES, DECLARED RATHER THAN HIDDEN
 
   y2b. the injection made to happen ONCE in the whole life of the adapter
-       (an early exit on FLastPKValue <> '') -> 529 GREEN. Nothing here dies.
+       (an early exit on FLastPKValue <> '') -> 529 GREEN, MEASURED AT COMMIT
+       3079877. That figure is the size of that run, not today's; whoever
+       re-tries this mutation re-runs it rather than scaling it.
 
   So the FREQUENCY of _InjectLazyProxiesOnScroll is not pinned by this fixture,
   and must not be read into TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll:
