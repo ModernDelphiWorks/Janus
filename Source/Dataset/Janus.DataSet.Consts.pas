@@ -29,6 +29,7 @@ const
   cFIELDEVENTS = '%s event required in column [%s]!';
   cNOTFIELDTYPEBLOB = 'Column [%s] must have blob value';
   cCREATEBINDDATASET = 'Access class %s by method %s';
+  cMASTERNOTADAPTER = 'Master of detail [%s] must be a dataset adapter, got [%s]';
 
 implementation
 
