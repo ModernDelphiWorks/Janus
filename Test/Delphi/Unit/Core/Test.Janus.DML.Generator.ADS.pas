@@ -23,6 +23,7 @@ unit Test.Janus.DML.Generator.ADS;
 interface
 
 uses
+  Winapi.Windows,
   SysUtils,
   DateUtils,
   DUnitX.TestFramework,
@@ -41,7 +42,7 @@ uses
 type
   // FDateFormat/FTimeFormat sao protected em TDMLGeneratorAbstract; um
   // descendente e o unico caminho legitimo para ler o que o gerador do ADS
-  // realmente entrega ao FormatDateTime em Janus.DML.Generator.pas:519/522.
+  // realmente entrega ao FormatDateTime em Janus.DML.Generator.pas:546/550.
   TADSGeneratorProbe = class(TDMLGeneratorADS)
   public
     function DateFormat: String;
@@ -65,6 +66,10 @@ type
     // Roda AProc com um FormatSettings global hostil e SEMPRE restaura o
     // original. Nao restaurar aqui envenena a suite inteira.
     procedure WithHostileLocale(const AProc: TProc);
+    // Roda AProc com o LOCALE DE THREAD trocado por um cujo DateSeparator e '.'
+    // (de-DE, $0407) e SEMPRE restaura. Diferente de WithHostileLocale: aqui a
+    // variavel global FormatSettings continua intacta, so o locale do SO muda.
+    procedure WithHostileThreadLocale(const AProc: TProc);
     // SQL de associacao gerado por um dialeto a partir de TMoment.
     function GenerateWhereFor(const ADriver: TDriverName;
       const AOwnerColumn: String): String;
@@ -87,6 +92,8 @@ type
     procedure TestGeneratedSql_SlashDateMaskIsStableUnderHostileDateSeparator;
     [Test]
     procedure TestGeneratedSql_DefaultLocaleOutputIsUnchanged;
+    [Test]
+    procedure TestGeneratedSql_DateLiteralIgnoresTheOperatingSystemLocale;
   end;
 
 implementation
@@ -156,6 +163,28 @@ begin
   end;
 end;
 
+procedure TTestDMLGeneratorADS.WithHostileThreadLocale(const AProc: TProc);
+const
+  // de-DE: DateSeparator '.', TimeSeparator ':'
+  CGermanLCID = $0407;
+var
+  LSaved: LCID;
+begin
+  LSaved := GetThreadLocale;
+  try
+    Assert.IsTrue(SetThreadLocale(CGermanLCID),
+      'Nao foi possivel trocar o locale de thread para de-DE; sem isso este ' +
+      'teste passaria por acidente');
+    // Guarda contra falso verde: so vale medir se a troca REALMENTE mudou o
+    // que TFormatSettings.Create le.
+    Assert.AreEqual('.', String(TFormatSettings.Create.DateSeparator),
+      'O locale de thread nao surtiu efeito; o teste nao mediria nada');
+    AProc();
+  finally
+    SetThreadLocale(LSaved);
+  end;
+end;
+
 function TTestDMLGeneratorADS.GenerateWhereFor(const ADriver: TDriverName;
   const AOwnerColumn: String): String;
 var
@@ -189,7 +218,7 @@ end;
 
 procedure TTestDMLGeneratorADS.TestDateFormat_ProducesAnsiDateLiteral;
 begin
-  // Este e literalmente o valor que Janus.DML.Generator.pas:519 embute, entre
+  // Este e literalmente o valor que Janus.DML.Generator.pas:546 embute, entre
   // aspas simples, em todo WHERE gerado para o dialeto Advantage.
   // A mascara anterior 'DD/MM/CCYY' entregava aqui (medido)
   // '15/03/15/03/2027 14:07:5327', porque 'CC' nao e especificador do
@@ -226,7 +255,7 @@ end;
 procedure TTestDMLGeneratorADS.TestGeneratedSql_AdsDateLiteralReachesTheWhere;
 begin
   // Caminho de producao de verdade: GenerateSelectOneToOne -> GetValue ->
-  // _GetPropertyValue -> Janus.DML.Generator.pas:519. Prova que a mascara
+  // _GetPropertyValue -> Janus.DML.Generator.pas:546. Prova que a mascara
   // corrigida do ADS chega mesmo ao SQL, e nao so ao FormatDateTime do teste.
   Assert.AreEqual('2027-03-15',
     FirstQuotedLiteral(GenerateWhereFor(dnADS, 'moment_date')),
@@ -235,7 +264,7 @@ end;
 
 procedure TTestDMLGeneratorADS.TestGeneratedSql_TimeLiteralIsStableUnderHostileTimeSeparator;
 begin
-  // Mesmo caminho, ramo da hora (Janus.DML.Generator.pas:522). A mascara
+  // Mesmo caminho, ramo da hora (Janus.DML.Generator.pas:550). A mascara
   // 'HH:MM:SS' -- identica nos treze geradores -- TEM ':', entao com a
   // sobrecarga que le o FormatSettings global uma maquina com TimeSeparator
   // '-' emitia (medido) '14-07-53'. Morre se a chamada voltar a ler o global.
@@ -280,6 +309,24 @@ begin
   Assert.AreEqual('14:07:53',
     FirstQuotedLiteral(GenerateWhereFor(dnADS, 'moment_time')),
     'A hora nao pode mudar numa maquina de locale padrao');
+end;
+
+procedure TTestDMLGeneratorADS.TestGeneratedSql_DateLiteralIgnoresTheOperatingSystemLocale;
+begin
+  // Os dois testes de locale hostil acima fixam apenas "nao le a variavel
+  // global FormatSettings" -- e por isso trocar TFormatSettings.Invariant por
+  // TFormatSettings.Create sobrevive a eles: o .Create nao le a global, le o
+  // locale do SO. Aqui o locale de THREAD e trocado antes de o gerador ser
+  // construido (e o construtor que captura FFormatSettings), com a global
+  // intacta. Medido: sob de-DE, 'dd/MM/yyyy' rende '15.03.2027' com
+  // TFormatSettings.Create e '15/03/2027' com TFormatSettings.Invariant.
+  WithHostileThreadLocale(
+    procedure
+    begin
+      Assert.AreEqual('15/03/2027',
+        FirstQuotedLiteral(GenerateWhereFor(dnMSSQL, 'moment_date')),
+        'A literal de data nao pode seguir o locale do sistema operacional');
+    end);
 end;
 
 initialization

@@ -69,6 +69,10 @@ type
     // e TimeSeparator '-': 'dd/MM/yyyy' -> '15.03.2027', 'HH:MM:SS' ->
     // '14-07-53'. Este record e passado explicitamente nas duas chamadas de
     // _GetPropertyValue para que a literal nao dependa do locale do cliente.
+    // Sao as unicas duas chamadas de FormatDateTime da cadeia de geracao de
+    // DML, mas NAO sao os unicos pontos com este defeito: ver o achado
+    // registrado em GetGeneratorWhere (AID.ToString numa PK de data). A
+    // varredura que produziu este conserto foi por TOKEN, nao pelo defeito.
     FFormatSettings: TFormatSettings;
       FFluentSQLDriver: TFluentSQLDriver;
       class function ResolveFluentSQLDriver(
@@ -456,6 +460,16 @@ begin
       if (AID.IsType<Integer>) or (AID.IsType<Int64>) or (AID.IsType<UInt64>) then
         Result := Result + LColumnName + ' = ' + AID.ToString
       else
+        // ACHADO REGISTRADO, NAO CONSERTADO: para uma PK de data este
+        // AID.ToString cai no DateTimeToStr, que le o FormatSettings GLOBAL --
+        // a mesma classe de defeito que o FFormatSettings resolve em
+        // _GetPropertyValue, so que por outro caminho, sem passar por
+        // FormatDateTime (por isso uma varredura por token nao o encontra).
+        // Medido: TValue.From<TDateTime>(15/03/2027 14:07:53).ToString entrega
+        // '15/03/2027 14:07:53' no locale padrao e '15.03.2027 14-07-53' com
+        // DateSeparator '.' / TimeSeparator '-'. Consertar aqui exige decidir
+        // qual formato uma PK de data deve ter por dialeto, que e outra
+        // discussao.
         Result := Result + LColumnName + ' = ' + QuotedStr(AID.ToString);
     end;
   end;
