@@ -58,6 +58,8 @@ type
         const ASQL: IFluentSQL);
     function _IsType(const AID: TValue): Boolean;
     function _GetGuidValue(AObject: TObject; AProperty: TRttiProperty): TGUID;
+    function _StoreGUIDAsOctet: Boolean;
+    procedure _GuardStoreGUIDAsOctet(AProperty: TRttiProperty);
   protected
     FConnection: IDBConnection;
     FQueryCache: TQueryCache;
@@ -637,7 +639,10 @@ begin
          if LGuid = TGUID.Empty then
            Result := ''
          else
+         begin
+           _GuardStoreGUIDAsOctet(AProperty);
            Result := GuidLiteral(LGuid);
+         end;
        end;
   else
      Result := '';
@@ -682,6 +687,60 @@ begin
       'AsType<TGUID>.ToString. Para chave GUID guardada como TEXTO, declare a ' +
       'coluna como ftString e use TGeneratorType.Guid32Inc/Guid36Inc/Guid38Inc.',
       [AProperty.Name, AProperty.PropertyType.Name]);
+end;
+
+function TDMLGeneratorAbstract._StoreGUIDAsOctet: Boolean;
+var
+  LOptions: IOptions;
+begin
+  // Nil-safe nos DOIS niveis de proposito: um gerador pode ser criado sem
+  // SetConnection (o registro por fabrica nao a exige), e uma IDBConnection
+  // pode devolver Options nil - e' o que o duble de teste faz. Nenhum dos
+  // dois casos e' "octeto"; ambos sao "nao sei", e nao saber nao pode
+  // levantar excecao num caminho que hoje funciona.
+  Result := False;
+  if FConnection = nil then
+    Exit;
+  LOptions := FConnection.Options;
+  if LOptions = nil then
+    Exit;
+  Result := LOptions.StoreGUIDAsOctet;
+end;
+
+/// <summary> O EIXO QUE DIVERGE DE VERDADE, E QUE ESTE PR NAO IMPLEMENTA.
+///
+///  IOptions.StoreGUIDAsOctet NAO e' hipotese futura: e' setter publico, vivo
+///  hoje (DataEngine.DriverConnection.pas:123, default False em :1904). Com
+///  ela ligada o DDL desta casa deixa de guardar TEXTO e passa a guardar
+///  BINARIO de 16 bytes - MetaDbDiff.Metadata.Extract.pas:509-526 emite
+///  CHAR(16) CHARACTER SET OCTETS no Firebird e BYTE(16) no PostgreSQL.
+///
+///  O literal que este ramo emite e' texto de 38 caracteres. Contra uma coluna
+///  de 16 bytes ele casa ZERO LINHAS, EM SILENCIO - que e' exatamente o
+///  defeito da #284 entrando por outra porta. O desenho inteiro deste conserto
+///  se justifica em "falhar cedo e alto em vez de emitir '1 = 0' de novo";
+///  deixar este eixo sem guarda seria contradizer a propria justificativa.
+///
+///  Por que ERRO e nao suporte: a forma correta no modo octeto e' por dialeto
+///  e exige medicao contra banco vivo - Firebird quer CHAR_TO_UUID('36 com
+///  hifen') ou x'32hex'; PostgreSQL emite 'BYTE(%1)', tipo que o PostgreSQL
+///  nao tem (o binario dele e' bytea), ou seja o proprio DDL do modo octeto
+///  esta' em disputa. Escolher uma forma sem medir seria inventar. O erro
+///  nomeado transforma um silencio em uma conversa, e nao custa nada a quem
+///  nao usa a opcao - que e' o default. </summary>
+procedure TDMLGeneratorAbstract._GuardStoreGUIDAsOctet(AProperty: TRttiProperty);
+begin
+  if _StoreGUIDAsOctet then
+    raise Exception.CreateFmt(
+      'A conexao esta com IOptions.StoreGUIDAsOctet ligada, e a coluna ftGuid ' +
+      'mapeada na propriedade "%s" entra num WHERE de associacao. Nesse modo o ' +
+      'schema guarda o GUID como BINARIO de 16 bytes (Firebird: CHAR(16) ' +
+      'CHARACTER SET OCTETS; PostgreSQL: BYTE(16)), e o literal de texto que ' +
+      'este gerador emite casaria ZERO LINHAS em silencio. A geracao de SELECT ' +
+      'por associacao ainda NAO suporta GUID em octeto - ou desligue ' +
+      'StoreGUIDAsOctet para esta conexao, ou implemente GuidLiteral do ' +
+      'dialeto para o modo octeto e remova esta guarda.',
+      [AProperty.Name]);
 end;
 
 function TDMLGeneratorAbstract.CanonicalGuidLiteral(const AGuid: TGUID): String;

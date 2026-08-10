@@ -43,6 +43,7 @@ uses
   Janus.DML.Commands,
   Janus.DML.Interfaces,
   Janus.Types.Nullable,
+  DataEngine.DriverConnection,
   Janus.DML.Generator,
   Janus.DML.Generator.SQLite,
   Janus.DML.Generator.PostgreSQL,
@@ -58,8 +59,14 @@ type
   TFakeConnection = class(TInterfacedObject, IDBConnection)
   private
     FDriver: TDriverName;
+    FOptions: IOptions;
   public
-    constructor Create(ADriver: TDriverName);
+    constructor Create(ADriver: TDriverName); overload;
+    /// Options is nil for every other test on purpose - a generator must
+    /// survive a connection that answers nothing, and that nil-safety is what
+    /// the four literal tests exercise for free. This overload exists only so
+    /// the StoreGUIDAsOctet guard has a connection that really says True.
+    constructor Create(ADriver: TDriverName; const AOptions: IOptions); overload;
     procedure Connect;
     procedure Disconnect;
     procedure ExecuteDirect(const ASQL: String); overload;
@@ -224,6 +231,7 @@ type
     function CreateCompMaster: TCompMaster;
     function GuidSelect(const ADriver: TDriverName; const AMany: Boolean): String;
     function NullableGuidSelect(const ASet: Boolean): String;
+    function OctetSelect(const AOctet: Boolean): String;
     function FindAssociation(AClass: TClass; const AClassNameRef: String): TAssociationMapping;
   public
     [Setup]
@@ -315,6 +323,10 @@ type
     procedure TestGuid_ANullableGuidWithNoValue_BecomesTheZeroRowsGuard;
     [Test]
     procedure TestGuid_ANullableGuidWithAValue_ReachesTheDialectLiteral;
+    [Test]
+    procedure TestGuid_StoreGUIDAsOctetOn_RaisesInsteadOfMatchingNothing;
+    [Test]
+    procedure TestGuid_StoreGUIDAsOctetOff_EmitsTheLiteralAsUsual;
   end;
 
 implementation
@@ -365,6 +377,14 @@ constructor TFakeConnection.Create(ADriver: TDriverName);
 begin
   inherited Create;
   FDriver := ADriver;
+end;
+
+constructor TFakeConnection.Create(ADriver: TDriverName;
+  const AOptions: IOptions);
+begin
+  inherited Create;
+  FDriver := ADriver;
+  FOptions := AOptions;
 end;
 
 procedure TFakeConnection.AddScript(const AScript: String);
@@ -450,7 +470,7 @@ end;
 
 function TFakeConnection.Options: IOptions;
 begin
-  Result := nil;
+  Result := FOptions;
 end;
 
 procedure TFakeConnection.Rollback;
@@ -1680,6 +1700,89 @@ begin
     NullableGuidSelect(True), False,
     'A Nullable<TGUID> that HAS a value is an ordinary GUID key and must ' +
     'produce the ordinary canonical literal.');
+end;
+
+function TTestDMLGenerator.OctetSelect(const AOctet: Boolean): String;
+var
+  LAssociation: TAssociationMapping;
+  LConnection: IDBConnection;
+  LMaster: TNullableGuidMaster;
+  LSelecter: TCommandSelecter;
+begin
+  LConnection := TFakeConnection.Create(dnSQLite,
+                   TOptions.Create.StoreGUIDAsOctet(AOctet));
+  LMaster := TNullableGuidMaster.Create;
+  try
+    LMaster.ngmkey := 1;
+    LMaster.ngmparent := StringToGUID(cGUIDKEY);
+    LAssociation := FindAssociation(TNullableGuidMaster, 'TNullableGuidChild');
+    LSelecter := TCommandSelecter.Create(LConnection, dnSQLite, LMaster);
+    try
+      Result := LSelecter.GenerateSelectOneToOne(LMaster, TNullableGuidChild,
+                  LAssociation);
+    finally
+      LSelecter.Free;
+    end;
+  finally
+    LMaster.Free;
+  end;
+end;
+
+/// <summary> THE ONE AXIS THAT GENUINELY DIVERGES, AND IT IS LIVE TODAY.
+///  IOptions.StoreGUIDAsOctet is a public setter with a default of False
+///  (DataEngine.DriverConnection.pas:123, :1904). Turn it on and this
+///  ecosystem's DDL stops storing text: MetaDbDiff.Metadata.Extract.pas
+///  :509-526 emits CHAR(16) CHARACTER SET OCTETS on Firebird and BYTE(16) on
+///  PostgreSQL. The 38-character text literal this fix emits would then match
+///  ZERO ROWS IN SILENCE - issue #284 all over again, through another door,
+///  and inside the very change that claims to close it.
+///  Octet support is NOT implemented here: the correct form is per dialect and
+///  needs measuring against a live database, and the octet DDL itself is in
+///  dispute (PostgreSQL has no BYTE type; its binary type is bytea). Choosing
+///  a form without measuring would be inventing. So the silence becomes a
+///  named error, which costs nothing to anyone on the default. </summary>
+procedure TTestDMLGenerator.TestGuid_StoreGUIDAsOctetOn_RaisesInsteadOfMatchingNothing;
+var
+  LMessage: String;
+  LRaised: Boolean;
+begin
+  LRaised := False;
+  LMessage := '';
+  try
+    OctetSelect(True);
+  except
+    on E: Exception do
+    begin
+      LRaised := True;
+      LMessage := E.Message;
+    end;
+  end;
+
+  Assert.IsTrue(LRaised,
+    'With StoreGUIDAsOctet on, emitting the text literal would select zero ' +
+    'children against a 16-byte column and say nothing - the exact defect ' +
+    'this issue exists to remove.');
+  Assert.IsTrue(ContainsText(LMessage, 'StoreGUIDAsOctet'),
+    'The error must NAME the option, so the reader knows which switch put ' +
+    'them here: message was "' + LMessage + '"');
+  Assert.IsTrue(ContainsText(LMessage, 'ngmparent'),
+    'And name the column, like the sibling wrong-type error does: message ' +
+    'was "' + LMessage + '"');
+end;
+
+/// <summary> THE CONTROL, AND IT IS NOT CEREMONY. Without it the guard could
+///  be widened to "raise whenever Options is assigned" - or to raise always -
+///  and every other GUID test would stay green, because they all run on a fake
+///  connection whose Options is nil. This one runs on a connection that really
+///  answers False. </summary>
+procedure TTestDMLGenerator.TestGuid_StoreGUIDAsOctetOff_EmitsTheLiteralAsUsual;
+begin
+  Assert.AreEqual(
+    'SELECT nguidchild.ngckey, nguidchild.ngcparent FROM nguidchild' +
+    ' WHERE nguidchild.ngcparent = ''' + cGUIDKEY + '''',
+    OctetSelect(False), False,
+    'A connection that answers StoreGUIDAsOctet = False is the default, and ' +
+    'must be indistinguishable from a connection that answers nothing.');
 end;
 
 initialization
