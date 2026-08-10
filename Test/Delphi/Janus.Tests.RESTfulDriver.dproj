@@ -93,6 +93,7 @@
         <DCCReference Include="Common\Janus.Test.Runner.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AsymKey.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AutoIncTree.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.RestLazyKeys.pas"/>
         <DCCReference Include="Common\Test.Janus.RestConnection.Double.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Driver.ManagerDataSet.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Driver.ManagerObjectSet.pas"/>
@@ -101,6 +102,7 @@
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.ClearChilds.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.CascadeGuard.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.Lazy.pas"/>
+        <DCCReference Include="Unit\RESTful\Test.Janus.Rest.Lazy.Cds.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

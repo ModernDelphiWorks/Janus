@@ -66,6 +66,9 @@ uses
   MetaDbDiff.Mapping.Register,
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
   Test.Janus.Model.AutoIncTree in 'Common\Test.Janus.Model.AutoIncTree.pas',
+  /// String key and composite key - the two association shapes the REST lazy
+  /// filter had no model for. Issue #251.
+  Test.Janus.Model.RestLazyKeys in 'Common\Test.Janus.Model.RestLazyKeys.pas',
   /// Doubles
   Test.Janus.RestConnection.Double in 'Common\Test.Janus.RestConnection.Double.pas',
   /// Tests - the DRIVERRESTFUL branch
@@ -80,7 +83,10 @@ uses
   /// The cascade guard that decides WHICH child gets cleared - issue #235
   Test.Janus.Rest.CascadeGuard in 'Unit\RESTful\Test.Janus.Rest.CascadeGuard.pas',
   /// The lazy load and the lazy unload of the REST family - issue #251
-  Test.Janus.Rest.Lazy in 'Unit\RESTful\Test.Janus.Rest.Lazy.pas';
+  Test.Janus.Rest.Lazy in 'Unit\RESTful\Test.Janus.Rest.Lazy.pas',
+  /// The same LoadLazy over the other concrete adapter of the family, whose
+  /// OpenWhereInternal is a separate override - issue #251
+  Test.Janus.Rest.Lazy.Cds in 'Unit\RESTful\Test.Janus.Rest.Lazy.Cds.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

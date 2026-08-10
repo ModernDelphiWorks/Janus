@@ -90,7 +90,8 @@ uses
   Janus.DataSet.Base.Adapter,
   Janus.RestDataSet.FDMemTable,
   Test.Janus.Model.AsymKey,
-  Test.Janus.Model.AutoIncTree;
+  Test.Janus.Model.AutoIncTree,
+  Test.Janus.Model.RestLazyKeys;
 
 type
   /// <summary> One seeded child row on the "server" side. </summary>
@@ -116,17 +117,26 @@ type
   ///      is kept in LastFilter so the test can name what actually arrived.
   ///  A wrong filter therefore fails LOUDLY, as the whole table, instead of
   ///  quietly as an empty result that an assertion might mistake for
-  ///  "nothing matched". </summary>
+  ///  "nothing matched".
+  ///
+  ///  IT IS A SERVER FOR ONE RESOURCE. Every rule above applies to the
+  ///  resource it was seeded for; ANY OTHER resource gets an empty array, with
+  ///  the filter still recorded. That is what lets the tests about the SHAPE OF
+  ///  THE FILTER TEXT - the String key, the composite key, the null guard -
+  ///  bring models of their own without their rows being answered out of a
+  ///  table of a different shape. </summary>
   TFilteringRestConnection = class(TInterfacedObject, IRESTConnection)
   private
     FRows: TList<TSeededChild>;
     FQueryParams: TStringList;
     FLastFilter: String;
+    FLastResource: String;
     FCallCount: Integer;
     function DoExecute(const AResource, ASubResource: String;
       const ARequestMethod: TRESTRequestMethodType;
       const AParams: TProc): String;
     function GetLastFilter: String;
+    function GetLastResource: String;
     function GetCallCount: Integer;
     function _CurrentFilter: String;
     function _RowsAsJson(const AParent: Integer;
@@ -164,6 +174,7 @@ type
     procedure AddBodyParam(AValue: String);
     // transcript
     property LastFilter: String read GetLastFilter;
+    property LastResource: String read GetLastResource;
     property CallCount: Integer read GetCallCount;
   end;
 
@@ -192,6 +203,22 @@ type
     FMemChild: TRESTFDMemTableAdapter<TAsymChild>;
     FSiblingMem: TFDMemTable;
     FMemSibling: TRESTFDMemTableAdapter<TAitNoCascade>;
+    /// The String-key pair and the composite-key pair. Their rows are never
+    /// answered - the double only serves the seeded resource - because what
+    /// they are here to measure is the TEXT of the filter.
+    FStrMasterMem: TFDMemTable;
+    FMemStrMaster: TRESTFDMemTableAdapter<TStrMaster>;
+    FStrChildMem: TFDMemTable;
+    FMemStrChild: TRESTFDMemTableAdapter<TStrChild>;
+    FCompMasterMem: TFDMemTable;
+    FMemCompMaster: TRESTFDMemTableAdapter<TCompMaster>;
+    FCompChildMem: TFDMemTable;
+    FMemCompChild: TRESTFDMemTableAdapter<TCompChild>;
+    /// Builds the String-key pair with the master sitting on the key given -
+    /// pass '' to reach the null-value guard.
+    procedure BuildStrPair(const AKey: String);
+    /// Builds the composite-key pair with the master sitting on (AK1, AK2).
+    procedure BuildCompPair(const AK1: Integer; const AK2: String);
     /// Master with two rows and a child adapter that owns NO master yet - the
     /// only shape in which the load branch is reachable at all.
     procedure BuildPair;
@@ -226,6 +253,12 @@ type
     /// whole table, which is the shape the old empty body would have produced.
     [Test]
     procedure Premise_WithoutAFilterTheServerHandsBackTheWholeTable;
+    /// The double serves ONE resource, and this measures that the name it was
+    /// seeded with is the one TAsymChild actually resolves to. If it were not,
+    /// every row assertion here would be reading an empty answer and passing
+    /// for the wrong reason.
+    [Test]
+    procedure Premise_TheSeededResourceIsTheOneAsymChildResolvesTo;
 
     // -----------------------------------------------------------------------
     // The load branch
@@ -264,6 +297,28 @@ type
     procedure Load_AChildThatAlreadyHasAMasterIsNotLoadedAgain;
 
     // -----------------------------------------------------------------------
+    // The VALUE, not the column - what an Integer key can never measure
+    // -----------------------------------------------------------------------
+
+    /// LOAD-BEARING. A String master key must reach the wire QUOTED. The value
+    /// carries a SPACE, so unquoted it is not merely wrong, it is a different
+    /// number of tokens.
+    [Test]
+    procedure Load_AStringMasterKeyReachesTheWireQuoted;
+    /// And the quoting is QuotedStr's, which doubles an apostrophe inside the
+    /// value instead of ending the literal early.
+    [Test]
+    procedure Load_AnApostropheInsideTheValueIsDoubledNotTerminating;
+    /// LOAD-BEARING. A composite association writes ' AND ' between its terms,
+    /// and quotes only the text half. One column can never measure either.
+    [Test]
+    procedure Load_ACompositeKeyJoinsWithAndAndQuotesOnlyTheTextHalf;
+    /// LOAD-BEARING. An empty master value becomes the zero-rows guard rather
+    /// than a term with nothing on the right of the operator.
+    [Test]
+    procedure Load_AnEmptyMasterValueBecomesTheZeroRowsGuard;
+
+    // -----------------------------------------------------------------------
     // The unload branch
     // -----------------------------------------------------------------------
 
@@ -286,6 +341,12 @@ implementation
 const
   cFILTERKEY   = '$filter=';
   cODATAEQ     = ' eq ';
+  /// The resource TAsymChild resolves to. TSessionRestFul<M>.Create falls back
+  /// to the [Table] name when the entity carries no [Resource], and AsymKey
+  /// carries none - Premise_TheSeededResourceIsTheOneAsymChildResolvesTo
+  /// measures it rather than trusting this line.
+  cSEEDEDRESOURCE = 'mdchild';
+  cEMPTYJSONARRAY = '[]';
   cWHOLETABLE  = 'ten-alpha|ten-beta|twenty-gamma|ten-delta|twenty-epsilon';
   cMASTERTEN   = 'ten-alpha|ten-beta|ten-delta';
   cMASTERTWENTY= 'twenty-gamma|twenty-epsilon';
@@ -326,6 +387,11 @@ end;
 function TFilteringRestConnection.GetLastFilter: String;
 begin
   Result := FLastFilter;
+end;
+
+function TFilteringRestConnection.GetLastResource: String;
+begin
+  Result := FLastResource;
 end;
 
 function TFilteringRestConnection.GetCallCount: Integer;
@@ -376,6 +442,12 @@ begin
     AParams();
   Inc(FCallCount);
   FLastFilter := _CurrentFilter;
+  FLastResource := AResource;
+
+  // A server for ONE resource. Anything else is answered empty, and the test
+  // reads the transcript instead of the rows.
+  if not SameText(AResource, cSEEDEDRESOURCE) then
+    Exit(cEMPTYJSONARRAY);
 
   if FLastFilter = '' then
     Exit(_RowsAsJson(0, True));
@@ -546,6 +618,14 @@ begin
   FMemChild := nil;
   FSiblingMem := nil;
   FMemSibling := nil;
+  FStrMasterMem := nil;
+  FMemStrMaster := nil;
+  FStrChildMem := nil;
+  FMemStrChild := nil;
+  FCompMasterMem := nil;
+  FMemCompMaster := nil;
+  FCompChildMem := nil;
+  FMemCompChild := nil;
 end;
 
 procedure TTestRestLazy.TearDown;
@@ -556,8 +636,51 @@ begin
   FreeAndNil(FSiblingMem);
   FreeAndNil(FChildMem);
   FreeAndNil(FMasterMem);
+  FreeAndNil(FMemStrChild);
+  FreeAndNil(FMemStrMaster);
+  FreeAndNil(FStrChildMem);
+  FreeAndNil(FStrMasterMem);
+  FreeAndNil(FMemCompChild);
+  FreeAndNil(FMemCompMaster);
+  FreeAndNil(FCompChildMem);
+  FreeAndNil(FCompMasterMem);
   FConn := nil;
   FServer := nil;
+end;
+
+procedure TTestRestLazy.BuildStrPair(const AKey: String);
+begin
+  FStrMasterMem := TFDMemTable.Create(nil);
+  FMemStrMaster := TRESTFDMemTableAdapter<TStrMaster>.Create(FConn,
+                     FStrMasterMem, -1, nil);
+  FStrMasterMem.Append;
+  FStrMasterMem.FieldByName('smkey').AsString := AKey;
+  FStrMasterMem.FieldByName('smtag').AsString := 'str-master';
+  FStrMasterMem.Post;
+  FStrMasterMem.First;
+
+  FStrChildMem := TFDMemTable.Create(nil);
+  FMemStrChild := TRESTFDMemTableAdapter<TStrChild>.Create(FConn,
+                    FStrChildMem, -1, nil);
+  TRestLazyCrack<TStrChild>.CloseIt(FMemStrChild);
+end;
+
+procedure TTestRestLazy.BuildCompPair(const AK1: Integer; const AK2: String);
+begin
+  FCompMasterMem := TFDMemTable.Create(nil);
+  FMemCompMaster := TRESTFDMemTableAdapter<TCompMaster>.Create(FConn,
+                      FCompMasterMem, -1, nil);
+  FCompMasterMem.Append;
+  FCompMasterMem.FieldByName('cmkey').AsInteger := 1;
+  FCompMasterMem.FieldByName('cmk1').AsInteger := AK1;
+  FCompMasterMem.FieldByName('cmk2').AsString := AK2;
+  FCompMasterMem.Post;
+  FCompMasterMem.First;
+
+  FCompChildMem := TFDMemTable.Create(nil);
+  FMemCompChild := TRESTFDMemTableAdapter<TCompChild>.Create(FConn,
+                     FCompChildMem, -1, nil);
+  TRestLazyCrack<TCompChild>.CloseIt(FMemCompChild);
 end;
 
 procedure TTestRestLazy.AddMasterRow(const AKey: Integer; const ATag: String);
@@ -667,11 +790,25 @@ begin
     'a correct one and every load measurement below proves nothing');
 end;
 
+procedure TTestRestLazy.Premise_TheSeededResourceIsTheOneAsymChildResolvesTo;
+begin
+  BuildPair;
+  MasterGoTo(10);
+
+  TRestLazyCrack<TAsymChild>.Lazy(FMemChild, TAsymChild(FMemMaster));
+
+  Assert.AreEqual(cSEEDEDRESOURCE, FServer.LastResource,
+    'the double serves exactly one resource. If TAsymChild resolved to ' +
+    'another name, every row assertion in this fixture would be reading the ' +
+    'empty answer the double gives strangers, and passing for the wrong ' +
+    'reason');
+end;
+
 procedure TTestRestLazy.Premise_WithoutAFilterTheServerHandsBackTheWholeTable;
 var
   LJson: String;
 begin
-  LJson := FConn.Execute('mdchild', '', TRESTRequestMethodType.rtGET, nil);
+  LJson := FConn.Execute(cSEEDEDRESOURCE, '', TRESTRequestMethodType.rtGET, nil);
   Assert.Contains(LJson, 'twenty-gamma',
     'with no $filter the double must answer the WHOLE seeded table - that is ' +
     'the shape a load with no filter produces, and the thing the load branch ' +
@@ -805,6 +942,71 @@ begin
     'FOwnerMasterObject, mirrored from the local family');
   Assert.IsFalse(FChildMem.Active,
     'and it was not reopened behind the guard');
+end;
+
+// ---------------------------------------------------------------------------
+// The VALUE, not the column
+// ---------------------------------------------------------------------------
+
+procedure TTestRestLazy.Load_AStringMasterKeyReachesTheWireQuoted;
+begin
+  BuildStrPair('AB C');
+
+  TRestLazyCrack<TStrChild>.Lazy(FMemStrChild, TStrChild(FMemStrMaster));
+
+  Assert.AreEqual('scparent eq ''AB C''', FServer.LastFilter,
+    'A STRING FOREIGN KEY MUST REACH THE WIRE QUOTED. Unquoted this reads ' +
+    '`scparent eq AB C` - with the space, a syntax error on any strict ' +
+    'server; without one, `scparent eq ABC` is a comparison against an ' +
+    'unknown COLUMN, which is wrong SILENTLY. The local family never has ' +
+    'this problem because TDMLGeneratorAbstract._GetPropertyValue quotes on ' +
+    'the RTTI path, and reading the value straight off the master dataset - ' +
+    'divergence 2 in _WhereAssociation - skips exactly that. GUID and ' +
+    'alphanumeric keys are first-class here: TGeneratorType carries ' +
+    'Guid32Inc, Guid36Inc and Guid38Inc');
+end;
+
+procedure TTestRestLazy.Load_AnApostropheInsideTheValueIsDoubledNotTerminating;
+begin
+  BuildStrPair('O''Brien');
+
+  TRestLazyCrack<TStrChild>.Lazy(FMemStrChild, TStrChild(FMemStrMaster));
+
+  Assert.AreEqual('scparent eq ''O''''Brien''', FServer.LastFilter,
+    'the quoting is QuotedStr''s, which DOUBLES the apostrophe inside the ' +
+    'value. Hand-rolled quotes would emit `''O''Brien''`, which ends the ' +
+    'literal at the apostrophe and leaves Brien dangling as a token');
+end;
+
+procedure TTestRestLazy.Load_ACompositeKeyJoinsWithAndAndQuotesOnlyTheTextHalf;
+begin
+  BuildCompPair(7, 'BR');
+
+  TRestLazyCrack<TCompChild>.Lazy(FMemCompChild, TCompChild(FMemCompMaster));
+
+  Assert.AreEqual('cck1 eq 7 AND cck2 eq ''BR''', FServer.LastFilter,
+    'ONE ASSERTION, TWO THINGS NO SINGLE-COLUMN ASSOCIATION CAN MEASURE. ' +
+    'The separator between the terms is '' AND '' - with one column it is ' +
+    'never written at all, so '' OR '' would look identical and select the ' +
+    'wrong rows the moment a real composite key appeared. And the two halves ' +
+    'are formatted by TYPE, not uniformly: the Integer goes bare and only ' +
+    'the String is quoted');
+end;
+
+procedure TTestRestLazy.Load_AnEmptyMasterValueBecomesTheZeroRowsGuard;
+begin
+  BuildStrPair('');
+
+  TRestLazyCrack<TStrChild>.Lazy(FMemStrChild, TStrChild(FMemStrMaster));
+
+  Assert.AreEqual('1 eq 0', FServer.LastFilter,
+    'THE NULL-VALUE GUARD, mirrored from TDMLGeneratorAbstract' +
+    '.GenerateSelectOneToOne. With nothing on the master side the term would ' +
+    'be `scparent eq ` - no right-hand side at all. `1 = 0` is the same ' +
+    'answer the local generator gives, it survives _ParseOperator as ' +
+    '`1 eq 0`, and it matches zero rows, which is what "this master has no ' +
+    'key" means. `1 eq 1` here would mean the guard inverted and the child ' +
+    'quietly loaded EVERY row');
 end;
 
 // ---------------------------------------------------------------------------
