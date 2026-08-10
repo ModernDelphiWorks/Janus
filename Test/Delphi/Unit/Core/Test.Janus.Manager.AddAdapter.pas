@@ -117,6 +117,7 @@ uses
   FireDAC.Comp.Client,
   DataEngine.FactoryInterfaces,
   Janus.DataSet.Base.Adapter,
+  Janus.DataSet.Consts,
   Janus.Manager.DataSet,
   Test.Janus.Cursor.Double,
   Test.Janus.Model.AsymKey,
@@ -146,6 +147,27 @@ type
     class function ChildCountOf(const AAdapter: TObject): Integer;
     class function ChildUnder(const AAdapter: TObject;
       const AKey: String): TObject;
+    /// <summary> Reaches the protected SetMasterObject, which is the ONLY
+    ///  writer of FOwnerMasterObject besides the `:= nil` of Destroy, and
+    ///  therefore the only place the value can be refused. </summary>
+    class procedure LinkTo(const AAdapter, AMaster: TObject);
+    /// <summary> Reads the master's current entity THROUGH a cast typed with
+    ///  the DETAIL's type argument - the exact shape of the two lines issue
+    ///  #255 names. </summary>
+    class function OwnerCurrentClassName(const AAdapter: TObject): String;
+  end;
+
+  /// <summary> NOT an adapter, and padded on purpose. The cast in
+  ///  SetMasterObject reads FMasterObject at a fixed offset out of whatever it
+  ///  is handed; with this object the offset lands inside the padding, which
+  ///  Delphi zeroes on construction, so the misread yields nil instead of
+  ///  arbitrary heap. That keeps the measurement of the UNGUARDED behaviour
+  ///  deterministic - a nil dereference - instead of undefined. The size is
+  ///  asserted against the adapter's InstanceSize in the test that uses it, so
+  ///  the premise cannot rot in silence. </summary>
+  TNotAnAdapter = class
+  private
+    FPad: array[0..63] of Pointer;
   end;
 
   [TestFixture]
@@ -229,6 +251,46 @@ type
     /// and is wrong regardless of where the fields sit.
     [Test]
     procedure Layout_EveryInstantiationOfTheBaseAdapterAgreesOnEveryOffset;
+
+    /// ISSUE #255, THE HALF THAT BITES. SetMasterObject takes a TObject and
+    /// hard-casts it, so nothing asked the value whether it was an adapter at
+    /// all. Handed something else it read FMasterObject out of the middle of
+    /// that object and called Add on the result. Measured, with the guard
+    /// removed and this same padded intruder: `EAccessViolation|Access
+    /// violation at address 014E23E2 in module 'Janus.Tests.Units.exe'
+    /// (offset 9D23E2). Read of address 00000008` - the module address moves
+    /// with the build, the `00000008` does not, and neither half names the
+    /// detail or what was passed. This asserts the WHOLE replacement message,
+    /// so a swap of the two names in the Format call is a failure and not a
+    /// coincidence.
+    [Test]
+    procedure MasterNotAnAdapter_IsRefusedByNameInsteadOfFaulting;
+
+    /// ...and the refusal must NOT be `AValue is TDataSetBaseAdapter<M>`,
+    /// which is the obvious way to write it and is wrong: the master is by
+    /// definition of ANOTHER instantiation, and two instantiations of one
+    /// generic class are unrelated types. That naive guard turns every
+    /// master-detail link in the framework into an exception; this test is
+    /// what catches it.
+    [Test]
+    procedure Guard_TheMasterOfAnotherInstantiationIsStillAccepted;
+
+    /// The mechanism the guard hangs on, pinned so a rename cannot rot it in
+    /// silence: the class the manager actually builds does NOT carry the
+    /// base-adapter name itself - it is reached by walking ClassParent.
+    [Test]
+    procedure Recognition_TheAncestorNameIsWhatTheGuardHangsOn;
+
+    /// ISSUE #255, THE HALF THAT DOES NOT BITE, measured rather than assumed.
+    /// The cast carries the DETAIL's type argument, and the question is
+    /// whether that changes what comes back. It does not: FCurrentInternal is
+    /// read as a reference and every question asked of it - ClassName,
+    /// ClassType - is answered by the object's own VMT pointer, never by
+    /// TypeInfo(M). Read through a cast that says TAsymChild, the object
+    /// answers TAsymMaster. That is why _GetMasterValues hands
+    /// GetMappingAssociation the master's real class.
+    [Test]
+    procedure Recovery_TheObjectBehindTheDetailTypedCastIsTheMasterEntity;
   end;
 
 implementation
@@ -262,6 +324,22 @@ begin
   Result := nil;
   if TAdapterProbe<M>(AAdapter).FMasterObject.TryGetValue(AKey, LChild) then
     Result := LChild;
+end;
+
+class procedure TAdapterProbe<M>.LinkTo(const AAdapter, AMaster: TObject);
+begin
+  TAdapterProbe<M>(AAdapter).SetMasterObject(AMaster);
+end;
+
+class function TAdapterProbe<M>.OwnerCurrentClassName(
+  const AAdapter: TObject): String;
+var
+  LOwner: TObject;
+begin
+  LOwner := TAdapterProbe<M>(AAdapter).FOwnerMasterObject;
+  if LOwner = nil then
+    Exit('');
+  Result := TAdapterProbe<M>(LOwner).FCurrentInternal.ClassName;
 end;
 
 { TTestManagerAddAdapter }
@@ -523,6 +601,155 @@ begin
     'every field must sit at the same offset in both instantiations');
   Assert.AreEqual(LMasterShape, LThirdShape,
     'and in the third');
+end;
+
+procedure TTestManagerAddAdapter.MasterNotAnAdapter_IsRefusedByNameInsteadOfFaulting;
+var
+  LChild: TObject;
+  LIntruder: TNotAnAdapter;
+  LOutcome: String;
+begin
+  BuildMasterDetail;
+  LChild := AdapterOf(cCHILDCLASS);
+  Assert.IsNotNull(LChild, 'the child adapter must be in the repository');
+  LIntruder := TNotAnAdapter.Create;
+  try
+    Assert.IsTrue(
+      LIntruder.InstanceSize >= TDataSetBaseAdapter<TAsymChild>.InstanceSize,
+      'the intruder must be at least as big as the adapter, otherwise the ' +
+      'unguarded read this test describes would land PAST the object and the ' +
+      'measurement quoted above would be undefined behaviour instead of a ' +
+      'nil dereference. Intruder ' + IntToStr(LIntruder.InstanceSize) +
+      ' bytes against adapter ' +
+      IntToStr(TDataSetBaseAdapter<TAsymChild>.InstanceSize));
+    LOutcome := '';
+    try
+      TAdapterProbe<TAsymChild>.LinkTo(LChild, LIntruder);
+      LOutcome := 'nothing was raised';
+    except
+      on E: Exception do
+        LOutcome := E.ClassName + '|' + E.Message;
+    end;
+    // Two DISTINCT names in a FIXED order. cCHILDCLASS is the detail entity,
+    // TNotAnAdapter is what was handed in - transposing them in the Format
+    // call changes this string.
+    Assert.AreEqual(
+      'Exception|' + Format(cMASTERNOTADAPTER, [cCHILDCLASS, 'TNotAnAdapter']),
+      LOutcome,
+      'SetMasterObject must refuse a non-adapter by NAME. Both names matter: ' +
+      'the detail says which link broke, the intruder says what was passed');
+  finally
+    LIntruder.Free;
+  end;
+end;
+
+procedure TTestManagerAddAdapter.Guard_TheMasterOfAnotherInstantiationIsStillAccepted;
+var
+  LMaster: TObject;
+  LChild: TObject;
+begin
+  BuildMasterDetail;
+  LMaster := AdapterOf(cMASTERCLASS);
+  LChild := AdapterOf(cCHILDCLASS);
+  Assert.IsNotNull(LMaster, 'the master adapter must be in the repository');
+  Assert.IsNotNull(LChild, 'the child adapter must be in the repository');
+  Assert.AreNotEqual(LMaster.ClassName, LChild.ClassName,
+    'the premise of this test: the two ends are DIFFERENT instantiations of ' +
+    'the same generic adapter. Master ' + LMaster.ClassName + ', child ' +
+    LChild.ClassName);
+  // Unlink and relink, so SetMasterObject really runs with a non-nil value
+  // instead of taking its `already this master` exit.
+  Assert.WillNotRaiseAny(
+    procedure
+    begin
+      TAdapterProbe<TAsymChild>.LinkTo(LChild, nil);
+      TAdapterProbe<TAsymChild>.LinkTo(LChild, LMaster);
+    end,
+    'a guard written as `AValue is TDataSetBaseAdapter<M>` compiles and ' +
+    'refuses THIS - the only shape a master ever has - which would break ' +
+    'every master-detail link in the framework');
+  Assert.IsTrue(TAdapterProbe<TAsymChild>.OwnerOf(LChild) = LMaster,
+    'and the link must be the one it was before: the child points at the ' +
+    'master adapter');
+  Assert.AreEqual(1, TAdapterProbe<TAsymMaster>.ChildCountOf(LMaster),
+    'and the master carries exactly one child - not zero from the unlink and ' +
+    'not two from a relink that forgot to remove');
+end;
+
+procedure TTestManagerAddAdapter.Recognition_TheAncestorNameIsWhatTheGuardHangsOn;
+const
+  cPREFIX = 'TDataSetBaseAdapter<';
+
+  function Yn(const AValue: Boolean): String;
+  begin
+    if AValue then Result := 'yes' else Result := 'no';
+  end;
+
+var
+  LMaster: TObject;
+  LChild: TObject;
+  LIntruder: TNotAnAdapter;
+  LClass: TClass;
+  LChain: String;
+  LAnswers: String;
+  LHits: Integer;
+begin
+  BuildMasterDetail;
+  LMaster := AdapterOf(cMASTERCLASS);
+  LChild := AdapterOf(cCHILDCLASS);
+  Assert.IsNotNull(LMaster, 'the master adapter must be in the repository');
+  Assert.IsNotNull(LChild, 'the child adapter must be in the repository');
+
+  // The predicate itself, asked four questions whose answers are NOT all the
+  // same, in a fixed order and under distinct names. An inverted predicate
+  // flips all four; one that stopped walking ClassParent flips only the two
+  // built adapters; one that stopped testing for nil flips only the first.
+  LIntruder := TNotAnAdapter.Create;
+  try
+    LAnswers := 'nil=' + Yn(_IsBaseAdapterInstance(nil)) +
+                ';intruder=' + Yn(_IsBaseAdapterInstance(LIntruder)) +
+                ';master=' + Yn(_IsBaseAdapterInstance(LMaster)) +
+                ';child=' + Yn(_IsBaseAdapterInstance(LChild));
+    Assert.AreEqual('nil=no;intruder=no;master=yes;child=yes', LAnswers,
+      'the recognition SetMasterObject leans on. The two adapters are ' +
+      'different instantiations of the same generic class and both must be ' +
+      'recognised; nothing else may be');
+  finally
+    LIntruder.Free;
+  end;
+
+  Assert.AreNotEqual(1, Pos(cPREFIX, LChild.ClassName),
+    'the class the manager builds is ' + cLOCALADAPTER + ', NOT the base ' +
+    'adapter - so a guard that only looked at ClassName would refuse every ' +
+    'real master. Found: ' + LChild.ClassName);
+  LChain := '';
+  LHits := 0;
+  LClass := LChild.ClassType;
+  while LClass <> nil do
+  begin
+    LChain := LChain + LClass.ClassName + ';';
+    if Pos(cPREFIX, LClass.ClassName) = 1 then
+      Inc(LHits);
+    LClass := LClass.ClassParent;
+  end;
+  Assert.AreEqual(1, LHits,
+    'walking ClassParent must meet `' + cPREFIX + '` exactly once. If a ' +
+    'rename ever leaves that string behind, the guard silently stops ' +
+    'recognising adapters and starts refusing them. Chain: ' + LChain);
+  Assert.AreEqual(1, Pos(cPREFIX, TDataSetBaseAdapter<TAsymChild>.ClassName),
+    'and the name it hangs on is the one Delphi really emits for an ' +
+    'instantiation. Found: ' + TDataSetBaseAdapter<TAsymChild>.ClassName);
+end;
+
+procedure TTestManagerAddAdapter.Recovery_TheObjectBehindTheDetailTypedCastIsTheMasterEntity;
+begin
+  BuildMasterDetail;
+  Assert.AreEqual(cMASTERCLASS,
+    TAdapterProbe<TAsymChild>.OwnerCurrentClassName(AdapterOf(cCHILDCLASS)),
+    'the cast says TAsymChild and the object answers ' + cMASTERCLASS + '. ' +
+    'That is the whole answer to `does the wrong type argument change what ' +
+    'comes back` for these two sites: ClassName and ClassType read the ' +
+    'instance VMT pointer, not TypeInfo(M)');
 end;
 
 initialization
