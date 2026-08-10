@@ -90,30 +90,46 @@
 
   THE MUTATIONS THAT WERE RUN, AND WHAT DIED IN EACH
 
-  The repair has two halves that look alike and are not - the First and the
-  GotoBookmark of the walk in _ExecuteOneToMany - so each was suppressed on its
-  own and made to kill a DIFFERENT set. Baseline for all four: 514 found, 514
-  passed.
+  Every part of the repair is suppressed on its own and made to kill a
+  DIFFERENT set - the two scrolls of _ExecuteOneToMany look alike and are not,
+  and neither does the OTHER branch's single scroll. Baseline for all eight:
+  529 found, 529 passed.
 
-    1. suppression removed altogether (DoAfterScroll re-opens unconditionally)
-       -> 4 red: ReadingCurrentOnTheGrandparent, ClientDataSet_ReadingCurrent,
-          EachMidObjectInTheGraph, AfterTheRead_AnOperatorScrollStillDiscards.
-    2. suppression raised and NEVER released (the Dec deleted)
-       -> 1 red, and only one: AfterTheRead_AnOperatorScrollStillDiscards. The
-          operator's own scroll stopped discarding, which is the contract this
-          issue may not touch.
-    3. only the First protected, the bookmark restore left exposed
-       -> 3 red. EachMidObjectInTheGraph STAYS GREEN, and the difference is the
-          measurement: the graph is built during the walk, and the restore
-          destroys the leaf rows a moment AFTER it, so a fix that stopped at
-          the First would have returned a correct object graph over a table it
-          had just emptied.
-    4. only the bookmark restore protected, the First left exposed
-       -> 4 red, EachMidObjectInTheGraph among them: there the leaf is gone
-          BEFORE the walk reads it.
+    m1. the suppression is never consulted (DoAfterScroll re-opens always)
+        -> 5 red: ReadingCurrentOnTheGrandparent, ClientDataSet_ReadingCurrent,
+           EachMidObjectInTheGraph, AfterTheRead_AnOperatorScrollStillDiscards,
+           OneToOneTop_ReadingCurrentOnTheGrandparent.
+    m2. the release deleted outright
+        -> 2 red: AfterTheRead_AnOperatorScrollStillDiscards and
+           AnExceptionInsideTheWalk. The operator's own scroll stops
+           discarding, which is the contract this issue may not touch.
+    m3. only the First of _ExecuteOneToMany protected, the restore exposed
+        -> 3 red. EachMidObjectInTheGraph STAYS GREEN, and the difference is
+           the measurement: the graph is built during the walk, and the restore
+           destroys the leaf rows a moment AFTER it, so a fix that stopped at
+           the First would have returned a correct object graph over a table it
+           had just emptied.
+    m4. only the restore of _ExecuteOneToMany protected, the First exposed
+        -> 4 red, EachMidObjectInTheGraph among them: there the rows are gone
+           BEFORE the walk reads them.
+    y1. the release moved OUT of the `finally` and left a plain statement
+        -> 1 red, and only one: AnExceptionInsideTheWalk. The happy path still
+           releases, so nothing else notices - which is exactly why the
+           `finally` needed a test of its own.
+    y2. _InjectLazyProxiesOnScroll swallowed along with the re-open
+        -> 1 red: TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll.
+    y3. the `inherited` swallowed - consumer AfterScroll and the paging leg
+        -> 2 red: TheSuppressedWalk_StillFiresTheConsumersOwnAfterScroll, and
+           AnExceptionInsideTheWalk as collateral, because the exception that
+           test relies on is raised BY the consumer's handler.
+    z1. _ExecuteOneToOne back to no suppression at all
+        -> 1 red, and only one: OneToOneTop_ReadingCurrentOnTheGrandparent. The
+           two branches are pinned independently, in both directions.
 
-  Three and four are the reason the suppression spans the whole block: neither
-  scroll is redundant, and they fail differently.
+  m3 and m4 are the reason the suppression spans the whole block of
+  _ExecuteOneToMany: neither scroll is redundant, and they fail differently.
+  y1, y2 and y3 exist because all three of those mutations once survived GREEN
+  - the repair was correct and nothing held it up.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
