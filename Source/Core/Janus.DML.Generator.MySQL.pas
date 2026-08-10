@@ -168,7 +168,7 @@ end;
 ///  (https://dev.mysql.com/doc/refman/8.0/en/data-types.html); o caminho
 ///  documentado e' BINARY(16) via UUID_TO_BIN() ou CHAR(36)
 ///  (https://dev.mysql.com/doc/refman/8.0/en/miscellaneous-functions.html).
-///  O DDL desta casa emite CHAR(n) para dnMySQL
+///  O DDL desta casa PRETENDE CHAR(n) para dnMySQL
 ///  (MetaDbDiff.Metadata.Extract.pas:443), entao e' o ramo CHAR, comparacao de
 ///  texto, e a forma canonica e' a que casa.
 ///  A CAIXA NAO E' PROBLEMA AQUI, e pela razao oposta a do SQLite: CHAR compara

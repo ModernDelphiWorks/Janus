@@ -67,7 +67,7 @@ end;
 ///  parentesco historico: enquanto a doc nao for lida, a afirmacao "e' igual ao
 ///  Firebird" seria invencao.
 ///  O que ESTA medido e' o lado desta casa: MetaDbDiff.Metadata.Extract.pas:442
-///  emite CHAR(n) para dnInterbase, ou seja a coluna guarda o texto de 38 que o
+///  PRETENDE CHAR(n) para dnInterbase, ou seja coluna de texto guardando os 38
 ///  INSERT gravou. Por isso o literal conservador - a mesma forma canonica dos
 ///  demais - e' o certo aqui por construcao, independente do que a doc do
 ///  InterBase disser sobre funcoes de UUID.

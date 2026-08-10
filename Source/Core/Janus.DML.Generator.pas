@@ -98,8 +98,8 @@ type
     ///  ABSTRACT DE PROPOSITO, e essa e' a decisao de desenho da issue #284.
     ///  O defeito que este metodo conserta E' UM SILENCIO: ftGuid nao tinha
     ///  ramo em _GetPropertyValue, caia no `else`, virava '' e a guarda de
-    ///  GenerateSelectOneToOne (:254-255) e de GenerateSelectOneToOneMany
-    ///  (:317-318) emitia '1 = 0' - um master COM filhos no banco devolvendo
+    ///  GenerateSelectOneToOne (:265-266) e de GenerateSelectOneToOneMany
+    ///  (:328-329) emitia '1 = 0' - um master COM filhos no banco devolvendo
     ///  NENHUM, sem excecao, sem log e sem SQL malformado.
     ///
     ///  Por que nao um campo FGuidFormat no molde do FDateFormat/FTimeFormat:
@@ -128,19 +128,30 @@ type
     ///  grava (Janus.Command.Inserter.pas:213-217 -> TGUID.ToString) e que o
     ///  UPDATE/DELETE usam no WHERE (Updater:118-119, Deleter:97-98).
     ///
-    ///  E O DDL DESTA CASA GUARDA ESSE TEXTO NUMA COLUNA DE TEXTO:
-    ///  MetaDbDiff.Metadata.Extract.pas:429-445 emite CHAR(n) para PostgreSQL,
-    ///  Firebird, InterBase e MySQL, NCHAR2(n) para Oracle e 'GUID' no else -
-    ///  NUNCA `uuid` do PostgreSQL nem `uniqueidentifier` do SQL Server. Logo
-    ///  a comparacao e' TEXTO CONTRA TEXTO em todos eles, e a forma correta do
-    ///  literal CONVERGE. Isto esta escrito porque e' o que foi MEDIDO, e nao
-    ///  para justificar o desenho: a diferenca por dialeto que a doc oficial
-    ///  registra (SQLite compara sensivel a caixa via BINARY/memcmp; MySQL
-    ///  CHAR compara insensivel no collation padrao utf8mb4_0900_ai_ci; SQL
-    ///  Server trunca em silencio acima de 36 caracteres AO CONVERTER PARA
-    ///  uniqueidentifier) nao muda a forma do literal enquanto a coluna for a
-    ///  CHAR(n) que este ecossistema cria - emitir exatamente o texto gravado
-    ///  e' o que casa em todos os tres casos.
+    ///  E O DDL DESTA CASA PRETENDE GUARDAR ESSE TEXTO NUMA COLUNA DE TEXTO:
+    ///  MetaDbDiff.Metadata.Extract.pas:429-445 escolhe CHAR(%l) para
+    ///  PostgreSQL, Firebird, InterBase e MySQL, NCHAR2(%l) para Oracle e
+    ///  'GUID' no else - NUNCA `uuid` do PostgreSQL nem `uniqueidentifier` do
+    ///  SQL Server. Logo a comparacao e' TEXTO CONTRA TEXTO em todos eles, e a
+    ///  forma correta do literal CONVERGE.
+    ///
+    ///  PRETENDE, e a palavra e' medida: aquelas linhas escrevem o placeholder
+    ///  como '%1' (digito um), e quem substitui tamanho e'
+    ///  MetaDbDiff.DDL.Generator.pas:484-486, que troca '%l', '%p' e '%s' -
+    ///  '%1' nao e' substituido por ninguem, em lugar nenhum do ecossistema.
+    ///  Ou seja o DDL que sai hoje para ftGuid carrega o placeholder literal.
+    ///  Isso e' defeito de OUTRO repositorio e nao muda nada aqui - a coluna
+    ///  continua sendo de texto por intencao, e o literal canonico continua
+    ///  sendo o certo -, mas a frase honesta e' "pretende", nao "emite".
+    ///
+    ///  Isto esta escrito porque e' o que foi MEDIDO, e nao para justificar o
+    ///  desenho: a diferenca por dialeto que a doc oficial registra (SQLite
+    ///  compara sensivel a caixa via BINARY/memcmp; MySQL CHAR compara
+    ///  insensivel no collation padrao utf8mb4_0900_ai_ci; SQL Server trunca
+    ///  em silencio acima de 36 caracteres AO CONVERTER PARA uniqueidentifier)
+    ///  nao muda a forma do literal enquanto a coluna for a de texto que este
+    ///  ecossistema pretende criar - emitir exatamente o texto gravado e' o
+    ///  que casa em todos os tres casos.
     ///
     ///  O VALOR DO DESPACHO POR DIALETO, ENTAO, E' O MECANISMO: quando um
     ///  dialeto novo nascer - ou quando o DDL passar a emitir tipo nativo,
@@ -633,8 +644,8 @@ begin
        begin
          LGuid := _GetGuidValue(AObject, AProperty);
          // FK GUID nao preenchida: o TGUID chega zerado (ou Nullable sem
-         // valor, ver _GetGuidValue). Devolver '' faz a guarda de :254-255 e
-         // :317-318 emitir '1 = 0' - o mesmo contrato de FK nula que o irmao
+         // valor, ver _GetGuidValue). Devolver '' faz a guarda de :265-266 e
+         // :328-329 emitir '1 = 0' - o mesmo contrato de FK nula que o irmao
          // REST ja pratica em Janus.RestDataSet.Adapter.pas:439-440. Emitir
          // o literal do GUID zerado tambem casaria zero linhas, mas por
          // acidente e nao por contrato.
@@ -665,15 +676,22 @@ begin
   // Test.Janus.DML.Generator.SQLite prova ao matar
   // TestGuid_ANullableGuidWithNoValue_BecomesTheZeroRowsGuard.
   //
-  // NAO ha' guarda de LValue.IsEmpty aqui, e isso foi MEDIDO em vez de
-  // suposto. GetNullableValue so' devolve TValue vazio se um record chamado
-  // "Nullable<...>" nao tiver FHasValue ou FValue - o que Nullable<T>
-  // (Janus.Types.Nullable.pas:31-35) sempre tem. E mesmo nesse caso a guarda
-  // seria inutil: sobre um TValue vazio, IsType<Variant> devolve True,
-  // VarIsNull(AsVariant) devolve False SEM levantar, e TryAsType<TGUID>
-  // devolve True com TGUID.Empty - ou seja, a mesma resposta. Uma linha que
-  // nenhum caminho alcanca e cuja remocao nao muda resposta nenhuma e' codigo
-  // morto, e saiu.
+  // NAO ha' guarda de LValue.IsEmpty aqui, e o que autoriza tira-la e'
+  // NEUTRALIDADE DE RESPOSTA - nao inalcancabilidade. A distincao importa
+  // porque a versao anterior deste comentario afirmava que nenhum caminho
+  // produzia TValue vazio, e isso era FALSO:
+  //   IsNullable e' checagem POR NOME (MetaDbDiff.RTTI.Helper.pas:620-629):
+  //   basta o record se chamar "Nullable<...>". Um record assim COM FHasValue
+  //   (True) e SEM FValue passa pela checagem, chega em
+  //   MetaDbDiff.RTTI.Helper.pas:362-364, nao acha o campo, e sai com o
+  //   Result que veio de :345 - Default(TValue), ou seja VAZIO. Medido:
+  //   IsEmpty devolve True nessa forma.
+  // O caminho existe. O que NAO existe e' diferenca de resposta. Medido sobre
+  // um TValue vazio: IsType<Variant> devolve True, VarIsNull(AsVariant)
+  // devolve False SEM levantar, e TryAsType<TGUID> devolve True com
+  // TGUID.Empty - exatamente o que a guarda removida devolvia. Fim a fim, com
+  // essa forma exata, o gerador emite 'WHERE 1 = 0' com e sem a guarda.
+  // Uma linha cuja remocao nao move nenhuma resposta e' peso morto, e saiu.
   if LValue.IsType<Variant> and VarIsNull(LValue.AsVariant) then
     Exit(TGUID.Empty);
   // Erro NOMEADO em vez do EInvalidCast cru de AsType<TGUID>. Uma coluna

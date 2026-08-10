@@ -184,7 +184,7 @@ end;
 ///  OCTETS, UUID_TO_CHAR() devolve CHAR(36) MAIUSCULO com hifen e SEM chaves
 ///  (https://www.firebirdsql.org/refdocs/langrefupd25-intfunc-uuid_to_char.html),
 ///  e CHAR_TO_UUID() aceita hex em caixa mista.
-///  O DDL desta casa emite CHAR(n) para dnFirebird
+///  O DDL desta casa PRETENDE CHAR(n) para dnFirebird
 ///  (MetaDbDiff.Metadata.Extract.pas:441) e guarda o texto de 38 que o INSERT
 ///  gravou - texto contra texto, sensivel a caixa, forma canonica.
 ///  DUAS RESSALVAS MEDIDAS:

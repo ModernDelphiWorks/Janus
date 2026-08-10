@@ -168,7 +168,7 @@ end;
 ///  de tipo `unknown` assume o tipo do outro lado da comparacao, portanto SEM
 ///  cast (https://www.postgresql.org/docs/current/typeconv-oper.html).
 ///  MAS O DDL DESTA CASA NAO CRIA `uuid`: MetaDbDiff.Metadata.Extract.pas:440
-///  emite CHAR(n) para dnPostgreSQL. Entao a comparacao aqui e' texto contra
+///  PRETENDE CHAR(n) para dnPostgreSQL. Entao a comparacao aqui e' texto contra
 ///  texto, e emitir `'...'::uuid` quebraria contra o proprio DDL da casa.
 ///  A forma canonica serve nos DOIS mundos - e' o unico literal que casa
 ///  tanto na coluna CHAR(n) que este ecossistema cria quanto numa coluna

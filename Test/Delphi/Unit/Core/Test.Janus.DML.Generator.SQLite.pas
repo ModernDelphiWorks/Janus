@@ -349,7 +349,7 @@ const
   /// to a dot, DateTime through FDateFormat too and Time through FTimeFormat.
   /// MEASURED AND NOT FIXED HERE: the cck6 term is ftDateTime and comes out as
   /// '2026-08-10' - the TIME IS DROPPED, because the ftDateTime branch shares
-  /// FDateFormat with ftDate (Janus.DML.Generator.pas:612-615). That is a
+  /// FDateFormat with ftDate (Janus.DML.Generator.pas:623-626). That is a
   /// pre-existing defect of a different branch, it is pinned here instead of
   /// being hidden by a substring assertion, and it is not what #284 is about.
   cWHEREGUIDKEY =
@@ -364,9 +364,9 @@ const
   /// THE TWO DIALECTS EXPECT THE SAME TEXT, AND THAT IS A MEASUREMENT.
   /// Two constants rather than one use of a shared one, so that the day a
   /// dialect genuinely diverges the split is a one-line edit and not a
-  /// redesign; equal today because the DDL this house emits for ftGuid is
+  /// redesign; equal today because the DDL this house INTENDS for ftGuid is
   /// CHAR(n) on both (MetaDbDiff.Metadata.Extract.pas:429-445 never creates a
-  /// native uuid), so both compare text against text. Inventing a difference
+  /// native uuid), so both compare text against text. "Intends" and not "emits" is measured - see CanonicalGuidLiteral. Inventing a difference
   /// to make the two-dialect proof look stronger would be inventing a defect;
   /// what proves the per-dialect dispatch is the mutation, and the abstract
   /// test below.
@@ -1354,7 +1354,7 @@ begin
   // TWO GLOBALS ARE PINNED, AND FOR OPPOSITE REASONS.
   //   DecimalSeparator ',' - the Currency term goes through the global
   //     FormatSettings, and on a machine that already dots the number the
-  //     ReplaceStr in _GetPropertyValue (Janus.DML.Generator.pas:623)
+  //     ReplaceStr in _GetPropertyValue (Janus.DML.Generator.pas:634)
   //     does nothing, so deleting it would survive.
   //   TimeSeparator ':'    - ':' inside a FormatDateTime pattern is the
   //     PLACEHOLDER for this setting, not a literal colon. Pinning it is what
@@ -1419,22 +1419,22 @@ begin
 
   Assert.AreEqual(cSELECTCOMPCHILD + cWHERESQLITE, LSQL, False,
     'The ftGuid term is the whole issue: before #284 ftGuid had no branch in ' +
-    '_GetPropertyValue, fell into the else (Janus.DML.Generator.pas:649-650), ' +
-    'became '''' and the null-FK guard (:254-255) wrote ''1 = 0'' - a master ' +
+    '_GetPropertyValue, fell into the else (Janus.DML.Generator.pas:660-661), ' +
+    'became '''' and the null-FK guard (:265-266) wrote ''1 = 0'' - a master ' +
     'WITH children returning none, in silence.');
 
   Assert.IsFalse(ContainsText(LSQL, '1 = 0'),
     'Explicit negative anchor. A test that only counted rows would go green ' +
     'against ''1 = 0'' whenever the scenario has zero children for some other ' +
     'reason; the equality above already pins the WHERE, but this names the ' +
-    'defect - Janus.DML.Generator.pas:254-255 - so a future reader knows what ' +
+    'defect - Janus.DML.Generator.pas:265-266 - so a future reader knows what ' +
     'this fixture is holding down.');
 end;
 
 /// <summary> THE TWIN METHOD, WHICH THE ISSUE DOES NOT EVEN MENTION.
-///  GenerateSelectOneToOneMany (Janus.DML.Generator.pas:281-343) is a DIFFERENT
-///  method with its OWN copy of the call (:293) and its OWN copy of the guard
-///  (:317-318). Covering only GenerateSelectOneToOne would leave half of the
+///  GenerateSelectOneToOneMany (Janus.DML.Generator.pas:292-354) is a DIFFERENT
+///  method with its OWN copy of the call (:304) and its OWN copy of the guard
+///  (:328-329). Covering only GenerateSelectOneToOne would leave half of the
 ///  defect with no test, and deleting the ftGuid branch would still be caught
 ///  - by the other test, not by this one. Hence a second full assertion rather
 ///  than a shared one. </summary>
@@ -1445,8 +1445,8 @@ begin
   LSQL := GuidSelect(dnSQLite, True);
 
   Assert.AreEqual(cSELECTCOMPCHILD + cWHERESQLITE, LSQL, False,
-    'GenerateSelectOneToOneMany carries its own copy of the guard (:317-318) ' +
-    'and its own call to _GetPropertyValue (:293). The issue names only the ' +
+    'GenerateSelectOneToOneMany carries its own copy of the guard (:328-329) ' +
+    'and its own call to _GetPropertyValue (:304). The issue names only the ' +
     'OneToOne sibling; the defect was in both.');
 
   Assert.IsFalse(ContainsText(LSQL, '1 = 0'),
@@ -1457,7 +1457,7 @@ end;
 ///
 ///  Honest first: the PostgreSQL literal and the SQLite literal are the SAME
 ///  STRING, and that is a MEASUREMENT, not a shortcut. The DDL this house
-///  emits for ftGuid is CHAR(n) on PostgreSQL and text on SQLite
+///  INTENDS for ftGuid is CHAR(n) on PostgreSQL and text on SQLite
 ///  (MetaDbDiff.Metadata.Extract.pas:429-445 never creates a native `uuid`),
 ///  so both compare text against text and both need exactly the 38-character
 ///  braced uppercase form the INSERT wrote. Inventing a difference to make
@@ -1504,7 +1504,7 @@ end;
 ///  '1 = 0' is not the defect - it is the correct answer for an association
 ///  whose foreign key is not set. The defect was reaching it with a key that
 ///  WAS set. An unset TGUID key is TGUID.Empty, and the ftGuid branch maps it
-///  back to '' on purpose so the existing guard (:254-255) keeps its meaning;
+///  back to '' on purpose so the existing guard (:265-266) keeps its meaning;
 ///  emitting the all-zeros literal would also match zero rows, but by accident
 ///  instead of by contract. Without this test, deleting the TGUID.Empty check
 ///  would survive every other assertion in this file. </summary>
