@@ -105,12 +105,24 @@ begin
   DoBeforeScrollPendingChilds;
 end;
 
+/// <summary> ISSUE #276. OpenDataSetChilds re-opens every child dataset from
+///  the database, and OpenSQLInternal starts with EmptyDataSet - so it throws
+///  away whatever the operator typed into the grandchildren and did not save.
+///  That is the SHIPPED CONTRACT when the operator moves the master
+///  (Test.Janus.Scroll.PendingChilds), and it is a defect when the mover is the
+///  framework's own read walk in _ExecuteOneToMany, which advances this cursor
+///  from the first row to Eof and puts it back only to build objects.
+///  FChildReopenSuppressed tells the two apart. It suppresses THIS CALL ONLY:
+///  the paging in the inherited DoAfterScroll, the lazy proxy injection and the
+///  consumer's own AfterScroll all still run, which is what a full
+///  DisableDataSetEvents would have taken down with it. </summary>
 procedure TDataSetAdapter<M>.DoAfterScroll(DataSet: TDataSet);
 begin
   if DataSet.State in [dsBrowse] then
     if not FOrmDataSet.Eof then
     begin
-      OpenDataSetChilds;
+      if FChildReopenSuppressed = 0 then
+        OpenDataSetChilds;
       _InjectLazyProxiesOnScroll;
     end;
   inherited;

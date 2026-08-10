@@ -130,7 +130,9 @@ uses
   /// AddAdapter<T, M> on the branch a stock Janus.inc produces — issue #226
   Test.Janus.Manager.AddAdapter in 'Unit\Core\Test.Janus.Manager.AddAdapter.pas',
   /// The encoding convention for Source\, and its baseline ratchet — issue #214
-  Test.Janus.Source.Encoding in 'Unit\Core\Test.Janus.Source.Encoding.pas';
+  Test.Janus.Source.Encoding in 'Unit\Core\Test.Janus.Source.Encoding.pas',
+  /// Reading .Current of a grandparent must not destroy grandchild rows - #276
+  Test.Janus.Grandchild.Read in 'Unit\Core\Test.Janus.Grandchild.Read.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

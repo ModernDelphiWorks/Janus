@@ -114,6 +114,23 @@ type
     FCheckedFieldEvents: Boolean;
     FLastPKValue: String;
     FProxiesInjectedForCurrentRow: Boolean;
+    /// <summary> Greater than zero while THIS adapter's cursor is being walked
+    ///  by a READ that only materialises objects, and therefore must cost
+    ///  nothing. Read by TDataSetAdapter<M>.DoAfterScroll, which is the only
+    ///  family whose OpenDataSetChilds really re-queries - issue #276.
+    ///
+    ///  WHY A COUNTER AND NOT A BOOLEAN: _ExecuteOneToMany recurses into the
+    ///  children of every row it reads, and a hierarchy may bring the same
+    ///  adapter back into a walk that is already running. A Boolean cleared by
+    ///  the inner walk would leave the outer one unprotected for the rest of
+    ///  its rows, which is precisely the shape of the defect being repaired.
+    ///
+    ///  WHY NOT DisableDataSetEvents, WHICH IS WHAT _HasPendingRows AND
+    ///  SetAutoIncValueChilds USE FOR THE SAME TRAP: muting takes the whole
+    ///  event set down, including the paging in DoAfterScroll (NextPacket) and
+    ///  the consumer's own AfterScroll. This suppresses ONE call and leaves
+    ///  every other effect of the scroll exactly where it was. </summary>
+    FChildReopenSuppressed: Integer;
     function _GetCurrentPKAsString: String;
     procedure DoBeforeScroll(DataSet: TDataSet); virtual;
     procedure DoBeforeScrollPendingChilds; virtual;
@@ -565,29 +582,58 @@ begin
     Exit;
   LDataSet := ADatasetBase.FOrmDataSet;
   LBookMark := LDataSet.Bookmark;
-  LDataSet.First;
-  LDataSet.BlockReadSize := MaxInt;
+  // ISSUE #276 - A READ MUST NOT DESTROY ROWS.
+  // What follows walks the child's cursor from the first row to Eof and puts
+  // it back, only to build objects. Every one of those moves fires the child's
+  // own AfterScroll, and in the TDataSetAdapter<M> family that calls
+  // OpenDataSetChilds, which re-opens the GRANDchild dataset from the database
+  // - OpenSQLInternal starts with EmptyDataSet. So one read of the
+  // grandparent's Current threw away every grandchild row the operator had
+  // typed and not saved, with no exception and no trace.
+  //
+  // TWO of the moves below reach that, and only two: First, and the
+  // GotoBookmark in the finally. The ones in between do not, because
+  // BlockReadSize > 0 puts the dataset in dsBlockRead and DoAfterScroll asks
+  // for dsBrowse before it re-opens anything. That is why the suppression has
+  // to span the WHOLE block including the restore - protecting the First alone
+  // leaves the bookmark restore destroying the same rows a moment later.
+  //
+  // NOT A CHANGE TO THE SCROLL CONTRACT. When the OPERATOR moves the master
+  // the re-query still runs and still discards; that is the decision pinned by
+  // Test.Janus.Scroll.PendingChilds. What separates the two is who moved the
+  // cursor, not the state of the row - the master rows in that fixture's
+  // premise are pending inserts exactly like the ones here, so a guard phrased
+  // as "do not re-open under an unsaved master row" was measured and refused.
+  //
+  // Measured by Test.Janus.Grandchild.Read.
+  Inc(ADatasetBase.FChildReopenSuppressed);
   try
-    while not LDataSet.Eof do
-    begin
-      LObjectType := LPropertyType.AsInstance.MetaclassType.Create;
-      LObjectType.MethodCall('Create', []);
-      // Popula o objeto M e o adiciona na lista e objetos com o registro do DataSet.
-      Bind.SetFieldToProperty(LDataSet, LObjectType);
+    LDataSet.First;
+    LDataSet.BlockReadSize := MaxInt;
+    try
+      while not LDataSet.Eof do
+      begin
+        LObjectType := LPropertyType.AsInstance.MetaclassType.Create;
+        LObjectType.MethodCall('Create', []);
+        // Popula o objeto M e o adiciona na lista e objetos com o registro do DataSet.
+        Bind.SetFieldToProperty(LDataSet, LObjectType);
 
-      LObjectList := AProperty.GetNullableValue(TObject(AObject)).AsObject;
-      LObjectList.MethodCall('Add', [LObjectType]);
-      // Populando em hierarquia de varios niveis
-      for LDataSetChild in ADatasetBase.FMasterObject.Values do
-        LDataSetChild.FillMastersClass(LDataSetChild, LObjectType);
+        LObjectList := AProperty.GetNullableValue(TObject(AObject)).AsObject;
+        LObjectList.MethodCall('Add', [LObjectType]);
+        // Populando em hierarquia de varios niveis
+        for LDataSetChild in ADatasetBase.FMasterObject.Values do
+          LDataSetChild.FillMastersClass(LDataSetChild, LObjectType);
 
-      // Proximo registro
-      LDataSet.Next;
+        // Proximo registro
+        LDataSet.Next;
+      end;
+    finally
+      LDataSet.BlockReadSize := 0;
+      LDataSet.GotoBookmark(LBookMark);
+      LDataSet.FreeBookmark(LBookMark);
     end;
   finally
-    LDataSet.BlockReadSize := 0;
-    LDataSet.GotoBookmark(LBookMark);
-    LDataSet.FreeBookmark(LBookMark);
+    Dec(ADatasetBase.FChildReopenSuppressed);
   end;
 end;
 
