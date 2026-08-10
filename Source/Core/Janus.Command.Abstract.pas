@@ -73,8 +73,17 @@ end;
 
 destructor TDMLCommandAbstract.Destroy;
 begin
-  FParams.Clear;
-  FParams.Free;
+  // O Create acima pode levantar ANTES de FParams existir -- e o que acontece
+  // quando o driver nao esta registrado: GetDriver levanta a mensagem limpa
+  // logo na primeira linha. O Delphi chama Destroy do objeto meio-construido
+  // assim mesmo, e o FParams.Clear num ponteiro nil trocava aquela mensagem
+  // por um Access Violation -- justamente o diagnostico opaco que a guarda do
+  // Create dizia estar evitando.
+  if Assigned(FParams) then
+  begin
+    FParams.Clear;
+    FParams.Free;
+  end;
   inherited;
 end;
 

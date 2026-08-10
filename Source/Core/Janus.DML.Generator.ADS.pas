@@ -61,7 +61,21 @@ implementation
 constructor TDMLGeneratorADS.Create;
 begin
   inherited;
-  FDateFormat := 'DD/MM/CCYY';
+  // 'CC' nao e especificador do FormatDateTime do Delphi. O 'C' da RTL e data
+  // curta + hora longa, e a RTL consome os 'c' consecutivos numa unica
+  // expansao, entao 'DD/MM/CCYY' com 15/03/2027 14:07:53 produzia (medido)
+  // '15/03/15/03/2027 14:07:5327' -- toda literal de data gerada para o
+  // dialeto ADS saia malformada.
+  // De onde saiu esse 'CCYY' e DESCONHECIDO. Nao e mascara da RTL, e tambem
+  // nao e mascara do Advantage: a referencia da ACE API para AdsSetDateFormat
+  // diz que o formato "must contain two or more occurrences of the letters D,
+  // M, and Y respectively (e.g. "MMDDYYYY")", com default "MM/DD/YYYY" -- o
+  // alfabeto e D/M/Y, nunca C. Nao ha etiologia comprovada aqui.
+  // 'yyyy-MM-dd' e o formato ANSI (ccyy-mm-dd, prosa do Developer's Guide para
+  // o layout da literal) que o Advantage aceita independentemente do formato
+  // de data configurado no cliente por AdsSetDateFormat / TAdsSettings.
+  // DateFormat.
+  FDateFormat := 'yyyy-MM-dd';
   FTimeFormat := 'HH:MM:SS';
 end;
 

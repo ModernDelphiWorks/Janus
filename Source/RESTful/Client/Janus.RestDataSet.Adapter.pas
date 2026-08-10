@@ -46,9 +46,9 @@ const
   /// ISO-8601 para data/hora dentro do $filter, e a razao NAO e' a mesma nas
   /// duas metades - cada uma foi medida:
   ///  - DATA: o irmao local formata com FDateFormat, que e' campo do gerador
-  ///    de DML e tem CINCO valores distintos nos 13 dialetos - 'MM/dd/yyyy'
+  ///    de DML e tem QUATRO valores distintos nos 13 dialetos - 'MM/dd/yyyy'
   ///    no Firebird, 'dd/MM/yyyy' no MSSQL, 'yyyy-mm-dd' no NexusDB,
-  ///    'yyyy-MM-dd' no MySQL, 'DD/MM/CCYY' no ADS. Um cliente REST nao sabe
+  ///    'yyyy-MM-dd' no MySQL e tambem no ADS. Um cliente REST nao sabe
   ///    qual banco esta do outro lado, entao copiar aquele formato e'
   ///    impossivel daqui.
   ///  - HORA: FTimeFormat NAO varia - e' 'HH:MM:SS' nos 13 geradores, e esse
@@ -361,7 +361,7 @@ end;
 ///     ATALHO CUSTA esta no item 3.
 ///  3) a formatacao do valor e' feita AQUI, e nao herdada. Quem aspa no lado
 ///     local e' TDMLGeneratorAbstract._GetPropertyValue
-///     (Janus.DML.Generator.pas:509-534), e ele fica no caminho da RTTI que o
+///     (Janus.DML.Generator.pas:536-563), e ele fica no caminho da RTTI que o
 ///     item 2 pulou. Sem repor isso, uma FK string sairia `col eq AB C` - erro
 ///     de sintaxe com espaco, comparacao contra outra coluna sem espaco, e
 ///     silenciosamente errada nos dois casos; GUID e codigo alfanumerico sao

@@ -45,6 +45,7 @@ uses
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
   Test.Janus.Model.Nested in 'Common\Test.Janus.Model.Nested.pas',
   Test.Janus.Model.ReservedColumn in 'Common\Test.Janus.Model.ReservedColumn.pas',
+  Test.Janus.Model.Moment in 'Common\Test.Janus.Model.Moment.pas',
   Model.Atendimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Atendimento.pas',
   Model.Exame       in '..\..\Examples\Delphi\Data\Object Lazy\Model.Exame.pas',
   Model.Procedimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Procedimento.pas',
@@ -54,6 +55,9 @@ uses
   Janus.Model.Lookup in '..\..\Examples\Delphi\Data\Models\Janus.Model.Lookup.pas',
   Janus.Model.Master in '..\..\Examples\Delphi\Data\Models\Janus.Model.Master.pas',
   Janus.DML.Generator.SQLite in '..\..\Source\Core\Janus.DML.Generator.SQLite.pas',
+  Janus.DML.Generator.ADS in '..\..\Source\Core\Janus.DML.Generator.ADS.pas',
+  /// Linked for the locale test: a dialect whose date mask carries '/'
+  Janus.DML.Generator.MSSQL in '..\..\Source\Core\Janus.DML.Generator.MSSQL.pas',
   /// Tests
   Test.Janus.Driver.Register in 'Unit\Core\Test.Janus.Driver.Register.pas',
   Test.Janus.Mapping.Cache   in 'Unit\Core\Test.Janus.Mapping.Cache.pas',
@@ -76,6 +80,10 @@ uses
   Test.Janus.Criteria.Advanced in 'Unit\Criteria\Test.Janus.Criteria.Advanced.pas',
   Test.Janus.Middleware.Pipeline in 'Unit\Middleware\Test.Janus.Middleware.Pipeline.pas',
   Test.Janus.DML.Generator.SQLite in 'Unit\Core\Test.Janus.DML.Generator.SQLite.pas',
+  /// The ADS date literal: 'CC' is not a FormatDateTime specifier
+  Test.Janus.DML.Generator.ADS in 'Unit\Core\Test.Janus.DML.Generator.ADS.pas',
+  /// An unregistered driver must reach the user as the registry message
+  Test.Janus.Command.UnregisteredDriver in 'Unit\Core\Test.Janus.Command.UnregisteredDriver.pas',
   Test.Janus.FluentSQL.Integration in 'Unit\Criteria\Test.Janus.FluentSQL.Integration.pas',
   /// REST/Horse Tests — ESP-002
   Test.Janus.REST.QueryParse in 'RESTHorse\Test.Janus.REST.QueryParse.pas',
