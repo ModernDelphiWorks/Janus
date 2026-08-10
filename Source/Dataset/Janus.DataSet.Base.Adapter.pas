@@ -201,6 +201,45 @@ type
       read FBeforeScrollPendingChilds write FBeforeScrollPendingChilds;
   end;
 
+const
+  /// <summary> O PREFIXO DE ClassName DE TODA INSTANCIACAO DO ADAPTER BASE.
+  ///  ClassName de uma instanciacao generica carrega o nome do template
+  ///  seguido de `&lt;`, e todo adapter de dataset desce de
+  ///  TDataSetBaseAdapter&lt;M&gt; - TDataSetAdapter, TFDMemTableAdapter,
+  ///  TClientDataSetAdapter, TRESTDataSetAdapter, TRESTFDMemTableAdapter e
+  ///  TRESTClientDataSetAdapter - de modo que subir por ClassParent chega
+  ///  sempre aqui.
+  ///  O `&lt;` FINAL E CARGA, NAO ENFEITE: e a unica coisa que separa
+  ///  `instanciacao deste template` de `qualquer classe cujo nome comece
+  ///  assim`. Encurtar a string passa despercebido pelo compilador, entao o
+  ///  CONTEUDO e ancorado - e nao so a direcao de rename - por
+  ///  Test.Janus.Manager.AddAdapter
+  ///  .Recognition_TheAncestorNameIsWhatTheGuardHangsOn, que deriva o valor
+  ///  esperado do nome que o Delphi realmente emite e o compara com ESTA
+  ///  constante. Por isso ela e declarada na interface: para o teste ler a de
+  ///  Source em vez de uma copia sua.
+  ///  UMA HEURISTICA DE NOME, E DECLARADA COMO TAL. Nao existe ancestral
+  ///  nao-generico nem interface que ambas as instanciacoes compartilhem, e
+  ///  criar um mexe em declaracao publica - decisao do dono, nao do
+  ///  implementador (issue #255). </summary>
+  cBaseAdapterPrefix = 'TDataSetBaseAdapter<';
+
+/// <summary> Responde se AValue e um adapter de dataset de QUALQUER
+///  instanciacao - a pergunta que o sistema de tipos do Delphi nao sabe fazer,
+///  porque TDataSetBaseAdapter&lt;A&gt; e TDataSetBaseAdapter&lt;B&gt; sao
+///  tipos sem parentesco e `is` recusaria justamente o master legitimo.
+///  DECLARADA NA INTERFACE CONTRA A VONTADE, e a razao vale registrar:
+///  SetMasterObject e metodo de tipo parametrizado declarado na interface, e o
+///  compilador recusa (E2506) que um metodo assim use simbolo local da
+///  implementacao. Nao ha, portanto, como deixa-la privada sem transforma-la
+///  em membro de TDataSetBaseAdapter&lt;M&gt;, o que alargaria a declaracao
+///  publica da classe - exatamente o que a issue #255 reserva ao dono. Uma
+///  funcao solta e a alternativa mais estreita.
+///  Percorre a cadeia de ancestrais porque o objeto quase nunca e um
+///  TDataSetBaseAdapter&lt;M&gt; puro: o que o manager constroi e
+///  TFDMemTableAdapter ou TClientDataSetAdapter, dois niveis abaixo. </summary>
+function _IsBaseAdapterInstance(const AValue: TObject): Boolean;
+
 implementation
 
 uses
@@ -225,6 +264,22 @@ const
   ///  framework the community consumes is not the place to put a private
   ///  convention. </summary>
   cNoRowToken = 0;
+
+function _IsBaseAdapterInstance(const AValue: TObject): Boolean;
+var
+  LClass: TClass;
+begin
+  Result := False;
+  if AValue = nil then
+    Exit;
+  LClass := AValue.ClassType;
+  while LClass <> nil do
+  begin
+    if Copy(LClass.ClassName, 1, Length(cBaseAdapterPrefix)) = cBaseAdapterPrefix then
+      Exit(True);
+    LClass := LClass.ClassParent;
+  end;
+end;
 
 { TDataSetBaseAdapter<M> }
 
@@ -1869,6 +1924,15 @@ begin
   FOrmDataSet.OnNewRecord  := DoNewRecord;
 end;
 
+/// <summary> O SEGUNDO SITIO DA ISSUE #255, e o cast continua aqui de
+///  proposito. Quem garante que FOwnerMasterObject e mesmo um adapter e
+///  SetMasterObject, a unica escrita do campo alem do `:= nil` de Destroy.
+///  O ARGUMENTO DE TIPO DO CAST E O DO DETALHE, e nao muda o que esta linha
+///  faz: ClassType nasce do ponteiro de VMT do objeto lido, nao de
+///  TypeInfo(M), de modo que quem chega a GetMappingAssociation e a classe
+///  REAL do master. Medido por
+///  Test.Janus.Manager.AddAdapter
+///  .Recovery_TheObjectBehindTheDetailTypedCastIsTheMasterEntity. </summary>
 procedure TDataSetBaseAdapter<M>._GetMasterValues;
 var
   LAssociation: TAssociationMapping;
@@ -1901,12 +1965,65 @@ begin
   end;
 end;
 
+/// <summary> A UNICA PORTA DE ENTRADA DE FOwnerMasterObject, e por isso o
+///  unico lugar onde a checagem cabe. O campo tem exatamente duas escritas em
+///  todo o repositorio - o `:= nil` de Destroy e a linha final deste metodo -
+///  de modo que tudo que LE FOwnerMasterObject atraves de um cast, incluindo
+///  _GetMasterValues e _EnsureMasterRowToken, passa a estar coberto por este
+///  raise sem que nenhum deles precise repetir a pergunta.
+///
+///  O QUE O CAST ESCONDIA. TDataSetBaseAdapter&lt;M&gt;(AValue) e um cast duro
+///  entre classes: nao pergunta nada ao objeto. Passar um objeto que NAO e
+///  adapter fazia o metodo ler FMasterObject de dentro dele e chamar Add
+///  naquilo - sem excecao, sem mensagem, e sem nada no fault que nomeie quem
+///  foi passado. Medido comentando o raise abaixo e rodando
+///  Test.Janus.Manager.AddAdapter
+///  .MasterNotAnAdapter_IsRefusedByNameInsteadOfFaulting: com um objeto de
+///  campos nulos no lugar do master, o que saiu foi
+///  `EAccessViolation | ... Read of address 00000008` - o endereco do modulo
+///  varia por build, o `00000008` nao: e FMasterObject lido como nil e usado
+///  em seguida.
+///
+///  E ISSO NAO E TEORICO: TDataSetAdapter&lt;M&gt;.LoadLazy declara
+///  `AOwner: M` - uma ENTIDADE - e entrega esse valor aqui, onde so um ADAPTER
+///  serve. Os testes da casa passam o adapter do master com um cast para M
+///  (`FMid.LoadLazy(TAitMid(FRoot.This))`); quem ler a declaracao e obedecer
+///  a ela entrega uma entidade de verdade. Corrigir a DECLARACAO de LoadLazy e
+///  mexer em superficie publica, o que a issue #255 reserva ao dono; recusar
+///  o valor errado com nome nao e.
+///
+///  O QUE ESTE RAISE NAO CONSERTA. O argumento de tipo do cast continua sendo
+///  o do DETALHE. Medido, nesta versao, como OBSERVACIONALMENTE inerte nos
+///  dois sitios da issue #255: o que se le atraves do cast e FMasterObject
+///  (chaves String e valores que sao referencia de classe em toda
+///  instanciacao), FOrmDataSet (TDataSet, nao depende de M) e
+///  FCurrentInternal, do qual so se pedem ClassName e ClassType - ambos
+///  resolvidos pelo ponteiro de VMT do objeto, nao por TypeInfo(M).
+///  OBSERVACIONALMENTE, E NAO `NENHUM TypeInfo(M) E ALCANCADO`, e a diferenca
+///  e real: ContainsKey/Remove/TrimExcess/Add nao sao virtuais e ligam
+///  ESTATICAMENTE ao codigo da instanciacao do DETALHE, rodando sobre o
+///  dicionario do MASTER, e o Rehash interno entrega a RTL um TypeInfo
+///  derivado de M. O que se mediu foi que isso nao muda comportamento, porque
+///  o TItem e estruturalmente identico para todo M que a restricao
+///  `M: class, constructor` admite - nao que o TypeInfo nao seja tocado.
+///  Os offsets tambem nao sao o risco, e isso ja estava medido em
+///  Layout_EveryInstantiationOfTheBaseAdapterAgreesOnEveryOffset. </summary>
 procedure TDataSetBaseAdapter<M>.SetMasterObject(const AValue: TObject);
 var
   LOwnerObject: TDataSetBaseAdapter<M>;
 begin
   if FOwnerMasterObject = AValue then
     Exit;
+  // ANTES DO BLOCO DE UNLINK ABAIXO, e a ordem e carga. Recusar depois dele
+  // deixa uma chamada que FALHOU tendo removido o filho do FMasterObject do
+  // master legitimo, com FOwnerMasterObject ainda apontando para um master
+  // que nao lista mais o filho. Ancorado por Test.Janus.Manager.AddAdapter
+  // .Refusal_LeavesTheLegitimateLinkExactlyAsItWas.
+  // E `is TDataSetBaseAdapter<M>` NAO serve aqui - recusaria o master
+  // legitimo, que e sempre de outra instanciacao. Ver _IsBaseAdapterInstance.
+  if (AValue <> nil) and (not _IsBaseAdapterInstance(AValue)) then
+    raise Exception.CreateFmt(cMASTERNOTADAPTER,
+                              [FCurrentInternal.ClassName, AValue.ClassName]);
   if FOwnerMasterObject <> nil then
   begin
     LOwnerObject := TDataSetBaseAdapter<M>(FOwnerMasterObject);
