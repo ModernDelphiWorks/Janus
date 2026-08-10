@@ -136,6 +136,14 @@ type
     ///   Nao levanta e nao faz I/O: e leitura do que ja foi obtido. Antes da
     ///   primeira requisicao autenticada FAccessToken ainda esta vazio.
     ///
+    ///   LIMITE, medido: espelha a precedencia DENTRO do ramo bearer, nao o
+    ///   gate de AuthenticatorType. Com um token explicito e tipo atNoAuth ou
+    ///   atBasicAuth, SetAuthenticatorTypeValues sai sem mandar cabecalho
+    ///   nenhum e este getter mesmo assim devolve o token - reporta sem que
+    ///   nada viaje. Nao e regressao (antes devolvia vazio sempre) e o driver
+    ///   Horse se comporta igual; atBasicAuth inerte no caminho WiRL ja e
+    ///   defeito conhecido desde o #228.
+    ///
     ///   Nao publicada: o valor e volatil (muda no primeiro login) e nao tem
     ///   sentido em .dfm. </summary>
     property AccessToken: string read GetAccessToken;
