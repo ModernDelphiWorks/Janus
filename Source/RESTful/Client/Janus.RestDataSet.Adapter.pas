@@ -42,6 +42,20 @@ uses
   MetaDbDiff.mapping.exceptions,
   Janus.RestFactory.Interfaces;
 
+const
+  /// ISO-8601 para data/hora dentro do $filter. NAO e' escolha de estilo: o
+  /// irmao local formata com FDateFormat/FTimeFormat, que sao campos do
+  /// gerador de DML e mudam POR DIALETO - 'MM/dd/yyyy' no Firebird,
+  /// 'dd/MM/yyyy' no MSSQL, 'yyyy-mm-dd' no NexusDB. Um cliente REST nao sabe
+  /// qual banco esta do outro lado, entao copiar aquele formato e' impossivel
+  /// daqui. O idioma que ESTA familia ja fala no fio e' ISO-8601, fixado em
+  /// TJanusJson (UseISO8601DateFormat := True).
+  /// Vive na interface, e nao na implementation, porque metodo de tipo
+  /// parametrizado declarado na interface nao pode usar simbolo local (E2506).
+  cISODATE     = 'yyyy-mm-dd';
+  cISODATETIME = 'yyyy-mm-dd"T"hh:nn:ss';
+  cISOTIME     = 'hh:nn:ss';
+
 type
   TRESTDataSetAdapter<M: class, constructor> = class(TDataSetBaseAdapter<M>)
   private
@@ -51,6 +65,7 @@ type
     procedure _PopularDataSetOneToMany(const AObjectList: TObjectList<TObject>);
     function _WhereAssociation(
       const AOwnerObject: TDataSetBaseAdapter<M>): String;
+    function _FilterLiteral(const AField: TField): String;
   protected
     procedure PopularDataSetOneToOne(const AObject: TObject;
       const AAssociation: TAssociationMapping); virtual; abstract;
@@ -315,25 +330,46 @@ end;
 ///
 ///  QUAIS ASSOCIACOES ENTRAM: as mesmas que o irmao local escolhe em
 ///  TSQLCommandExecutor<M>.SelectInternalAssociation - ClassNameRef igual a
-///  classe deste adapter, e associacao marcada Lazy e' PULADA. Esse pulo e'
-///  copia deliberada; ele parece invertido para um metodo chamado LoadLazy,
-///  mas divergir do irmao aqui seria inventar comportamento, entao fica igual
-///  e a duvida vai no relatorio, nao no codigo.
+///  classe deste adapter, e associacao marcada Lazy e' PULADA. O Lazy aqui e'
+///  o 6o parametro de [Association] e quer dizer "resolvido por proxy
+///  transparente de RTTI", nao "carregado sob demanda por este metodo" -
+///  TDataSetAdapter<M> diz isso com todas as letras no comentario de
+///  Janus.DataSet.Adapter.pas:262. Ou seja: pular e' o certo, e nao ha
+///  paradoxo nenhum com o nome LoadLazy.
 ///
-///  O QUE MUDA EM RELACAO AO SQL LOCAL, E POR QUE:
-///  - sem prefixo de tabela. O gerador local escreve `tabela.coluna` porque
-///    esta montando SQL; aqui o texto vira $filter na URL, e o servidor Janus
-///    resolve nome de coluna simples - e' o que TRESTDataSetAdapter<M>
-///    .RefreshDataSetOneToOneChilds ja manda e o que os testes de $filter do
-///    recurso REST usam.
-///  - o valor sai do DATASET do master (FieldByName), nao de uma propriedade
-///    hidratada por RTTI. E' o mesmo atalho de RefreshDataSetOneToOneChilds e
-///    poupa o passo de Bind que o irmao local precisa dar antes.
+///  AS TRES DIVERGENCIAS EM RELACAO AO SQL LOCAL - A LISTA E' COMPLETA:
+///  1) sem prefixo de tabela. O gerador local escreve `tabela.coluna` porque
+///     esta montando SQL; aqui o texto vira $filter na URL, e o servidor Janus
+///     resolve nome de coluna simples - e' o que TRESTDataSetAdapter<M>
+///     .RefreshDataSetOneToOneChilds ja manda e o que os testes de $filter do
+///     recurso REST usam.
+///  2) o valor sai do DATASET do master (FindField), nao de uma propriedade
+///     hidratada por RTTI. E' o mesmo atalho de RefreshDataSetOneToOneChilds e
+///     poupa o passo de Bind que o irmao local precisa dar antes. O QUE ESSE
+///     ATALHO CUSTA esta no item 3.
+///  3) a formatacao do valor e' feita AQUI, e nao herdada. Quem aspa no lado
+///     local e' TDMLGeneratorAbstract._GetPropertyValue
+///     (Janus.DML.Generator.pas:509-534), e ele fica no caminho da RTTI que o
+///     item 2 pulou. Sem repor isso, uma FK string sairia `col eq AB C` - erro
+///     de sintaxe com espaco, comparacao contra outra coluna sem espaco, e
+///     silenciosamente errada nos dois casos; GUID e codigo alfanumerico sao
+///     chave de primeira classe neste framework (TGeneratorType tem
+///     Guid32Inc/Guid36Inc/Guid38Inc). Entao _WhereAssociation despacha por
+///     LField.DataType com OS MESMOS GRUPOS de _GetPropertyValue, com duas
+///     diferencas declaradas:
+///       * ftGuid entra no grupo aspado. No irmao ele cai no `else` e vira
+///         string vazia, o que aqui produziria um filtro quebrado.
+///       * data e hora vao em ISO-8601 e nao em FDateFormat/FTimeFormat -
+///         ver cISODATE acima: aquele formato e' por dialeto e o cliente REST
+///         nao sabe qual banco esta do outro lado.
+///     O `else` devolve o texto cru, que e' o certo para os tipos numericos.
 ///
 ///  OPERADOR COM ESPACOS, E ISSO NAO E' ESTILO. TSessionRestFul<M>
 ///  ._ParseOperator troca ' = ' por ' eq ' com os espacos DENTRO do padrao;
-///  sem eles nada e' trocado e o servidor recebe um $filter que o tokenizador
-///  OData nao entende. Por isso ' = ' e nunca '='.
+///  sem eles nada e' trocado. O servidor Janus ate aceita o texto sem
+///  traducao, porque _EmitSQL so mapeia word token e deixa o resto passar,
+///  mas ai o que sai nao e' OData e quebra em servidor estrito. Por isso
+///  ' = ' e nunca '='.
 ///
 ///  GUARD DE VALOR NULO: '1 = 0', o mesmo do gerador local, que vira '1 eq 0'
 ///  na URL e casa zero linhas - em vez de um `coluna = ` sem lado direito.
@@ -372,8 +408,32 @@ begin
         Result := Result + '1 = 0'
       else
         Result := Result + LAssociation.ColumnsNameRef[LFor] + ' = ' +
-                           LField.AsString;
+                           _FilterLiteral(LField);
     end;
+  end;
+end;
+
+/// <summary> O valor de UMA coluna do master, ja no formato em que pode entrar
+///  no $filter. Os grupos sao os de TDMLGeneratorAbstract._GetPropertyValue -
+///  ver a lista de divergencias em _WhereAssociation, item 3, que explica por
+///  que este passo precisa existir deste lado e o que ele muda de proposito.
+///  QuotedStr, e nao aspas na mao, porque ele tambem DOBRA a aspa de dentro do
+///  valor: um master chamado O'Brien sai `'O''Brien'` e nao termina a string
+///  no meio. </summary>
+function TRESTDataSetAdapter<M>._FilterLiteral(const AField: TField): String;
+begin
+  case AField.DataType of
+    ftString, ftWideString, ftMemo, ftWideMemo, ftFmtMemo, ftGuid:
+      Result := QuotedStr(AField.AsString);
+    ftDateTime, ftDate:
+      Result := QuotedStr(FormatDateTime(ifThen(AField.DataType = ftDate,
+                            cISODATE, cISODATETIME), AField.AsDateTime));
+    ftTime, ftTimeStamp, ftOraTimeStamp:
+      Result := QuotedStr(FormatDateTime(cISOTIME, AField.AsDateTime));
+    ftCurrency, ftBCD, ftFMTBcd, ftFloat:
+      Result := ReplaceStr(AField.AsString, ',', '.');
+  else
+    Result := AField.AsString;
   end;
 end;
 
