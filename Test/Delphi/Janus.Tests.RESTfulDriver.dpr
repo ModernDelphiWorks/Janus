@@ -78,7 +78,9 @@ uses
   /// Clearing the child datasets from wherever the cursor is - issue #222
   Test.Janus.Rest.ClearChilds in 'Unit\RESTful\Test.Janus.Rest.ClearChilds.pas',
   /// The cascade guard that decides WHICH child gets cleared - issue #235
-  Test.Janus.Rest.CascadeGuard in 'Unit\RESTful\Test.Janus.Rest.CascadeGuard.pas';
+  Test.Janus.Rest.CascadeGuard in 'Unit\RESTful\Test.Janus.Rest.CascadeGuard.pas',
+  /// The lazy load and the lazy unload of the REST family - issue #251
+  Test.Janus.Rest.Lazy in 'Unit\RESTful\Test.Janus.Rest.Lazy.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

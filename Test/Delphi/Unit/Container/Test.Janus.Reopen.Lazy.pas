@@ -47,7 +47,11 @@
   measured here on its own instance, and where the families disagree the test
   says so instead of averaging them - see
   Rows_ABareReopenBringsBackNothingOnFDMemTableAndEverythingOnClientDataSet and
-  Lazy_TheRestFamilyHasNoLazyAtAll.
+  Lazy_TheRestFamilyGuardsTurnAwayAnOpenUnownedChild. That last one was
+  Lazy_TheRestFamilyHasNoLazyAtAll until #251 filled in the two branches of
+  TRESTDataSetAdapter<M>.LoadLazy; its numbers did not move, its explanation
+  did, and the REST branches now have their own fixture in
+  Janus.Tests.RESTfulDriver, Test.Janus.Rest.Lazy.
 
   WHAT IS DELIBERATELY NOT MEASURED HERE
 
@@ -206,11 +210,14 @@ type
     /// and LoadLazy(owner) loads again. The second half used to be impossible.
     [Test]
     procedure Lazy_UnloadThenLoadIsARoundTripThatUsedToBeImpossible;
-    /// And the REST family does not join in: TRESTDataSetAdapter<M>.LoadLazy is
-    /// an empty body, so nothing about this change reaches it. Measured, not
-    /// assumed from the shape of the other family.
+    /// The REST family still does not join in HERE, but the reason changed
+    /// with #251: TRESTDataSetAdapter<M>.LoadLazy is no longer an empty body,
+    /// it has both branches, and what turns this particular adapter away is
+    /// its two GUARDS. Measured, not assumed from the shape of the other
+    /// family. The REST branches themselves are proved in
+    /// Janus.Tests.RESTfulDriver, Test.Janus.Rest.Lazy.
     [Test]
-    procedure Lazy_TheRestFamilyHasNoLazyAtAll;
+    procedure Lazy_TheRestFamilyGuardsTurnAwayAnOpenUnownedChild;
 
     // -----------------------------------------------------------------------
     // Close now closes - the deliberate behaviour change
@@ -633,7 +640,36 @@ begin
   Assert.IsTrue(FMidTable.Active, 'the child is loaded again');
 end;
 
-procedure TTestReopenLazy.Lazy_TheRestFamilyHasNoLazyAtAll;
+/// <summary> THIS TEST WAS Lazy_TheRestFamilyHasNoLazyAtAll AND ITS NUMBERS
+///  DID NOT MOVE - ITS REASON DID.
+///
+///  When #248 wrote it, TRESTDataSetAdapter<M>.LoadLazy really was an empty
+///  body, and "zero calls" followed from there. #251 gave that method both
+///  branches, and the two numbers below are STILL zero - so the assertions
+///  survived the change while the sentence explaining them became false. It
+///  was rewritten rather than deleted for exactly that reason: the
+///  measurement is still the only place in this fixture that pins what the
+///  REST family does when the local one is revived, and dropping it would
+///  have traded a wrong explanation for no measurement at all.
+///
+///  WHAT TURNS THIS ADAPTER AWAY NOW. BuildRestMem hands back an adapter with
+///  NO master (AMasterObject nil) and an OPEN dataset, because the constructor
+///  opens it. That is one guard on each branch:
+///    * load  - `if FOrmDataSet.Active then Exit`, the 'already loaded' flag
+///              copied from TDataSetAdapter<M>.LoadLazy;
+///    * unload- `if FOwnerMasterObject = nil then Exit`, nothing to undo.
+///
+///  IT RELIES ON THE ORDER OF THE LOAD GUARDS. The Active check runs BEFORE
+///  SetMasterObject, so the TKeyOnly handed in here is never stored and never
+///  read as if it were an adapter. A reordering that stored it first would
+///  reach this test as a crash, not as a red assertion - which is a fair
+///  warning to leave written down.
+///
+///  THE REST BRANCHES THEMSELVES ARE NOT PROVED HERE. They need a connection
+///  double that answers according to the $filter it was given, and a model
+///  whose two association ends are spelled differently; both live in
+///  Janus.Tests.RESTfulDriver, Test.Janus.Rest.Lazy. </summary>
+procedure TTestReopenLazy.Lazy_TheRestFamilyGuardsTurnAwayAnOpenUnownedChild;
 var
   LOwner: TKeyOnly;
   LExecutes: Integer;
@@ -652,12 +688,14 @@ begin
   end;
 
   Assert.AreEqual(LExecutes, FInert.ExecuteCount,
-    'TRESTDataSetAdapter<M>.LoadLazy HAS AN EMPTY BODY. Neither the load nor ' +
-    'the unload branch exists there, so the REST family went to the ' +
-    'connection zero times - and nothing in this change alters that. The ' +
-    'lazy revival is the TDataSetAdapter<M> family only');
+    'BOTH BRANCHES OF TRESTDataSetAdapter<M>.LoadLazy EXIST SINCE #251, and ' +
+    'both are turned away here by a guard: the child is already open, so the ' +
+    'load has nothing to fetch, and it owns no master, so the unload has ' +
+    'nothing to undo. Zero calls to the connection either way - the same ' +
+    'number #248 measured, for a different reason');
   Assert.AreEqual(LActive, FRestMemTable.Active,
-    'and it did not even touch the dataset state');
+    'and neither branch touched the dataset state: the unload closes for ' +
+    'real, but only once there is a master to unregister');
 end;
 
 // ---------------------------------------------------------------------------

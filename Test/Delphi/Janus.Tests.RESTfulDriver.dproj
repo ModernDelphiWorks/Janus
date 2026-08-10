@@ -100,6 +100,7 @@
         <DCCReference Include="Unit\RESTful\Test.Janus.Driver.HorseExecuteOverload.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.ClearChilds.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.CascadeGuard.pas"/>
+        <DCCReference Include="Unit\RESTful\Test.Janus.Rest.Lazy.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
