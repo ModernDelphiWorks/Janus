@@ -42,8 +42,8 @@ uses
   ExtCtrls,
   MidasLib,
   /// orm interface de conex�o
-  Janus.Factory.Interfaces,
-  Janus.Factory.AbsoluteDB,
+  DataEngine.FactoryInterfaces,
+  DataEngine.FactoryAbsoluteDB,
   Janus.DML.Generator.AbsoluteDB,
   /// orm injection dependency
   Janus.Container.DataSet.Interfaces,

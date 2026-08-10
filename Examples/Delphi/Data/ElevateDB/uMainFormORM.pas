@@ -44,8 +44,8 @@ uses
   Generics.Collections,
   /// Janus
   Janus.Manager.DataSet,
-  Janus.Factory.Interfaces,
-  Janus.Factory.ElevateDB,
+  DataEngine.FactoryInterfaces,
+  DataEngine.FactoryElevateDB,
   Janus.DML.Generator.SQLite,
   Janus.Json,
   /// modelos usados
