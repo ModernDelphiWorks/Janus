@@ -84,8 +84,17 @@ uses
   /// The units this project exists to compile
   Janus.Server.Resource.MARS,
   Janus.Server.MARS,
+  /// The MARS CLIENT driver, added for the same reason the server pair was.
+  /// Nothing read it either, and it rotted the same way: its four
+  /// EJanusRESTException.Create calls passed SIX arguments to a SEVEN-argument
+  /// constructor - so the unit had not compiled since AMessageError was added -
+  /// and one of the four also had two String arguments transposed, which is the
+  /// kind of defect that survives a compiler even after the arity is repaired.
+  /// Linking the unit here is what stops it rotting a second time.
+  Janus.Client.MARS,
   /// Tests
-  Test.Janus.Server.Resource.MARS in 'Unit\RESTful\Test.Janus.Server.Resource.MARS.pas';
+  Test.Janus.Server.Resource.MARS in 'Unit\RESTful\Test.Janus.Server.Resource.MARS.pas',
+  Test.Janus.Client.RestExceptionFields in 'Unit\RESTful\Test.Janus.Client.RestExceptionFields.pas';
 
 begin
   TJanusTestBootstrap.RegisterFireDACSilent;

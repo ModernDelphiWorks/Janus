@@ -104,6 +104,7 @@
         <DCCReference Include="Common\Test.Janus.Model.AsymKey.pas"/>
         <DCCReference Include="RESTHorse\Support\RestHorseTest.Models.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Server.Resource.MARS.pas"/>
+        <DCCReference Include="Unit\RESTful\Test.Janus.Client.RestExceptionFields.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

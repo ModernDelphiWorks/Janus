@@ -35,6 +35,12 @@ uses
   Janus.Client.Methods,
   Janus.Client.RestException,
 
+  /// <summary> Obrigatoria por causa de ResponseBodyOf: o corpo da resposta de
+  ///   erro so existe dentro de EIdHTTPProtocolException, que e declarada
+  ///   aqui (IdHTTP.pas:673-680). Nao e dependencia nova - este driver ja
+  ///   linkava o cliente Indy do MARS logo abaixo. </summary>
+  IdHTTP,
+
   MARS.Client.CustomResource,
   MARS.Client.Resource,
   MARS.Client.Resource.JSON,
@@ -55,6 +61,7 @@ type
     procedure SetParamsBodyValue(var AParams: string);
     procedure SetAuthenticatorTypeValues;
     procedure SetParamValues;
+    function ResponseBodyOf(const AException: Exception): String;
     function DoGET(const AResource, ASubResource: string): string;
     function DoPOST(const AResource, ASubResource: string): string;
     function DoPUT(const AResource, ASubResource: string): string;
@@ -117,6 +124,20 @@ begin
   inherited;
 end;
 
+/// <summary> Os quatro raise de EJanusRESTException abaixo seguem a ordem e a
+///   aridade da declaracao do construtor
+///   (Janus.Client.RestException.pas:34-36): AURL, AResource, ASubResource,
+///   AMethodType, AMessage, AMessageError, AStatusCode. AMessage e o CORPO da
+///   resposta de erro; AMessageError e a mensagem da excecao local. Os dois
+///   sao String, entao troca-los COMPILA e so aparece no texto final da
+///   excecao - por isso Test.Janus.Client.RestExceptionFields afirma campo a
+///   campo, e nao por conjunto.
+///
+///   E o mesmo par que os outros seis drivers entregam: DataSnap, Horse e WS
+///   passam Response.Content em AMessage, e o WiRL tira o corpo do proprio
+///   objeto de excecao (Janus.Client.WiRL.pas:238, ResponseText de
+///   EWiRLClientProtocolException, entregue em :255). ResponseBodyOf faz aqui
+///   exatamente isso. </summary>
 function TRESTClientMARS.DoDELETE(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'DELETE';
@@ -144,6 +165,7 @@ begin
                                            AResource,
                                            ASubResource,
                                            FRequestMethod,
+                                           ResponseBodyOf(E),
                                            E.Message,
                                            FRESTClient.ResponseStatusCode);
                        end);
@@ -172,6 +194,7 @@ begin
                                                           AResource,
                                                           ASubResource,
                                                           FRequestMethod,
+                                                          ResponseBodyOf(E),
                                                           E.Message,
                                                           FRESTClient.ResponseStatusCode);
                                       end);
@@ -216,8 +239,9 @@ begin
                                  .Create(FRESTClient.MARSEngineURL,
                                          AResource,
                                          ASubResource,
-                                         E.Message,
                                          FRequestMethod,
+                                         ResponseBodyOf(E),
+                                         E.Message,
                                          FRESTClient.ResponseStatusCode);
                      end );
   Result := FResponseString;
@@ -263,6 +287,7 @@ begin
                                         AResource,
                                         ASubResource,
                                         FRequestMethod,
+                                        ResponseBodyOf(E),
                                         E.Message,
                                         FRESTClient.ResponseStatusCode);
                     end );
@@ -403,6 +428,40 @@ end;
 function TRESTClientMARS.RemoveContextServerUse(const Value: string): string;
 begin
   Result := ReplaceStr(Value, '/Janus', '');
+end;
+
+function TRESTClientMARS.ResponseBodyOf(const AException: Exception): String;
+begin
+  /// <summary> O CORPO da resposta de erro, para o campo AMessage de
+  ///   EJanusRESTException.
+  ///
+  ///   Nao da para ler o corpo do stream do MARS: ele e local a
+  ///   TMARSClientCustomResource.GET - declarado em
+  ///   MARS.Client.CustomResource.pas:601, criado em :609 e liberado em :618 -
+  ///   e o DELETE repete o padrao em :440/:451/:460. Quando o handler de erro
+  ///   do Janus roda, aquele stream ja morreu.
+  ///
+  ///   Mas o corpo NAO se perdeu: ele esta na excecao. O MARS nunca liga
+  ///   hoNoProtocolErrorException, entao para todo 4xx/5xx o TIdHTTP desvia o
+  ///   corpo para um stream temporario e levanta
+  ///   EIdHTTPProtocolException.CreateError(codigo, Response.ResponseText,
+  ///   <corpo>) - IdHTTP.pas:2974-2975, classe em :673-680. Nessa excecao
+  ///   Message e a razao da linha de status e ErrorMessage e o CORPO
+  ///   (IdHTTP.pas:679). E essa e exatamente a excecao que chega aos handlers
+  ///   abaixo.
+  ///
+  ///   Medido: sem isto, contra um servidor devolvendo 500 com corpo, o campo
+  ///   Message saia copia literal do campo Error (a razao) e o corpo sumia.
+  ///
+  ///   FALLBACK, e so fallback: falha de TRANSPORTE - conexao recusada, DNS,
+  ///   timeout - nao produz EIdHTTPProtocolException e nao tem corpo nenhum
+  ///   para carregar. Ai vale ResponseText do cliente
+  ///   (MARS.Client.Client.Indy.pas:314-316), que nesse caso costuma ser
+  ///   vazio. Nao e preenchimento: e o que existe. </summary>
+  if AException is EIdHTTPProtocolException then
+    Result := EIdHTTPProtocolException(AException).ErrorMessage
+  else
+    Result := FRESTClient.ResponseText;
 end;
 
 procedure TRESTClientMARS.SetAuthenticatorTypeValues;

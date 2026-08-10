@@ -99,6 +99,14 @@ begin
   inherited;
 end;
 
+/// <summary> Os quatro raise de EJanusRESTException abaixo seguem a ordem e a
+///   aridade da declaracao do construtor
+///   (Janus.Client.RestException.pas:34-36): AURL, AResource, ASubResource,
+///   AMethodType, AMessage, AMessageError, AStatusCode. AMessage e o texto
+///   que veio do servidor - aqui o corpo da resposta, como no driver WiRL
+///   (Janus.Client.WiRL.pas:255) - e AMessageError e a mensagem da excecao
+///   local. Os dois sao String, entao troca-los COMPILA e so aparece no texto
+///   final da excecao. </summary>
 function TRESTClientDelphiMVC.DoDELETE(const AURL, AResource,
   ASubResource: string; const AParams: array of string): string;
 begin
@@ -123,6 +131,7 @@ begin
                                           AResource,
                                           ASubResource,
                                           FRequestMethod,
+                                          FRESTResponse.BodyAsString,
                                           E.Message,
                                           FRESTResponse.ResponseCode);
     end;
@@ -154,6 +163,7 @@ begin
                         AResource,
                         ASubResource,
                         FRequestMethod,
+                        FRESTResponse.BodyAsString,
                         E.Message,
                         FRESTResponse.ResponseCode);
     end;
@@ -188,6 +198,7 @@ begin
                         AResource,
                         ASubResource,
                         FRequestMethod,
+                        FRESTResponse.BodyAsString,
                         E.Message,
                         FRESTResponse.ResponseCode);
     end;
@@ -222,6 +233,7 @@ begin
                         AResource,
                         ASubResource,
                         FRequestMethod,
+                        FRESTResponse.BodyAsString,
                         E.Message,
                         FRESTResponse.ResponseCode);
     end;
