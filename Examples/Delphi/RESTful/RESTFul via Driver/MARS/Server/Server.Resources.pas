@@ -25,9 +25,10 @@ uses
   /// Janus JSON
   Janus.Json,
   /// Janus conex�o database
-  Janus.Types.Database,
-  Janus.Factory.FireDAC,
-  Janus.Factory.Interfaces,
+  /// Janus.Types.Database foi absorvida em DataEngine.FactoryInterfaces,
+  /// que declara IDBConnection e TDriverName.
+  DataEngine.FactoryFireDac,
+  DataEngine.FactoryInterfaces,
   /// Janus
   Janus.Container.ObjectSet,
   Janus.Container.ObjectSet.Interfaces,
