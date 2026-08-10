@@ -228,9 +228,36 @@ begin
       // Passar um argumento para ele levanta 'Parameter count mismatch' antes
       // de o cursor ser tocado, o que matava o caminho lazy OneToMany inteiro.
       // Invocar o construtor sobre a METACLASSE constroi de verdade, e o
-      // numero de argumentos passa a seguir o construtor que o RTTI devolveu -
-      // mesmo criterio ja usado por Lazy<T>.CreateDefaultValue, em
-      // Janus.Types.Lazy.
+      // numero de argumentos passa a seguir o construtor que o RTTI devolveu.
+      //
+      // A GUARDA ABAIXO NAO E A DE Lazy<T>.CreateDefaultValue, E E DE
+      // PROPOSITO. O irmao, em Janus.Types.Lazy, exige tambem LRttiType
+      // .IsList; aqui o IsList foi OMITIDO. TRttiTypeHelper.IsList
+      // (MetaDbDiff.RTTI.Helper.pas) e um teste de SUBSTRING no NOME da
+      // classe - so devolve True quando o nome contem 'TObjectList<' ou
+      // 'TList<' -, logo e False para QUALQUER descendente. MEDIDO em Studio
+      // 37 sobre cinco formatos de lista:
+      //   TObjectList<T> / TList<T> ....... IsList True,  paramcount 0
+      //   descendente sem ctor proprio .... IsList False, paramcount 0
+      //   descendente com Create(String) .. IsList False, paramcount 1
+      //   descendente com Create(Boolean) . IsList False, paramcount 1
+      // Somar 'and IsList' NAO consertaria o descendente de Create(String) -
+      // esse ja falha ALTO hoje, com EInvalidCast -, so trocaria uma excecao
+      // alta por outra; e QUEBRARIA o descendente de Create(Boolean), que hoje
+      // constroi certo e passaria a levantar 'Parameter count mismatch'. Alem
+      // disso, com o IsList somado o ramo [True] ficaria inalcancavel nos
+      // cinco formatos, porque IsList True implica paramcount 0 nesta RTL - e
+      // guarda que nunca executa nao guarda nada.
+      //
+      // O RAMO [True] NAO ESTA COBERTO PELA SUITE, e ainda nao da para
+      // cobri-lo: o unico formato que o executa E sobrevive seria um
+      // descendente com Create(Boolean), e todo descendente morre duas linhas
+      // abaixo, em LPropertyType.AsInstance, porque GetTypeValue devolve nil
+      // para nome que nao case com o strip textual (upstream
+      // ModernDelphiWorks/MetaDbDiff#18). MEDIDO: matar o ramo e invocar
+      // sempre [] deixa a suite 501/501 verde. Ele fica como defesa para o dia
+      // em que aquele upstream for consertado e o descendente virar caminho
+      // vivo - e e exatamente por isso que o IsList tem de continuar FORA.
       LListType := RttiSingleton.GetRttiType(
                      LProperty.PropertyType.AsInstance.MetaclassType);
       LListCtor := LListType.GetMethod('Create');
