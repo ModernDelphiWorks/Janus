@@ -213,14 +213,37 @@ begin
       LPropertyType: TRttiType;
       LObjectCreate: TObject;
       LObjectList: TObject;
-      LListClass: TClass;
+      LListType: TRttiType;
+      LListCtor: TRttiMethod;
       LResultSet: IDBDataSet;
     begin
       LPropertyType := LProperty.PropertyType;
       LPropertyType := LProperty.GetTypeValue(LPropertyType);
-      LListClass := LProperty.PropertyType.AsInstance.MetaclassType;
-      LObjectList := LListClass.Create;
-      LObjectList.MethodCall('Create', [True]);
+      // A lista NAO pode ser instanciada com TClass.Create seguido de
+      // MethodCall('Create', [True]). TClass.Create resolve para o TObject
+      // .Create, que nao e virtual, e o MethodCall invoca o construtor que
+      // GetMethod('Create') devolve - num TObjectList<T> esse e o de ZERO
+      // argumentos (medido: os quatro construtores proprios da classe saem em
+      // GetMethods na ordem declarada, e o primeiro e o sem parametros).
+      // Passar um argumento para ele levanta 'Parameter count mismatch' antes
+      // de o cursor ser tocado, o que matava o caminho lazy OneToMany inteiro.
+      // Invocar o construtor sobre a METACLASSE constroi de verdade, e o
+      // numero de argumentos passa a seguir o construtor que o RTTI devolveu -
+      // mesmo criterio ja usado por Lazy<T>.CreateDefaultValue, em
+      // Janus.Types.Lazy.
+      LListType := RttiSingleton.GetRttiType(
+                     LProperty.PropertyType.AsInstance.MetaclassType);
+      LListCtor := LListType.GetMethod('Create');
+      if LListCtor = nil then
+        raise ELazyLoadException.CreateFmt(
+          'Lazy load failed: no "Create" constructor was found for the list ' +
+          'type "%s" of property "%s".', [LListType.ToString, LProperty.Name]);
+      if Length(LListCtor.GetParameters) = 1 then
+        LObjectList := LListCtor.Invoke(LListType.AsInstance.MetaclassType,
+                                        [True]).AsObject
+      else
+        LObjectList := LListCtor.Invoke(LListType.AsInstance.MetaclassType,
+                                        []).AsObject;
       LResultSet := AFactory.GeneratorSelectOneToMany(AOwnerObject,
                                                       LPropertyType.AsInstance.MetaclassType,
                                                       AAssociation);
