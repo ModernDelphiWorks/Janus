@@ -35,9 +35,16 @@
       noticed.
 
   TStrMaster covers the first and also the null-value guard, because a String
-  key can be left empty in a way an Integer key cannot. TCompMaster covers the
-  second, and its two columns are deliberately of DIFFERENT TYPES so one
-  assertion pins the separator and the quoting of the text half at once.
+  key can be left empty in a way an Integer key cannot.
+
+  TCompMaster covers the second, and it does more: its FIVE columns are of five
+  DIFFERENT TYPES, so one ordered assertion over one filter string reaches
+  every branch of the value formatting - bare Integer, quoted String, quoted
+  Guid, ISO Date and the decimal-separator branch of Currency. Those last three
+  were listed as "not covered" in an earlier round precisely because they
+  looked like they needed models of their own. They did not: a composite
+  association is already a list of columns, and widening it costs no entity at
+  all.
 
   BOTH ENDS ARE STILL SPELLED DIFFERENTLY - smkey -> scparent, cmk1/cmk2 ->
   cck1/cck2 - so these models never lose the property AsymKey was built for.
@@ -121,16 +128,42 @@ type
     Fcckey: Integer;
     Fcck1: Integer;
     Fcck2: String;
+    Fcck3: String;
+    Fcck4: TDateTime;
+    Fcck5: Currency;
+    Fcck6: TDateTime;
+    Fcck7: TDateTime;
   public
     [Column('cckey', ftInteger)]
     property cckey: Integer read Fcckey write Fcckey;
 
-    /// The two halves of the composite foreign key, of DIFFERENT types.
+    /// FIVE columns, every one of a DIFFERENT TYPE. A composite key is the
+    /// cheapest place to reach every branch of the value formatting at once:
+    /// one association, one ordered assertion, and each branch is a term of
+    /// the same string. Integer is the bare branch, String and Guid the
+    /// quoted one, Date the ISO one, Currency the decimal-separator one.
     [Column('cck1', ftInteger)]
     property cck1: Integer read Fcck1 write Fcck1;
 
     [Column('cck2', ftString, 20)]
     property cck2: String read Fcck2 write Fcck2;
+
+    [Column('cck3', ftGuid, 38)]
+    property cck3: String read Fcck3 write Fcck3;
+
+    [Column('cck4', ftDate)]
+    property cck4: TDateTime read Fcck4 write Fcck4;
+
+    [Column('cck5', ftCurrency)]
+    property cck5: Currency read Fcck5 write Fcck5;
+
+    /// ftDateTime and ftTime are separate branches from ftDate - each has its
+    /// own ISO constant - so each needs its own term.
+    [Column('cck6', ftDateTime)]
+    property cck6: TDateTime read Fcck6 write Fcck6;
+
+    [Column('cck7', ftTime)]
+    property cck7: TDateTime read Fcck7 write Fcck7;
   end;
 
   [Entity]
@@ -144,6 +177,11 @@ type
     Fcmkey: Integer;
     Fcmk1: Integer;
     Fcmk2: String;
+    Fcmk3: String;
+    Fcmk4: TDateTime;
+    Fcmk5: Currency;
+    Fcmk6: TDateTime;
+    Fcmk7: TDateTime;
     Fchilds: TObjectList<TCompChild>;
   public
     constructor Create;
@@ -158,9 +196,24 @@ type
     [Column('cmk2', ftString, 20)]
     property cmk2: String read Fcmk2 write Fcmk2;
 
-    /// Two columns on each side, and the two sides spelled differently.
-    [Association(TMultiplicity.OneToMany, 'cmk1;cmk2', 'compchild',
-                 'cck1;cck2')]
+    [Column('cmk3', ftGuid, 38)]
+    property cmk3: String read Fcmk3 write Fcmk3;
+
+    [Column('cmk4', ftDate)]
+    property cmk4: TDateTime read Fcmk4 write Fcmk4;
+
+    [Column('cmk5', ftCurrency)]
+    property cmk5: Currency read Fcmk5 write Fcmk5;
+
+    [Column('cmk6', ftDateTime)]
+    property cmk6: TDateTime read Fcmk6 write Fcmk6;
+
+    [Column('cmk7', ftTime)]
+    property cmk7: TDateTime read Fcmk7 write Fcmk7;
+
+    /// Seven columns on each side, and the two sides spelled differently.
+    [Association(TMultiplicity.OneToMany, 'cmk1;cmk2;cmk3;cmk4;cmk5;cmk6;cmk7',
+                 'compchild', 'cck1;cck2;cck3;cck4;cck5;cck6;cck7')]
     [CascadeActions([TCascadeAction.CascadeInsert,
                      TCascadeAction.CascadeUpdate,
                      TCascadeAction.CascadeDelete])]

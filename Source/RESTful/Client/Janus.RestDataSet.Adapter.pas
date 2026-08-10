@@ -43,18 +43,28 @@ uses
   Janus.RestFactory.Interfaces;
 
 const
-  /// ISO-8601 para data/hora dentro do $filter. NAO e' escolha de estilo: o
-  /// irmao local formata com FDateFormat/FTimeFormat, que sao campos do
-  /// gerador de DML e mudam POR DIALETO - 'MM/dd/yyyy' no Firebird,
-  /// 'dd/MM/yyyy' no MSSQL, 'yyyy-mm-dd' no NexusDB. Um cliente REST nao sabe
-  /// qual banco esta do outro lado, entao copiar aquele formato e' impossivel
-  /// daqui. O idioma que ESTA familia ja fala no fio e' ISO-8601, fixado em
-  /// TJanusJson (UseISO8601DateFormat := True).
+  /// ISO-8601 para data/hora dentro do $filter, e a razao NAO e' a mesma nas
+  /// duas metades - cada uma foi medida:
+  ///  - DATA: o irmao local formata com FDateFormat, que e' campo do gerador
+  ///    de DML e tem CINCO valores distintos nos 13 dialetos - 'MM/dd/yyyy'
+  ///    no Firebird, 'dd/MM/yyyy' no MSSQL, 'yyyy-mm-dd' no NexusDB,
+  ///    'yyyy-MM-dd' no MySQL, 'DD/MM/CCYY' no ADS. Um cliente REST nao sabe
+  ///    qual banco esta do outro lado, entao copiar aquele formato e'
+  ///    impossivel daqui.
+  ///  - HORA: FTimeFormat NAO varia - e' 'HH:MM:SS' nos 13 geradores, e esse
+  ///    formato esta CORRETO (em FormatDateTime o 'M' depois de um 'H' e'
+  ///    minuto e nao mes; medido em probe). Aqui ele nao e' copiado por outro
+  ///    motivo: o valor nao vira SQL no cliente, vira literal OData na URL, e
+  ///    o idioma que ESTA familia ja fala no fio e' ISO-8601, fixado em
+  ///    TJanusJson (UseISO8601DateFormat := True). Manter as duas metades no
+  ///    mesmo idioma vale mais do que espelhar so a que por acaso e' uniforme.
+  /// OS DOIS-PONTOS VAO ENTRE ASPAS porque ':' em FormatDateTime e' o
+  /// PLACEHOLDER de TimeSeparator e sairia trocado pelo separador do locale.
   /// Vive na interface, e nao na implementation, porque metodo de tipo
   /// parametrizado declarado na interface nao pode usar simbolo local (E2506).
   cISODATE     = 'yyyy-mm-dd';
-  cISODATETIME = 'yyyy-mm-dd"T"hh:nn:ss';
-  cISOTIME     = 'hh:nn:ss';
+  cISODATETIME = 'yyyy-mm-dd"T"hh":"nn":"ss';
+  cISOTIME     = 'hh":"nn":"ss';
 
 type
   TRESTDataSetAdapter<M: class, constructor> = class(TDataSetBaseAdapter<M>)
@@ -331,8 +341,10 @@ end;
 ///  QUAIS ASSOCIACOES ENTRAM: as mesmas que o irmao local escolhe em
 ///  TSQLCommandExecutor<M>.SelectInternalAssociation - ClassNameRef igual a
 ///  classe deste adapter, e associacao marcada Lazy e' PULADA. O Lazy aqui e'
-///  o 6o parametro de [Association] e quer dizer "resolvido por proxy
-///  transparente de RTTI", nao "carregado sob demanda por este metodo" -
+///  o 5o e ultimo parametro de [Association] (AMultiplicity, AColumnsName,
+///  ATableNameRef, AColumnsNameRef, ALazy - construtor unico, sem overload) e
+///  quer dizer "resolvido por proxy transparente de RTTI", nao "carregado sob
+///  demanda por este metodo" -
 ///  TDataSetAdapter<M> diz isso com todas as letras no comentario de
 ///  Janus.DataSet.Adapter.pas:262. Ou seja: pular e' o certo, e nao ha
 ///  paradoxo nenhum com o nome LoadLazy.
@@ -358,11 +370,16 @@ end;
 ///     LField.DataType com OS MESMOS GRUPOS de _GetPropertyValue, com duas
 ///     diferencas declaradas:
 ///       * ftGuid entra no grupo aspado. No irmao ele cai no `else` e vira
-///         string vazia, o que aqui produziria um filtro quebrado.
-///       * data e hora vao em ISO-8601 e nao em FDateFormat/FTimeFormat -
-///         ver cISODATE acima: aquele formato e' por dialeto e o cliente REST
-///         nao sabe qual banco esta do outro lado.
+///         string vazia, e aqui isso NEM seria absorvido pela guarda de valor
+///         nulo, porque ela le o CAMPO e o AsString de um GUID nao e' vazio -
+///         sairia `cck3 eq ` sem lado direito.
+///       * data e hora vao em ISO-8601 e nao em FDateFormat/FTimeFormat.
+///         As razoes sao DIFERENTES para cada metade e estao em cISODATE,
+///         acima: a de data e' variacao por dialeto; a de hora nao e' (o
+///         FTimeFormat e' igual nos 13 e esta correto), e' o fio ser OData.
 ///     O `else` devolve o texto cru, que e' o certo para os tipos numericos.
+///     TODOS OS SETE RAMOS TEM TESTE, num unico $filter de chave composta -
+///     ver Load_ACompositeKeyJoinsWithAndAndQuotesEachTypeItsOwnWay.
 ///
 ///  OPERADOR COM ESPACOS, E ISSO NAO E' ESTILO. TSessionRestFul<M>
 ///  ._ParseOperator troca ' = ' por ' eq ' com os espacos DENTRO do padrao;

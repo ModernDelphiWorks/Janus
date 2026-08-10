@@ -309,10 +309,13 @@ type
     /// value instead of ending the literal early.
     [Test]
     procedure Load_AnApostropheInsideTheValueIsDoubledNotTerminating;
-    /// LOAD-BEARING. A composite association writes ' AND ' between its terms,
-    /// and quotes only the text half. One column can never measure either.
+    /// LOAD-BEARING, and the widest single assertion in the fixture. A
+    /// composite association writes ' AND ' between its terms and formats each
+    /// term by ITS OWN type - Integer bare, String and GUID quoted, Date ISO,
+    /// Currency with the decimal separator normalised. One column can measure
+    /// none of that.
     [Test]
-    procedure Load_ACompositeKeyJoinsWithAndAndQuotesOnlyTheTextHalf;
+    procedure Load_ACompositeKeyJoinsWithAndAndQuotesEachTypeItsOwnWay;
     /// LOAD-BEARING. An empty master value becomes the zero-rows guard rather
     /// than a term with nothing on the right of the operator.
     [Test]
@@ -354,6 +357,9 @@ const
   cMASTERCOLUMN= 'mkey';
   cCHILDTAG    = 'ctag';
   cSIBLINGKEY  = 'other_id';
+  /// A GUID with braces, which is what TGuidField.AsString hands back. Unquoted
+  /// on the wire the braces and the hyphens are not one token.
+  cGUIDVALUE   = '{6F9619FF-8B86-D011-B42D-00CF4FC964FF}';
 
 { TFilteringRestConnection }
 
@@ -674,6 +680,12 @@ begin
   FCompMasterMem.FieldByName('cmkey').AsInteger := 1;
   FCompMasterMem.FieldByName('cmk1').AsInteger := AK1;
   FCompMasterMem.FieldByName('cmk2').AsString := AK2;
+  FCompMasterMem.FieldByName('cmk3').AsString := cGUIDVALUE;
+  FCompMasterMem.FieldByName('cmk4').AsDateTime := EncodeDate(2026, 8, 10);
+  FCompMasterMem.FieldByName('cmk5').AsCurrency := 1234.56;
+  FCompMasterMem.FieldByName('cmk6').AsDateTime :=
+    EncodeDate(2026, 8, 10) + EncodeTime(14, 7, 53, 0);
+  FCompMasterMem.FieldByName('cmk7').AsDateTime := EncodeTime(14, 7, 53, 0);
   FCompMasterMem.Post;
   FCompMasterMem.First;
 
@@ -978,19 +990,54 @@ begin
     'literal at the apostrophe and leaves Brien dangling as a token');
 end;
 
-procedure TTestRestLazy.Load_ACompositeKeyJoinsWithAndAndQuotesOnlyTheTextHalf;
+procedure TTestRestLazy.Load_ACompositeKeyJoinsWithAndAndQuotesEachTypeItsOwnWay;
+var
+  LSaved: TFormatSettings;
 begin
   BuildCompPair(7, 'BR');
 
-  TRestLazyCrack<TCompChild>.Lazy(FMemCompChild, TCompChild(FMemCompMaster));
+  // TWO LOCALE SETTINGS ARE PINNED, AND BOTH FOR THE SAME REASON: the branch
+  // they exercise is a NO-OP on a machine whose locale already agrees with the
+  // wire format, so inheriting the machine's settings would make two mutants
+  // survive and the fixture would report coverage it does not have.
+  //   DecimalSeparator ',' - TField.AsString for ftCurrency goes through the
+  //     GLOBAL FormatSettings. On an en-US machine 1234.56 arrives already
+  //     dotted and the ReplaceStr in _FilterLiteral does nothing.
+  //   TimeSeparator '.'    - ':' inside a FormatDateTime pattern is the
+  //     PLACEHOLDER for this setting, not a literal colon. That is why the ISO
+  //     constants quote their colons; with a machine whose separator is
+  //     already ':' the quoting cannot be told from its absence.
+  // Both are restored in the finally, because FormatSettings is global and
+  // every other test in the process reads it.
+  LSaved := FormatSettings;
+  try
+    FormatSettings.DecimalSeparator := ',';
+    FormatSettings.TimeSeparator := '.';
+    TRestLazyCrack<TCompChild>.Lazy(FMemCompChild, TCompChild(FMemCompMaster));
+  finally
+    FormatSettings := LSaved;
+  end;
 
-  Assert.AreEqual('cck1 eq 7 AND cck2 eq ''BR''', FServer.LastFilter,
-    'ONE ASSERTION, TWO THINGS NO SINGLE-COLUMN ASSOCIATION CAN MEASURE. ' +
-    'The separator between the terms is '' AND '' - with one column it is ' +
-    'never written at all, so '' OR '' would look identical and select the ' +
-    'wrong rows the moment a real composite key appeared. And the two halves ' +
-    'are formatted by TYPE, not uniformly: the Integer goes bare and only ' +
-    'the String is quoted');
+  Assert.AreEqual(
+    'cck1 eq 7 AND cck2 eq ''BR'' AND cck3 eq ''' + cGUIDVALUE + '''' +
+    ' AND cck4 eq ''2026-08-10'' AND cck5 eq 1234.56' +
+    ' AND cck6 eq ''2026-08-10T14:07:53'' AND cck7 eq ''14:07:53''',
+    FServer.LastFilter,
+    'ONE ORDERED STRING, EVERY BRANCH OF THE VALUE FORMATTING. The separator ' +
+    'between terms is '' AND '': with a single column it is never written at ' +
+    'all, so '' OR '' would look identical and select the wrong rows the ' +
+    'moment a real composite key appeared. And each term is formatted by ITS ' +
+    'OWN TYPE, not uniformly - Integer bare, String and GUID quoted, Date as ' +
+    'ISO-8601 and not in any dialect''s FDateFormat, DateTime and Time each ' +
+    'through their OWN ISO constant, Currency with the decimal separator ' +
+    'normalised to a dot because a COMMA IS A TOKEN SEPARATOR inside a ' +
+    '$filter. Seven terms, seven branches of _FilterLiteral, one string - ' +
+    'which is the whole reason a composite key was worth widening instead of ' +
+    'adding entities. The GUID term is the one that motivated the ' +
+    'whole fix: TGeneratorType generates GUID keys, the sibling generator ' +
+    'sends ftGuid to its `else` and yields an empty string, and here that ' +
+    'would not even reach the null guard - the guard reads the FIELD, whose ' +
+    'AsString is not empty, so it would emit `cck3 eq ` with nothing after it');
 end;
 
 procedure TTestRestLazy.Load_AnEmptyMasterValueBecomesTheZeroRowsGuard;
