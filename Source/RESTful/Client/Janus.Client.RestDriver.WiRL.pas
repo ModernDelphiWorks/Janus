@@ -39,6 +39,20 @@ type
     constructor Create(AConnection: TComponent); override;
     destructor Destroy; override;
     function GetBaseURL: string; override;
+    /// <summary> Faltava. TRESTDriver.GetFullURL e `virtual; abstract` e so o
+    ///   driver Horse a sobrescrevia, entao ler IRESTConnection.FullURL neste
+    ///   driver caia em EAbstractError. Diferente do Execute de um recurso, o
+    ///   compilador DENUNCIAVA esta: com o Janus.Tests.RESTWiRL compilando a
+    ///   fabrica, saia W1020 "Constructing instance of 'TRESTDriverWiRL'
+    ///   containing abstract method 'TRESTDriver.GetFullURL'".
+    ///
+    ///   LIMITE, medido: TRESTClientWiRL nao sobrescreve GetFullURL, entao
+    ///   herda TJanusClient.GetFullURL, que devolve FBaseURL. Para o WiRL de
+    ///   hoje FullURL e BaseURL sao o MESMO armazenamento - so o
+    ///   TRESTClientHorse devolve a URI da resposta. Este delegate esta certo
+    ///   quanto ao contrato; o dia em que o cliente WiRL souber a URI real,
+    ///   ele passa a valer sem mudar nada aqui. </summary>
+    function GetFullURL: string; override;
     function GetMethodGET: string; override;
     function GetMethodGETId: string; override;
     function GetMethodGETWhere: string; override;
@@ -104,6 +118,11 @@ end;
 function TRESTDriverWiRL.GetBaseURL: string;
 begin
   Result := FConnection.BaseURL;
+end;
+
+function TRESTDriverWiRL.GetFullURL: string;
+begin
+  Result := FConnection.FullURL;
 end;
 
 function TRESTDriverWiRL.GetMethodDELETE: string;

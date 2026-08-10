@@ -83,7 +83,8 @@ uses
   Janus.Client.RestWiRL.Factory,
   /// Tests
   Test.Janus.Driver.WiRLClientChain in 'Unit\RESTful\Test.Janus.Driver.WiRLClientChain.pas',
-  Test.Janus.Driver.WiRLTokenAcquire in 'Unit\RESTful\Test.Janus.Driver.WiRLTokenAcquire.pas';
+  Test.Janus.Driver.WiRLTokenAcquire in 'Unit\RESTful\Test.Janus.Driver.WiRLTokenAcquire.pas',
+  Test.Janus.Driver.WiRLExecuteOverload in 'Unit\RESTful\Test.Janus.Driver.WiRLExecuteOverload.pas';
 
 begin
   Randomize;

@@ -50,8 +50,27 @@ type
     function Execute(const AResource, ASubResource: String;
       const ARequestMethod: TRESTRequestMethodType;
       const AParams: TProc = nil): String; overload; virtual; abstract;
+    /// <summary> UM recurso, sem sub-recurso. Deixou de ser abstrata: era
+    ///   declarada `virtual; abstract` e nenhum dos seis drivers concretos a
+    ///   sobrescrevia, entao a primeira chamada morria em EAbstractError - sem
+    ///   nenhum aviso do compilador. MEDIDO no Janus.Tests.RESTWiRL: o
+    ///   TRESTDriverWiRL tinha DUAS abstratas nao sobrescritas, esta e
+    ///   GetFullURL, e saiu W1020 so para a GetFullURL. Sobre esta, cuja outra
+    ///   sobrecarga de mesmo nome esta implementada, nada foi dito.
+    ///
+    ///   A regra e a mesma que Janus.Session.RESTful ja usa quando nao ha
+    ///   sub-recurso: UM recurso e o par (recurso, ''). Fica definida aqui, uma
+    ///   vez, em termos da sobrecarga de dois recursos - que e virtual, entao a
+    ///   chamada desce para o driver concreto e nenhum deles precisa repetir
+    ///   codigo.
+    ///
+    ///   ATENCAO ao nome do parametro: aqui e AResource, um RECURSO relativo a
+    ///   BaseURL. NAO e o AURL das classes cliente (TRESTClientHorse.Execute,
+    ///   TRESTClientWiRL.Execute), que troca a BaseURL inteira. As duas
+    ///   assinaturas tem a mesma forma e significados diferentes; ligar esta
+    ///   naquela trocaria o destino da requisicao em silencio. </summary>
     function Execute(const AResource: String; const ARequestMethod: TRESTRequestMethodType;
-      const AParams: TProc = nil): String; overload; virtual; abstract;
+      const AParams: TProc = nil): String; overload; virtual;
     procedure SetClassNotServerUse(const Value: Boolean); virtual; abstract;
     procedure AddParam(const AValue: String); virtual; abstract;
     procedure AddQueryParam(const AValue: String); virtual; abstract;
@@ -70,6 +89,12 @@ end;
 destructor TRESTDriver.Destroy;
 begin
   inherited;
+end;
+
+function TRESTDriver.Execute(const AResource: String;
+  const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): String;
+begin
+  Result := Execute(AResource, '', ARequestMethod, AParams);
 end;
 
 end.
