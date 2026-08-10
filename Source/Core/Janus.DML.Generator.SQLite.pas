@@ -44,6 +44,7 @@ type
   TDMLGeneratorSQLite = class(TDMLGeneratorAbstract)
   protected
     function GetGeneratorSelect(const ASQL: String; const AOrderBy: String = ''): String; override;
+    function GuidLiteral(const AGuid: TGUID): String; override;
   public
     constructor Create; override;
     destructor Destroy; override;
@@ -144,6 +145,23 @@ function TDMLGeneratorSQLite.GetGeneratorSelect(const ASQL: String;
   const AOrderBy: String): String;
 begin
   Result := ' LIMIT %s OFFSET %s';
+end;
+
+/// <summary> SQLite NAO TEM tipo GUID/UUID - a doc lista cinco storage classes
+///  e nenhuma delas e' UUID (https://www.sqlite.org/datatype3.html). A coluna
+///  e' texto, e o literal e' a forma canonica de 38 aspada.
+///  E A CAIXA IMPORTA AQUI: a collation padrao e' BINARY, comparada por
+///  memcmp (mesma URL), portanto SENSIVEL A CAIXA. Emitir o texto exatamente
+///  como o INSERT o gravou - MAIUSCULO, com chaves - nao e' cosmetico neste
+///  dialeto: minusculo NAO casaria.
+///  ARMADILHA DE DDL, medida e nao consertada aqui: uma coluna declarada
+///  'UUID' ou 'GUID' cai na regra final de afinidade e recebe NUMERIC, nao
+///  TEXT - nenhuma das duas contem INT/CHAR/CLOB/TEXT/BLOB/REAL/FLOA/DOUB.
+///  Sobrevive porque NUMERIC volta a TEXT quando o texto nao e' numero
+///  valido, mas quem gerar DDL deve declarar VARCHAR(38)/TEXT. </summary>
+function TDMLGeneratorSQLite.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 function TDMLGeneratorSQLite.GeneratorAutoIncCurrentValue(AObject: TObject;

@@ -128,7 +128,7 @@ type
     Fcckey: Integer;
     Fcck1: Integer;
     Fcck2: String;
-    Fcck3: String;
+    Fcck3: TGUID;
     Fcck4: TDateTime;
     Fcck5: Currency;
     Fcck6: TDateTime;
@@ -148,8 +148,16 @@ type
     [Column('cck2', ftString, 20)]
     property cck2: String read Fcck2 write Fcck2;
 
+    /// TGUID, and not String, because THAT is what a ftGuid column means in
+    /// this framework - Janus.Command.Inserter.pas:213-217,
+    /// Janus.Command.Updater.pas:118-119 and Janus.Command.Deleter.pas:97-98
+    /// all read it as AsType<TGUID>.ToString, and issue #284 made the SELECT
+    /// side read it the same way. Declared as String this model compiled and
+    /// its REST test passed - the REST filter reads the FIELD, never the
+    /// property - while the same model would have raised on the first local
+    /// INSERT. A latent defect, fixed with its twin instead of outliving it.
     [Column('cck3', ftGuid, 38)]
-    property cck3: String read Fcck3 write Fcck3;
+    property cck3: TGUID read Fcck3 write Fcck3;
 
     [Column('cck4', ftDate)]
     property cck4: TDateTime read Fcck4 write Fcck4;
@@ -177,7 +185,7 @@ type
     Fcmkey: Integer;
     Fcmk1: Integer;
     Fcmk2: String;
-    Fcmk3: String;
+    Fcmk3: TGUID;
     Fcmk4: TDateTime;
     Fcmk5: Currency;
     Fcmk6: TDateTime;
@@ -196,8 +204,9 @@ type
     [Column('cmk2', ftString, 20)]
     property cmk2: String read Fcmk2 write Fcmk2;
 
+    /// TGUID for the same reason as TCompChild.cck3 - see the comment there.
     [Column('cmk3', ftGuid, 38)]
-    property cmk3: String read Fcmk3 write Fcmk3;
+    property cmk3: TGUID read Fcmk3 write Fcmk3;
 
     [Column('cmk4', ftDate)]
     property cmk4: TDateTime read Fcmk4 write Fcmk4;

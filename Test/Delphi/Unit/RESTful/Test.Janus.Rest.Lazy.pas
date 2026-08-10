@@ -1023,6 +1023,12 @@ begin
     ' AND cck4 eq ''2026-08-10'' AND cck5 eq 1234.56' +
     ' AND cck6 eq ''2026-08-10T14:07:53'' AND cck7 eq ''14:07:53''',
     FServer.LastFilter,
+    /// ignoreCase = False, added by #284. Assert.AreEqual for strings defaults
+    /// it to True, and this assertion contains a GUID: with the default, the
+    /// hex digits could arrive in any case and the test would still be green,
+    /// which is exactly the half of the proof the sibling fixture had to add.
+    /// Twin of a defect being fixed, fixed with it.
+    False,
     'ONE ORDERED STRING, EVERY BRANCH OF THE VALUE FORMATTING. The separator ' +
     'between terms is '' AND '': with a single column it is never written at ' +
     'all, so '' OR '' would look identical and select the wrong rows the ' +
@@ -1034,10 +1040,13 @@ begin
     '$filter. Seven terms, seven branches of _FilterLiteral, one string - ' +
     'which is the whole reason a composite key was worth widening instead of ' +
     'adding entities. The GUID term is the one that motivated the ' +
-    'whole fix: TGeneratorType generates GUID keys, the sibling generator ' +
-    'sends ftGuid to its `else` and yields an empty string, and here that ' +
-    'would not even reach the null guard - the guard reads the FIELD, whose ' +
-    'AsString is not empty, so it would emit `cck3 eq ` with nothing after it');
+    'whole fix: TGeneratorType generates GUID keys, and here an unhandled ' +
+    'ftGuid would not even reach the null guard - the guard reads the FIELD, ' +
+    'whose AsString is not empty, so it would emit `cck3 eq ` with nothing ' +
+    'after it. (When this was written the sibling SQL generator sent ftGuid ' +
+    'to its `else` and yielded an empty string; issue #284 gave it a branch ' +
+    'of its own, dispatched per dialect. The sentence is corrected rather ' +
+    'than deleted because the correction is the point.)');
 end;
 
 procedure TTestRestLazy.Load_AnEmptyMasterValueBecomesTheZeroRowsGuard;

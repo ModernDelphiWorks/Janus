@@ -361,7 +361,7 @@ end;
 ///     ATALHO CUSTA esta no item 3.
 ///  3) a formatacao do valor e' feita AQUI, e nao herdada. Quem aspa no lado
 ///     local e' TDMLGeneratorAbstract._GetPropertyValue
-///     (Janus.DML.Generator.pas:536-563), e ele fica no caminho da RTTI que o
+///     (Janus.DML.Generator.pas:609-663), e ele fica no caminho da RTTI que o
 ///     item 2 pulou. Sem repor isso, uma FK string sairia `col eq AB C` - erro
 ///     de sintaxe com espaco, comparacao contra outra coluna sem espaco, e
 ///     silenciosamente errada nos dois casos; GUID e codigo alfanumerico sao
@@ -369,10 +369,25 @@ end;
 ///     Guid32Inc/Guid36Inc/Guid38Inc). Entao _WhereAssociation despacha por
 ///     LField.DataType com OS MESMOS GRUPOS de _GetPropertyValue, com duas
 ///     diferencas declaradas:
-///       * ftGuid entra no grupo aspado. No irmao ele cai no `else` e vira
-///         string vazia, e aqui isso NEM seria absorvido pela guarda de valor
-///         nulo, porque ela le o CAMPO e o AsString de um GUID nao e' vazio -
-///         sairia `cck3 eq ` sem lado direito.
+///       * ftGuid entra no grupo aspado. ATUALIZADO PELA #284: quando esta
+///         linha foi escrita, o irmao local mandava ftGuid para o `else` e o
+///         valor virava string vazia; hoje ele tem ramo proprio, e o literal
+///         sai por TDMLGeneratorAbstract.GuidLiteral, abstract e implementado
+///         por cada dialeto (Janus.DML.Generator.pas). A DIVERGENCIA CONTINUA
+///         EXISTINDO, e agora e' outra: la' o valor vem de uma propriedade
+///         TGUID pela RTTI e o literal e' escolhido PELO DIALETO; aqui vem do
+///         CAMPO (item 2) e e' dialeto-cego POR CONSTRUCAO - o cliente REST
+///         nao sabe, e nao tem como saber, qual banco o servidor usa, e o
+///         $filter atravessa verbatim ate' o WHERE (o tradutor do servidor,
+///         Janus.Server.RestQuery.Parse.pas:451-453, so' mapeia palavra de
+///         operador e nome de funcao OData; literal passa intacto). Hoje isso
+///         nao produz divergencia de TEXTO, porque os 12 dialetos convergem na
+///         mesma forma canonica de 38 - ver o comentario de
+///         CanonicalGuidLiteral -, mas o dia em que um dialeto divergir, este
+///         lado nao tem onde saber disso. Issue propria.
+///         O que NAO mudou e' por que a guarda nao absorveria um GUID: ela le
+///         o CAMPO e o AsString de um GUID nao e' vazio - sairia `cck3 eq `
+///         sem lado direito.
 ///       * data e hora vao em ISO-8601 e nao em FDateFormat/FTimeFormat.
 ///         As razoes sao DIFERENTES para cada metade e estao em cISODATE,
 ///         acima: a de data e' variacao por dialeto; a de hora nao e' (o

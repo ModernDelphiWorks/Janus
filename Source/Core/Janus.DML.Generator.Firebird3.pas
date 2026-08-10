@@ -35,6 +35,9 @@ type
   // Classe de banco de dados Interbase
   TDMLGeneratorFirebird3 = class(TDMLGeneratorFirebird)
   protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
   public
     constructor Create; override;
     destructor Destroy; override;
@@ -55,6 +58,20 @@ destructor TDMLGeneratorFirebird3.Destroy;
 begin
 
   inherited;
+end;
+
+/// <summary> Declarado explicitamente, e nao herdado de TDMLGeneratorFirebird,
+///  para que uma mudanca no literal do Firebird 2.5 nao mova o Firebird 3 em
+///  silencio. O conteudo e' o mesmo e ISSO FOI MEDIDO: as funcoes de UUID
+///  (GEN_UUID/UUID_TO_CHAR/CHAR_TO_UUID) e a ausencia de tipo nativo valem
+///  igualmente na Language Reference de 4.0 e 5.0
+///  (https://firebirdsql.org/file/documentation/html/en/refdocs/fblangref50/firebird-50-language-reference.html).
+///  Vale aqui a mesma ressalva de inalcancabilidade do irmao:
+///  Janus.Command.Selecter.pas:70-71 troca dnFirebird3 por dnSQLite no
+///  SELECT. </summary>
+function TDMLGeneratorFirebird3.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 initialization

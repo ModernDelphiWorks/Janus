@@ -42,6 +42,10 @@ uses
 type
   // Classe de banco de dados Firebird
   TDMLGeneratorFirebird = class(TDMLGeneratorAbstract)
+  protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
   public
     constructor Create; override;
     destructor Destroy; override;
@@ -173,6 +177,29 @@ begin
   Result := ExecuteSequence(Format('SELECT GEN_ID(%s, %s) FROM RDB$DATABASE;',
                                    [AAutoInc.Sequence.Name,
                            IntToStr(AAutoInc.Sequence.Increment)]));
+end;
+
+/// <summary> O Firebird NAO TEM tipo GUID/UUID - a Language Reference nao o
+///  lista; o que existe sao funcoes: GEN_UUID() devolve CHAR(16) CHARACTER SET
+///  OCTETS, UUID_TO_CHAR() devolve CHAR(36) MAIUSCULO com hifen e SEM chaves
+///  (https://www.firebirdsql.org/refdocs/langrefupd25-intfunc-uuid_to_char.html),
+///  e CHAR_TO_UUID() aceita hex em caixa mista.
+///  O DDL desta casa PRETENDE CHAR(n) para dnFirebird
+///  (MetaDbDiff.Metadata.Extract.pas:441) e guarda o texto de 38 que o INSERT
+///  gravou - texto contra texto, sensivel a caixa, forma canonica.
+///  DUAS RESSALVAS MEDIDAS:
+///    * com IOptions.StoreGUIDAsOctet ligada, o DDL vira CHAR(n) CHARACTER SET
+///      OCTETS de 16 bytes (MetaDbDiff.Metadata.Extract.pas:509-526) e a
+///      comparacao passaria a exigir CHAR_TO_UUID('36 com hifen') ou x'32hex'.
+///      NAO implementado: e' outro eixo, mede-se contra banco vivo.
+///    * ESTE METODO E' INALCANCAVEL NO SELECT HOJE. Janus.Command.Selecter.pas
+///      :70-71 troca dnFirebird/dnFirebird3 por dnSQLite, entao o SELECT do
+///      Firebird roda o gerador do SQLite. A unidade tem de estar certa de
+///      qualquer forma; desfazer a troca muda a geracao de TODO SELECT em
+///      Firebird e nao cabe nesta issue. </summary>
+function TDMLGeneratorFirebird.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 initialization

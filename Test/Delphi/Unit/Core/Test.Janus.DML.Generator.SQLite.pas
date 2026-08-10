@@ -27,29 +27,46 @@ uses
   DB,
   Rtti,
   SysUtils,
+  StrUtils,
   Generics.Collections,
   DUnitX.TestFramework,
   DataEngine.FactoryInterfaces,
+  MetaDbDiff.Mapping.Attributes,
   MetaDbDiff.Mapping.Classes,
   MetaDbDiff.Mapping.Explorer,
+  MetaDbDiff.Mapping.Register,
+  MetaDbDiff.Types.Mapping,
   Janus.Command.Inserter,
   Janus.Command.Updater,
   Janus.Command.Deleter,
   Janus.Command.Selecter,
+  Janus.DML.Commands,
+  Janus.DML.Interfaces,
+  Janus.Types.Nullable,
+  DataEngine.DriverConnection,
+  Janus.DML.Generator,
   Janus.DML.Generator.SQLite,
+  Janus.DML.Generator.PostgreSQL,
   Janus.Container.ObjectSet,
   Janus.Container.ObjectSet.Interfaces,
   Janus.Model.Client,
   Janus.Model.Master,
   Janus.Model.Detail,
-  Test.Janus.Model.KeyOnly;
+  Test.Janus.Model.KeyOnly,
+  Test.Janus.Model.RestLazyKeys;
 
 type
   TFakeConnection = class(TInterfacedObject, IDBConnection)
   private
     FDriver: TDriverName;
+    FOptions: IOptions;
   public
-    constructor Create(ADriver: TDriverName);
+    constructor Create(ADriver: TDriverName); overload;
+    /// Options is nil for every other test on purpose - a generator must
+    /// survive a connection that answers nothing, and that nil-safety is what
+    /// the four literal tests exercise for free. This overload exists only so
+    /// the StoreGUIDAsOctet guard has a connection that really says True.
+    constructor Create(ADriver: TDriverName; const AOptions: IOptions); overload;
     procedure Connect;
     procedure Disconnect;
     procedure ExecuteDirect(const ASQL: String); overload;
@@ -91,12 +108,130 @@ type
     function InTransaction: Boolean;
   end;
 
+  /// <summary> A DIALECT THAT FORGOT TO ANSWER ABOUT GUID.
+  ///  Issue #284 chose an ABSTRACT GuidLiteral over a format field precisely
+  ///  so that this class cannot exist silently. It implements the four other
+  ///  abstract members of TDMLGeneratorAbstract and leaves GuidLiteral alone;
+  ///  the compiler answers with W1020 at every construction site below, and
+  ///  the run answers with EAbstractError the first time a ftGuid column is
+  ///  formatted. TestGuid_ADialectThatDoesNotImplementGuidLiteral_FailsLoudly
+  ///  is what turns that claim from prose into a measurement - a format field
+  ///  in the FDateFormat mould would have compiled clean, run clean, and
+  ///  emitted '1 = 0' again. </summary>
+  TDMLGeneratorWithoutGuid = class(TDMLGeneratorAbstract)
+  public
+    constructor Create; override;
+    function GeneratorSelectAll(AClass: TClass; APageSize: Integer;
+      AID: TValue): String; override;
+    function GeneratorSelectWhere(AClass: TClass; AWhere: String;
+      AOrderBy: String; APageSize: Integer): String; override;
+    function GeneratorAutoIncCurrentValue(AObject: TObject;
+      AAutoInc: TDMLCommandAutoInc): Int64; override;
+    function GeneratorAutoIncNextValue(AObject: TObject;
+      AAutoInc: TDMLCommandAutoInc): Int64; override;
+  end;
+
+  /// <summary> A ftGuid COLUMN OVER A String PROPERTY - WRONG ON PURPOSE.
+  ///  The owner's ruling for #284 is that ftGuid means a TGUID property, and
+  ///  that is not a new rule: Janus.Command.Inserter.pas:213-217,
+  ///  Janus.Command.Updater.pas:118-119 and Janus.Command.Deleter.pas:97-98
+  ///  have always read it as AsType<TGUID>.ToString. This pair exists so the
+  ///  ruling has a test instead of a paragraph: the SELECT side must say WHICH
+  ///  property is wrong and WHAT to do, not raise a bare EInvalidCast from
+  ///  inside the RTTI. Test.Janus.Model.RestLazyKeys used to be shaped like
+  ///  this by accident; #284 fixed it and moved the shape here, where it is
+  ///  the subject of a test rather than a landmine. </summary>
+  [Entity]
+  [Table('gosschild', '')]
+  [PrimaryKey('gckey', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'Primary key')]
+  TGuidOverStringChild = class
+  private
+    Fgckey: Integer;
+    Fgcparent: String;
+  public
+    [Column('gckey', ftInteger)]
+    property gckey: Integer read Fgckey write Fgckey;
+    [Column('gcparent', ftGuid, 38)]
+    property gcparent: String read Fgcparent write Fgcparent;
+  end;
+
+  [Entity]
+  [Table('gossmaster', '')]
+  [PrimaryKey('gmkey', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'Primary key')]
+  TGuidOverStringMaster = class
+  private
+    Fgmkey: Integer;
+    Fgmparent: String;
+    Fchilds: TObjectList<TGuidOverStringChild>;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    [Column('gmkey', ftInteger)]
+    property gmkey: Integer read Fgmkey write Fgmkey;
+    [Column('gmparent', ftGuid, 38)]
+    property gmparent: String read Fgmparent write Fgmparent;
+    [Association(TMultiplicity.OneToMany, 'gmparent', 'gosschild', 'gcparent')]
+    property childs: TObjectList<TGuidOverStringChild> read Fchilds write Fchilds;
+  end;
+
+  /// <summary> AN OPTIONAL GUID FOREIGN KEY - Nullable<TGUID>.
+  ///  This is the only shape that reaches the Variant-Null arm of
+  ///  TDMLGeneratorAbstract._GetGuidValue: for a Nullable<T> with HasValue
+  ///  False, GetNullableValue returns TValue.From<Variant>(Null)
+  ///  (MetaDbDiff.RTTI.Helper.pas:356-359), not a zeroed TGUID and not an
+  ///  empty TValue. A plain TGUID property can only ever be all-zeros, which
+  ///  is a DIFFERENT arm, so TCompMaster could never exercise this one - the
+  ///  arm shipped load-bearing and untested, and the whole suite stayed green
+  ///  with it deleted. Without it, an association whose optional GUID FK is
+  ///  simply not set raises the named wrong-type error instead of selecting
+  ///  zero children. </summary>
+  [Entity]
+  [Table('nguidchild', '')]
+  [PrimaryKey('ngckey', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'Primary key')]
+  TNullableGuidChild = class
+  private
+    Fngckey: Integer;
+    Fngcparent: TGUID;
+  public
+    [Column('ngckey', ftInteger)]
+    property ngckey: Integer read Fngckey write Fngckey;
+    [Column('ngcparent', ftGuid, 38)]
+    property ngcparent: TGUID read Fngcparent write Fngcparent;
+  end;
+
+  [Entity]
+  [Table('nguidmaster', '')]
+  [PrimaryKey('ngmkey', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'Primary key')]
+  TNullableGuidMaster = class
+  private
+    Fngmkey: Integer;
+    Fngmparent: Nullable<TGUID>;
+    Fchilds: TObjectList<TNullableGuidChild>;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    [Column('ngmkey', ftInteger)]
+    property ngmkey: Integer read Fngmkey write Fngmkey;
+    [Column('ngmparent', ftGuid, 38)]
+    property ngmparent: Nullable<TGUID> read Fngmparent write Fngmparent;
+    [Association(TMultiplicity.OneToMany, 'ngmparent', 'nguidchild', 'ngcparent')]
+    property childs: TObjectList<TNullableGuidChild> read Fchilds write Fchilds;
+  end;
+
   [TestFixture]
   TTestDMLGenerator = class
   private
     FConnection: IDBConnection;
     function CreateClient: Tclient;
     function CreateDetail: Tdetail;
+    function CreateCompMaster: TCompMaster;
+    function GuidSelect(const ADriver: TDriverName; const AMany: Boolean): String;
+    function NullableGuidSelect(const ASet: Boolean): String;
+    function OctetSelect(const AOctet: Boolean): String;
     function FindAssociation(AClass: TClass; const AClassNameRef: String): TAssociationMapping;
   public
     [Setup]
@@ -166,14 +301,90 @@ type
     // raised. The DataSet path already guarded this; the ObjectSet path did not.
     [Test]
     procedure TestObjectSetUpdate_NoModifiedFields_DoesNotRaiseItemNotFound;
+
+    // ---------------------------------------------------------------------
+    // Issue #284 - a ftGuid association key selected zero children in silence
+    // ---------------------------------------------------------------------
+    [Test]
+    procedure TestGuid_OneToOne_SQLite_WritesTheGuidLiteralAndNotTheZeroRowsGuard;
+    [Test]
+    procedure TestGuid_OneToOneMany_SQLite_WritesTheGuidLiteralAndNotTheZeroRowsGuard;
+    [Test]
+    procedure TestGuid_OneToOne_PostgreSQL_AnswersWithItsOwnLiteral;
+    [Test]
+    procedure TestGuid_OneToOneMany_PostgreSQL_AnswersWithItsOwnLiteral;
+    [Test]
+    procedure TestGuid_AnUnsetGuidKeyStillBecomesTheZeroRowsGuard;
+    [Test]
+    procedure TestGuid_ADialectThatDoesNotImplementGuidLiteral_FailsLoudly;
+    [Test]
+    procedure TestGuid_AGuidColumnOverAStringProperty_RaisesANamedError;
+    [Test]
+    procedure TestGuid_ANullableGuidWithNoValue_BecomesTheZeroRowsGuard;
+    [Test]
+    procedure TestGuid_ANullableGuidWithAValue_ReachesTheDialectLiteral;
+    [Test]
+    procedure TestGuid_StoreGUIDAsOctetOn_RaisesInsteadOfMatchingNothing;
+    [Test]
+    procedure TestGuid_StoreGUIDAsOctetOff_EmitsTheLiteralAsUsual;
   end;
 
 implementation
+
+const
+  /// The same GUID the REST family pinned for issue #251
+  /// (Test.Janus.Rest.Lazy.pas:362), so the two halves of the same defect can
+  /// be read side by side. Written here in the form TGUID.ToString emits:
+  /// 38 characters, braces, hyphens, UPPERCASE hex.
+  cGUIDKEY = '{6F9619FF-8B86-D011-B42D-00CF4FC964FF}';
+
+  cSELECTCOMPCHILD =
+    'SELECT compchild.cckey, compchild.cck1, compchild.cck2, ' +
+    'compchild.cck3, compchild.cck4, compchild.cck5, compchild.cck6, ' +
+    'compchild.cck7 FROM compchild';
+
+  /// The seven terms, in order, each formatted by ITS OWN type: Integer bare,
+  /// String quoted, GUID quoted in the 38-character braced UPPERCASE form,
+  /// Date through FDateFormat, Currency with the decimal separator normalised
+  /// to a dot, DateTime through FDateFormat too and Time through FTimeFormat.
+  /// MEASURED AND NOT FIXED HERE: the cck6 term is ftDateTime and comes out as
+  /// '2026-08-10' - the TIME IS DROPPED, because the ftDateTime branch shares
+  /// FDateFormat with ftDate (Janus.DML.Generator.pas:623-626). That is a
+  /// pre-existing defect of a different branch, it is pinned here instead of
+  /// being hidden by a substring assertion, and it is not what #284 is about.
+  cWHEREGUIDKEY =
+    ' WHERE compchild.cck1 = 7' +
+    ' AND compchild.cck2 = ''BR''' +
+    ' AND compchild.cck3 = ''' + cGUIDKEY + '''' +
+    ' AND compchild.cck4 = ''2026-08-10''' +
+    ' AND compchild.cck5 = 1234.56' +
+    ' AND compchild.cck6 = ''2026-08-10''' +
+    ' AND compchild.cck7 = ''14:07:53''';
+
+  /// THE TWO DIALECTS EXPECT THE SAME TEXT, AND THAT IS A MEASUREMENT.
+  /// Two constants rather than one use of a shared one, so that the day a
+  /// dialect genuinely diverges the split is a one-line edit and not a
+  /// redesign; equal today because the DDL this house INTENDS for ftGuid is
+  /// CHAR(n) on both (MetaDbDiff.Metadata.Extract.pas:429-445 never creates a
+  /// native uuid), so both compare text against text. "Intends" and not "emits" is measured - see CanonicalGuidLiteral. Inventing a difference
+  /// to make the two-dialect proof look stronger would be inventing a defect;
+  /// what proves the per-dialect dispatch is the mutation, and the abstract
+  /// test below.
+  cWHERESQLITE = cWHEREGUIDKEY;
+  cWHEREPOSTGRES = cWHEREGUIDKEY;
 
 constructor TFakeConnection.Create(ADriver: TDriverName);
 begin
   inherited Create;
   FDriver := ADriver;
+end;
+
+constructor TFakeConnection.Create(ADriver: TDriverName;
+  const AOptions: IOptions);
+begin
+  inherited Create;
+  FDriver := ADriver;
+  FOptions := AOptions;
 end;
 
 procedure TFakeConnection.AddScript(const AScript: String);
@@ -259,7 +470,7 @@ end;
 
 function TFakeConnection.Options: IOptions;
 begin
-  Result := nil;
+  Result := FOptions;
 end;
 
 procedure TFakeConnection.Rollback;
@@ -1067,7 +1278,518 @@ begin
   end;
 end;
 
+{ TDMLGeneratorWithoutGuid }
+
+constructor TDMLGeneratorWithoutGuid.Create;
+begin
+  inherited;
+  ConfigureFluentSQLDriver(dnSQLite);
+  FDateFormat := 'yyyy-MM-dd';
+  FTimeFormat := 'HH:MM:SS';
+end;
+
+function TDMLGeneratorWithoutGuid.GeneratorSelectAll(AClass: TClass;
+  APageSize: Integer; AID: TValue): String;
+begin
+  Result := '';
+end;
+
+function TDMLGeneratorWithoutGuid.GeneratorSelectWhere(AClass: TClass;
+  AWhere: String; AOrderBy: String; APageSize: Integer): String;
+begin
+  Result := '';
+end;
+
+function TDMLGeneratorWithoutGuid.GeneratorAutoIncCurrentValue(AObject: TObject;
+  AAutoInc: TDMLCommandAutoInc): Int64;
+begin
+  Result := 0;
+end;
+
+function TDMLGeneratorWithoutGuid.GeneratorAutoIncNextValue(AObject: TObject;
+  AAutoInc: TDMLCommandAutoInc): Int64;
+begin
+  Result := 0;
+end;
+
+{ TGuidOverStringMaster }
+
+constructor TGuidOverStringMaster.Create;
+begin
+  Fchilds := TObjectList<TGuidOverStringChild>.Create;
+end;
+
+destructor TGuidOverStringMaster.Destroy;
+begin
+  Fchilds.Free;
+  inherited;
+end;
+
+{ Issue #284 }
+
+function TTestDMLGenerator.CreateCompMaster: TCompMaster;
+begin
+  Result := TCompMaster.Create;
+  Result.cmkey := 1;
+  Result.cmk1 := 7;
+  Result.cmk2 := 'BR';
+  Result.cmk3 := StringToGUID(cGUIDKEY);
+  Result.cmk4 := EncodeDate(2026, 8, 10);
+  Result.cmk5 := 1234.56;
+  Result.cmk6 := EncodeDate(2026, 8, 10) + EncodeTime(14, 7, 53, 0);
+  Result.cmk7 := EncodeTime(14, 7, 53, 0);
+end;
+
+function TTestDMLGenerator.GuidSelect(const ADriver: TDriverName;
+  const AMany: Boolean): String;
+var
+  LAssociation: TAssociationMapping;
+  LConnection: IDBConnection;
+  LMaster: TCompMaster;
+  LSaved: TFormatSettings;
+  LSelecter: TCommandSelecter;
+begin
+  LMaster := CreateCompMaster;
+  LConnection := TFakeConnection.Create(ADriver);
+  // TWO GLOBALS ARE PINNED, AND FOR OPPOSITE REASONS.
+  //   DecimalSeparator ',' - the Currency term goes through the global
+  //     FormatSettings, and on a machine that already dots the number the
+  //     ReplaceStr in _GetPropertyValue (Janus.DML.Generator.pas:634)
+  //     does nothing, so deleting it would survive.
+  //   TimeSeparator ':'    - ':' inside a FormatDateTime pattern is the
+  //     PLACEHOLDER for this setting, not a literal colon. Pinning it is what
+  //     makes the expected string the same on every machine; it is NOT an
+  //     endorsement of FTimeFormat, see the note in the SQLite test.
+  // Restored in the finally, because FormatSettings is global and every other
+  // test in this process reads it.
+  LSaved := FormatSettings;
+  try
+    FormatSettings.DecimalSeparator := ',';
+    FormatSettings.TimeSeparator := ':';
+    LAssociation := FindAssociation(TCompMaster, 'TCompChild');
+    LSelecter := TCommandSelecter.Create(LConnection, ADriver, LMaster);
+    try
+      if AMany then
+        Result := LSelecter.GenerateSelectOneToMany(LMaster, TCompChild, LAssociation)
+      else
+        Result := LSelecter.GenerateSelectOneToOne(LMaster, TCompChild, LAssociation);
+    finally
+      LSelecter.Free;
+    end;
+  finally
+    FormatSettings := LSaved;
+    LMaster.Free;
+  end;
+end;
+
+/// <summary> THE WHOLE WHERE, CHARACTER BY CHARACTER, AND NO LowerCase.
+///
+///  Assert.Contains is what the neighbours in this fixture use and it is not
+///  enough here: it survives a spurious suffix, a swapped term order and an
+///  extra predicate. And LowerCase - which four neighbours apply before
+///  asserting - would erase HALF of what is being decided, because the case of
+///  the hex digits IS the question: TGUID.ToString emits UPPERCASE, the INSERT
+///  writes that text, and SQLite compares with the BINARY collation, i.e.
+///  memcmp, i.e. case-SENSITIVE (https://www.sqlite.org/datatype3.html). A
+///  lowercased assertion would go green against a literal that matches nothing.
+///
+///  HENCE THE THIRD ARGUMENT, False, AND IT IS NOT DECORATION. Assert.AreEqual
+///  for strings takes an ignoreCase parameter and DEFAULTS IT TO True.
+///  Measured, not read: with the default in place, the mutation that
+///  lowercases the emitted literal SURVIVED all four assertions - the fixture
+///  claimed a character-by-character comparison in its own comment and was not
+///  making one. With False it dies.
+///
+///  SEVEN TERMS, BECAUSE ONE WOULD PROVE ALMOST NOTHING. With a single column
+///  the ' AND ' separator is never written, so ' OR ' would look identical;
+///  and with both ends spelled the same, ColumnsNameRef could be read as
+///  ColumnsName and nothing would notice. TCompMaster writes cmk1..cmk7 on one
+///  side and cck1..cck7 on the other, so both mutations die here.
+///
+///  Two more things this ordered string holds down, both of them measured and
+///  neither of them the subject of #284: the cck6 term drops the time (see the
+///  note on cWHEREGUIDKEY), and the cck5 term proves the decimal-separator
+///  normalisation, which on an already-dotted machine would be a no-op - hence
+///  the pinned FormatSettings in GuidSelect. </summary>
+procedure TTestDMLGenerator.TestGuid_OneToOne_SQLite_WritesTheGuidLiteralAndNotTheZeroRowsGuard;
+var
+  LSQL: String;
+begin
+  LSQL := GuidSelect(dnSQLite, False);
+
+  Assert.AreEqual(cSELECTCOMPCHILD + cWHERESQLITE, LSQL, False,
+    'The ftGuid term is the whole issue: before #284 ftGuid had no branch in ' +
+    '_GetPropertyValue, fell into the else (Janus.DML.Generator.pas:660-661), ' +
+    'became '''' and the null-FK guard (:265-266) wrote ''1 = 0'' - a master ' +
+    'WITH children returning none, in silence.');
+
+  Assert.IsFalse(ContainsText(LSQL, '1 = 0'),
+    'Explicit negative anchor. A test that only counted rows would go green ' +
+    'against ''1 = 0'' whenever the scenario has zero children for some other ' +
+    'reason; the equality above already pins the WHERE, but this names the ' +
+    'defect - Janus.DML.Generator.pas:265-266 - so a future reader knows what ' +
+    'this fixture is holding down.');
+end;
+
+/// <summary> THE TWIN METHOD, WHICH THE ISSUE DOES NOT EVEN MENTION.
+///  GenerateSelectOneToOneMany (Janus.DML.Generator.pas:292-354) is a DIFFERENT
+///  method with its OWN copy of the call (:304) and its OWN copy of the guard
+///  (:328-329). Covering only GenerateSelectOneToOne would leave half of the
+///  defect with no test, and deleting the ftGuid branch would still be caught
+///  - by the other test, not by this one. Hence a second full assertion rather
+///  than a shared one. </summary>
+procedure TTestDMLGenerator.TestGuid_OneToOneMany_SQLite_WritesTheGuidLiteralAndNotTheZeroRowsGuard;
+var
+  LSQL: String;
+begin
+  LSQL := GuidSelect(dnSQLite, True);
+
+  Assert.AreEqual(cSELECTCOMPCHILD + cWHERESQLITE, LSQL, False,
+    'GenerateSelectOneToOneMany carries its own copy of the guard (:328-329) ' +
+    'and its own call to _GetPropertyValue (:304). The issue names only the ' +
+    'OneToOne sibling; the defect was in both.');
+
+  Assert.IsFalse(ContainsText(LSQL, '1 = 0'),
+    'Same negative anchor as the OneToOne twin, for the same reason.');
+end;
+
+/// <summary> THE SECOND DIALECT, AND WHAT IT REALLY PROVES.
+///
+///  Honest first: the PostgreSQL literal and the SQLite literal are the SAME
+///  STRING, and that is a MEASUREMENT, not a shortcut. The DDL this house
+///  INTENDS for ftGuid is CHAR(n) on PostgreSQL and text on SQLite
+///  (MetaDbDiff.Metadata.Extract.pas:429-445 never creates a native `uuid`),
+///  so both compare text against text and both need exactly the 38-character
+///  braced uppercase form the INSERT wrote. Inventing a difference to make
+///  this test look stronger would be inventing a defect.
+///
+///  What IS proved here is the MECHANISM, and it is proved by mutation, not by
+///  the string: change TDMLGeneratorSQLite.GuidLiteral alone and only the
+///  SQLite tests die; change TDMLGeneratorPostgreSQL.GuidLiteral alone and
+///  only these die. Two dialects, two implementations, each answering for
+///  itself - which is the restriction the owner set, and which a single
+///  branch in the base class would NOT satisfy. The third leg of the same
+///  proof is TestGuid_ADialectThatDoesNotImplementGuidLiteral_FailsLoudly. </summary>
+procedure TTestDMLGenerator.TestGuid_OneToOne_PostgreSQL_AnswersWithItsOwnLiteral;
+var
+  LSQL: String;
+begin
+  LSQL := GuidSelect(dnPostgreSQL, False);
+
+  Assert.AreEqual(cSELECTCOMPCHILD + cWHEREPOSTGRES, LSQL, False,
+    'TDMLGeneratorPostgreSQL.GuidLiteral is the one consulted here. Mutate ' +
+    'it and this test dies while the SQLite twin stays green - that, and not ' +
+    'a difference in the text, is what makes the dispatch per-dialect.');
+
+  Assert.IsFalse(ContainsText(LSQL, '1 = 0'),
+    'PostgreSQL reached the same else as every other dialect before #284.');
+end;
+
+procedure TTestDMLGenerator.TestGuid_OneToOneMany_PostgreSQL_AnswersWithItsOwnLiteral;
+var
+  LSQL: String;
+begin
+  LSQL := GuidSelect(dnPostgreSQL, True);
+
+  Assert.AreEqual(cSELECTCOMPCHILD + cWHEREPOSTGRES, LSQL, False,
+    'The second method on the second dialect. Four cells, because the two ' +
+    'axes are independent: a fix applied to one method or wired into one ' +
+    'generator would leave three of them red.');
+
+  Assert.IsFalse(ContainsText(LSQL, '1 = 0'),
+    'Same negative anchor.');
+end;
+
+/// <summary> THE GUARD IS STILL THERE, AND THIS IS WHY IT MATTERS.
+///  '1 = 0' is not the defect - it is the correct answer for an association
+///  whose foreign key is not set. The defect was reaching it with a key that
+///  WAS set. An unset TGUID key is TGUID.Empty, and the ftGuid branch maps it
+///  back to '' on purpose so the existing guard (:265-266) keeps its meaning;
+///  emitting the all-zeros literal would also match zero rows, but by accident
+///  instead of by contract. Without this test, deleting the TGUID.Empty check
+///  would survive every other assertion in this file. </summary>
+procedure TTestDMLGenerator.TestGuid_AnUnsetGuidKeyStillBecomesTheZeroRowsGuard;
+var
+  LAssociation: TAssociationMapping;
+  LMaster: TCompMaster;
+  LSelecter: TCommandSelecter;
+  LSQL: String;
+begin
+  LMaster := CreateCompMaster;
+  try
+    LMaster.cmk3 := TGUID.Empty;
+    LAssociation := FindAssociation(TCompMaster, 'TCompChild');
+    LSelecter := TCommandSelecter.Create(FConnection, dnSQLite, LMaster);
+    try
+      LSQL := LSelecter.GenerateSelectOneToOne(LMaster, TCompChild, LAssociation);
+      Assert.IsTrue(ContainsStr(LSQL, 'AND 1 = 0 AND compchild.cck4'),
+        'An unset GUID foreign key must fall into the null guard exactly ' +
+        'where it sits in the term list - between cck2 and cck4 - and NOT ' +
+        'become a literal of the all-zeros GUID.');
+      Assert.IsFalse(ContainsText(LSQL, '00000000-0000-0000-0000-000000000000'),
+        'The all-zeros literal would match zero rows too, but by accident: ' +
+        'it would also match a row that really stored a zero GUID, and it ' +
+        'would read as a value where the code means "no parent".');
+    finally
+      LSelecter.Free;
+    end;
+  finally
+    LMaster.Free;
+  end;
+end;
+
+/// <summary> THE NOISE, MEASURED.
+///  The whole argument for an abstract method over a FGuidFormat field is that
+///  a dialect which does not answer must fail EARLY and LOUD instead of
+///  emitting '1 = 0' again. That argument is worth exactly as much as this
+///  test: TDMLGeneratorWithoutGuid implements every other abstract member and
+///  omits GuidLiteral, and the first ftGuid column it meets raises
+///  EAbstractError. The compiler already said the same thing at build time -
+///  W1020 at the construction below - but a warning is not a gate. </summary>
+procedure TTestDMLGenerator.TestGuid_ADialectThatDoesNotImplementGuidLiteral_FailsLoudly;
+var
+  LAssociation: TAssociationMapping;
+  LGenerator: IDMLGeneratorCommand;
+  LMaster: TCompMaster;
+begin
+  LMaster := CreateCompMaster;
+  try
+    LAssociation := FindAssociation(TCompMaster, 'TCompChild');
+    LGenerator := TDMLGeneratorWithoutGuid.Create;
+    LGenerator.SetConnection(FConnection);
+    Assert.WillRaise(
+      procedure
+      begin
+        LGenerator.GenerateSelectOneToOne(LMaster, TCompChild, LAssociation);
+      end,
+      EAbstractError,
+      'A dialect that does not implement GuidLiteral must NOT compile-and-run ' +
+      'quietly. With the FDateFormat mould - a format field set in the ' +
+      'constructor - this same class would have produced an empty literal, ' +
+      'tripped the guard and emitted ''1 = 0'': the cure would have carried ' +
+      'the disease.');
+  finally
+    LMaster.Free;
+  end;
+end;
+
+/// <summary> THE RULING OF #284, AS A TEST INSTEAD OF A PARAGRAPH.
+///  ftGuid means a TGUID property. A String property under a ftGuid column is
+///  the shape Test.Janus.Model.RestLazyKeys carried until #284 - it passed
+///  because the REST filter reads the FIELD and never the property, and it
+///  would have raised on the first local INSERT, from inside the RTTI, without
+///  naming the column. The SELECT side now says which property is wrong and
+///  what to do instead. </summary>
+procedure TTestDMLGenerator.TestGuid_AGuidColumnOverAStringProperty_RaisesANamedError;
+var
+  LAssociation: TAssociationMapping;
+  LMaster: TGuidOverStringMaster;
+  LMessage: String;
+  LRaised: Boolean;
+  LSelecter: TCommandSelecter;
+begin
+  LRaised := False;
+  LMessage := '';
+  LMaster := TGuidOverStringMaster.Create;
+  try
+    LMaster.gmkey := 1;
+    LMaster.gmparent := cGUIDKEY;
+    LAssociation := FindAssociation(TGuidOverStringMaster, 'TGuidOverStringChild');
+    LSelecter := TCommandSelecter.Create(FConnection, dnSQLite, LMaster);
+    try
+      try
+        LSelecter.GenerateSelectOneToOne(LMaster, TGuidOverStringChild,
+          LAssociation);
+      except
+        on E: Exception do
+        begin
+          LRaised := True;
+          LMessage := E.Message;
+        end;
+      end;
+    finally
+      LSelecter.Free;
+    end;
+  finally
+    LMaster.Free;
+  end;
+
+  Assert.IsTrue(LRaised,
+    'ftGuid over a String property must not go through quietly. Silence here ' +
+    'is how the shape survived in Test.Janus.Model.RestLazyKeys all the way ' +
+    'through PR #286.');
+  Assert.IsTrue(ContainsText(LMessage, 'gmparent'),
+    'The error must NAME the offending property. A bare EInvalidCast from ' +
+    'AsType<TGUID> says only that some cast failed, in a model with seven ' +
+    'columns: message was "' + LMessage + '"');
+  Assert.IsTrue(ContainsText(LMessage, 'TGUID'),
+    'And it must say what the contract IS, so the reader does not have to ' +
+    'find Inserter:213-217 to learn it: message was "' + LMessage + '"');
+end;
+
+{ TNullableGuidMaster }
+
+constructor TNullableGuidMaster.Create;
+begin
+  Fchilds := TObjectList<TNullableGuidChild>.Create;
+end;
+
+destructor TNullableGuidMaster.Destroy;
+begin
+  Fchilds.Free;
+  inherited;
+end;
+
+function TTestDMLGenerator.NullableGuidSelect(const ASet: Boolean): String;
+var
+  LAssociation: TAssociationMapping;
+  LMaster: TNullableGuidMaster;
+  LSelecter: TCommandSelecter;
+begin
+  LMaster := TNullableGuidMaster.Create;
+  try
+    LMaster.ngmkey := 1;
+    if ASet then
+      LMaster.ngmparent := StringToGUID(cGUIDKEY);
+    LAssociation := FindAssociation(TNullableGuidMaster, 'TNullableGuidChild');
+    LSelecter := TCommandSelecter.Create(FConnection, dnSQLite, LMaster);
+    try
+      Result := LSelecter.GenerateSelectOneToOne(LMaster, TNullableGuidChild,
+                  LAssociation);
+    finally
+      LSelecter.Free;
+    end;
+  finally
+    LMaster.Free;
+  end;
+end;
+
+/// <summary> AN OPTIONAL GUID FK THAT WAS NEVER SET IS NOT A TYPE ERROR.
+///  This is the test the Variant-Null arm of _GetGuidValue never had. A
+///  Nullable<TGUID> with HasValue False arrives as TValue.From<Variant>(Null),
+///  and TryAsType<TGUID> REFUSES that - so without the arm the generator
+///  announces that the property is of the wrong type, on a model whose type is
+///  exactly right, for a foreign key that is simply empty. Measured, not
+///  assumed: delete the arm and this test dies with the named error in the
+///  message; the other nine GUID tests stay green, because a plain TGUID
+///  property can only ever be all-zeros and that is a different arm. </summary>
+procedure TTestDMLGenerator.TestGuid_ANullableGuidWithNoValue_BecomesTheZeroRowsGuard;
+begin
+  Assert.AreEqual(
+    'SELECT nguidchild.ngckey, nguidchild.ngcparent FROM nguidchild' +
+    ' WHERE 1 = 0',
+    NullableGuidSelect(False), False,
+    'An unset Nullable<TGUID> foreign key must select zero children, which is ' +
+    'what ''1 = 0'' means here - not raise, and not compare against the ' +
+    'all-zeros GUID. Whole string and ignoreCase False, because "it did not ' +
+    'raise" would also be satisfied by a WHERE that is quietly wrong.');
+end;
+
+/// <summary> AND THE SAME PROPERTY, WHEN IT DOES HAVE A VALUE, STILL REACHES
+///  THE DIALECT. The null arm above would also be satisfied by a generator
+///  that answered '1 = 0' for EVERY Nullable<TGUID>; this is the assertion
+///  that stops that reading. It also pins the unwrap: GetNullableValue returns
+///  the inner TGUID, not the Nullable<TGUID> record, so TryAsType succeeds and
+///  the literal comes from TDMLGeneratorSQLite.GuidLiteral like any other
+///  column. </summary>
+procedure TTestDMLGenerator.TestGuid_ANullableGuidWithAValue_ReachesTheDialectLiteral;
+begin
+  Assert.AreEqual(
+    'SELECT nguidchild.ngckey, nguidchild.ngcparent FROM nguidchild' +
+    ' WHERE nguidchild.ngcparent = ''' + cGUIDKEY + '''',
+    NullableGuidSelect(True), False,
+    'A Nullable<TGUID> that HAS a value is an ordinary GUID key and must ' +
+    'produce the ordinary canonical literal.');
+end;
+
+function TTestDMLGenerator.OctetSelect(const AOctet: Boolean): String;
+var
+  LAssociation: TAssociationMapping;
+  LConnection: IDBConnection;
+  LMaster: TNullableGuidMaster;
+  LSelecter: TCommandSelecter;
+begin
+  LConnection := TFakeConnection.Create(dnSQLite,
+                   TOptions.Create.StoreGUIDAsOctet(AOctet));
+  LMaster := TNullableGuidMaster.Create;
+  try
+    LMaster.ngmkey := 1;
+    LMaster.ngmparent := StringToGUID(cGUIDKEY);
+    LAssociation := FindAssociation(TNullableGuidMaster, 'TNullableGuidChild');
+    LSelecter := TCommandSelecter.Create(LConnection, dnSQLite, LMaster);
+    try
+      Result := LSelecter.GenerateSelectOneToOne(LMaster, TNullableGuidChild,
+                  LAssociation);
+    finally
+      LSelecter.Free;
+    end;
+  finally
+    LMaster.Free;
+  end;
+end;
+
+/// <summary> THE ONE AXIS THAT GENUINELY DIVERGES, AND IT IS LIVE TODAY.
+///  IOptions.StoreGUIDAsOctet is a public setter with a default of False
+///  (DataEngine.DriverConnection.pas:123, :1904). Turn it on and this
+///  ecosystem's DDL stops storing text: MetaDbDiff.Metadata.Extract.pas
+///  :509-526 emits CHAR(16) CHARACTER SET OCTETS on Firebird and BYTE(16) on
+///  PostgreSQL. The 38-character text literal this fix emits would then match
+///  ZERO ROWS IN SILENCE - issue #284 all over again, through another door,
+///  and inside the very change that claims to close it.
+///  Octet support is NOT implemented here: the correct form is per dialect and
+///  needs measuring against a live database, and the octet DDL itself is in
+///  dispute (PostgreSQL has no BYTE type; its binary type is bytea). Choosing
+///  a form without measuring would be inventing. So the silence becomes a
+///  named error, which costs nothing to anyone on the default. </summary>
+procedure TTestDMLGenerator.TestGuid_StoreGUIDAsOctetOn_RaisesInsteadOfMatchingNothing;
+var
+  LMessage: String;
+  LRaised: Boolean;
+begin
+  LRaised := False;
+  LMessage := '';
+  try
+    OctetSelect(True);
+  except
+    on E: Exception do
+    begin
+      LRaised := True;
+      LMessage := E.Message;
+    end;
+  end;
+
+  Assert.IsTrue(LRaised,
+    'With StoreGUIDAsOctet on, emitting the text literal would select zero ' +
+    'children against a 16-byte column and say nothing - the exact defect ' +
+    'this issue exists to remove.');
+  Assert.IsTrue(ContainsText(LMessage, 'StoreGUIDAsOctet'),
+    'The error must NAME the option, so the reader knows which switch put ' +
+    'them here: message was "' + LMessage + '"');
+  Assert.IsTrue(ContainsText(LMessage, 'ngmparent'),
+    'And name the column, like the sibling wrong-type error does: message ' +
+    'was "' + LMessage + '"');
+end;
+
+/// <summary> THE CONTROL, AND IT IS NOT CEREMONY. Without it the guard could
+///  be widened to "raise whenever Options is assigned" - or to raise always -
+///  and every other GUID test would stay green, because they all run on a fake
+///  connection whose Options is nil. This one runs on a connection that really
+///  answers False. </summary>
+procedure TTestDMLGenerator.TestGuid_StoreGUIDAsOctetOff_EmitsTheLiteralAsUsual;
+begin
+  Assert.AreEqual(
+    'SELECT nguidchild.ngckey, nguidchild.ngcparent FROM nguidchild' +
+    ' WHERE nguidchild.ngcparent = ''' + cGUIDKEY + '''',
+    OctetSelect(False), False,
+    'A connection that answers StoreGUIDAsOctet = False is the default, and ' +
+    'must be indistinguishable from a connection that answers nothing.');
+end;
+
 initialization
   TDUnitX.RegisterTestFixture(TTestDMLGenerator);
+  TRegisterClass.RegisterEntity(TGuidOverStringChild);
+  TRegisterClass.RegisterEntity(TGuidOverStringMaster);
+  TRegisterClass.RegisterEntity(TNullableGuidChild);
+  TRegisterClass.RegisterEntity(TNullableGuidMaster);
 
 end.

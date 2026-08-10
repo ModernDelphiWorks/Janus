@@ -42,7 +42,7 @@ uses
 type
   // FDateFormat/FTimeFormat sao protected em TDMLGeneratorAbstract; um
   // descendente e o unico caminho legitimo para ler o que o gerador do ADS
-  // realmente entrega ao FormatDateTime em Janus.DML.Generator.pas:546/550.
+  // realmente entrega ao FormatDateTime em Janus.DML.Generator.pas:624/617.
   TADSGeneratorProbe = class(TDMLGeneratorADS)
   public
     function DateFormat: String;
@@ -218,7 +218,7 @@ end;
 
 procedure TTestDMLGeneratorADS.TestDateFormat_ProducesAnsiDateLiteral;
 begin
-  // Este e literalmente o valor que Janus.DML.Generator.pas:546 embute, entre
+  // Este e literalmente o valor que Janus.DML.Generator.pas:624 embute, entre
   // aspas simples, em todo WHERE gerado para o dialeto Advantage.
   // A mascara anterior 'DD/MM/CCYY' entregava aqui (medido)
   // '15/03/15/03/2027 14:07:5327', porque 'CC' nao e especificador do
@@ -255,7 +255,7 @@ end;
 procedure TTestDMLGeneratorADS.TestGeneratedSql_AdsDateLiteralReachesTheWhere;
 begin
   // Caminho de producao de verdade: GenerateSelectOneToOne -> GetValue ->
-  // _GetPropertyValue -> Janus.DML.Generator.pas:546. Prova que a mascara
+  // _GetPropertyValue -> Janus.DML.Generator.pas:624. Prova que a mascara
   // corrigida do ADS chega mesmo ao SQL, e nao so ao FormatDateTime do teste.
   Assert.AreEqual('2027-03-15',
     FirstQuotedLiteral(GenerateWhereFor(dnADS, 'moment_date')),
@@ -264,7 +264,7 @@ end;
 
 procedure TTestDMLGeneratorADS.TestGeneratedSql_TimeLiteralIsStableUnderHostileTimeSeparator;
 begin
-  // Mesmo caminho, ramo da hora (Janus.DML.Generator.pas:550). A mascara
+  // Mesmo caminho, ramo da hora (Janus.DML.Generator.pas:628). A mascara
   // 'HH:MM:SS' -- identica nos treze geradores -- TEM ':', entao com a
   // sobrecarga que le o FormatSettings global uma maquina com TimeSeparator
   // '-' emitia (medido) '14-07-53'. Morre se a chamada voltar a ler o global.

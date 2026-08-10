@@ -42,6 +42,10 @@ uses
 type
   // Classe de conexao concreta com dbExpress
   TDMLGeneratorMSSql = class(TDMLGeneratorAbstract)
+  protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
   public
     constructor Create; override;
     destructor Destroy; override;
@@ -200,6 +204,27 @@ function TDMLGeneratorMSSql.GeneratorAutoIncNextValue(AObject: TObject;
 begin
   Result := ExecuteSequence(Format('SELECT NEXT VALUE FOR %s ',
                                    [AAutoInc.Sequence.Name]));
+end;
+
+/// <summary> O SQL Server TEM tipo nativo `uniqueidentifier`, mas O DDL DESTA
+///  CASA NAO O CRIA: dnMSSQL cai no `else` de
+///  MetaDbDiff.Metadata.Extract.pas:445, que emite 'GUID'. A comparacao aqui
+///  e' texto contra texto e a forma canonica e' a que casa.
+///  DUAS ARMADILHAS DOCUMENTADAS, que so' mordem se a coluna FOR mesmo
+///  `uniqueidentifier` num schema alheio:
+///    * string com mais de 36 caracteres e' TRUNCADA EM SILENCIO na conversao
+///      para uniqueidentifier, sem erro
+///      (https://learn.microsoft.com/en-us/sql/t-sql/data-types/uniqueidentifier-transact-sql)
+///      - e a forma canonica tem 38.
+///    * as chaves nao tem aceitacao documentada; a unica mencao oficial diz
+///      que a operacao FALHA
+///      (https://learn.microsoft.com/en-us/sql/relational-databases/sqlxml-annotated-xsd-schemas-using/data-type-coercions-and-the-sql-datatype-annotation-sqlxml-4-0).
+///  NAO MEDIDO: se CAST('{...}' AS uniqueidentifier) aceita chaves em T-SQL
+///  puro, e se a caixa dos hex e' irrelevante na comparacao. Enquanto o DDL
+///  da casa nao criar o tipo nativo, nenhuma das duas muda o literal. </summary>
+function TDMLGeneratorMSSql.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 initialization
