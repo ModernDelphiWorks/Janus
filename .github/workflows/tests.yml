@@ -100,6 +100,15 @@ jobs:
       #     project existed - where no machine compiled them at all - but it is
       #     not cover. Closing it means vendoring MARS or provisioning it on
       #     the runner, which is a separate decision.
+      #   Janus.Tests.RESTWiRL - the same shape as Janus.Tests.RESTMARS, for
+      #     the same reason: WiRL is not vendored here and is located through
+      #     the project's WIRLDIR property, so this runner cannot build it.
+      #     Consequence, stated plainly: Janus.Client.WiRL,
+      #     Janus.Client.RestDriver.WiRL and Janus.Client.RestWiRL.Factory are
+      #     compiled by a developer running that project locally and by NOTHING
+      #     in CI. Before the project existed NO machine compiled them at all -
+      #     which is how the three empty method bodies of #213 survived in the
+      #     tree.
       - name: Compile and run the DUnitX projects
         run: |
           $rsvars = "${{ steps.delphi-env.outputs.RSVARS_PATH }}"

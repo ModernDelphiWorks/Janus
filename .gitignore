@@ -78,6 +78,7 @@ Test/Delphi/*.bat
 /Test/Delphi/Janus.Tests.RESTHorse.res
 /Test/Delphi/Janus.Tests.RESTMARS.res
 /Test/Delphi/Janus.Tests.RESTOracle.res
+/Test/Delphi/Janus.Tests.RESTWiRL.res
 
 # Compiled Lazarus output directory
 Test/Lazarus/output/
