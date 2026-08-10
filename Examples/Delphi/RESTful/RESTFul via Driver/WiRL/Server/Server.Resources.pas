@@ -16,7 +16,9 @@ uses
   SysUtils,
   Generics.Collections,
   /// WiRL
-  WiRL.Core.Engine,
+  /// WiRL.Core.Engine foi dividido em WiRL.Engine.*; TWiRLRESTEngine
+  /// (WiRL.Engine.REST) e o unico que hospeda applications e resources.
+  WiRL.Engine.REST,
   WiRL.Core.Application,
   WiRL.Core.Registry,
   WiRL.Core.Attributes,
@@ -31,9 +33,10 @@ uses
   /// Janus JSON
   Janus.Json,
   /// Janus conex�o database
-  Janus.Types.Database,
-  Janus.Factory.FireDAC,
-  Janus.Factory.Interfaces,
+  /// Janus.Types.Database foi absorvida em DataEngine.FactoryInterfaces,
+  /// que declara IDBConnection e TDriverName.
+  DataEngine.FactoryFireDac,
+  DataEngine.FactoryInterfaces,
   Janus.DML.Generator.Firebird,
   /// Janus
   Janus.Container.ObjectSet,

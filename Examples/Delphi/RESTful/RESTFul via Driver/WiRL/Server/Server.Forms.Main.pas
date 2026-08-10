@@ -16,9 +16,11 @@ uses
   Vcl.StdCtrls, Vcl.ExtCtrls, System.Diagnostics, System.Actions,
 
   /// WiRL
+  /// WiRL.Core.Engine foi dividido em WiRL.Engine.*; TWiRLRESTEngine
+  /// (WiRL.Engine.REST) e o unico que hospeda applications e resources.
   WiRL.http.Server,
   WiRL.http.Server.Indy,
-  WiRL.Core.Engine,
+  WiRL.Engine.REST,
   WiRL.Core.Application,
   WiRL.Core.Registry,
   WiRL.Core.Attributes,
@@ -29,8 +31,9 @@ uses
   WiRL.http.Request,
   WiRL.http.Response,
 
-  Janus.Factory.Interfaces,
-  Janus.Factory.FireDAC,
+  /// Janus - camada de acesso a dados extraida para o framework DataEngine
+  DataEngine.FactoryInterfaces,
+  DataEngine.FactoryFireDac,
   Janus.Server.WiRL;
 
 type
@@ -76,7 +79,7 @@ end;
 procedure TMainForm.FormCreate(Sender: TObject);
 begin
   RESTServer := TWiRLServer.Create(Self);
-  RESTServer.AddEngine<TWiRLEngine>('/rest')
+  RESTServer.AddEngine<TWiRLRESTEngine>('/rest')
     .SetEngineName('RESTEngine')
     .AddApplication('/app')
      .SetResources('*')
@@ -86,7 +89,7 @@ begin
   FConnection := TFactoryFireDAC.Create(ServerDataModule.FDConnection1, dnSQLite);
 
   RESTServerWiRL1 := TRESTServerWiRL.Create(Self);
-  RESTServerWiRL1.WiRLEngine := RESTServer.GetEngine('/rest') as TWiRLEngine;
+  RESTServerWiRL1.WiRLEngine := RESTServer.GetEngine('/rest') as TWiRLRESTEngine;
   RESTServerWiRL1.Connection := FConnection;
 end;
 
