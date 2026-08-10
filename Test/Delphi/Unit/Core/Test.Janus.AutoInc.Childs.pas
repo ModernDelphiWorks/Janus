@@ -50,9 +50,10 @@
   count is a count and not a side effect.
 
   Issue #276 narrowed WHERE that happens and not whether: DoAfterScroll now
-  re-opens nothing while the framework's own read walk in _ExecuteOneToMany is
-  moving the cursor. A walk this fixture drives from the outside is not that
-  walk, so the muting here is still load-bearing.
+  re-opens nothing while the framework's own read walk is moving the cursor -
+  _ExecuteOneToMany AND _ExecuteOneToOne, both of them. A walk this fixture
+  drives from the outside is neither of them, so the muting here is still
+  load-bearing.
 
   WHICH MASTER ROW'S KEY REACHES THE CHILDREN - issue #261
 

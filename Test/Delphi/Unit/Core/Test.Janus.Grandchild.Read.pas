@@ -131,6 +131,25 @@
   y1, y2 and y3 exist because all three of those mutations once survived GREEN
   - the repair was correct and nothing held it up.
 
+  A MUTATION THAT SURVIVES, DECLARED RATHER THAN HIDDEN
+
+  y2b. the injection made to happen ONCE in the whole life of the adapter
+       (an early exit on FLastPKValue <> '') -> 529 GREEN. Nothing here dies.
+
+  So the FREQUENCY of _InjectLazyProxiesOnScroll is not pinned by this fixture,
+  and must not be read into TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll:
+  that test fixes that the suppression does not SWALLOW the call, and nothing
+  more. "Once per row" would in fact be false. The call sits inside
+  DoAfterScroll's dsBrowse guard while every intermediate move of the walk is in
+  dsBlockRead - which is the suppression's own mechanism - so it is REACHED on
+  two scrolls, the First and the bookmark restore, and does work on one of them
+  because of the LCurrentPK = FLastPKValue early exit.
+
+  Left as a declaration and not repaired with another test on purpose: how often
+  the lazy proxies are injected belongs to the lazy contract
+  (Test.Janus.Container.DataSet.AutoLazy and its neighbours), not to #276, and
+  inventing a test for it here would widen this change past what it is for.
+
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
 
@@ -350,7 +369,8 @@ const
   /// The middle rows carry EXPLICIT and DISTINCT own keys. Left to the pending
   /// autoinc placeholder they would share one, and _GetCurrentPKAsString - the
   /// witness TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll reads - would
-  /// answer the same string on every row of the walk.
+  /// answer the same string on every scroll that reaches it, leaving the
+  /// witness unable to move whether the injection ran or not.
   cMIDKEY1   = 11;
   cMIDKEY2   = 12;
   cMIDKEY1AS = '11';
@@ -892,10 +912,12 @@ begin
 
   Assert.AreEqual(cMIDKEY1AS, TReadAccess<TAitMid>.LastPK(FMid),
     '_InjectLazyProxiesOnScroll sits beside the suppressed call inside the ' +
-    'same guard, and it must survive: it still runs on every row of the walk ' +
-    'and its last word is the row the cursor was put back on. Swallow it ' +
-    'together with the re-open and a consumer''s lazy associations stop ' +
-    'being injected, with nothing to say so');
+    'same guard, and the suppression must not SWALLOW it: it is still ' +
+    'reached during the walk, and its last word is the row the cursor was ' +
+    'put back on. Swallow it together with the re-open and a consumer''s ' +
+    'lazy associations stop being injected, with nothing to say so. THIS ' +
+    'CLAUSE SAYS NOTHING ABOUT HOW OFTEN IT RUNS, and it is not once per row ' +
+    '- see the header');
 end;
 
 initialization

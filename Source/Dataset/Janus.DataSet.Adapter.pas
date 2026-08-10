@@ -114,12 +114,29 @@ end;
 ///  which advance this cursor from the first row to Eof and put it back only to
 ///  build objects.
 ///  FChildReopenSuppressed tells the two apart. It suppresses THIS CALL ONLY,
-///  and that is MEASURED and not merely true by construction:
-///  _InjectLazyProxiesOnScroll below still runs on every row of a suppressed
-///  walk (TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll) and so does the
-///  consumer's own AfterScroll, reached through the `inherited` on the last
-///  line (TheSuppressedWalk_StillFiresTheConsumersOwnAfterScroll). A full
-///  DisableDataSetEvents around the walk would have taken both down.
+///  and the two things that must survive it are measured, one each:
+///
+///    * the consumer's own AfterScroll, reached through the `inherited` on the
+///      last line. That one runs on EVERY scroll of the walk, because the
+///      `inherited` sits OUTSIDE the state guard - measured by
+///      TheSuppressedWalk_StillFiresTheConsumersOwnAfterScroll, which names the
+///      rows the walk passed through and the row it came back to;
+///    * _InjectLazyProxiesOnScroll below, which is NOT swallowed with the
+///      re-open - measured by
+///      TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll.
+///
+///  A full DisableDataSetEvents around the walk would have taken both down.
+///
+///  HOW OFTEN THE INJECTION RUNS IS NOT PINNED, AND DO NOT READ IT AS "EVERY
+///  ROW" - it is not. This call is inside the dsBrowse guard, and every
+///  intermediate move of the walk happens in dsBlockRead, which is the
+///  suppression mechanism's own doing. It is therefore REACHED on two scrolls
+///  only - the First and the bookmark restore - and does work on one of them,
+///  because of the LCurrentPK = FLastPKValue early exit. Nothing here holds
+///  the frequency: making the injection happen once in the whole life of the
+///  adapter leaves the suite at 529 green. What the test above fixes is that
+///  the suppression does not swallow the call, and nothing more.
+///
 ///  NOT MEASURED: the paging leg (NextPacket) rides on that same `inherited`
 ///  and is covered only through it - no test here drives a paged cursor.
 ///  </summary>

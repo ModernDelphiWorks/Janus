@@ -119,11 +119,16 @@ type
     ///  nothing. Read by TDataSetAdapter<M>.DoAfterScroll, which is the only
     ///  family whose OpenDataSetChilds really re-queries - issue #276.
     ///
-    ///  WHY A COUNTER AND NOT A BOOLEAN: _ExecuteOneToMany recurses into the
-    ///  children of every row it reads, and a hierarchy may bring the same
-    ///  adapter back into a walk that is already running. A Boolean cleared by
-    ///  the inner walk would leave the outer one unprotected for the rest of
-    ///  its rows, which is precisely the shape of the defect being repaired.
+    ///  RAISED BY BOTH HALVES OF THE READ WALK - _ExecuteOneToMany and
+    ///  _ExecuteOneToOne. FillMastersClass routes an association to one or the
+    ///  other by multiplicity and both walk this cursor the same way; the
+    ///  amount of exposure differs, not the need for the guard.
+    ///
+    ///  WHY A COUNTER AND NOT A BOOLEAN: both of those recurse into the
+    ///  children of what they read, and a hierarchy may bring the same adapter
+    ///  back into a walk that is already running. A Boolean cleared by the
+    ///  inner walk would leave the outer one unprotected for the rest of its
+    ///  rows, which is precisely the shape of the defect being repaired.
     ///
     ///  WHY NOT DisableDataSetEvents, WHICH IS WHAT _HasPendingRows AND
     ///  SetAutoIncValueChilds USE FOR THE SAME TRAP: muting takes the whole

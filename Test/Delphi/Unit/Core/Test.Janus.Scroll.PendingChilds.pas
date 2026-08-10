@@ -31,9 +31,11 @@
   THAT SENTENCE IS NOW SCOPED, BY ISSUE #276. DoAfterScroll re-opens the
   children on an OPERATOR scroll, which is every move this fixture makes and
   the only kind the contract below is about. It re-opens NOTHING while the
-  framework's own read walk in _ExecuteOneToMany is moving the cursor - a read
-  of .Current used to destroy the grandchildren the same way, and there nobody
-  had chosen anything. Measured by Test.Janus.Grandchild.Read.
+  framework's own read walk is moving the cursor - _ExecuteOneToMany AND
+  _ExecuteOneToOne, both of them, so a read driven by a OneToOne or a ManyToOne
+  association discards nothing either. A read of .Current used to destroy the
+  grandchildren the same way, and there nobody had chosen anything. Measured by
+  Test.Janus.Grandchild.Read.
 
   WHY THIS IS A CONTRACT AND NOT A FIX
 
