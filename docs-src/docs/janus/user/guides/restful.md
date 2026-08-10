@@ -95,12 +95,14 @@ aparece só na compilação.
 
 | Driver | Repositório | Revisão fixada | Data | Propriedade de diretório |
 |--------|-------------|----------------|------|--------------------------|
-| WiRL | [delphi-blocks/WiRL](https://github.com/delphi-blocks/WiRL) | `aac8562c810b98fef590f3035f56bdf9ea3bad76` | 2026-07-13 | `$(WIRLDIR)` (convenção; nenhum `.dproj` a usa ainda) |
+| WiRL | [delphi-blocks/WiRL](https://github.com/delphi-blocks/WiRL) | `aac8562c810b98fef590f3035f56bdf9ea3bad76` | 2026-07-13 | `$(WIRLDIR)` (usada por `Janus.Tests.RESTWiRL.dproj`) |
 | MARS | [andrea-magni/MARS](https://github.com/andrea-magni/MARS) | não registrada | — | `$(MARSDIR)` (usada por `Janus.Tests.RESTMARS.dproj`) |
 
-Search path esperado para `$(WIRLDIR)`: `Source\Core`, `Source\Client`,
-`Source\Data`, `Source\Data\FireDAC`, `Libs\Neon\Source`,
+Search path de `$(WIRLDIR)` — o que `Janus.Tests.RESTWiRL.dproj` realmente
+carrega e com o qual o cliente compila: `Source\Core`, `Source\Client`,
+`Source\Data`, `Source\Extensions`, `Libs\Neon\Source`,
 `Libs\JWT\Source\Common`, `Libs\JWT\Source\JOSE`, `Libs\OpenAPI\Source`.
+`Source\Data\FireDAC` existe no pin mas o caminho do cliente não precisa dele.
 
 ### AVISO: o pin é master sem tag, e a última release NÃO serve
 
@@ -191,18 +193,37 @@ ou seja fala com o `TWiRLAuthBasicResource` — **endpoints diferentes**. O
 upstream tem três sabores (Form, Basic e Body, em `WiRL.Core.Auth.Resource`).
 
 Portanto isto é **capacidade nova, num sabor de autenticação diferente do
-componente extinto, e não exercitada em execução por nada deste repositório**.
-Não houve regressão porque o componente antigo era casca: em `f6d6c50` o
-`FRESTToken` era declarado, criado, ligado à aplicação e recebia credenciais,
-mas nunca era chamado para fazer o POST.
+componente extinto**. Não houve regressão porque o componente antigo era casca:
+em `f6d6c50` o `FRESTToken` era declarado, criado, ligado à aplicação e recebia
+credenciais, mas nunca era chamado para fazer o POST.
+
+> Quando a #228 foi escrita, este caminho **não era exercitado em execução por
+> nada deste repositório**. Passou a ser: `Janus.Tests.RESTWiRL` faz o login
+> contra um servidor de empréstimo no loopback e confere o token que volta.
+
+#### Onde o token vive, e o que o driver responde (#213)
+
+O token adquirido **não volta para o `Authenticator`** — ele fica no
+`FAccessToken` privado do `TRESTClientWiRL`. A precedência que o cabeçalho usa
+é: token explícito do `Authenticator` primeiro; na falta dele, o que o login
+trouxe.
+
+`TRESTClientWiRL.AccessToken` responde esse token efetivo, com a mesma
+precedência, e é o que `TRESTDriverWiRL.GetMethodToken` devolve.
+**Deliberadamente diferente do driver Horse**, cujo `GetMethodToken` lê
+`Authenticator.Token` direto: no WiRL isso devolveria vazio justamente no fluxo
+usuário/senha, que é o único fluxo de autenticação que o cliente implementa.
+
+Antes da #213 os três getters `GetMethodToken`, `GetUsername` e `GetPassword`
+do `TRESTDriverWiRL` tinham **corpo vazio** e devolviam string vazia em
+silêncio.
 
 ### Compatibilidade com WiRL antigo
 
 Não há. O driver faz corte limpo no pin acima. Compilação condicional foi
 considerada e descartada: os tipos mudaram de unit **e** de nome, o
 `TWiRLClientToken` não tem equivalente, e manter os dois lados exigiria uma
-matriz de compilação que ninguém executa — nenhum projeto de teste deste
-repositório compila o driver WiRL hoje.
+matriz de compilação que ninguém executa.
 
 ### Defeitos pré-existentes registrados aqui para não se perderem
 
