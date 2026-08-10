@@ -33,7 +33,15 @@ type
   ///  and not yet saved, at the moment the master is about to scroll.
   ///  pcaDiscard is the DEFAULT and is byte-for-byte what the framework has
   ///  always done: TDataSetAdapter<M>.DoAfterScroll re-opens the children from
-  ///  the database and whatever was typed is gone. pcaPost saves the pending
+  ///  the database and whatever was typed is gone. That still holds for the
+  ///  OPERATOR scroll, which is the only move this enum is ever consulted for;
+  ///  since issue #276 the same DoAfterScroll re-opens nothing while the mover
+  ///  is the framework's own read walk - _ExecuteOneToMany AND
+  ///  _ExecuteOneToOne, BOTH of them, so a read routed through the
+  ///  single-object branch discards nothing either. OneToOne and ManyToOne both
+  ///  route to that branch, by multiplicity; what is MEASURED is the BRANCH,
+  ///  driven through a OneToOne - no test carries the ManyToOne label.
+  ///  Neither walk is a scroll anybody chose. pcaPost saves the pending
   ///  children first. pcaCancel calls Abort, so the master never leaves the
   ///  row. Nothing here changes on its own: the enum is only read when a
   ///  handler is assigned to TDataSetBaseAdapter<M>.OnBeforeScrollPendingChilds

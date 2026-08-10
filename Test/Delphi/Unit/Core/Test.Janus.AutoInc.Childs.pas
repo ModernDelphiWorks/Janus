@@ -49,6 +49,12 @@
   muted - only the fixture's own set-up and measurement helpers are, so that a
   count is a count and not a side effect.
 
+  Issue #276 narrowed WHERE that happens and not whether: DoAfterScroll now
+  re-opens nothing while the framework's own read walk is moving the cursor -
+  _ExecuteOneToMany AND _ExecuteOneToOne, both of them. A walk this fixture
+  drives from the outside is neither of them, so the muting here is still
+  load-bearing.
+
   WHICH MASTER ROW'S KEY REACHES THE CHILDREN - issue #261
 
   _AutoIncToChildRows used to read the association's columns off whatever row

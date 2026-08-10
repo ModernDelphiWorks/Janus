@@ -28,6 +28,16 @@
   error, no prompt, no trace. Measured by
   Premise_ScrollingTheMasterDiscardsTypedChildRows.
 
+  THAT SENTENCE IS NOW SCOPED, BY ISSUE #276. DoAfterScroll re-opens the
+  children on an OPERATOR scroll, which is every move this fixture makes and
+  the only kind the contract below is about. It re-opens NOTHING while the
+  framework's own read walk is moving the cursor - _ExecuteOneToMany AND
+  _ExecuteOneToOne, both of them, so a read routed through the single-object
+  branch discards nothing either. OneToOne and ManyToOne both route there; what
+  is measured is the BRANCH, driven through a OneToOne. A read of .Current used
+  to destroy the grandchildren the same way, and there nobody had chosen
+  anything. Measured by Test.Janus.Grandchild.Read.
+
   WHY THIS IS A CONTRACT AND NOT A FIX
 
   Four behaviours were on the table - discard, post, block the scroll, keep in
