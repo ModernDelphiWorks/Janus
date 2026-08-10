@@ -63,6 +63,33 @@
   Rest_ReadingCurrentOnTheGrandparent_NeverDestroyedTheGrandchildRow measures
   that claim instead of repeating it, and it was green before the fix as well.
 
+  THE MUTATIONS THAT WERE RUN, AND WHAT DIED IN EACH
+
+  The repair has two halves that look alike and are not - the First and the
+  GotoBookmark of the walk in _ExecuteOneToMany - so each was suppressed on its
+  own and made to kill a DIFFERENT set. Baseline for all four: 514 found, 514
+  passed.
+
+    1. suppression removed altogether (DoAfterScroll re-opens unconditionally)
+       -> 4 red: ReadingCurrentOnTheGrandparent, ClientDataSet_ReadingCurrent,
+          EachMidObjectInTheGraph, AfterTheRead_AnOperatorScrollStillDiscards.
+    2. suppression raised and NEVER released (the Dec deleted)
+       -> 1 red, and only one: AfterTheRead_AnOperatorScrollStillDiscards. The
+          operator's own scroll stopped discarding, which is the contract this
+          issue may not touch.
+    3. only the First protected, the bookmark restore left exposed
+       -> 3 red. EachMidObjectInTheGraph STAYS GREEN, and the difference is the
+          measurement: the graph is built during the walk, and the restore
+          destroys the leaf rows a moment AFTER it, so a fix that stopped at
+          the First would have returned a correct object graph over a table it
+          had just emptied.
+    4. only the bookmark restore protected, the First left exposed
+       -> 4 red, EachMidObjectInTheGraph among them: there the leaf is gone
+          BEFORE the walk reads it.
+
+  Three and four are the reason the suppression spans the whole block: neither
+  scroll is redundant, and they fail differently.
+
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
 
