@@ -128,7 +128,18 @@ type
 implementation
 
 uses
-  Janus.Client.RestWiRL.Factory;
+  Janus.Client.RestWiRL.Factory,
+  /// <summary> Obrigatoria: o caminho generico do cliente WiRL
+  ///   (TWiRLClientCustomResource.GenericHttpRequest -> ObjectToStream ->
+  ///   Application.WriterRegistry.FindWriter, WiRL.Client.CustomResource.pas:
+  ///   417-433 e 465-481) passa por MessageBodyWriter em TODA requisicao,
+  ///   GET inclusive. Sem esta unit linkada o registro fica vazio e o WiRL
+  ///   levanta EWiRLServerException 'MessageBodyWriters registry is empty'
+  ///   (WiRL.Core.MessageBodyWriter.pas:201 e :213) - que NAO descende de
+  ///   EWiRLClientException e por isso escaparia do contrato de erro do
+  ///   Janus. E o que a propria demo do WiRL faz
+  ///   (Demos/03.Authorization/Client.Form.Main.pas:80). </summary>
+  WiRL.Core.MessageBody.Default;
 
 { TRESTClientWiRL }
 

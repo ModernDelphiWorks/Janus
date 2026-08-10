@@ -144,6 +144,35 @@ driver serve às duas.
   `TWiRLClientSubResourceJSON` e `TWiRLClientToken` foram removidos (já na
   `v4.6.0`). Um único `TWiRLClientResource` carrega o caminho inteiro.
 
+### O caminho genérico exige MessageBodyWriter registrado
+
+O cliente do WiRL atual só tem um caminho: `Get<T>`, `Post<T,V>`, `Put<T,V>` e
+`Delete<T>` caem todos em `TWiRLClientCustomResource.GenericHttpRequest<T,V>`
+(`WiRL.Client.CustomResource.pas:465-481`), que **antes de qualquer I/O**
+chama `ObjectToStream<T>` (`:417-433`) e este pede um writer a
+`Application.WriterRegistry.FindWriter`.
+
+Se nenhuma unit de MessageBody estiver **linkada no binário**, o registro está
+vazio e o WiRL levanta `EWiRLServerException` com
+`MessageBodyWriters registry is empty` (`WiRL.Core.MessageBodyWriter.pas:201`
+e `:213`) — em **toda** requisição, `GET` inclusive, mesmo sem corpo. Pior:
+`EWiRLServerException` **não** descende de `EWiRLClientException`, então
+escapa crua do `DoRequest` do driver, `OnErrorCommand` não dispara e
+`EJanusRESTException` não é levantada.
+
+Por isso `Janus.Client.WiRL.pas` traz `WiRL.Core.MessageBody.Default` no `uses`
+da seção `implementation` — é o que a própria demo do upstream faz
+(`Demos/03.Authorization/Client.Form.Main.pas:80`). A unit registra os writers
+padrão na sua `initialization`
+(`WiRL.Core.MessageBody.Default.pas:693-694`); referenciá-la é o que garante o
+link.
+
+**O caminho antigo não exigia isso.** Em `v3.0.1` o driver falava com o par
+`TWiRLClientResourceJSON`/`TWiRLClientSubResourceJSON`, que montava o corpo
+como stream puro sem passar por `WriterRegistry`. A dependência é, portanto,
+consequência direta da reescrita para a API genérica — não uma configuração
+opcional.
+
 ### Autenticação: capacidade nova, não migrada
 
 O `TWiRLClientToken` extinto POSTava `username`/`password` no corpo, ou seja
