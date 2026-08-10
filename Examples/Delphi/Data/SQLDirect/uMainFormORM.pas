@@ -44,8 +44,8 @@ uses
   Generics.Collections,
   /// Janus
   // SQLDirect
-  Janus.Factory.Interfaces,
-  Janus.Factory.SQLDirect,
+  DataEngine.FactoryInterfaces,
+  DataEngine.FactorySQLDirect,
 
   Janus.Manager.DataSet,
 

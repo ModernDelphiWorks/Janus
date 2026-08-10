@@ -42,10 +42,9 @@ uses
   ExtCtrls,
   Generics.Collections,
   /// orm factory
-  Janus.Factory.Interfaces,
-  Janus.Factory.UniDAC,
-  Janus.Types.Database,
-  Janus.Objects.Manager,
+  DataEngine.FactoryInterfaces,
+  DataEngine.FactoryUniDac,
+  Janus.Manager.ObjectSet,
   /// orm model
   Janus.Model.Master,
   Janus.Model.Detail,

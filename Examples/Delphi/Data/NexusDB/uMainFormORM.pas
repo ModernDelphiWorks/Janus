@@ -44,8 +44,8 @@ uses
   Generics.Collections,
   /// Janus
   Janus.Manager.DataSet,
-  Janus.Factory.Interfaces,
-  Janus.Factory.NexusDB,
+  DataEngine.FactoryInterfaces,
+  DataEngine.FactoryNexusDB,
   Janus.DML.Generator.NexusDB,
   Janus.Json,
   /// modelos usados

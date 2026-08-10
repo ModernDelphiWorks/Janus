@@ -27,9 +27,9 @@ uses
   Janus.Model.Detail in '..\Janus.Model.Detail.pas',
   Janus.Model.Lookup in '..\Janus.Model.Lookup.pas',
   Janus.Model.Master in '..\Janus.Model.Master.pas',
-  Janus.Client.MARS in '..\..\..\..\Source\RESTful Components\Client\Janus.Client.MARS.pas',
-  Janus.driver.rest.mars in '..\..\..\..\Source\RESTful Components\Client\Janus.driver.rest.mars.pas',
-  Janus.factory.rest.mars in '..\..\..\..\Source\RESTful Components\Client\Janus.factory.rest.mars.pas';
+  Janus.Client.MARS in '..\..\..\..\..\..\Source\RESTful\Client\Janus.Client.MARS.pas',
+  Janus.Client.RestDriver.MARS in '..\..\..\..\..\..\Source\RESTful\Client\Janus.Client.RestDriver.MARS.pas',
+  Janus.Client.RestMARS.Factory in '..\..\..\..\..\..\Source\RESTful\Client\Janus.Client.RestMARS.Factory.pas';
 
 {$R *.res}
 
