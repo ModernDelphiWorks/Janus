@@ -153,6 +153,7 @@
         <DCCReference Include="..\..\Examples\Delphi\Data\Models\Janus.Model.Lookup.pas"/>
         <DCCReference Include="..\..\Examples\Delphi\Data\Models\Janus.Model.Master.pas"/>
         <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.SQLite.pas"/>
+        <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.ADS.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Driver.Register.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Mapping.Cache.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.RTTI.Singleton.pas"/>
@@ -173,6 +174,7 @@
         <DCCReference Include="Unit\Criteria\Test.Janus.Criteria.Advanced.pas"/>
         <DCCReference Include="Unit\Middleware\Test.Janus.Middleware.Pipeline.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.DML.Generator.SQLite.pas"/>
+        <DCCReference Include="Unit\Core\Test.Janus.DML.Generator.ADS.pas"/>
         <DCCReference Include="Unit\Criteria\Test.Janus.FluentSQL.Integration.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.REST.QueryParse.pas"/>
         <DCCReference Include="Unit\Middleware\Test.Janus.Plugin.Registry.pas"/>
