@@ -68,11 +68,25 @@
   a refused connection there is no server text at all, so 'Message : ' is
   empty and a swap of the two would only be caught by luck.
 
-  So MARS_HttpError_BodyLandsUnderMessageAndReasonUnderError runs against a
-  live loopback stub answering 500 with a DISTINCT body marker and a DISTINCT
-  reason phrase. There the two fields carry two different named values and the
-  swap is caught BY DESIGN, not by accident of the environment. That test is
-  also what proves ResponseBodyOf reaches the body at all.
+  So there is a second set of tests against a live loopback stub answering 500
+  with a DISTINCT body marker and a DISTINCT reason phrase. There the two
+  fields carry two different named values and the swap is caught BY DESIGN,
+  not by accident of the environment. Those tests are also what prove
+  ResponseBodyOf reaches the body at all.
+
+  AND THERE IS ONE OF THEM PER VERB, FOR THE SAME REASON DoPUT GOT ITS OWN
+
+  ResponseBodyOf is called at FOUR independent sites. A single GET-only live
+  test pins one of them and leaves three free to rot. Measured, before this
+  was parametrised: replacing ResponseBodyOf(E) with E.Message in DoPUT alone
+  - the exact one-token regression that throws the body away - compiled and
+  left the suite fully green, and likewise for DoDELETE and DoPOST. That is
+  the regression this whole fixture exists to prevent, invisible.
+
+  This is the third time reasoning-by-similarity has been caught in this file:
+  first the DoPOST transposition that reached production, then DoPUT excused
+  as a copy of its siblings, then the live-error path argued from GET alone.
+  Every site is now driven on its own.
 
   WHAT THIS FIXTURE DOES NOT COVER
 
@@ -143,6 +157,11 @@ type
     /// The four values every raise site must place under its own label,
     /// whatever the verb and whatever the failure mode.
     procedure AssertCommonFields(const AMessage, AVerb: String);
+    /// The body/reason pair, against the live stub, for ONE verb. Every verb
+    /// gets its own [Test] over this - see the header for why sharing one
+    /// GET-only test would leave the other three sites unpinned.
+    procedure AssertHttpErrorFields(
+      const ARequestMethod: TRESTRequestMethodType; const AVerb: String);
   public
     [Setup]
     procedure Setup;
@@ -180,10 +199,18 @@ type
     [Test]
     procedure MARS_POST_VerbIsNotPrintedAsTheMessage;
 
-    /// The only test that can tell AMessage from AMessageError, and the one
-    /// that proves ResponseBodyOf recovers the body from the Indy exception.
+    /// The only tests that can tell AMessage from AMessageError, and the ones
+    /// that prove ResponseBodyOf recovers the body from the Indy exception.
+    /// ONE PER VERB: ResponseBodyOf is called at four independent sites, and
+    /// a single GET test leaves the other three free to throw the body away.
     [Test]
-    procedure MARS_HttpError_BodyLandsUnderMessageAndReasonUnderError;
+    procedure MARS_GET_HttpError_BodyUnderMessageAndReasonUnderError;
+    [Test]
+    procedure MARS_DELETE_HttpError_BodyUnderMessageAndReasonUnderError;
+    [Test]
+    procedure MARS_PUT_HttpError_BodyUnderMessageAndReasonUnderError;
+    [Test]
+    procedure MARS_POST_HttpError_BodyUnderMessageAndReasonUnderError;
   end;
 
 implementation
@@ -444,33 +471,54 @@ begin
     'O verbo tem de sair sob Method.');
 end;
 
-procedure TTestRestExceptionFields.MARS_HttpError_BodyLandsUnderMessageAndReasonUnderError;
+procedure TTestRestExceptionFields.AssertHttpErrorFields(
+  const ARequestMethod: TRESTRequestMethodType; const AVerb: String);
 var
   LMessage: String;
 begin
   FStub := TStubErrorServer.Create(cHTTP_STATUS, cREASON_MK, cBODY_MK);
   FClient.Port := FStub.Port;
 
-  LMessage := CaptureRestException(TRESTRequestMethodType.rtGET);
+  LMessage := CaptureRestException(ARequestMethod);
 
-  AssertCommonFields(LMessage, 'GET');
+  AssertCommonFields(LMessage, AVerb);
 
   /// O par que so este ambiente consegue separar. Contra porta morta os dois
   /// campos ficam sem texto de servidor e uma troca passaria batida.
   Assert.AreEqual(cBODY_MK, FieldOf(LMessage, 'Message'),
-    'O CORPO da resposta tem de sair sob Message. Se sair a razao da linha ' +
-    'de status, ResponseBodyOf nao esta lendo ErrorMessage da ' +
-    'EIdHTTPProtocolException - e o corpo se perdeu.');
+    AVerb + ': o CORPO da resposta tem de sair sob Message. Se sair a razao ' +
+    'da linha de status, ResponseBodyOf nao esta lendo ErrorMessage da ' +
+    'EIdHTTPProtocolException NESTE sitio - e o corpo se perdeu.');
   Assert.IsTrue(ContainsStr(FieldOf(LMessage, 'Error'), cREASON_MK),
-    'A razao da linha de status tem de sair sob Error, que e a mensagem da ' +
-    'excecao local. Encontrado: ' + FieldOf(LMessage, 'Error'));
+    AVerb + ': a razao da linha de status tem de sair sob Error, que e a ' +
+    'mensagem da excecao local. Encontrado: ' + FieldOf(LMessage, 'Error'));
   Assert.AreNotEqual(cBODY_MK, FieldOf(LMessage, 'Error'),
-    'O corpo NAO pode sair sob Error: AMessage e AMessageError estao ' +
-    'trocados.');
+    AVerb + ': o corpo NAO pode sair sob Error - AMessage e AMessageError ' +
+    'estao trocados.');
   Assert.IsFalse(ContainsStr(FieldOf(LMessage, 'Message'), cREASON_MK),
-    'E a razao NAO pode sair sob Message, pelo mesmo motivo.');
+    AVerb + ': e a razao NAO pode sair sob Message, pelo mesmo motivo.');
   Assert.AreEqual(IntToStr(cHTTP_STATUS), FieldOf(LMessage, 'Status Code'),
-    'O codigo HTTP do servidor tem de sair sob Status Code.');
+    AVerb + ': o codigo HTTP do servidor tem de sair sob Status Code.');
+end;
+
+procedure TTestRestExceptionFields.MARS_GET_HttpError_BodyUnderMessageAndReasonUnderError;
+begin
+  AssertHttpErrorFields(TRESTRequestMethodType.rtGET, 'GET');
+end;
+
+procedure TTestRestExceptionFields.MARS_DELETE_HttpError_BodyUnderMessageAndReasonUnderError;
+begin
+  AssertHttpErrorFields(TRESTRequestMethodType.rtDELETE, 'DELETE');
+end;
+
+procedure TTestRestExceptionFields.MARS_PUT_HttpError_BodyUnderMessageAndReasonUnderError;
+begin
+  AssertHttpErrorFields(TRESTRequestMethodType.rtPUT, 'PUT');
+end;
+
+procedure TTestRestExceptionFields.MARS_POST_HttpError_BodyUnderMessageAndReasonUnderError;
+begin
+  AssertHttpErrorFields(TRESTRequestMethodType.rtPOST, 'POST');
 end;
 
 initialization
