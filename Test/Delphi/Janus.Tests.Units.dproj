@@ -141,6 +141,7 @@
         <DCCReference Include="Common\Test.Janus.Cursor.Double.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.FieldShapes.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AutoIncTree.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.NotIncKey.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AsymKey.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.RestLazyKeys.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.Nested.pas"/>
@@ -207,6 +208,7 @@
         <DCCReference Include="Unit\Core\Test.Janus.Manager.AddAdapter.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Source.Encoding.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Grandchild.Read.pas"/>
+        <DCCReference Include="Unit\Core\Test.Janus.AutoInc.UngeneratedKey.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

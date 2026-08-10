@@ -117,6 +117,15 @@
   SetAutoIncValueChilds down. Say so rather than let the count of five stand
   in for it.
 
+  THAT GAP IS NO LONGER THE WHOLE REPOSITORY'S - issue #262. It is still true of
+  THIS file and of Test.Janus.AutoInc.Childs, and the sentence above stands for
+  both. What closed it elsewhere is Test.Janus.AutoInc.UngeneratedKey, which
+  drives level 3 through the shipped ApplyInternal in the local family and in
+  the REST family, and which found what only that path could show: the recursion
+  was propagating the middle level's autoinc PLACEHOLDER, because at the instant
+  it fires the middle row has no key. A reader arriving here for level 3 should
+  go there rather than conclude it is unmeasured.
+
   HOW EACH CLAUSE WAS SHOWN TO BIND
 
   Each Source change was reverted one at a time and the suite re-run:

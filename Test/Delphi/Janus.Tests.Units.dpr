@@ -42,6 +42,7 @@ uses
   MetaDbDiff.Mapping.Register,
   Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
   Test.Janus.Model.AutoIncTree in 'Common\Test.Janus.Model.AutoIncTree.pas',
+  Test.Janus.Model.NotIncKey in 'Common\Test.Janus.Model.NotIncKey.pas',
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
   /// The composite association whose seven columns are seven different types -
   /// the only model in the repo with a ftGuid column next to siblings. Issue
@@ -141,7 +142,9 @@ uses
   /// The encoding convention for Source\, and its baseline ratchet — issue #214
   Test.Janus.Source.Encoding in 'Unit\Core\Test.Janus.Source.Encoding.pas',
   /// Reading .Current of a grandparent must not destroy grandchild rows - #276
-  Test.Janus.Grandchild.Read in 'Unit\Core\Test.Janus.Grandchild.Read.pas';
+  Test.Janus.Grandchild.Read in 'Unit\Core\Test.Janus.Grandchild.Read.pas',
+  /// The cascade must not carry a key the generator has not produced - #262
+  Test.Janus.AutoInc.UngeneratedKey in 'Unit\Core\Test.Janus.AutoInc.UngeneratedKey.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

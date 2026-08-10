@@ -100,6 +100,8 @@ type
       const AMasterToken: Integer);
     procedure _AutoIncToChildRows(const AMaster, AChild: TDataSet;
       const AAssociation: TAssociationMapping);
+    function _AutoIncKeyIsGenerated(
+      const AAssociation: TAssociationMapping): Boolean;
     function _HasPendingRows(const AAdapter: TDataSetBaseAdapter<M>): Boolean;
     function _PendingChilds: TArray<TDataSet>;
   protected
@@ -1771,7 +1773,19 @@ end;
 ///  ainda e o ApplyInternal do proprio nivel filho reescreve depois - mas
 ///  SetAutoIncValueChilds roda uma vez por master pendente, de modo que com P
 ///  masters, N filhos e M netos o ciclo Edit/Post do nivel 3 saia de O(N*M)
-///  para O(P*N*M). Filtrar aqui e mais barato E mais preciso. </summary>
+///  para O(P*N*M). Filtrar aqui e mais barato E mais preciso.
+///  O QUE ESTE METODO NAO DECIDE SOZINHO - issue #262. Entrar na recursao sobre
+///  uma linha nao quer dizer que alguma coisa sera escrita a partir dela:
+///  SetAutoIncValueChilds recusa a associacao cuja chave ainda e o placeholder
+///  de AutoInc. A caminhada continua a mesma; quem decide o que se propaga e
+///  _AutoIncKeyIsGenerated, e decide por VALOR de chave e nao por estado da
+///  linha - por estado, esta caminhada inteira ficaria sem proposito.
+///  E DELIBERADO QUE ESTA FRASE NAO DIGA "TODA LINHA PENDENTE". Uma linha
+///  pendente que passou por aqui vindo de um master costuma estar no
+///  placeholder, mas nao ha nada que a obrigue: o consumidor pode ter digitado
+///  a chave, e nesse caso a recursao a partir dela escreve, e deve escrever.
+///  Medido por Test.Janus.AutoInc.UngeneratedKey
+///  .Local_AMidRowThatAlreadyCarriesItsKey_StillStampsTheGrandchild. </summary>
 procedure TDataSetBaseAdapter<M>._RecurseOverChildRows(
   const AChildAdapter: TDataSetBaseAdapter<M>;
   const AMasterToken: Integer);
@@ -1896,6 +1910,84 @@ begin
   end;
 end;
 
+/// <summary> Diz se a chave que ESTA associacao propaga ja existe na linha
+///  corrente, ou se ela ainda e o placeholder que toda chave primaria AutoInc
+///  carrega ate o gerador responder - cAutoIncNotGenerated, escrito como
+///  DefaultExpression por TBind.SetInternalInitFieldDefsObjectClass.
+///
+///  POR QUE ISTO E PRECISO - issue #262. _RecurseOverChildRows entra na
+///  recursao com o cursor parado sobre uma linha do filho que esta PENDENTE DE
+///  INSERCAO. Uma linha nessas condicoes NEM SEMPRE esta sem chave - o
+///  consumidor pode ter digitado uma - mas quando ninguem digitou nada ela esta
+///  no placeholder, que e o caso ordinario de uma chave AutoInc, e era esse
+///  placeholder que a recursao copiava para a FK do neto. Medido nas duas
+///  familias sobre
+///  a arvore de tres niveis, com o neto semeado num valor que nenhuma linha do
+///  meio carrega: LEAF.mid_id ia de -7 para -1 nas duas. Na familia local o
+///  ApplyInserter do proprio nivel do meio reescreve o valor logo depois e o
+///  estrago e transitorio; na familia REST nao ha nada depois -
+///  TRESTFDMemTableAdapter<M>.ApplyInternal nao itera FMasterObject, o nivel do
+///  meio nunca e aplicado sozinho, e o neto FICA com o placeholder como chave
+///  estrangeira. Medido por Test.Janus.AutoInc.UngeneratedKey.
+///
+///  A GUARDA E SOBRE O VALOR, E NAO SOBRE O ESTADO DA LINHA, e a diferenca e o
+///  conserto inteiro. "Nao recursar sobre linha pendente" seria mais simples e
+///  estaria errado: uma linha pendente pode carregar uma chave que o consumidor
+///  digitou, e os netos dela TEM de ser carimbados - e exatamente a forma de
+///  Test.Janus.AutoInc.Childs.Linked_EveryGrandchildRowReceivesTheNewKey, que
+///  aquela leitura derrubaria sozinha.
+///
+///  RESPONDE True QUANDO NAO HA PERGUNTA A FAZER: entidade sem chave primaria
+///  mapeada, chave que nao e AutoInc - onde -1 pode ser uma chave legitima -,
+///  associacao que nao nomeia nenhuma coluna da chave, coluna ausente do
+///  dataset, ou coluna que nao e inteira, caso do ftGuid. Em todos esses o
+///  placeholder nao existe como conceito e nada deve ser recusado.
+///
+///  O TESTE DE FCurrentInternal NAO ENTRA NESSA LISTA, e a distincao importa
+///  para quem for mexer aqui: ele e INALCANCAVEL a partir do unico chamador que
+///  existe. SetAutoIncValueChilds desreferencia FCurrentInternal.ClassType para
+///  buscar a lista de associacoes ANTES de chamar este metodo, de modo que um
+///  nil ja teria estourado la em cima. O ramo fica como defesa de um chamador
+///  futuro, nao como uma resposta que alguem consegue provocar hoje - e por
+///  isso remove-lo nao avermelha nada, o que esta declarado no log de mutacao
+///  de Test.Janus.AutoInc.UngeneratedKey em vez de ficar parecendo cobertura.
+///  </summary>
+function TDataSetBaseAdapter<M>._AutoIncKeyIsGenerated(
+  const AAssociation: TAssociationMapping): Boolean;
+const
+  cINTEGERKINDS = [ftInteger, ftSmallint, ftWord, ftLargeint, ftAutoInc,
+                   ftLongWord, ftShortint, ftByte];
+var
+  LPrimaryKey: TPrimaryKeyMapping;
+  LField: TField;
+  LFor: Integer;
+begin
+  Result := True;
+  if FCurrentInternal = nil then
+    Exit;
+  LPrimaryKey := TMappingExplorer
+                   .GetMappingPrimaryKey(FCurrentInternal.ClassType);
+  if LPrimaryKey = nil then
+    Exit;
+  if not LPrimaryKey.AutoIncrement then
+    Exit;
+  for LFor := 0 to AAssociation.ColumnsName.Count -1 do
+  begin
+    // So as colunas da associacao que SAO a chave primaria desta entidade. Uma
+    // associacao que propaga outra coluna nao propaga uma chave gerada, e o
+    // placeholder nao diz nada sobre ela.
+    if LPrimaryKey.Columns.IndexOf(AAssociation.ColumnsName[LFor]) < 0 then
+      Continue;
+    LField := FOrmDataSet.FindField(AAssociation.ColumnsName[LFor]);
+    if LField = nil then
+      Continue;
+    if not (LField.DataType in cINTEGERKINDS) then
+      Continue;
+    if LField.AsInteger = cAutoIncNotGenerated then
+      Exit(False);
+  end;
+end;
+
 procedure TDataSetBaseAdapter<M>.SetAutoIncValueChilds;
 var
   LAssociation: TAssociationMapping;
@@ -1916,6 +2008,12 @@ begin
   for LAssociation in LAssociations do
   begin
     if not (TCascadeAction.CascadeAutoInc in LAssociation.CascadeActions) then
+      Continue;
+    // A chave que esta associacao propaga tem de EXISTIR - issue #262. Quando a
+    // linha corrente ainda esta no placeholder de AutoInc, nao ha o que
+    // propagar, e escrever o placeholder na FK do filho e escrever uma chave
+    // estrangeira invalida. Ver _AutoIncKeyIsGenerated.
+    if not _AutoIncKeyIsGenerated(LAssociation) then
       Continue;
     // TryGetValue, nao Items[]: TDictionary.Items[] LEVANTA EListError quando a
     // chave nao existe, de modo que o teste de nil que vinha logo abaixo era

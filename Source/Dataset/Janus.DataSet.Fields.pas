@@ -29,6 +29,27 @@ uses
   SysUtils;
 
 const
+  /// <summary> The value every AUTOINC PRIMARY KEY carries until the generator
+  ///  has produced a real one. TBind.SetInternalInitFieldDefsObjectClass puts
+  ///  it on the key column as DefaultExpression, so a row pending insertion, at
+  ///  ANY level of a hierarchy, reads it back from the moment it is appended
+  ///  until its own ApplyInserter stamps the generated value over it.
+  ///
+  ///  IT IS NOT INTERCHANGEABLE WITH THE -1 OF cInternalField. That one is a
+  ///  row STATE marker on a column the framework owns; this one is a value in
+  ///  the entity's own key column, and the two are read by different code for
+  ///  different questions. They share a number and nothing else - which is
+  ///  precisely why each has a name.
+  ///
+  ///  DECLARED HERE, NEXT TO THE COLUMN NAMES, AND NOT IN AN IMPLEMENTATION
+  ///  SECTION: unlike cNoRowToken, this one has TWO readers in two units -
+  ///  TBind.SetInternalInitFieldDefsObjectClass writes it and
+  ///  TDataSetBaseAdapter<M>._AutoIncKeyIsGenerated tests for it. Two units
+  ///  agreeing on a literal by hand is the coupling the note on cInternalField
+  ///  below already complains about; a shared name is the cheap half of the
+  ///  answer. Read by Test.Janus.AutoInc.UngeneratedKey. </summary>
+  cAutoIncNotGenerated = -1;
+
   /// <summary> Name of the column TBind.SetInternalInitFieldDefsObjectClass
   ///  adds to every dataset it initialises, to hold the STATE OF THE ROW.
   ///  TDataSetBaseAdapter<M>.DoBeforePost writes
@@ -89,8 +110,8 @@ const
   ///  is a position in the view and moves when the first pending row leaves the
   ///  filter; and capturing the child set before the key swap cannot work
   ///  because TBind.SetInternalInitFieldDefsObjectClass gives every autoinc
-  ///  primary key DefaultExpression '-1', so every pending row of every level
-  ///  sits on -1 at the same instant.
+  ///  primary key cAutoIncNotGenerated as DefaultExpression, so every pending
+  ///  row of every level sits on that same value at the same instant.
   ///
   ///  IT IS CREATED LAST ON PURPOSE - after the mapped columns, after the
   ///  internal state column that is then moved to index 0, and after the
