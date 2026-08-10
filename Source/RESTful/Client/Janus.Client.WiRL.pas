@@ -48,8 +48,10 @@
     Basic (:98-107) and Body (:110-119) - and these are DIFFERENT endpoints,
     so this is a NEW capability in a different auth flavour, not a port of
     the old one. It follows the idiom of the WiRL demo
-    (Demos/03.Authorization/Client.Form.Main.pas:138-176) and it is NOT
-    exercised at runtime by anything in this repository.
+    (Demos/03.Authorization/Client.Form.Main.pas:138-176). It was NOT
+    exercised at runtime by anything in this repository when #228 was
+    written; Janus.Tests.RESTWiRL now drives it against a loopback stub
+    (#213).
     What keeps this from being a regression: the old component was a shell.
     At f6d6c50 FRESTToken appeared only at :52, :100, :101, :425 and :426 -
     declared, created, wired to the application, handed credentials, and
@@ -99,6 +101,7 @@ type
     procedure SetAuthenticatorTypeValues;
     procedure SetParamValues;
     function AcquireAccessToken: string;
+    function GetAccessToken: string;
     function DoRequest(const AResource, ASubResource, AHttpMethod,
       ABody: string): string;
     function DoGET(const AResource, ASubResource: string): string;
@@ -118,6 +121,32 @@ type
     function Execute(const AURL: string;
       const ARequestMethod: TRESTRequestMethodType;
       const AParamsProc: TProc = nil): string; overload;
+    /// <summary> O token que o caminho bearer desta conexao apresenta, na
+    ///   MESMA precedencia de SetAuthenticatorTypeValues: o token explicito
+    ///   do Authenticator vence, e na falta dele vale o que
+    ///   AcquireAccessToken trouxe do login.
+    ///
+    ///   Existe porque depois do #228 o token adquirido NAO volta para o
+    ///   Authenticator - ele fica em FAccessToken, que e privado. Ler so
+    ///   Authenticator.Token, como faz o driver Horse
+    ///   (Janus.Client.RestDriver.Horse.pas, GetMethodToken), devolveria
+    ///   vazio justamente no fluxo usuario/senha, que e o unico fluxo que o
+    ///   WiRL implementa hoje.
+    ///
+    ///   Nao levanta e nao faz I/O: e leitura do que ja foi obtido. Antes da
+    ///   primeira requisicao autenticada FAccessToken ainda esta vazio.
+    ///
+    ///   LIMITE, medido: espelha a precedencia DENTRO do ramo bearer, nao o
+    ///   gate de AuthenticatorType. Com um token explicito e tipo atNoAuth ou
+    ///   atBasicAuth, SetAuthenticatorTypeValues sai sem mandar cabecalho
+    ///   nenhum e este getter mesmo assim devolve o token - reporta sem que
+    ///   nada viaje. Nao e regressao (antes devolvia vazio sempre) e o driver
+    ///   Horse se comporta igual; atBasicAuth inerte no caminho WiRL ja e
+    ///   defeito conhecido desde o #228.
+    ///
+    ///   Nao publicada: o valor e volatil (muda no primeiro login) e nao tem
+    ///   sentido em .dfm. </summary>
+    property AccessToken: string read GetAccessToken;
   published
     property APIContext;
     property RESTContext;
@@ -449,6 +478,18 @@ begin
   finally
     LTokenResource.Free;
   end;
+end;
+
+function TRESTClientWiRL.GetAccessToken: string;
+begin
+  /// <summary> Espelha a precedencia de SetAuthenticatorTypeValues: la o
+  ///   ramo do token explicito faz Exit ANTES de chegar em FAccessToken, ou
+  ///   seja o Authenticator vence. Se as duas precedencias divergirem, este
+  ///   getter passa a mentir sobre o cabecalho que sai. </summary>
+  if Length(FAuthenticator.Token) > 0 then
+    Result := FAuthenticator.Token
+  else
+    Result := FAccessToken;
 end;
 
 procedure TRESTClientWiRL.SetAuthenticatorTypeValues;

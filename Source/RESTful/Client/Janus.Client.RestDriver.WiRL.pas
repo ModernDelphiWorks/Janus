@@ -148,12 +148,21 @@ end;
 
 function TRESTDriverWiRL.GetMethodToken: string;
 begin
-
+  /// <summary> NAO e Authenticator.Token direto, como no driver Horse
+  ///   (Janus.Client.RestDriver.Horse.pas, GetMethodToken).
+  ///
+  ///   Depois do #228 o caminho WiRL adquire o token por requisicao de login
+  ///   (TRESTClientWiRL.AcquireAccessToken) e o guarda em FAccessToken, SEM
+  ///   devolve-lo ao Authenticator. Copiar o Horse aqui devolveria vazio
+  ///   exatamente no fluxo usuario/senha - o mesmo defeito da #213 mudando de
+  ///   lugar. AccessToken responde o token efetivo, na precedencia com que
+  ///   SetAuthenticatorTypeValues monta o cabecalho Bearer. </summary>
+  Result := FConnection.AccessToken;
 end;
 
 function TRESTDriverWiRL.GetPassword: string;
 begin
-
+  Result := FConnection.Authenticator.Password;
 end;
 
 function TRESTDriverWiRL.GetServerUse: Boolean;
@@ -163,7 +172,7 @@ end;
 
 function TRESTDriverWiRL.GetUsername: string;
 begin
-
+  Result := FConnection.Authenticator.Username;
 end;
 
 procedure TRESTDriverWiRL.SetClassNotServerUse(const Value: Boolean);
