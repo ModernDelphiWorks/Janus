@@ -233,31 +233,43 @@ begin
       // A GUARDA ABAIXO NAO E A DE Lazy<T>.CreateDefaultValue, E E DE
       // PROPOSITO. O irmao, em Janus.Types.Lazy, exige tambem LRttiType
       // .IsList; aqui o IsList foi OMITIDO. TRttiTypeHelper.IsList
-      // (MetaDbDiff.RTTI.Helper.pas) e um teste de SUBSTRING no NOME da
-      // classe - so devolve True quando o nome contem 'TObjectList<' ou
-      // 'TList<' -, logo e False para QUALQUER descendente. MEDIDO em Studio
-      // 37 sobre cinco formatos de lista:
-      //   TObjectList<T> / TList<T> ....... IsList True,  paramcount 0
-      //   descendente sem ctor proprio .... IsList False, paramcount 0
-      //   descendente com Create(String) .. IsList False, paramcount 1
-      //   descendente com Create(Boolean) . IsList False, paramcount 1
+      // (MetaDbDiff.RTTI.Helper.pas:799-808) e um teste de SUBSTRING no NOME
+      // da classe: devolve True quando o nome contem 'TObjectList<' ou
+      // 'TList<'. Isso NAO e o mesmo que "e uma lista da RTL" - e False para o
+      // descendente cujo nome nao casa a substring, mas e TRUE para um
+      // descendente batizado TMyTList<T> ou TBaseTObjectList<T>, porque o
+      // proprio batismo carrega a substring. MEDIDO em Studio 37 sobre sete
+      // formatos, com os tipos declarados numa UNIT de verdade - num .dpr o
+      // FindType falha para todos e falsearia a ultima coluna:
+      //
+      //   nome                      IsList param [True] []    GetTypeValue
+      //   TObjectList<T> .......... True   0     erro   OK    resolve
+      //   TList<T> ................ True   0     erro   OK    resolve
+      //   descendente sem ctor .... False  0     erro   OK    nil
+      //   desc. Create(String) .... False  1     erro   erro  nil
+      //   desc. Create(Boolean) ... False  1     OK     erro  nil
+      //   TMyTList<T> ............. True   1     OK     erro  nil
+      //   TBaseTObjectList<T> ..... True   1     OK     erro  nil
+      //
       // Somar 'and IsList' NAO consertaria o descendente de Create(String) -
       // esse ja falha ALTO hoje, com EInvalidCast -, so trocaria uma excecao
       // alta por outra; e QUEBRARIA o descendente de Create(Boolean), que hoje
-      // constroi certo e passaria a levantar 'Parameter count mismatch'. Alem
-      // disso, com o IsList somado o ramo [True] ficaria inalcancavel nos
-      // cinco formatos, porque IsList True implica paramcount 0 nesta RTL - e
-      // guarda que nunca executa nao guarda nada.
+      // constroi certo e passaria a levantar 'Parameter count mismatch'. E as
+      // duas ultimas linhas da tabela dao a razao de fundo: TMyTList<T> tem A
+      // MESMA FORMA do descendente de Create(Boolean) - descendente, ctor
+      // proprio de um booleano, [True] constroi certo -, e com o IsList somado
+      // os dois receberiam tratamento OPOSTO, um [True] e outro [], decidido
+      // unicamente pelo NOME da classe. Guarda que muda de valor por
+      // RENOMEACAO nao e guarda. E por isso que o IsList fica FORA.
       //
       // O RAMO [True] NAO ESTA COBERTO PELA SUITE, e ainda nao da para
-      // cobri-lo: o unico formato que o executa E sobrevive seria um
-      // descendente com Create(Boolean), e todo descendente morre duas linhas
-      // abaixo, em LPropertyType.AsInstance, porque GetTypeValue devolve nil
-      // para nome que nao case com o strip textual (upstream
-      // ModernDelphiWorks/MetaDbDiff#18). MEDIDO: matar o ramo e invocar
-      // sempre [] deixa a suite 501/501 verde. Ele fica como defesa para o dia
-      // em que aquele upstream for consertado e o descendente virar caminho
-      // vivo - e e exatamente por isso que o IsList tem de continuar FORA.
+      // cobri-lo: os tres formatos que o executam sao TODOS descendentes, e
+      // todo descendente morre duas linhas abaixo, em LPropertyType.AsInstance,
+      // porque GetTypeValue devolve nil para nome que nao case com o strip
+      // textual - coluna medida acima (upstream ModernDelphiWorks/MetaDbDiff
+      // #18). MEDIDO: matar o ramo e invocar sempre [] deixa a suite 501/501
+      // verde. Ele fica como defesa para o dia em que aquele upstream for
+      // consertado e o descendente virar caminho vivo.
       LListType := RttiSingleton.GetRttiType(
                      LProperty.PropertyType.AsInstance.MetaclassType);
       LListCtor := LListType.GetMethod('Create');
