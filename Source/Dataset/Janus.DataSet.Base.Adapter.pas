@@ -1777,11 +1777,15 @@ end;
 ///  O QUE ESTE METODO NAO DECIDE SOZINHO - issue #262. Entrar na recursao sobre
 ///  uma linha nao quer dizer que alguma coisa sera escrita a partir dela:
 ///  SetAutoIncValueChilds recusa a associacao cuja chave ainda e o placeholder
-///  de AutoInc, que e o estado de toda linha pendente que nao passou pelo
-///  proprio ApplyInserter. A caminhada continua a mesma; quem decide o que se
-///  propaga e _AutoIncKeyIsGenerated, e decide por VALOR de chave e nao por
-///  estado da linha - por estado, esta caminhada inteira ficaria sem
-///  proposito. </summary>
+///  de AutoInc. A caminhada continua a mesma; quem decide o que se propaga e
+///  _AutoIncKeyIsGenerated, e decide por VALOR de chave e nao por estado da
+///  linha - por estado, esta caminhada inteira ficaria sem proposito.
+///  E DELIBERADO QUE ESTA FRASE NAO DIGA "TODA LINHA PENDENTE". Uma linha
+///  pendente que passou por aqui vindo de um master costuma estar no
+///  placeholder, mas nao ha nada que a obrigue: o consumidor pode ter digitado
+///  a chave, e nesse caso a recursao a partir dela escreve, e deve escrever.
+///  Medido por Test.Janus.AutoInc.UngeneratedKey
+///  .Local_AMidRowThatAlreadyCarriesItsKey_StillStampsTheGrandchild. </summary>
 procedure TDataSetBaseAdapter<M>._RecurseOverChildRows(
   const AChildAdapter: TDataSetBaseAdapter<M>;
   const AMasterToken: Integer);
@@ -1913,8 +1917,11 @@ end;
 ///
 ///  POR QUE ISTO E PRECISO - issue #262. _RecurseOverChildRows entra na
 ///  recursao com o cursor parado sobre uma linha do filho que esta PENDENTE DE
-///  INSERCAO, isto e, cuja propria chave ainda nao foi gerada. A recursao
-///  copiava esse placeholder para a FK do neto. Medido nas duas familias sobre
+///  INSERCAO. Uma linha nessas condicoes NEM SEMPRE esta sem chave - o
+///  consumidor pode ter digitado uma - mas quando ninguem digitou nada ela esta
+///  no placeholder, que e o caso ordinario de uma chave AutoInc, e era esse
+///  placeholder que a recursao copiava para a FK do neto. Medido nas duas
+///  familias sobre
 ///  a arvore de tres niveis, com o neto semeado num valor que nenhuma linha do
 ///  meio carrega: LEAF.mid_id ia de -7 para -1 nas duas. Na familia local o
 ///  ApplyInserter do proprio nivel do meio reescreve o valor logo depois e o
@@ -1934,7 +1941,17 @@ end;
 ///  mapeada, chave que nao e AutoInc - onde -1 pode ser uma chave legitima -,
 ///  associacao que nao nomeia nenhuma coluna da chave, coluna ausente do
 ///  dataset, ou coluna que nao e inteira, caso do ftGuid. Em todos esses o
-///  placeholder nao existe como conceito e nada deve ser recusado. </summary>
+///  placeholder nao existe como conceito e nada deve ser recusado.
+///
+///  O TESTE DE FCurrentInternal NAO ENTRA NESSA LISTA, e a distincao importa
+///  para quem for mexer aqui: ele e INALCANCAVEL a partir do unico chamador que
+///  existe. SetAutoIncValueChilds desreferencia FCurrentInternal.ClassType para
+///  buscar a lista de associacoes ANTES de chamar este metodo, de modo que um
+///  nil ja teria estourado la em cima. O ramo fica como defesa de um chamador
+///  futuro, nao como uma resposta que alguem consegue provocar hoje - e por
+///  isso remove-lo nao avermelha nada, o que esta declarado no log de mutacao
+///  de Test.Janus.AutoInc.UngeneratedKey em vez de ficar parecendo cobertura.
+///  </summary>
 function TDataSetBaseAdapter<M>._AutoIncKeyIsGenerated(
   const AAssociation: TAssociationMapping): Boolean;
 const

@@ -76,53 +76,99 @@
   same technique Test.Janus.AutoInc.Childs.NoPendingLeafRow_TheProbeRecordsNo
   WriteAtAll relies on.
 
-  THE MUTATION LOG, AND THE THREE THAT SURVIVE
+  THE MUTATION LOG - WHAT DIES, AND THE FIVE THAT SURVIVE
 
-  Every line below was applied to the fix, built and run. The suite is
-  Janus.Tests.Units, 533 tests, 0 failures unmutated.
+  Every line below was applied to the shipped fix, built and run, one at a time.
+  Unmutated the suite is Janus.Tests.Units, 544 tests, 0 failures. Every number
+  here was re-measured from scratch at the commit that carries this file; an
+  earlier revision of this log quoted a suite size and a mutation count that had
+  both moved under it, which is the whole reason the counts now say when they
+  were taken rather than being copied forward.
+
+  KILLED
 
     * REMOVING THE GUARD from SetAutoIncValueChilds reddens
       Local_TheGrandchildKeyIsNeverWrittenWithTheMidPlaceholder and
       Rest_TheGrandchildKeepsItsOwnValueInsteadOfTheMidPlaceholder - those two,
       and nothing else in the suite.
 
-    * MAKING _AutoIncKeyIsGenerated ALWAYS REFUSE reddens 27, including
-      Local_AMidRowThatAlreadyCarriesItsKey_StillStampsTheGrandchild and the
-      whole Test.Janus.AutoInc.Childs recursion group. That is the over-broad
-      reading of #262 - "do not recurse over pending rows" - and this is its
-      price in one number.
+    * MAKING _AutoIncKeyIsGenerated ALWAYS REFUSE reddens 28: the 24 that were
+      already in the suite - the whole Test.Janus.AutoInc.Childs recursion
+      group, most of Test.Janus.AutoInc.Distribution, and
+      Test.Janus.Apply.Loops.ApplyInserter_DoesNotRepointAChildRowOfAnotherMaster
+      - plus all four tests in this file. That is the over-broad reading of
+      #262, "do not recurse over pending rows", and this is its price in one
+      number.
 
     * REMOVING `if not LPrimaryKey.AutoIncrement` reddens
       NotIncKey_MinusOneIsAnOrdinaryKeyAndIsStillPropagated alone.
 
-    * REMOVING THE GUARD **AND** weakening this file's local clause to a
-      row-only reading - "the grandchild ends on its parent's key" instead of
-      "the placeholder was never written" - leaves the LOCAL test GREEN over the
-      live defect, and only the REST test red. That is the measurement that
-      earns the TField.OnChange form, and it is also the proof that the two
-      family tests are not each other's copy: they see different things.
+    * THE TWO MIRRORS, and they are the reason both family tests exist. Removing
+      the guard AND weakening THIS FILE'S LOCAL clause to a row-only reading -
+      "the grandchild ends on its parent's key" instead of "the placeholder was
+      never written" - leaves the LOCAL test GREEN over the live defect, with
+      only the REST test red. Removing the guard AND weakening THIS FILE'S REST
+      clauses instead leaves only the LOCAL test red. Each family test kills the
+      defect on its own, and neither is the other's copy: run one at a time, they
+      see different things.
 
-    * SURVIVING, and declared rather than hidden: removing
-      `if not (LField.DataType in cINTEGERKINDS)` changes nothing here. No
-      entity in this test tree has a non-integral autoinc primary key, so
-      nothing reaches the branch. The shape that would - an ftGuid key under
-      CascadeAutoInc - is contradictory by construction, and is where issue #284
-      lives; NOT MEASURED.
+  SURVIVING - declared here rather than left for a reviewer to find
 
-    * SURVIVING, likewise declared: removing
-      `if LPrimaryKey.Columns.IndexOf(AAssociation.ColumnsName[LFor]) < 0`
-      changes nothing here. Every association in this tree names the declaring
-      entity's own primary key - Test.Janus.Model.AsymKey records that as eight
-      of eight across the models Janus.Tests.Units compiles - so no association
-      reaches the branch. An association propagating a NON-key column that reads
-      -1 is NOT MEASURED.
+    * `Continue` -> `Exit` on the guard's own line in SetAutoIncValueChilds.
+      Aborting the whole association loop at the first refused association,
+      instead of skipping that one association, changes NOTHING in this suite -
+      because NO model in the tree declares two CascadeAutoInc associations at
+      the same level, so the loop never has a second one to reach. `Continue` is
+      the right choice all the same, and it is a choice rather than a habit: an
+      entity with two cascading associations, one whose key exists and one whose
+      key does not, must still stamp the first. `Exit` would drop it silently and
+      the drop would depend on declaration ORDER. NOT MEASURED, for want of that
+      model.
+
+    * `=` -> `<=` in `if LField.AsInteger = cAutoIncNotGenerated`. Refusing every
+      key at or below -1 changes nothing here - no fixture uses a negative key
+      other than the placeholder itself. It would silently discard a legitimately
+      negative autoinc key, which some stores hand out. The equality is
+      deliberate: the guard tests for ONE value, the placeholder, not for a
+      range. NOT MEASURED.
+
+    * `if not (LField.DataType in cINTEGERKINDS)`. Removing it changes nothing:
+      no entity in this tree has a non-integral autoinc primary key, so nothing
+      reaches the branch. Without it, AsInteger on such a column would fault
+      rather than answer. The shape that would reach it - an ftGuid key under
+      CascadeAutoInc - is contradictory by construction and is where issue #284
+      lives. NOT MEASURED.
+
+    * `if LPrimaryKey.Columns.IndexOf(AAssociation.ColumnsName[LFor]) < 0`.
+      Removing it changes nothing, and the reason is NOT that every association
+      in the tree names the declaring entity's own primary key - one does not.
+      Counted at this commit: TEN [Association]s across the ten
+      Test.Janus.Model.* units Janus.Tests.Units compiles, and one of them,
+      TCompMaster in Test.Janus.Model.RestLazyKeys, propagates `cmk1..cmk7`
+      while its primary key is `cmkey`. That single counter-example never
+      reaches this branch, and it is stopped TWO GATES EARLIER: it declares no
+      CascadeAutoInc, so SetAutoIncValueChilds skips it before the guard is
+      called at all, and its key is TAutoIncType.NotInc, which would leave the
+      guard at the AutoIncrement clause even if it got in. So the branch is
+      unreached by accident of the fixture set, not by a property of
+      associations. An association propagating a NON-key column that reads -1
+      is NOT MEASURED.
+
+    * `if FCurrentInternal = nil`. Removing it changes nothing, and here the
+      reason is not the fixture set but the caller: SetAutoIncValueChilds
+      dereferences FCurrentInternal.ClassType to fetch the association list
+      BEFORE it calls the guard, so a nil would already have faulted upstream.
+      The branch is UNREACHABLE from the only call site that exists, and the
+      method's own doc says so rather than listing it among the answers a
+      consumer can provoke.
 
   WHAT IS NOT MEASURED HERE
 
   No live database and no live REST server: the generator is TTreeConnection and
   the server is TSeqRestConnection, both from Test.Janus.AutoInc.Distribution.
   The ClientDataSet and RESTClientDataSet families are not driven. Four levels
-  are not driven.
+  are not driven. Two CascadeAutoInc associations at the same level are not
+  driven, and that gap is what leaves the `Continue` unpinned.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
