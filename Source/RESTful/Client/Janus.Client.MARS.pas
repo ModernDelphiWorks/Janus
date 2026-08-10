@@ -117,6 +117,24 @@ begin
   inherited;
 end;
 
+/// <summary> Os quatro raise de EJanusRESTException abaixo seguem a ordem e a
+///   aridade da declaracao do construtor
+///   (Janus.Client.RestException.pas:34-36): AURL, AResource, ASubResource,
+///   AMethodType, AMessage, AMessageError, AStatusCode. AMessage e o texto
+///   que veio do servidor; AMessageError e a mensagem da excecao local. Os
+///   dois sao String, entao troca-los COMPILA e so aparece no texto final da
+///   excecao - por isso Test.Janus.Client.RestExceptionFields afirma campo a
+///   campo, e nao por conjunto.
+///
+///   LIMITE de AMessage aqui, medido: no ponto de erro o MARS ja liberou o
+///   stream da resposta (LResponseStream e local a
+///   TMARSClientCustomResource.GET - declarado em
+///   MARS.Client.CustomResource.pas:601, criado em :609 e liberado em :618),
+///   entao o CORPO nao esta ao alcance. O texto de servidor que resta e
+///   ResponseText, que no cliente Indy e a razao da linha de status HTTP e
+///   nao o corpo (MARS.Client.Client.Indy.pas:314-316). E menos do que o
+///   driver WiRL poe no mesmo campo (Janus.Client.WiRL.pas:255, ContentText),
+///   mas e informacao real do servidor e nao preenchimento. </summary>
 function TRESTClientMARS.DoDELETE(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'DELETE';
@@ -144,6 +162,7 @@ begin
                                            AResource,
                                            ASubResource,
                                            FRequestMethod,
+                                           FRESTClient.ResponseText,
                                            E.Message,
                                            FRESTClient.ResponseStatusCode);
                        end);
@@ -172,6 +191,7 @@ begin
                                                           AResource,
                                                           ASubResource,
                                                           FRequestMethod,
+                                                          FRESTClient.ResponseText,
                                                           E.Message,
                                                           FRESTClient.ResponseStatusCode);
                                       end);
@@ -216,8 +236,9 @@ begin
                                  .Create(FRESTClient.MARSEngineURL,
                                          AResource,
                                          ASubResource,
-                                         E.Message,
                                          FRequestMethod,
+                                         FRESTClient.ResponseText,
+                                         E.Message,
                                          FRESTClient.ResponseStatusCode);
                      end );
   Result := FResponseString;
@@ -263,6 +284,7 @@ begin
                                         AResource,
                                         ASubResource,
                                         FRequestMethod,
+                                        FRESTClient.ResponseText,
                                         E.Message,
                                         FRESTClient.ResponseStatusCode);
                     end );
