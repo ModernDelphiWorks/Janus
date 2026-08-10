@@ -201,6 +201,29 @@ type
       read FBeforeScrollPendingChilds write FBeforeScrollPendingChilds;
   end;
 
+const
+  /// <summary> O PREFIXO DE ClassName DE TODA INSTANCIACAO DO ADAPTER BASE.
+  ///  ClassName de uma instanciacao generica carrega o nome do template
+  ///  seguido de `&lt;`, e todo adapter de dataset desce de
+  ///  TDataSetBaseAdapter&lt;M&gt; - TDataSetAdapter, TFDMemTableAdapter,
+  ///  TClientDataSetAdapter, TRESTDataSetAdapter, TRESTFDMemTableAdapter e
+  ///  TRESTClientDataSetAdapter - de modo que subir por ClassParent chega
+  ///  sempre aqui.
+  ///  O `&lt;` FINAL E CARGA, NAO ENFEITE: e a unica coisa que separa
+  ///  `instanciacao deste template` de `qualquer classe cujo nome comece
+  ///  assim`. Encurtar a string passa despercebido pelo compilador, entao o
+  ///  CONTEUDO e ancorado - e nao so a direcao de rename - por
+  ///  Test.Janus.Manager.AddAdapter
+  ///  .Recognition_TheAncestorNameIsWhatTheGuardHangsOn, que deriva o valor
+  ///  esperado do nome que o Delphi realmente emite e o compara com ESTA
+  ///  constante. Por isso ela e declarada na interface: para o teste ler a de
+  ///  Source em vez de uma copia sua.
+  ///  UMA HEURISTICA DE NOME, E DECLARADA COMO TAL. Nao existe ancestral
+  ///  nao-generico nem interface que ambas as instanciacoes compartilhem, e
+  ///  criar um mexe em declaracao publica - decisao do dono, nao do
+  ///  implementador (issue #255). </summary>
+  cBaseAdapterPrefix = 'TDataSetBaseAdapter<';
+
 /// <summary> Responde se AValue e um adapter de dataset de QUALQUER
 ///  instanciacao - a pergunta que o sistema de tipos do Delphi nao sabe fazer,
 ///  porque TDataSetBaseAdapter&lt;A&gt; e TDataSetBaseAdapter&lt;B&gt; sao
@@ -241,26 +264,6 @@ const
   ///  framework the community consumes is not the place to put a private
   ///  convention. </summary>
   cNoRowToken = 0;
-
-  /// <summary> O PREFIXO DE ClassName DE TODA INSTANCIACAO DO ADAPTER BASE.
-  ///  E a pergunta que o sistema de tipos do Delphi nao sabe fazer:
-  ///  TDataSetBaseAdapter&lt;A&gt; e TDataSetBaseAdapter&lt;B&gt; sao tipos SEM
-  ///  parentesco, entao `AValue is TDataSetBaseAdapter&lt;M&gt;` RECUSA o
-  ///  master legitimo - que e sempre de outra instanciacao que nao a do
-  ///  detalhe. ClassName de uma instanciacao generica carrega o nome do
-  ///  template seguido de `&lt;`, e todo adapter de dataset desce de
-  ///  TDataSetBaseAdapter&lt;M&gt; - TDataSetAdapter, TFDMemTableAdapter,
-  ///  TClientDataSetAdapter, TRESTDataSetAdapter, TRESTFDMemTableAdapter e
-  ///  TRESTClientDataSetAdapter - de modo que subir por ClassParent chega
-  ///  sempre aqui. Ancorado por
-  ///  Test.Janus.Manager.AddAdapter
-  ///  .Recognition_TheAncestorNameIsWhatTheGuardHangsOn, que quebra em
-  ///  vermelho se alguem renomear a classe e deixar esta string para tras.
-  ///  UMA HEURISTICA DE NOME, E DECLARADA COMO TAL. Nao existe ancestral
-  ///  nao-generico nem interface que ambas as instanciacoes compartilhem, e
-  ///  criar um mexe em declaracao publica - decisao do dono, nao do
-  ///  implementador (issue #255). </summary>
-  cBaseAdapterPrefix = 'TDataSetBaseAdapter<';
 
 function _IsBaseAdapterInstance(const AValue: TObject): Boolean;
 var
@@ -1990,14 +1993,20 @@ end;
 ///  o valor errado com nome nao e.
 ///
 ///  O QUE ESTE RAISE NAO CONSERTA. O argumento de tipo do cast continua sendo
-///  o do DETALHE. Medido, nesta versao, como inerte nos dois sitios da issue
-///  #255: o que se le atraves do cast e FMasterObject (chaves String e valores
-///  que sao referencia de classe em toda instanciacao), FOrmDataSet (TDataSet,
-///  nao depende de M) e FCurrentInternal, do qual so se pedem ClassName e
-///  ClassType - ambos resolvidos pelo ponteiro de VMT do objeto, nao por
-///  TypeInfo(M). Nenhuma busca de RTTI nem construcao de objeto chaveada em
-///  TypeInfo(M) e alcancada por esses dois sitios. Os offsets tambem nao sao o
-///  risco, e isso ja estava medido em
+///  o do DETALHE. Medido, nesta versao, como OBSERVACIONALMENTE inerte nos
+///  dois sitios da issue #255: o que se le atraves do cast e FMasterObject
+///  (chaves String e valores que sao referencia de classe em toda
+///  instanciacao), FOrmDataSet (TDataSet, nao depende de M) e
+///  FCurrentInternal, do qual so se pedem ClassName e ClassType - ambos
+///  resolvidos pelo ponteiro de VMT do objeto, nao por TypeInfo(M).
+///  OBSERVACIONALMENTE, E NAO `NENHUM TypeInfo(M) E ALCANCADO`, e a diferenca
+///  e real: ContainsKey/Remove/TrimExcess/Add nao sao virtuais e ligam
+///  ESTATICAMENTE ao codigo da instanciacao do DETALHE, rodando sobre o
+///  dicionario do MASTER, e o Rehash interno entrega a RTL um TypeInfo
+///  derivado de M. O que se mediu foi que isso nao muda comportamento, porque
+///  o TItem e estruturalmente identico para todo M que a restricao
+///  `M: class, constructor` admite - nao que o TypeInfo nao seja tocado.
+///  Os offsets tambem nao sao o risco, e isso ja estava medido em
 ///  Layout_EveryInstantiationOfTheBaseAdapterAgreesOnEveryOffset. </summary>
 procedure TDataSetBaseAdapter<M>.SetMasterObject(const AValue: TObject);
 var
@@ -2005,9 +2014,13 @@ var
 begin
   if FOwnerMasterObject = AValue then
     Exit;
-  // Antes de qualquer escrita: `is TDataSetBaseAdapter<M>` NAO serve aqui -
-  // recusaria o master legitimo, que e sempre de outra instanciacao. Ver
-  // _IsBaseAdapterInstance.
+  // ANTES DO BLOCO DE UNLINK ABAIXO, e a ordem e carga. Recusar depois dele
+  // deixa uma chamada que FALHOU tendo removido o filho do FMasterObject do
+  // master legitimo, com FOwnerMasterObject ainda apontando para um master
+  // que nao lista mais o filho. Ancorado por Test.Janus.Manager.AddAdapter
+  // .Refusal_LeavesTheLegitimateLinkExactlyAsItWas.
+  // E `is TDataSetBaseAdapter<M>` NAO serve aqui - recusaria o master
+  // legitimo, que e sempre de outra instanciacao. Ver _IsBaseAdapterInstance.
   if (AValue <> nil) and (not _IsBaseAdapterInstance(AValue)) then
     raise Exception.CreateFmt(cMASTERNOTADAPTER,
                               [FCurrentInternal.ClassName, AValue.ClassName]);
