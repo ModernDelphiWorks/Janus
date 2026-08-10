@@ -144,6 +144,7 @@
         <DCCReference Include="Common\Test.Janus.Model.AsymKey.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.Nested.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.ReservedColumn.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.Moment.pas"/>
         <DCCReference Include="..\..\Examples\Delphi\Data\Object Lazy\Model.Atendimento.pas"/>
         <DCCReference Include="..\..\Examples\Delphi\Data\Object Lazy\Model.Exame.pas"/>
         <DCCReference Include="..\..\Examples\Delphi\Data\Object Lazy\Model.Procedimento.pas"/>
@@ -154,6 +155,7 @@
         <DCCReference Include="..\..\Examples\Delphi\Data\Models\Janus.Model.Master.pas"/>
         <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.SQLite.pas"/>
         <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.ADS.pas"/>
+        <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.MSSQL.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Driver.Register.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Mapping.Cache.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.RTTI.Singleton.pas"/>

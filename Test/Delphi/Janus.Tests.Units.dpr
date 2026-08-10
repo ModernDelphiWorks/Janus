@@ -45,6 +45,7 @@ uses
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
   Test.Janus.Model.Nested in 'Common\Test.Janus.Model.Nested.pas',
   Test.Janus.Model.ReservedColumn in 'Common\Test.Janus.Model.ReservedColumn.pas',
+  Test.Janus.Model.Moment in 'Common\Test.Janus.Model.Moment.pas',
   Model.Atendimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Atendimento.pas',
   Model.Exame       in '..\..\Examples\Delphi\Data\Object Lazy\Model.Exame.pas',
   Model.Procedimento in '..\..\Examples\Delphi\Data\Object Lazy\Model.Procedimento.pas',
@@ -55,6 +56,8 @@ uses
   Janus.Model.Master in '..\..\Examples\Delphi\Data\Models\Janus.Model.Master.pas',
   Janus.DML.Generator.SQLite in '..\..\Source\Core\Janus.DML.Generator.SQLite.pas',
   Janus.DML.Generator.ADS in '..\..\Source\Core\Janus.DML.Generator.ADS.pas',
+  /// Linked for the locale test: a dialect whose date mask carries '/'
+  Janus.DML.Generator.MSSQL in '..\..\Source\Core\Janus.DML.Generator.MSSQL.pas',
   /// Tests
   Test.Janus.Driver.Register in 'Unit\Core\Test.Janus.Driver.Register.pas',
   Test.Janus.Mapping.Cache   in 'Unit\Core\Test.Janus.Mapping.Cache.pas',

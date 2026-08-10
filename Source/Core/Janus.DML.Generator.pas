@@ -62,6 +62,14 @@ type
     FQueryCache: TQueryCache;
     FDateFormat: String;
     FTimeFormat: String;
+    // O FormatDateTime troca '/' pelo DateSeparator e ':' pelo TimeSeparator da
+    // maquina. Como as mascaras dos dialetos usam esses dois caracteres, a
+    // sobrecarga que le o FormatSettings GLOBAL fazia o MESMO codigo gerar
+    // literais diferentes em maquinas diferentes. Medido com DateSeparator '.'
+    // e TimeSeparator '-': 'dd/MM/yyyy' -> '15.03.2027', 'HH:MM:SS' ->
+    // '14-07-53'. Este record e passado explicitamente nas duas chamadas de
+    // _GetPropertyValue para que a literal nao dependa do locale do cliente.
+    FFormatSettings: TFormatSettings;
       FFluentSQLDriver: TFluentSQLDriver;
       class function ResolveFluentSQLDriver(
         const AGeneratorDriver: TDriverName): TFluentSQLDriver; static;
@@ -109,6 +117,11 @@ implementation
 constructor TDMLGeneratorAbstract.Create;
 begin
   FQueryCache := TQueryCache.Create;
+  // Invariant traz DateSeparator '/' e TimeSeparator ':', que sao exatamente os
+  // caracteres que as mascaras dos dialetos ja pressupoem -- por isso o conserto
+  // e invisivel numa maquina de locale padrao e so muda o resultado onde antes
+  // ele estava errado.
+  FFormatSettings := TFormatSettings.Invariant;
 end;
 
 destructor TDMLGeneratorAbstract.Destroy;
@@ -517,10 +530,12 @@ begin
         Result := VarToStr(AProperty.GetNullableValue(AObject).AsVariant);
      ftDateTime, ftDate:
         Result := QuotedStr(FormatDateTime(FDateFormat,
-                             VarToDateTime(AProperty.GetNullableValue(AObject).AsVariant)));
+                             VarToDateTime(AProperty.GetNullableValue(AObject).AsVariant),
+                             FFormatSettings));
      ftTime, ftTimeStamp, ftOraTimeStamp:
         Result := QuotedStr(FormatDateTime(FTimeFormat,
-                             VarToDateTime(AProperty.GetNullableValue(AObject).AsVariant)));
+                             VarToDateTime(AProperty.GetNullableValue(AObject).AsVariant),
+                             FFormatSettings));
      ftCurrency, ftBCD, ftFMTBcd:
        begin
          Result := VarToStr(AProperty.GetNullableValue(AObject).AsVariant);
