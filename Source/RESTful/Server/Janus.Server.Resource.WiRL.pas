@@ -120,12 +120,14 @@ end;
 
 function TAppResource.insert(resource: string; value: string): string;
 begin
-  Result := inherited;
+  /// <summary> Chamada explicita: o "inherited" pelado resolve o nome contra
+  ///   o intrinseco System.Insert e nao contra o ancestral. </summary>
+  Result := inherited insert(resource, value);
 end;
 
 function TAppResource.update(resource: string; value: string): string;
 begin
-  Result := inherited;
+  Result := inherited update(resource, value);
 end;
 
 function TAppResource.delete(resource: string;
