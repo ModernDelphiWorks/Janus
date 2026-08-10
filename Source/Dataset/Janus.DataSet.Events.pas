@@ -37,9 +37,11 @@ type
   ///  OPERATOR scroll, which is the only move this enum is ever consulted for;
   ///  since issue #276 the same DoAfterScroll re-opens nothing while the mover
   ///  is the framework's own read walk - _ExecuteOneToMany AND
-  ///  _ExecuteOneToOne, BOTH of them, so a read driven by a OneToOne or a
-  ///  ManyToOne association discards nothing either - which is not a scroll
-  ///  anybody chose. pcaPost saves the pending
+  ///  _ExecuteOneToOne, BOTH of them, so a read routed through the
+  ///  single-object branch discards nothing either. OneToOne and ManyToOne both
+  ///  route to that branch, by multiplicity; what is MEASURED is the BRANCH,
+  ///  driven through a OneToOne - no test carries the ManyToOne label.
+  ///  Neither walk is a scroll anybody chose. pcaPost saves the pending
   ///  children first. pcaCancel calls Abort, so the master never leaves the
   ///  row. Nothing here changes on its own: the enum is only read when a
   ///  handler is assigned to TDataSetBaseAdapter<M>.OnBeforeScrollPendingChilds

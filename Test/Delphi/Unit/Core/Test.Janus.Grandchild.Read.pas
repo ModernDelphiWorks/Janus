@@ -315,7 +315,9 @@ type
     [Test]
     procedure AfterTheRead_AnOperatorScrollStillDiscards;
     /// The OTHER branch of the same walk. FillMastersClass routes a OneToOne or
-    /// ManyToOne association to _ExecuteOneToOne, which opens with the same
+    /// ManyToOne association to _ExecuteOneToOne - this drives it through a
+    /// OneToOne, so what is pinned is the BRANCH and not the ManyToOne label,
+    /// which no test here carries. It opens with the same
     /// unprotected First over the same child cursor. Only the First is exposed
     /// there - unlike _ExecuteOneToMany, that method restores the bookmark
     /// while BlockReadSize is still MaxInt, so the restore happens in
@@ -366,11 +368,19 @@ const
   cROOTKEY  = 'root_id';
   cMIDKEY   = 'mid_id';
   cTAG      = 'tag';
-  /// The middle rows carry EXPLICIT and DISTINCT own keys. Left to the pending
-  /// autoinc placeholder they would share one, and _GetCurrentPKAsString - the
-  /// witness TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll reads - would
-  /// answer the same string on every scroll that reaches it, leaving the
-  /// witness unable to move whether the injection ran or not.
+  /// The middle rows carry EXPLICIT own keys, and the reason is DETERMINISM,
+  /// NOT DISCRIMINATION - measured, after an earlier version of this comment
+  /// claimed the second. Left to the pending autoinc placeholder,
+  /// _GetCurrentPKAsString - the witness
+  /// TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll reads - would answer
+  /// -1 instead of a value this fixture chose; the explicit keys give the
+  /// assertion a known expected string, not a sharper discrimination - the
+  /// witness moves either way, from '' to -1, and still parts the mutation
+  /// (which reads '') from the HEAD.
+  /// DISTINCT buys nothing at all here, and that is worth writing down so the
+  /// next reader does not defend it: the two scrolls that reach the witness -
+  /// the First and the bookmark restore - land on the SAME row, because the
+  /// fixture parks on the first.
   cMIDKEY1   = 11;
   cMIDKEY2   = 12;
   cMIDKEY1AS = '11';
