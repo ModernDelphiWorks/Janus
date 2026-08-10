@@ -207,6 +207,7 @@
         <DCCReference Include="Unit\Core\Test.Janus.Manager.AddAdapter.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Source.Encoding.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Grandchild.Read.pas"/>
+        <DCCReference Include="Unit\Core\Test.Janus.AutoInc.UngeneratedKey.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

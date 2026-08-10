@@ -141,7 +141,9 @@ uses
   /// The encoding convention for Source\, and its baseline ratchet — issue #214
   Test.Janus.Source.Encoding in 'Unit\Core\Test.Janus.Source.Encoding.pas',
   /// Reading .Current of a grandparent must not destroy grandchild rows - #276
-  Test.Janus.Grandchild.Read in 'Unit\Core\Test.Janus.Grandchild.Read.pas';
+  Test.Janus.Grandchild.Read in 'Unit\Core\Test.Janus.Grandchild.Read.pas',
+  /// The cascade must not carry a key the generator has not produced - #262
+  Test.Janus.AutoInc.UngeneratedKey in 'Unit\Core\Test.Janus.AutoInc.UngeneratedKey.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
