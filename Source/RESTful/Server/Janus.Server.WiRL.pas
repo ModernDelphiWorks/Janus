@@ -61,7 +61,30 @@ type
 implementation
 
 uses
-  Janus.Server.Resource.WiRL;
+  Janus.Server.Resource.WiRL,
+  /// <summary> Obrigatoria: o lado servidor serializa TODA resposta pelo
+  ///   registro de MessageBodyWriter da APLICACAO
+  ///   (TWiRLApplicationWorker.InternalHandleRequest ->
+  ///   FAppConfig.WriterRegistry.FindWriter, WiRL.Core.Application.Worker.pas:
+  ///   524-537), e esse registro por aplicacao e semeado do singleton GLOBAL
+  ///   em TWiRLApplication.Startup (WiRL.Core.Application.pas:445-453). Sem
+  ///   esta unit linkada o global fica vazio, a aplicacao herda vazio e o WiRL
+  ///   levanta EWiRLServerException 'MessageBodyWriters registry is empty'
+  ///   (WiRL.Core.MessageBodyWriter.pas:206-213) em toda chamada de
+  ///   TAppResource, GET inclusive - e ate a serializacao do proprio erro cai
+  ///   no mesmo buraco (WiRL.Core.Exceptions.pas:505, overload de :198-203).
+  ///   A unit registra writers e readers padrao na sua initialization
+  ///   (WiRL.Core.MessageBody.Default.pas:693-694); referencia-la e o que
+  ///   garante o link. Ate agora so nao quebrava porque o app da aplicacao
+  ///   lembrava de cita-la - o exemplo faz isso em Server.Forms.Main.pas:27 e
+  ///   Server.Resources.pas:25 - e o driver nao pode depender dessa memoria.
+  ///   Vale por Janus.Server.Resource.WiRL tambem: as duas units se citam
+  ///   mutuamente na implementation (aqui na :64 e la na :76), entao linkam
+  ///   sempre juntas - medido com um .dpr que so nomeia o resource: 9/6.
+  ///   Medido em harness sem a unit no .dpr: 0/0 writers/readers e HTTP 500
+  ///   com a mensagem acima num GET; com ela, 9/6 e o GET chega ao recurso.
+  /// </summary>
+  WiRL.Core.MessageBody.Default;
 
 { TRESTServerWiRL }
 
