@@ -177,6 +177,7 @@
         <DCCReference Include="Unit\Middleware\Test.Janus.Middleware.Pipeline.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.DML.Generator.SQLite.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.DML.Generator.ADS.pas"/>
+        <DCCReference Include="Unit\Core\Test.Janus.Command.UnregisteredDriver.pas"/>
         <DCCReference Include="Unit\Criteria\Test.Janus.FluentSQL.Integration.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.REST.QueryParse.pas"/>
         <DCCReference Include="Unit\Middleware\Test.Janus.Plugin.Registry.pas"/>
