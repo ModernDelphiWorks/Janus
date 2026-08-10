@@ -42,25 +42,35 @@
     Janus.Session.DataSet.pas   TSessionDataSet<M>.RefreshRecordWhere(string)
     Janus.Session.DataSet.pas   TSessionDataSet<M>._PopularDataSet (the Open path)
     Janus.Mapping.Lazy.pas      CreateLazySingleAssociationLoadFunc
+    Janus.Mapping.Lazy.pas      CreateLazyManyAssociationLoadFunc
     Janus.Query.ResultSet.pas   TJanusQueryObject<M>.AsList
 
   Sites this fixture does NOT drive directly, and why:
 
-  1) Janus.Mapping.Lazy.pas  CreateLazyManyAssociationLoadFunc
-     No test can reach that loop. The function instantiates the list property
-     BEFORE touching the cursor, and both possible property shapes fail first
-     (both measured):
-       * a plain TObjectList<T>: LObjectList.MethodCall('Create', [True]) ->
-         TRttiType.GetMethod('Create') resolves to the inherited ZERO-argument
-         TList<T>.Create, so Invoke raises 'Parameter count mismatch'.
-         Reproduced on two independent instantiations.
-       * a TObjectList<T> DESCENDANT (which fixes the above): the item type is
-         recovered by TRttiPropertyHelper.GetTypeValue, which strips
-         'TObjectList<' / '>' TEXTUALLY from the type name; a descendant name
-         yields FindType(<unqualified name>) = nil -> access violation.
-     The test author has no degree of freedom between the two: it is the same
-     property feeding both paths. Pinned in CI by
-     LazyManyAssociation_CannotRun_KNOWN_DEFECT below.
+  1) HISTORICAL - no longer open. CreateLazyManyAssociationLoadFunc used to be
+     unreachable, and this file carried a test named
+     LazyManyAssociation_CannotRun_KNOWN_DEFECT that pinned WHY: the function
+     built the list with `LListClass.Create` followed by
+     `MethodCall('Create', [True])`, and TRttiType.GetMethod('Create') over a
+     TObjectList<T> answers the ZERO-argument constructor, so Invoke raised
+     'Parameter count mismatch' before the cursor was ever touched - the loop
+     was dead code at runtime for every model. #210. The construction now goes
+     through the constructor the RTTI actually returned, invoked on the
+     METACLASS, and the three LazyManyAssociation_* tests below drive the loop
+     for the first time.
+
+     ONE LIMIT SURVIVES, AND IT IS NOT JANUS'S. A property typed as a
+     DESCENDANT of TObjectList<T> still dies, because
+     TRttiPropertyHelper.GetTypeValue recovers the item type by stripping
+     'TObjectList<' / '>' TEXTUALLY from the type name, and a descendant's name
+     yields FindType(<name>) = nil. Measured on Studio 37, together with the
+     correction of one premise of #210: the descendant does NOT resolve a
+     one-argument constructor there either - GetMethod('Create') answers
+     paramcount 0 on BOTH shapes. That helper lives in MetaDbDiff
+     (MetaDbDiff.RTTI.Helper.pas, TRttiPropertyHelper.GetTypeValue) and the
+     EAGER path reads it the same way at
+     TSQLCommandExecutor<M>.ExecuteOneToMany, so lazy is no worse than eager.
+     Upstream: ModernDelphiWorks/MetaDbDiff#18.
 
   2) HISTORICAL - no longer open. The ninth loop lived in
      TRESTDataSetAdapter<M>.SetAutoIncValueChilds, which could not be reached
@@ -173,12 +183,23 @@ type
     procedure LazySingleAssociation_ThreeRows_Terminates;
     [Test]
     procedure LazySingleAssociation_ZeroRows_ReturnsNil;
+    /// The loop of CreateLazyManyAssociationLoadFunc, driven for the first
+    /// time. Until #210 it was unreachable: the function raised before the
+    /// cursor was ever touched. Asserted ROW BY ROW and IN ORDER, so a loop
+    /// that yields the right COUNT out of the wrong rows still goes red.
+    [Test]
+    procedure LazyManyAssociation_ThreeRows_ReturnsOneObjectPerRowInOrder;
+    /// The list the lazy proxy hands back must OWN its items - it is the only
+    /// thing that will ever free them, because TLazyProxyLoader frees the list
+    /// and nothing else knows the items exist.
+    [Test]
+    procedure LazyManyAssociation_TheListItReturnsOwnsItsItems;
+    [Test]
+    procedure LazyManyAssociation_ZeroRows_ReturnsAnEmptyList;
 
     // ---- fatos medidos que este trabalho consagra em CI -------------------
     [Test]
     procedure MasterDetailPost_DoesNotAdvanceCursor_ASSUMPTION;
-    [Test]
-    procedure LazyManyAssociation_CannotRun_KNOWN_DEFECT;
   end;
 
 implementation
@@ -653,6 +674,135 @@ begin
   end;
 end;
 
+/// Binds the MNEMONICO of the current row into TSetor.NOME, so every object
+/// the loop produces carries the MARKER OF THE ROW IT CAME FROM. LazyRow
+/// writes 'MN0', 'MN1', 'MN2' - distinct, ordered and named. Without this a
+/// count assertion would pass on three copies of row zero.
+function LazyRowMarker: TLazyBindToObjectProc;
+begin
+  Result :=
+    procedure(const AResultSet: IDBDataSet; const AObject: TObject)
+    begin
+      TSetor(AObject).NOME := AResultSet.FieldByName('MNEMONICO').AsString;
+    end;
+end;
+
+procedure TTestCursorAdvance.LazyManyAssociation_ThreeRows_ReturnsOneObjectPerRowInOrder;
+var
+  LConn: IDBConnection;
+  LFactory: TDMLCommandFactory;
+  LOwner: TProcedimento;
+  LAssoc: TAssociationMapping;
+  LFunc: TLazyLoadFunc;
+  LResult: TObject;
+  LList: TObjectList<TSetor>;
+  LFor: Integer;
+begin
+  // ESTE TESTE SUBSTITUI LazyManyAssociation_CannotRun_KNOWN_DEFECT, que
+  // consagrava o defeito #210: CreateLazyManyAssociationLoadFunc levantava
+  // 'Parameter count mismatch' em LObjectList.MethodCall('Create', [True])
+  // ANTES de tocar o cursor, e por isso o laco OneToMany era codigo morto em
+  // runtime - o unico sitio de avanco de cursor que esta fixture nao cobria.
+  // Trocar aquela assercao em vez de reescrever o teste teria reconsagrado o
+  // defeito, e era exatamente o que aquele teste pedia para nao se fazer.
+  LConn := LazyConnection(cROWS);
+  LAssoc := AssociationOf(TProcedimento, TMultiplicity.OneToMany);
+  Assert.IsNotNull(LAssoc, 'TProcedimento must expose a OneToMany association');
+  LOwner := TProcedimento.Create;
+  LFactory := TDMLCommandFactory.Create(LOwner, LConn, dnSQLite);
+  LResult := nil;
+  try
+    LFunc := CreateLazyManyAssociationLoadFunc(LOwner, LAssoc, LFactory,
+      LazyRowMarker(), nil, nil);
+    LResult := LFunc();
+
+    Assert.IsNotNull(LResult,
+      'the lazy OneToMany factory must hand back a list. Before #210 it never ' +
+      'got this far: the list was built with TClass.Create followed by ' +
+      'MethodCall(''Create'', [True]), and that second call raised');
+    Assert.IsTrue(LResult is TObjectList<TSetor>,
+      'and the list must be of the property''s own type, not some substitute: ' +
+      LResult.ClassName);
+    LList := TObjectList<TSetor>(LResult);
+    Assert.AreEqual(cROWS, LList.Count,
+      'one object per row, and the cursor really advanced - a loop that did ' +
+      'not would have been stopped by ECursorRunaway long before this line');
+    // ORDEM, nao conjunto: uma troca entre duas linhas passa despercebida por
+    // qualquer assercao que so olhe para o conjunto ou para a contagem.
+    for LFor := 0 to cROWS - 1 do
+      Assert.AreEqual('MN' + IntToStr(LFor), LList.Items[LFor].NOME,
+        'row ' + IntToStr(LFor) + ' of the cursor must be item ' +
+        IntToStr(LFor) + ' of the list, IN THAT ORDER');
+  finally
+    LResult.Free;
+    LFactory.Free;
+    LOwner.Free;
+  end;
+end;
+
+procedure TTestCursorAdvance.LazyManyAssociation_TheListItReturnsOwnsItsItems;
+var
+  LConn: IDBConnection;
+  LFactory: TDMLCommandFactory;
+  LOwner: TProcedimento;
+  LAssoc: TAssociationMapping;
+  LFunc: TLazyLoadFunc;
+  LResult: TObject;
+begin
+  LConn := LazyConnection(cROWS);
+  LAssoc := AssociationOf(TProcedimento, TMultiplicity.OneToMany);
+  LOwner := TProcedimento.Create;
+  LFactory := TDMLCommandFactory.Create(LOwner, LConn, dnSQLite);
+  LResult := nil;
+  try
+    LFunc := CreateLazyManyAssociationLoadFunc(LOwner, LAssoc, LFactory,
+      LazyRowMarker(), nil, nil);
+    LResult := LFunc();
+    Assert.IsTrue(TObjectList<TSetor>(LResult).OwnsObjects,
+      'THE LIST MUST OWN ITS ITEMS. TLazyProxyLoader.Destroy frees the list ' +
+      'and nothing else in the framework holds a reference to the objects the ' +
+      'loop created, so a list built without ownership leaks one object per ' +
+      'row of every lazy collection ever loaded. MEDIDO: the parameterless ' +
+      'TObjectList<T>.Create the RTTI hands back is the RTL one, which sets ' +
+      'OwnsObjects to True');
+  finally
+    LResult.Free;
+    LFactory.Free;
+    LOwner.Free;
+  end;
+end;
+
+procedure TTestCursorAdvance.LazyManyAssociation_ZeroRows_ReturnsAnEmptyList;
+var
+  LConn: IDBConnection;
+  LFactory: TDMLCommandFactory;
+  LOwner: TProcedimento;
+  LAssoc: TAssociationMapping;
+  LFunc: TLazyLoadFunc;
+  LResult: TObject;
+begin
+  LConn := LazyConnection(0);
+  LAssoc := AssociationOf(TProcedimento, TMultiplicity.OneToMany);
+  LOwner := TProcedimento.Create;
+  LFactory := TDMLCommandFactory.Create(LOwner, LConn, dnSQLite);
+  LResult := nil;
+  try
+    LFunc := CreateLazyManyAssociationLoadFunc(LOwner, LAssoc, LFactory,
+      LazyRowMarker(), nil, nil);
+    LResult := LFunc();
+    Assert.IsNotNull(LResult,
+      'AN EMPTY COLLECTION IS AN EMPTY LIST, NOT nil - the OneToOne sibling ' +
+      'answers nil for no rows and this one must not, because the property ' +
+      'the proxy feeds is a list and a consumer will iterate it');
+    Assert.AreEqual(0, TObjectList<TSetor>(LResult).Count,
+      'and it must be empty');
+  finally
+    LResult.Free;
+    LFactory.Free;
+    LOwner.Free;
+  end;
+end;
+
 // ---------------------------------------------------------------------------
 // Fatos medidos que este trabalho consagra em CI
 // ---------------------------------------------------------------------------
@@ -747,71 +897,6 @@ begin
   Assert.AreEqual(50, Iterations(2),
     'com vinculo mas valor do master inalterado o Post tambem NAO move o ' +
     'cursor - de novo infinito sem o .Next');
-end;
-
-procedure TTestCursorAdvance.LazyManyAssociation_CannotRun_KNOWN_DEFECT;
-var
-  LConn: IDBConnection;
-  LFactory: TDMLCommandFactory;
-  LOwner: TProcedimento;
-  LAssoc: TAssociationMapping;
-  LFunc: TLazyLoadFunc;
-  LRaised: Boolean;
-  LMessage: string;
-begin
-  // TESTE QUE CONSAGRA UM DEFEITO. Ele NAO descreve o comportamento desejado.
-  //
-  // COMPORTAMENTO ATUAL (medido): CreateLazyManyAssociationLoadFunc nunca
-  //   executa. Antes de tocar o cursor ela faz LObjectList.MethodCall(
-  //   'Create', [True]) (Janus.Mapping.Lazy.pas, em CreateLazyManyAssociation-
-  //   LoadFunc); TObjectHelper.MethodCall usa RttiType.GetMethod('Create'),
-  //   que para um TObjectList<T> resolve para o construtor de ZERO argumentos
-  //   herdado de TList<T>. Invocar com 1 argumento levanta 'Parameter count
-  //   mismatch'. Consequencia: o caminho lazy OneToMany/ManyToMany e CODIGO
-  //   MORTO em runtime, para qualquer model.
-  //
-  // COMPORTAMENTO CORRETO: a funcao deveria instanciar a lista e devolver um
-  //   objeto por linha do cursor.
-  //
-  // QUEM CONSERTAR O DEFEITO DEVE REESCREVER OU APAGAR ESTE TESTE - nao
-  //   ajustar a assercao. Ele existe para ficar VERMELHO no dia do conserto,
-  //   porque esse e exatamente o dia em que o laco de
-  //   CreateLazyManyAssociationLoadFunc vira testavel com o duble
-  //   Test.Janus.Cursor.Double, e o sitio de avanco de cursor que hoje esta
-  //   descoberto passa a poder ser coberto como todos os outros.
-  LConn := LazyConnection(cROWS);
-  LAssoc := AssociationOf(TProcedimento, TMultiplicity.OneToMany);
-  Assert.IsNotNull(LAssoc, 'TProcedimento precisa expor uma associacao OneToMany');
-  LOwner := TProcedimento.Create;
-  LFactory := TDMLCommandFactory.Create(LOwner, LConn, dnSQLite);
-  LRaised := False;
-  LMessage := '';
-  try
-    LFunc := CreateLazyManyAssociationLoadFunc(LOwner, LAssoc, LFactory,
-      procedure(const AResultSet: IDBDataSet; const AObject: TObject)
-      begin
-      end,
-      nil, nil);
-    try
-      LFunc();
-    except
-      on E: Exception do
-      begin
-        LRaised := True;
-        LMessage := E.Message;
-      end;
-    end;
-    Assert.IsTrue(LRaised,
-      'se isto ficou verde, o defeito F1 foi consertado - REESCREVA OU APAGUE ' +
-      'este teste e cubra o laco de CreateLazyManyAssociationLoadFunc com o ' +
-      'duble Test.Janus.Cursor.Double, como os demais sitios');
-    Assert.IsTrue(Pos('Parameter count mismatch', LMessage) > 0,
-      'o defeito consagrado e a resolucao do construtor por RTTI; a mensagem ' +
-      'mudou para: ' + LMessage);
-  finally
-    LFactory.Free;
-    LOwner.Free;
-  end;
 end;
 
 initialization
