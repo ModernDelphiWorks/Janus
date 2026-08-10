@@ -1034,10 +1034,13 @@ begin
     '$filter. Seven terms, seven branches of _FilterLiteral, one string - ' +
     'which is the whole reason a composite key was worth widening instead of ' +
     'adding entities. The GUID term is the one that motivated the ' +
-    'whole fix: TGeneratorType generates GUID keys, the sibling generator ' +
-    'sends ftGuid to its `else` and yields an empty string, and here that ' +
-    'would not even reach the null guard - the guard reads the FIELD, whose ' +
-    'AsString is not empty, so it would emit `cck3 eq ` with nothing after it');
+    'whole fix: TGeneratorType generates GUID keys, and here an unhandled ' +
+    'ftGuid would not even reach the null guard - the guard reads the FIELD, ' +
+    'whose AsString is not empty, so it would emit `cck3 eq ` with nothing ' +
+    'after it. (When this was written the sibling SQL generator sent ftGuid ' +
+    'to its `else` and yielded an empty string; issue #284 gave it a branch ' +
+    'of its own, dispatched per dialect. The sentence is corrected rather ' +
+    'than deleted because the correction is the point.)');
 end;
 
 procedure TTestRestLazy.Load_AnEmptyMasterValueBecomesTheZeroRowsGuard;

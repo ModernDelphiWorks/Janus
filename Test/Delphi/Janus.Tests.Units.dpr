@@ -43,6 +43,10 @@ uses
   Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
   Test.Janus.Model.AutoIncTree in 'Common\Test.Janus.Model.AutoIncTree.pas',
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
+  /// The composite association whose seven columns are seven different types -
+  /// the only model in the repo with a ftGuid column next to siblings. Issue
+  /// #284 needs it here; until now it was linked only in RESTfulDriver.
+  Test.Janus.Model.RestLazyKeys in 'Common\Test.Janus.Model.RestLazyKeys.pas',
   Test.Janus.Model.Nested in 'Common\Test.Janus.Model.Nested.pas',
   Test.Janus.Model.ReservedColumn in 'Common\Test.Janus.Model.ReservedColumn.pas',
   Test.Janus.Model.Moment in 'Common\Test.Janus.Model.Moment.pas',
@@ -58,6 +62,11 @@ uses
   Janus.DML.Generator.ADS in '..\..\Source\Core\Janus.DML.Generator.ADS.pas',
   /// Linked for the locale test: a dialect whose date mask carries '/'
   Janus.DML.Generator.MSSQL in '..\..\Source\Core\Janus.DML.Generator.MSSQL.pas',
+  /// A SECOND dialect, linked for issue #284: with one generator only, "the
+  /// GUID literal is chosen per dialect" would be an assertion held by
+  /// nothing. Forgetting the link does NOT raise an Access Violation -
+  /// Janus.Driver.Register.pas:64-66 raises a named exception naming the unit.
+  Janus.DML.Generator.PostgreSQL in '..\..\Source\Core\Janus.DML.Generator.PostgreSQL.pas',
   /// Tests
   Test.Janus.Driver.Register in 'Unit\Core\Test.Janus.Driver.Register.pas',
   Test.Janus.Mapping.Cache   in 'Unit\Core\Test.Janus.Mapping.Cache.pas',

@@ -104,8 +104,9 @@ type
     ///  esse molde e' DADO, nao comportamento, e um dialeto novo nasceria com
     ///  o campo em '' - o literal sairia vazio, a guarda dispararia e o
     ///  '1 = 0' VOLTARIA. A cura teria a mesma doenca. Um metodo abstract
-    ///  falha CEDO e ALTO: W1010 na lambda de fabrica do initialization e
-    ///  EAbstractError na criacao do gerador, antes de qualquer query - o
+    ///  falha CEDO e ALTO: W1020 ("Constructing instance of X containing
+    ///  abstract method") na lambda de fabrica do initialization daquela
+    ///  unidade, e EAbstractError na primeira chamada - o
     ///  mesmo estilo de Janus.Driver.Register.pas:64-66, que levanta excecao
     ///  nomeada em vez de devolver nil.
     ///
