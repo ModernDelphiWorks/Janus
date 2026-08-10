@@ -110,12 +110,19 @@ end;
 ///  away whatever the operator typed into the grandchildren and did not save.
 ///  That is the SHIPPED CONTRACT when the operator moves the master
 ///  (Test.Janus.Scroll.PendingChilds), and it is a defect when the mover is the
-///  framework's own read walk in _ExecuteOneToMany, which advances this cursor
-///  from the first row to Eof and puts it back only to build objects.
-///  FChildReopenSuppressed tells the two apart. It suppresses THIS CALL ONLY:
-///  the paging in the inherited DoAfterScroll, the lazy proxy injection and the
-///  consumer's own AfterScroll all still run, which is what a full
-///  DisableDataSetEvents would have taken down with it. </summary>
+///  framework's own read walk - _ExecuteOneToMany and _ExecuteOneToOne, both of
+///  which advance this cursor from the first row to Eof and put it back only to
+///  build objects.
+///  FChildReopenSuppressed tells the two apart. It suppresses THIS CALL ONLY,
+///  and that is MEASURED and not merely true by construction:
+///  _InjectLazyProxiesOnScroll below still runs on every row of a suppressed
+///  walk (TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll) and so does the
+///  consumer's own AfterScroll, reached through the `inherited` on the last
+///  line (TheSuppressedWalk_StillFiresTheConsumersOwnAfterScroll). A full
+///  DisableDataSetEvents around the walk would have taken both down.
+///  NOT MEASURED: the paging leg (NextPacket) rides on that same `inherited`
+///  and is covered only through it - no test here drives a paged cursor.
+///  </summary>
 procedure TDataSetAdapter<M>.DoAfterScroll(DataSet: TDataSet);
 begin
   if DataSet.State in [dsBrowse] then

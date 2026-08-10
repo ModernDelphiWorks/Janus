@@ -539,20 +539,38 @@ begin
     Exit;
   LObject := LValue.AsObject;
   LBookMark := ADatasetBase.FOrmDataSet.Bookmark;
-  ADatasetBase.FOrmDataSet.First;
-  ADatasetBase.FOrmDataSet.BlockReadSize := MaxInt;
+  // ISSUE #276 - SAME DEFECT AS _ExecuteOneToMany, AND NOT THE SAME SIZE.
+  // This walk moves the same child cursor for the same reason, so its First
+  // fires the child's AfterScroll and re-opens - that is, empties - the
+  // GRANDCHILDREN. What differs is the way out: the restore below runs BEFORE
+  // BlockReadSize goes back to zero, so it happens in dsBlockRead and
+  // TDataSetAdapter<M>.DoAfterScroll turns it away on its dsBrowse guard. Only
+  // the First is exposed here, where _ExecuteOneToMany has two. The two
+  // branches were measured one at a time and neither was inferred from the
+  // other. Measured by
+  // Test.Janus.Grandchild.Read.OneToOneTop_ReadingCurrentOnTheGrandparent...
+  //
+  // The recursion into the next level stays OUTSIDE the suppression: it walks
+  // a DIFFERENT adapter's cursor, and that adapter raises its own.
+  Inc(ADatasetBase.FChildReopenSuppressed);
   try
-    while not ADatasetBase.FOrmDataSet.Eof do
-    begin
-      // Popula o objeto M e o adiciona na lista e objetos com o registro do DataSet.
-      Bind.SetFieldToProperty(ADatasetBase.FOrmDataSet, LObject);
-      // Proximo registro
-      ADatasetBase.FOrmDataSet.Next;
+    ADatasetBase.FOrmDataSet.First;
+    ADatasetBase.FOrmDataSet.BlockReadSize := MaxInt;
+    try
+      while not ADatasetBase.FOrmDataSet.Eof do
+      begin
+        // Popula o objeto M e o adiciona na lista e objetos com o registro do DataSet.
+        Bind.SetFieldToProperty(ADatasetBase.FOrmDataSet, LObject);
+        // Proximo registro
+        ADatasetBase.FOrmDataSet.Next;
+      end;
+    finally
+      ADatasetBase.FOrmDataSet.GotoBookmark(LBookMark);
+      ADatasetBase.FOrmDataSet.FreeBookmark(LBookMark);
+      ADatasetBase.FOrmDataSet.BlockReadSize := 0;
     end;
   finally
-    ADatasetBase.FOrmDataSet.GotoBookmark(LBookMark);
-    ADatasetBase.FOrmDataSet.FreeBookmark(LBookMark);
-    ADatasetBase.FOrmDataSet.BlockReadSize := 0;
+    Dec(ADatasetBase.FChildReopenSuppressed);
   end;
   // Populando em hierarquia de varios niveis
   for LDataSetChild in ADatasetBase.FMasterObject.Values do
@@ -604,6 +622,12 @@ begin
   // cursor, not the state of the row - the master rows in that fixture's
   // premise are pending inserts exactly like the ones here, so a guard phrased
   // as "do not re-open under an unsaved master row" was measured and refused.
+  //
+  // THE SIBLING IS _ExecuteOneToOne, AND IT NEEDED LESS. It walks the same
+  // cursor for the same reason and its First is exposed the same way, but its
+  // bookmark restore runs while BlockReadSize is still MaxInt, so that one is
+  // already turned away by the dsBrowse guard. Both are repaired; each was
+  // measured on its own and neither was inferred from the other.
   //
   // Measured by Test.Janus.Grandchild.Read.
   Inc(ADatasetBase.FChildReopenSuppressed);

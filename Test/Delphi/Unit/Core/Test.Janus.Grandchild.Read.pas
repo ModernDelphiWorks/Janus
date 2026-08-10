@@ -54,7 +54,7 @@
   versus the framework's own read walk. AfterTheRead_AnOperatorScrollStillDiscards
   is the guard that keeps the two apart.
 
-  THE TWO FAMILIES ARE NOT THE SAME, AND ONE FIX COVERS BOTH
+  THE TWO FAMILIES ARE NOT THE SAME, AND ONE SUPPRESSION SERVES BOTH
 
   TFDMemTableAdapter<M> and TClientDataSetAdapter<M> both descend from
   TDataSetAdapter<M>, whose OpenDataSetChilds really re-queries: both lost the
@@ -62,6 +62,31 @@
   the REST family never lost anything and needs no repair -
   Rest_ReadingCurrentOnTheGrandparent_NeverDestroyedTheGrandchildRow measures
   that claim instead of repeating it, and it was green before the fix as well.
+
+  TWO BRANCHES, NOT ONE - AND THEY NEEDED DIFFERENT AMOUNTS OF REPAIR
+
+  FillMastersClass routes an association to _ExecuteOneToMany or to
+  _ExecuteOneToOne by multiplicity, and BOTH walk the child cursor the same way.
+  The first version of this fix repaired only _ExecuteOneToMany, on the reading
+  that the OneToOne branch could not be driven to level three - it raised an
+  AccessViolation first. That reading was WRONG, and the counter-measurement is
+  cheap: the AccessViolation comes from the association property being nil, and
+  filling it costs one line, because with the root dataset still empty Current
+  returns FCurrentInternal on its RecordCount = 0 exit without walking anything.
+  With the property filled the OneToOne branch destroyed the grandchild in
+  perfect silence - no exception at all. OneToOneTop_ReadingCurrentOnTheGrandparent
+  is that measurement.
+
+  What genuinely differs between the two is the SIZE of the hole:
+  _ExecuteOneToMany exposes two scrolls, _ExecuteOneToOne exposes one, because
+  the latter restores its bookmark while BlockReadSize is still MaxInt and the
+  restore is therefore already turned away by DoAfterScroll's dsBrowse guard.
+  Sibling code, different repair - which is why each was measured on its own.
+
+  And the issue was never talking about only one of them: the two line anchors
+  in its body point at _ExecuteOneToOne, not at _ExecuteOneToMany. Closing #276
+  with the OneToOne branch untouched would have left the exact lines the issue
+  names still destroying rows.
 
   THE MUTATIONS THAT WERE RUN, AND WHAT DIED IN EACH
 
@@ -120,12 +145,25 @@ uses
   Janus.RestDataSet.FDMemTable,
   Janus.RestFactory.Interfaces,
   Test.Janus.Model.AutoIncTree,
+  /// For TAsymTreeOneRoot, the only entity in the repository whose TOP level
+  /// association is OneToOne - which is the branch _ExecuteOneToOne serves.
+  Test.Janus.Model.AsymTree,
   Test.Janus.Cursor.Double,
   /// Only for TInertRestConnection, the IRESTConnection double that fixture
   /// already ships.
   Test.Janus.MasterDetail.Link;
 
 type
+  /// <summary> Classic protected-access descendant. FLastPKValue is protected
+  ///  and it is the witness _InjectLazyProxiesOnScroll leaves behind - the only
+  ///  one available on a fixture whose model declares no lazy association, and
+  ///  the difference between "the suppression is surgical" as a claim and as a
+  ///  measurement. </summary>
+  TReadAccess<M: class, constructor> = class(TDataSetBaseAdapter<M>)
+  public
+    class function LastPK(const A: TDataSetBaseAdapter<M>): String;
+  end;
+
   [TestFixture]
   TTestGrandchildRead = class
   private
@@ -149,13 +187,28 @@ type
     FRestRoot: TRESTFDMemTableAdapter<TAitRoot>;
     FRestMid: TRESTFDMemTableAdapter<TAitMid>;
     FRestLeaf: TRESTFDMemTableAdapter<TAitLeaf>;
-    procedure BuildLocalTree(const AWithLeaf: Boolean = True);
+    FOneRootTable: TFDMemTable;
+    FOneMidTable: TFDMemTable;
+    FOneLeafTable: TFDMemTable;
+    FOneRoot: TFDMemTableAdapter<TAsymTreeOneRoot>;
+    FOneMid: TFDMemTableAdapter<TAsymTreeMid>;
+    FOneLeaf: TFDMemTableAdapter<TAsymTreeLeaf>;
+    /// What the CONSUMER's own AfterScroll saw, and whether it is to raise.
+    FSeenByConsumer: String;
+    FRaiseOnNextScroll: Boolean;
+    procedure MidConsumerAfterScroll(DataSet: TDataSet);
+    procedure BuildOneToOneTree;
+    procedure BuildLocalTree(const AWithLeaf: Boolean = True;
+      const AWithConsumerScroll: Boolean = False);
     procedure BuildCdsTree;
     procedure BuildRestTree;
     procedure AddRoot(const ADataSet: TDataSet; const ATag: String);
-    procedure AddMid(const ADataSet: TDataSet; const ATag: String);
+    procedure AddMid(const ADataSet: TDataSet; const ATag: String;
+      const AOwnKey: Integer);
     procedure AddLeaf(const ADataSet: TDataSet; const ATag: String);
     procedure ParkOnFirst(const ADataSet: TDataSet);
+    function SignatureOf(const ADataSet: TDataSet; const ATagColumn: String;
+      const AForeignKey: String): String;
     function Signature(const ADataSet: TDataSet;
       const AForeignKey: String): String;
     function TagUnderCursor(const ADataSet: TDataSet): String;
@@ -226,6 +279,40 @@ type
     /// reddens THIS test alone.
     [Test]
     procedure AfterTheRead_AnOperatorScrollStillDiscards;
+    /// The OTHER branch of the same walk. FillMastersClass routes a OneToOne or
+    /// ManyToOne association to _ExecuteOneToOne, which opens with the same
+    /// unprotected First over the same child cursor. Only the First is exposed
+    /// there - unlike _ExecuteOneToMany, that method restores the bookmark
+    /// while BlockReadSize is still MaxInt, so the restore happens in
+    /// dsBlockRead and DoAfterScroll's dsBrowse guard turns it away. The two
+    /// siblings therefore needed DIFFERENT amounts of repair, which is why
+    /// neither was assumed from the other.
+    [Test]
+    procedure OneToOneTop_ReadingCurrentOnTheGrandparent_KeepsTheGrandchildRow;
+
+    // -----------------------------------------------------------------------
+    // What holds the repair itself up
+    // -----------------------------------------------------------------------
+
+    /// The `finally` around the release. An exception inside the walk is not
+    /// hypothetical: the consumer's own AfterScroll runs there, and
+    /// _ExecuteOneToMany itself raises 'Not in instance ...' on a property
+    /// whose type is not a class. Without the finally the counter stays up
+    /// FOREVER and the operator's scroll silently stops discarding - the
+    /// contract this fixture guards, broken permanently and invisibly.
+    [Test]
+    procedure AnExceptionInsideTheWalk_StillReleasesTheSuppression;
+    /// "It suppresses ONE call" is a claim about the two things that must
+    /// SURVIVE the suppression, and both are measured. This one is the
+    /// consumer's own AfterScroll, reached through the `inherited` at the end
+    /// of DoAfterScroll - the same `inherited` the paging leg rides on.
+    [Test]
+    procedure TheSuppressedWalk_StillFiresTheConsumersOwnAfterScroll;
+    /// And this one is _InjectLazyProxiesOnScroll, which sits beside the
+    /// suppressed call inside the same guard and must not be taken down with
+    /// it. FLastPKValue is what it leaves behind.
+    [Test]
+    procedure TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll;
   end;
 
 implementation
@@ -244,6 +331,19 @@ const
   cROOTKEY  = 'root_id';
   cMIDKEY   = 'mid_id';
   cTAG      = 'tag';
+  /// The middle rows carry EXPLICIT and DISTINCT own keys. Left to the pending
+  /// autoinc placeholder they would share one, and _GetCurrentPKAsString - the
+  /// witness TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll reads - would
+  /// answer the same string on every row of the walk.
+  cMIDKEY1   = 11;
+  cMIDKEY2   = 12;
+  cMIDKEY1AS = '11';
+  /// AsymTree spells every column exactly once across the three levels, which
+  /// is why its names share nothing with the ones above.
+  cONEROOTTAG = 'ptag';
+  cONEMIDTAG  = 'mtag';
+  cONELEAFTAG = 'ltag';
+  cONELEAFFK  = 'lparent';
 
 type
   /// Saved BeforeScroll/AfterScroll pair, so a fixture helper can walk a
@@ -268,6 +368,13 @@ begin
   ADataSet.AfterScroll := AMute.After;
 end;
 
+{ TReadAccess<M> }
+
+class function TReadAccess<M>.LastPK(const A: TDataSetBaseAdapter<M>): String;
+begin
+  Result := TReadAccess<M>(A).FLastPKValue;
+end;
+
 { TTestGrandchildRead }
 
 procedure TTestGrandchildRead.Setup;
@@ -287,6 +394,27 @@ begin
     end,
     'grandchild');
   FRest := TInertRestConnection.Create;
+  FSeenByConsumer := '';
+  FRaiseOnNextScroll := False;
+end;
+
+/// The CONSUMER's own AfterScroll - the one a screen assigns. It is captured
+/// into FDataSetEvents by TDataSetBaseAdapter<M>.GetDataSetEvents, which runs
+/// in the adapter's constructor, so it has to be on the dataset BEFORE the
+/// adapter exists. Records only rows, never the Eof fire, so the string it
+/// builds is a list of rows the walk passed through and not a count of events.
+procedure TTestGrandchildRead.MidConsumerAfterScroll(DataSet: TDataSet);
+begin
+  if FRaiseOnNextScroll then
+  begin
+    // Once. The operator scroll that this test performs afterwards has to
+    // reach the framework, not this handler.
+    FRaiseOnNextScroll := False;
+    raise Exception.Create('consumer AfterScroll blew up mid-walk');
+  end;
+  if DataSet.Eof then
+    Exit;
+  FSeenByConsumer := FSeenByConsumer + DataSet.FieldByName(cTAG).AsString + ';';
 end;
 
 procedure TTestGrandchildRead.TearDown;
@@ -309,20 +437,43 @@ begin
   FreeAndNil(FRestLeafTable);
   FreeAndNil(FRestMidTable);
   FreeAndNil(FRestRootTable);
+  FreeAndNil(FOneLeaf);
+  FreeAndNil(FOneMid);
+  FreeAndNil(FOneRoot);
+  FreeAndNil(FOneLeafTable);
+  FreeAndNil(FOneMidTable);
+  FreeAndNil(FOneRootTable);
   FRest := nil;
   FConn := nil;
 end;
 
-procedure TTestGrandchildRead.BuildLocalTree(const AWithLeaf: Boolean);
+procedure TTestGrandchildRead.BuildLocalTree(const AWithLeaf: Boolean;
+  const AWithConsumerScroll: Boolean);
 begin
   FRootTable := TFDMemTable.Create(nil);
   FRoot := TFDMemTableAdapter<TAitRoot>.Create(FConn, FRootTable, -1, nil);
   FMidTable := TFDMemTable.Create(nil);
+  // Assigned BEFORE the adapter exists on purpose - see MidConsumerAfterScroll.
+  if AWithConsumerScroll then
+    FMidTable.AfterScroll := MidConsumerAfterScroll;
   FMid := TFDMemTableAdapter<TAitMid>.Create(FConn, FMidTable, -1, FRoot);
   if not AWithLeaf then
     Exit;
   FLeafTable := TFDMemTable.Create(nil);
   FLeaf := TFDMemTableAdapter<TAitLeaf>.Create(FConn, FLeafTable, -1, FMid);
+end;
+
+procedure TTestGrandchildRead.BuildOneToOneTree;
+begin
+  FOneRootTable := TFDMemTable.Create(nil);
+  FOneRoot := TFDMemTableAdapter<TAsymTreeOneRoot>.Create(FConn, FOneRootTable,
+                -1, nil);
+  FOneMidTable := TFDMemTable.Create(nil);
+  FOneMid := TFDMemTableAdapter<TAsymTreeMid>.Create(FConn, FOneMidTable, -1,
+               FOneRoot);
+  FOneLeafTable := TFDMemTable.Create(nil);
+  FOneLeaf := TFDMemTableAdapter<TAsymTreeLeaf>.Create(FConn, FOneLeafTable, -1,
+                FOneMid);
 end;
 
 procedure TTestGrandchildRead.BuildCdsTree;
@@ -366,10 +517,11 @@ end;
 /// paths end on the same value, 0, which is the grandparent's still pending
 /// key - so the branch changes no assertion, it only keeps the control alive.
 procedure TTestGrandchildRead.AddMid(const ADataSet: TDataSet;
-  const ATag: String);
+  const ATag: String; const AOwnKey: Integer);
 begin
   ADataSet.Append;
   ADataSet.FieldByName(cTAG).AsString := ATag;
+  ADataSet.FieldByName(cMIDKEY).AsInteger := AOwnKey;
   if ADataSet.FieldByName(cROOTKEY).IsNull then
     ADataSet.FieldByName(cROOTKEY).AsInteger := 0;
   ADataSet.Post;
@@ -401,8 +553,8 @@ begin
   end;
 end;
 
-function TTestGrandchildRead.Signature(const ADataSet: TDataSet;
-  const AForeignKey: String): String;
+function TTestGrandchildRead.SignatureOf(const ADataSet: TDataSet;
+  const ATagColumn: String; const AForeignKey: String): String;
 var
   LMute: TScrollMute;
   LRows: Integer;
@@ -414,7 +566,7 @@ begin
     ADataSet.First;
     while (not ADataSet.Eof) and (LRows < cWALKCEIL) do
     begin
-      Result := Result + ADataSet.FieldByName(cTAG).AsString + '/' +
+      Result := Result + ADataSet.FieldByName(ATagColumn).AsString + '/' +
                 ADataSet.FieldByName(AForeignKey).AsString + ';';
       Inc(LRows);
       ADataSet.Next;
@@ -424,6 +576,12 @@ begin
   finally
     UnmuteScroll(ADataSet, LMute);
   end;
+end;
+
+function TTestGrandchildRead.Signature(const ADataSet: TDataSet;
+  const AForeignKey: String): String;
+begin
+  Result := SignatureOf(ADataSet, cTAG, AForeignKey);
 end;
 
 function TTestGrandchildRead.TagUnderCursor(const ADataSet: TDataSet): String;
@@ -454,7 +612,7 @@ procedure TTestGrandchildRead.Premise_TheGrandchildRowIsThereBeforeAnythingIsRea
 begin
   BuildLocalTree;
   AddRoot(FRootTable, cROOTTAG);
-  AddMid(FMidTable, cMIDTAG);
+  AddMid(FMidTable, cMIDTAG, cMIDKEY1);
   AddLeaf(FLeafTable, cLEAFTAG);
 
   Assert.AreEqual(cLEAFTAG + '/' + IntToStr(cSENTINEL) + ';',
@@ -468,7 +626,7 @@ procedure TTestGrandchildRead.ReadingCurrentOnTheGrandparent_KeepsTheGrandchildR
 begin
   BuildLocalTree;
   AddRoot(FRootTable, cROOTTAG);
-  AddMid(FMidTable, cMIDTAG);
+  AddMid(FMidTable, cMIDTAG, cMIDKEY1);
   AddLeaf(FLeafTable, cLEAFTAG);
 
   // ONE read. No ApplyUpdates, no scroll, no post - the smallest thing a
@@ -495,7 +653,7 @@ procedure TTestGrandchildRead.Control_WithOnlyTwoLevels_TheSameReadKeepsTheChild
 begin
   BuildLocalTree(False);
   AddRoot(FRootTable, cROOTTAG);
-  AddMid(FMidTable, cMIDTAG);
+  AddMid(FMidTable, cMIDTAG, cMIDKEY1);
 
   FRoot.Current;
 
@@ -509,7 +667,7 @@ procedure TTestGrandchildRead.ClientDataSet_ReadingCurrentOnTheGrandparent_Keeps
 begin
   BuildCdsTree;
   AddRoot(FRootCds, cROOTTAG);
-  AddMid(FMidCds, cMIDTAG);
+  AddMid(FMidCds, cMIDTAG, cMIDKEY1);
   AddLeaf(FLeafCds, cLEAFTAG);
 
   FCdsRoot.Current;
@@ -524,7 +682,7 @@ procedure TTestGrandchildRead.Rest_ReadingCurrentOnTheGrandparent_NeverDestroyed
 begin
   BuildRestTree;
   AddRoot(FRestRootTable, cROOTTAG);
-  AddMid(FRestMidTable, cMIDTAG);
+  AddMid(FRestMidTable, cMIDTAG, cMIDKEY1);
   AddLeaf(FRestLeafTable, cLEAFTAG);
 
   FRestRoot.Current;
@@ -541,8 +699,8 @@ procedure TTestGrandchildRead.TheReadLeavesTheMidCursorWhereItFoundIt;
 begin
   BuildLocalTree;
   AddRoot(FRootTable, cROOTTAG);
-  AddMid(FMidTable, cMIDTAG);
-  AddMid(FMidTable, cMIDTAG2);
+  AddMid(FMidTable, cMIDTAG, cMIDKEY1);
+  AddMid(FMidTable, cMIDTAG2, cMIDKEY2);
   AddLeaf(FLeafTable, cLEAFTAG);
   ParkOnFirst(FMidTable);
 
@@ -559,7 +717,7 @@ var
 begin
   BuildLocalTree;
   AddRoot(FRootTable, cROOTTAG);
-  AddMid(FMidTable, cMIDTAG);
+  AddMid(FMidTable, cMIDTAG, cMIDKEY1);
   AddLeaf(FLeafTable, cLEAFTAG);
 
   // The adapter owns the instance Current hands back - it is FCurrentInternal,
@@ -578,8 +736,8 @@ procedure TTestGrandchildRead.AfterTheRead_AnOperatorScrollStillDiscards;
 begin
   BuildLocalTree;
   AddRoot(FRootTable, cROOTTAG);
-  AddMid(FMidTable, cMIDTAG);
-  AddMid(FMidTable, cMIDTAG2);
+  AddMid(FMidTable, cMIDTAG, cMIDKEY1);
+  AddMid(FMidTable, cMIDTAG2, cMIDKEY2);
   AddLeaf(FLeafTable, cLEAFTAG);
   ParkOnFirst(FMidTable);
 
@@ -599,6 +757,129 @@ begin
     'and the historical discard is still there: the suppression the repair ' +
     'installs is scoped to the read walk and released when it ends. A ' +
     'suppression left switched on reddens exactly this line');
+end;
+
+procedure TTestGrandchildRead.OneToOneTop_ReadingCurrentOnTheGrandparent_KeepsTheGrandchildRow;
+begin
+  BuildOneToOneTree;
+  // TAsymTreeOneRoot.mid starts nil BY DESIGN - its model header says so - and
+  // a nil there is a DIFFERENT defect: _ExecuteOneToOne takes LValue.AsObject
+  // and hands the nil straight to Bind.SetFieldToProperty, which dereferences
+  // it. That AccessViolation is not what this test is about and it is not an
+  // obstacle either: filling the property costs ONE line, and the line is safe
+  // because with the root dataset still empty Current returns FCurrentInternal
+  // on its RecordCount = 0 exit and walks nothing.
+  FOneRoot.Current.mid := TAsymTreeMid.Create;
+
+  FOneRootTable.Append;
+  FOneRootTable.FieldByName(cONEROOTTAG).AsString := 'P1';
+  FOneRootTable.Post;
+  FOneMidTable.Append;
+  FOneMidTable.FieldByName(cONEMIDTAG).AsString := 'AM1';
+  FOneMidTable.Post;
+  FOneLeafTable.Append;
+  FOneLeafTable.FieldByName(cONELEAFTAG).AsString := 'AL1';
+  FOneLeafTable.FieldByName(cONELEAFFK).AsInteger := cSENTINEL;
+  FOneLeafTable.Post;
+
+  Assert.AreEqual('AL1/' + IntToStr(cSENTINEL) + ';',
+    SignatureOf(FOneLeafTable, cONELEAFTAG, cONELEAFFK),
+    'premise: the grandchild line is on screen under a OneToOne top level too');
+
+  FOneRoot.Current;
+
+  Assert.AreEqual('AL1/' + IntToStr(cSENTINEL) + ';',
+    SignatureOf(FOneLeafTable, cONELEAFTAG, cONELEAFFK),
+    'a OneToOne top level reaches the SAME child cursor through ' +
+    '_ExecuteOneToOne, whose First is exposed exactly like the one in ' +
+    '_ExecuteOneToMany. Repairing one branch and not the other would close ' +
+    'this issue with a read of .Current still destroying grandchildren in ' +
+    'silence, in a shape the repository already ships a model for');
+end;
+
+procedure TTestGrandchildRead.AnExceptionInsideTheWalk_StillReleasesTheSuppression;
+var
+  LRaised: String;
+begin
+  BuildLocalTree(True, True);
+  AddRoot(FRootTable, cROOTTAG);
+  AddMid(FMidTable, cMIDTAG, cMIDKEY1);
+  AddMid(FMidTable, cMIDTAG2, cMIDKEY2);
+  AddLeaf(FLeafTable, cLEAFTAG);
+  ParkOnFirst(FMidTable);
+
+  LRaised := '';
+  FRaiseOnNextScroll := True;
+  try
+    FRoot.Current;
+  except
+    on E: Exception do
+      LRaised := E.Message;
+  end;
+
+  Assert.AreEqual('consumer AfterScroll blew up mid-walk', LRaised,
+    'premise: the walk really was interrupted by an exception, and the ' +
+    'exception really came from inside it');
+
+  // One keypress on the middle grid, AFTER the failed read. The historical
+  // discard has to be back.
+  FMidTable.Next;
+
+  Assert.AreEqual(cMIDTAG2, TagUnderCursor(FMidTable),
+    'the middle grid must really have moved, otherwise nothing was measured');
+  Assert.AreEqual(cNOROW, Signature(FLeafTable, cMIDKEY),
+    'the release is in a `finally`, so an exception on the way out still ' +
+    'lowers the counter. Without it the counter stays up for the life of the ' +
+    'adapter and the operator scroll stops discarding FOREVER - a contract ' +
+    'broken permanently, and invisibly to every other test in the suite');
+end;
+
+procedure TTestGrandchildRead.TheSuppressedWalk_StillFiresTheConsumersOwnAfterScroll;
+begin
+  BuildLocalTree(True, True);
+  AddRoot(FRootTable, cROOTTAG);
+  AddMid(FMidTable, cMIDTAG, cMIDKEY1);
+  AddMid(FMidTable, cMIDTAG2, cMIDKEY2);
+  AddLeaf(FLeafTable, cLEAFTAG);
+  ParkOnFirst(FMidTable);
+  FSeenByConsumer := '';
+
+  FRoot.Current;
+
+  Assert.AreEqual(cMIDTAG + ';' + cMIDTAG2 + ';' + cMIDTAG + ';',
+    FSeenByConsumer,
+    'the suppression takes down ONE call and not the event. The consumer''s ' +
+    'own AfterScroll is reached through the `inherited` at the end of ' +
+    'DoAfterScroll - the same `inherited` the paging leg rides on - and it ' +
+    'still sees the walk pass through both rows and come back. A repair ' +
+    'phrased as DisableDataSetEvents would have silenced all of this');
+end;
+
+procedure TTestGrandchildRead.TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll;
+var
+  LBefore: String;
+begin
+  BuildLocalTree;
+  AddRoot(FRootTable, cROOTTAG);
+  AddMid(FMidTable, cMIDTAG, cMIDKEY1);
+  AddMid(FMidTable, cMIDTAG2, cMIDKEY2);
+  AddLeaf(FLeafTable, cLEAFTAG);
+  ParkOnFirst(FMidTable);
+
+  LBefore := TReadAccess<TAitMid>.LastPK(FMid);
+  Assert.AreNotEqual(cMIDKEY1AS, LBefore,
+    'premise: the witness must not already hold the value the read is ' +
+    'supposed to write, or the clause below would pass on a run where ' +
+    '_InjectLazyProxiesOnScroll never ran at all');
+
+  FRoot.Current;
+
+  Assert.AreEqual(cMIDKEY1AS, TReadAccess<TAitMid>.LastPK(FMid),
+    '_InjectLazyProxiesOnScroll sits beside the suppressed call inside the ' +
+    'same guard, and it must survive: it still runs on every row of the walk ' +
+    'and its last word is the row the cursor was put back on. Swallow it ' +
+    'together with the re-open and a consumer''s lazy associations stop ' +
+    'being injected, with nothing to say so');
 end;
 
 initialization
