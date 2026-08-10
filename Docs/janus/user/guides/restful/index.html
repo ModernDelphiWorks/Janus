@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Guia - Driver RESTful | Janus Docs</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://example.com/janus/user/guides/restful"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Guia - Driver RESTful | Janus Docs"><meta data-rh="true" name="description" content="O driver RESTful do Janus permite persistir entidades via API HTTP em vez de banco de dados direto. O cliente Janus se comunica com um servidor que expõe endpoints do próprio Janus."><meta data-rh="true" property="og:description" content="O driver RESTful do Janus permite persistir entidades via API HTTP em vez de banco de dados direto. O cliente Janus se comunica com um servidor que expõe endpoints do próprio Janus."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://example.com/janus/user/guides/restful"><link data-rh="true" rel="alternate" href="https://example.com/janus/user/guides/restful" hreflang="en"><link data-rh="true" rel="alternate" href="https://example.com/janus/user/guides/restful" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Janus","item":"https://example.com/janus/"},{"@type":"ListItem","position":2,"name":"Guia - Driver RESTful","item":"https://example.com/janus/user/guides/restful"}]}</script><link rel="stylesheet" href="/assets/css/styles.78e6bda1.css">
-<script src="/assets/js/runtime~main.65a0054b.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.be8c7d16.js" defer="defer"></script>
 <script src="/assets/js/main.567e2257.js" defer="defer"></script>
 </head>
 <body>
@@ -35,7 +35,110 @@
 <li class="">Quando o banco não pode ser acessado diretamente do cliente.</li>
 <li class="">Multi-camada com autenticação centralizada no servidor.</li>
 </ul>
+<h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="versões-de-terceiros-contra-as-quais-os-drivers-foram-escritos">Versões de terceiros contra as quais os drivers foram escritos<a href="#versões-de-terceiros-contra-as-quais-os-drivers-foram-escritos" class="hash-link" aria-label="Direct link to Versões de terceiros contra as quais os drivers foram escritos" title="Direct link to Versões de terceiros contra as quais os drivers foram escritos" translate="no">​</a></h2>
+<p>Os drivers de servidor de terceiros não são vendorizados neste repositório. Cada
+um é localizado por uma propriedade de diretório no <code>.dproj</code> e foi escrito
+contra uma revisão concreta. Quem for mexer num driver deve conferir a revisão
+abaixo antes: essas bibliotecas renomeiam tipos entre versões e a quebra
+aparece só na compilação.</p>
+<table><thead><tr><th>Driver</th><th>Repositório</th><th>Revisão fixada</th><th>Data</th><th>Propriedade de diretório</th></tr></thead><tbody><tr><td>WiRL</td><td><a href="https://github.com/delphi-blocks/WiRL" target="_blank" rel="noopener noreferrer" class="">delphi-blocks/WiRL</a></td><td><code>aac8562c810b98fef590f3035f56bdf9ea3bad76</code></td><td>2026-07-13</td><td><code>$(WIRLDIR)</code> (convenção; nenhum <code>.dproj</code> a usa ainda)</td></tr><tr><td>MARS</td><td><a href="https://github.com/andrea-magni/MARS" target="_blank" rel="noopener noreferrer" class="">andrea-magni/MARS</a></td><td>não registrada</td><td>—</td><td><code>$(MARSDIR)</code> (usada por <code>Janus.Tests.RESTMARS.dproj</code>)</td></tr></tbody></table>
+<p>Search path esperado para <code>$(WIRLDIR)</code>: <code>Source\Core</code>, <code>Source\Client</code>,
+<code>Source\Data</code>, <code>Source\Data\FireDAC</code>, <code>Libs\Neon\Source</code>,
+<code>Libs\JWT\Source\Common</code>, <code>Libs\JWT\Source\JOSE</code>, <code>Libs\OpenAPI\Source</code>.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="aviso-o-pin-é-master-sem-tag-e-a-última-release-não-serve">AVISO: o pin é master sem tag, e a última release NÃO serve<a href="#aviso-o-pin-é-master-sem-tag-e-a-última-release-não-serve" class="hash-link" aria-label="Direct link to AVISO: o pin é master sem tag, e a última release NÃO serve" title="Direct link to AVISO: o pin é master sem tag, e a última release NÃO serve" translate="no">​</a></h3>
+<p><code>aac8562</code> é um snapshot do <code>master</code>, <strong>à frente de todas as releases</strong>. Quem
+instalar WiRL por release recebe outra coisa e <strong>este driver não compila</strong>.</p>
+<p>Verificado na API do GitHub em 2026-08-08:</p>
+<table><thead><tr><th></th><th>Última release <code>v4.6.0</code> (2024-05-27)</th><th>Pin <code>aac8562</code> (master, sem tag)</th></tr></thead><tbody><tr><td><code>Source/Core/WiRL.Core.Engine.pas</code></td><td><strong>existe</strong></td><td>não existe</td></tr><tr><td><code>Source/Core/WiRL.Engine.*.pas</code></td><td><strong>nenhum arquivo</strong></td><td>5 arquivos</td></tr><tr><td>Motor que hospeda aplicações</td><td><code>TWiRLEngine</code></td><td><code>TWiRLRESTEngine</code></td></tr><tr><td><code>WiRL.Client.Token.pas</code></td><td>já removido</td><td>removido</td></tr><tr><td><code>WiRL.Client.SubResource[.JSON].pas</code></td><td>já removido</td><td>removido</td></tr><tr><td><code>WiRL.Client.Resource.JSON.pas</code></td><td>já removido</td><td>removido</td></tr></tbody></table>
+<p>As duas metades da quebra aconteceram em momentos diferentes:</p>
+<ul>
+<li class=""><strong>O lado cliente já estava quebrado na <code>v4.6.0</code>.</strong> As cinco units de cliente
+que o Janus usava sumiram na release ou antes dela — o código de cliente
+escrito aqui é necessário nos dois casos.</li>
+<li class=""><strong>A divisão do motor é exclusiva do master.</strong> Contra a <code>v4.6.0</code> o nome antigo
+<code>WiRL.Core.Engine</code>/<code>TWiRLEngine</code> continua sendo o correto.</li>
+</ul>
+<p>Consequência prática: para fazer este driver compilar contra a <code>v4.6.0</code> basta
+uma mudança — a unit e o tipo do motor em <code>Janus.Server.WiRL.pas</code>. O resto do
+driver serve às duas.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="o-que-mudou-no-master">O que mudou no master<a href="#o-que-mudou-no-master" class="hash-link" aria-label="Direct link to O que mudou no master" title="Direct link to O que mudou no master" translate="no">​</a></h3>
+<ul>
+<li class=""><code>WiRL.Core.Engine</code> foi dividido. O motor virou uma família:
+<code>TWiRLCustomEngine</code> (base abstrata, <code>WiRL.Engine.Core</code>), <code>TWiRLRESTEngine</code>
+(<code>WiRL.Engine.REST</code>), <code>TWiRLHTTPEngine</code> (<code>WiRL.Engine.HTTP</code>),
+<code>TWiRLFileSystemEngine</code> (<code>WiRL.Engine.FileSystem</code>) e <code>TWiRLWebServerEngine</code>
+(<code>WiRL.Engine.WebServer</code>). O driver do Janus usa <code>TWiRLRESTEngine</code>, que é o
+único que hospeda aplicações e resources — os outros três servem arquivo
+estático ou despacham um evento. Trocar por engano por outro dá erro de
+compilação (<code>E2003</code>), não falha silenciosa.</li>
+<li class="">Os componentes de cliente <code>TWiRLClientResourceJSON</code>,
+<code>TWiRLClientSubResourceJSON</code> e <code>TWiRLClientToken</code> foram removidos (já na
+<code>v4.6.0</code>). Um único <code>TWiRLClientResource</code> carrega o caminho inteiro.</li>
+</ul>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="o-caminho-genérico-exige-messagebodywriter-registrado">O caminho genérico exige MessageBodyWriter registrado<a href="#o-caminho-genérico-exige-messagebodywriter-registrado" class="hash-link" aria-label="Direct link to O caminho genérico exige MessageBodyWriter registrado" title="Direct link to O caminho genérico exige MessageBodyWriter registrado" translate="no">​</a></h3>
+<p>O cliente do WiRL atual só tem um caminho: <code>Get&lt;T&gt;</code>, <code>Post&lt;T,V&gt;</code>, <code>Put&lt;T,V&gt;</code> e
+<code>Delete&lt;T&gt;</code> caem todos em <code>TWiRLClientCustomResource.GenericHttpRequest&lt;T,V&gt;</code>
+(<code>WiRL.Client.CustomResource.pas:466-514</code>), que <strong>antes de qualquer I/O</strong>
+chama <code>ObjectToStream&lt;T&gt;</code> (<code>:417-433</code>) e este pede um writer a
+<code>Application.WriterRegistry.FindWriter</code>.</p>
+<p>Se nenhuma unit de MessageBody estiver <strong>linkada no binário</strong>, o registro está
+vazio e o WiRL levanta <code>EWiRLServerException</code> com
+<code>MessageBodyWriters registry is empty</code> (<code>WiRL.Core.MessageBodyWriter.pas:201</code>
+e <code>:213</code>) — em <strong>toda</strong> requisição, <code>GET</code> inclusive, mesmo sem corpo.</p>
+<p>Por <code>DoRequest</code> essa exceção <strong>ainda é convertida</strong>: o <code>except on E: Exception</code>
+de <code>Janus.Client.WiRL.pas:200-201</code> é genérico, então mesmo com o registro
+vazio o <code>GET</code> levanta <code>EJanusRESTException</code> e o <code>OnErrorCommand</code> dispara,
+carregando a mensagem no campo de erro. O escape cru está <strong>noutro lugar</strong>:
+<code>EWiRLServerException</code> <strong>não</strong> descende de <code>EWiRLClientException</code>
+(<code>WiRL.Core.Exceptions.pas:167</code> contra <code>WiRL.http.Client.Interfaces.pas:29</code>),
+e o <code>except</code> de <code>AcquireAccessToken</code> (<code>Janus.Client.WiRL.pas:430-431</code>) só
+cobre a segunda. Como <code>SetAuthenticatorTypeValues</code> (<code>:477-478</code>) chama
+<code>AcquireAccessToken</code> dentro de um <code>try..finally</code> sem <code>except</code>, pelo caminho
+do bearer com credenciais a exceção <strong>escapa crua</strong> e o <code>OnErrorCommand</code>
+não dispara.</p>
+<p>Por isso <code>Janus.Client.WiRL.pas</code> traz <code>WiRL.Core.MessageBody.Default</code> no <code>uses</code>
+da seção <code>implementation</code> — é o que a própria demo do upstream faz
+(<code>Demos/03.Authorization/Client.Form.Main.pas:80</code>). A unit registra os writers
+padrão na sua <code>initialization</code>
+(<code>WiRL.Core.MessageBody.Default.pas:693-694</code>); referenciá-la é o que garante o
+link.</p>
+<p><strong>O caminho antigo não exigia isso.</strong> Em <code>v3.0.1</code> o driver falava com o par
+<code>TWiRLClientResourceJSON</code>/<code>TWiRLClientSubResourceJSON</code>, que montava o corpo
+como stream puro sem passar por <code>WriterRegistry</code>. A dependência é, portanto,
+consequência direta da reescrita para a API genérica — não uma configuração
+opcional.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="autenticação-capacidade-nova-não-migrada">Autenticação: capacidade nova, não migrada<a href="#autenticação-capacidade-nova-não-migrada" class="hash-link" aria-label="Direct link to Autenticação: capacidade nova, não migrada" title="Direct link to Autenticação: capacidade nova, não migrada" translate="no">​</a></h3>
+<p>O <code>TWiRLClientToken</code> extinto POSTava <code>username</code>/<code>password</code> no corpo, ou seja
+falava com o <code>TWiRLAuthFormResource</code>. O <code>AcquireAccessToken</code> do
+<code>Janus.Client.WiRL.pas</code> POSTa corpo vazio com cabeçalho <code>Authorization: Basic</code>,
+ou seja fala com o <code>TWiRLAuthBasicResource</code> — <strong>endpoints diferentes</strong>. O
+upstream tem três sabores (Form, Basic e Body, em <code>WiRL.Core.Auth.Resource</code>).</p>
+<p>Portanto isto é <strong>capacidade nova, num sabor de autenticação diferente do
+componente extinto, e não exercitada em execução por nada deste repositório</strong>.
+Não houve regressão porque o componente antigo era casca: em <code>f6d6c50</code> o
+<code>FRESTToken</code> era declarado, criado, ligado à aplicação e recebia credenciais,
+mas nunca era chamado para fazer o POST.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="compatibilidade-com-wirl-antigo">Compatibilidade com WiRL antigo<a href="#compatibilidade-com-wirl-antigo" class="hash-link" aria-label="Direct link to Compatibilidade com WiRL antigo" title="Direct link to Compatibilidade com WiRL antigo" translate="no">​</a></h3>
+<p>Não há. O driver faz corte limpo no pin acima. Compilação condicional foi
+considerada e descartada: os tipos mudaram de unit <strong>e</strong> de nome, o
+<code>TWiRLClientToken</code> não tem equivalente, e manter os dois lados exigiria uma
+matriz de compilação que ninguém executa — nenhum projeto de teste deste
+repositório compila o driver WiRL hoje.</p>
+<h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="defeitos-pré-existentes-registrados-aqui-para-não-se-perderem">Defeitos pré-existentes registrados aqui para não se perderem<a href="#defeitos-pré-existentes-registrados-aqui-para-não-se-perderem" class="hash-link" aria-label="Direct link to Defeitos pré-existentes registrados aqui para não se perderem" title="Direct link to Defeitos pré-existentes registrados aqui para não se perderem" translate="no">​</a></h3>
+<p>Nenhum dos dois é da issue #228 e nenhum foi corrigido:</p>
+<ul>
+<li class=""><strong><code>TRESTServerWiRL.SetWiRLEngine</code> → <code>AddResource</code>
+(<code>Janus.Server.WiRL.pas:70-73</code>) sai em silêncio quando
+<code>Applications.Count = 0</code>.</strong> Atribuir o engine antes de adicionar a aplicação
+não registra resource nenhum e não acusa erro. Esta é a falha silenciosa
+real — no wiring, não na escolha do motor.</li>
+<li class=""><strong><code>TRESTDriverWiRL</code> não sobrescreve o abstrato <code>TRESTDriver.GetFullURL</code></strong>
+(<code>Janus.Client.RestDriver.pas:37</code>; o driver Horse sobrescreve em
+<code>Janus.Client.RestDriver.Horse.pas:43</code>). A compilação acusa <code>W1020</code> em
+<code>Janus.Client.RestWiRL.Factory.pas(53)</code>; chamar <code>GetFullURL</code> neste driver é
+<em>abstract method error</em> em execução.</li>
+</ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="referências-de-funcionalidade-avançada-esp-002">Referências de funcionalidade avançada (ESP-002)<a href="#referências-de-funcionalidade-avançada-esp-002" class="hash-link" aria-label="Direct link to Referências de funcionalidade avançada (ESP-002)" title="Direct link to Referências de funcionalidade avançada (ESP-002)" translate="no">​</a></h2>
-<table><thead><tr><th>Tópico</th><th>Documento</th></tr></thead><tbody><tr><td>Consulta OData (operadores, funções, lógica)</td><td><a class="" href="/janus/odata-reference">OData Query Reference</a></td></tr><tr><td>Atributo <code>[RESTReadOnly]</code></td><td><a class="" href="/janus/rest-readonly">RESTReadOnly</a></td></tr><tr><td>Estratégia de JOIN (RTTI vs VIEW)</td><td><a class="" href="/janus/rest-join-strategy">JOIN Strategy</a></td></tr></tbody></table></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/janus/user/guides/json"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Guia - Serialização JSON</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/janus/user/reference/configuration"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Referencia de Configuracao</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#frameworks-de-servidor-suportados" class="table-of-contents__link toc-highlight">Frameworks de servidor suportados</a></li><li><a href="#configurar-o-cliente" class="table-of-contents__link toc-highlight">Configurar o cliente</a></li><li><a href="#usar-o-container-restful" class="table-of-contents__link toc-highlight">Usar o container RESTful</a></li><li><a href="#configurar-o-servidor-com-horse" class="table-of-contents__link toc-highlight">Configurar o servidor com Horse</a></li><li><a href="#fluxo-de-dados" class="table-of-contents__link toc-highlight">Fluxo de dados</a></li><li><a href="#quando-usar" class="table-of-contents__link toc-highlight">Quando usar</a></li><li><a href="#referências-de-funcionalidade-avançada-esp-002" class="table-of-contents__link toc-highlight">Referências de funcionalidade avançada (ESP-002)</a></li></ul></div></div></div></div></main></div></div></div></div>
+<table><thead><tr><th>Tópico</th><th>Documento</th></tr></thead><tbody><tr><td>Consulta OData (operadores, funções, lógica)</td><td><a class="" href="/janus/odata-reference">OData Query Reference</a></td></tr><tr><td>Atributo <code>[RESTReadOnly]</code></td><td><a class="" href="/janus/rest-readonly">RESTReadOnly</a></td></tr><tr><td>Estratégia de JOIN (RTTI vs VIEW)</td><td><a class="" href="/janus/rest-join-strategy">JOIN Strategy</a></td></tr></tbody></table></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/janus/user/guides/json"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Guia - Serialização JSON</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/janus/user/reference/configuration"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Referencia de Configuracao</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#frameworks-de-servidor-suportados" class="table-of-contents__link toc-highlight">Frameworks de servidor suportados</a></li><li><a href="#configurar-o-cliente" class="table-of-contents__link toc-highlight">Configurar o cliente</a></li><li><a href="#usar-o-container-restful" class="table-of-contents__link toc-highlight">Usar o container RESTful</a></li><li><a href="#configurar-o-servidor-com-horse" class="table-of-contents__link toc-highlight">Configurar o servidor com Horse</a></li><li><a href="#fluxo-de-dados" class="table-of-contents__link toc-highlight">Fluxo de dados</a></li><li><a href="#quando-usar" class="table-of-contents__link toc-highlight">Quando usar</a></li><li><a href="#versões-de-terceiros-contra-as-quais-os-drivers-foram-escritos" class="table-of-contents__link toc-highlight">Versões de terceiros contra as quais os drivers foram escritos</a><ul><li><a href="#aviso-o-pin-é-master-sem-tag-e-a-última-release-não-serve" class="table-of-contents__link toc-highlight">AVISO: o pin é master sem tag, e a última release NÃO serve</a></li><li><a href="#o-que-mudou-no-master" class="table-of-contents__link toc-highlight">O que mudou no master</a></li><li><a href="#o-caminho-genérico-exige-messagebodywriter-registrado" class="table-of-contents__link toc-highlight">O caminho genérico exige MessageBodyWriter registrado</a></li><li><a href="#autenticação-capacidade-nova-não-migrada" class="table-of-contents__link toc-highlight">Autenticação: capacidade nova, não migrada</a></li><li><a href="#compatibilidade-com-wirl-antigo" class="table-of-contents__link toc-highlight">Compatibilidade com WiRL antigo</a></li><li><a href="#defeitos-pré-existentes-registrados-aqui-para-não-se-perderem" class="table-of-contents__link toc-highlight">Defeitos pré-existentes registrados aqui para não se perderem</a></li></ul></li><li><a href="#referências-de-funcionalidade-avançada-esp-002" class="table-of-contents__link toc-highlight">Referências de funcionalidade avançada (ESP-002)</a></li></ul></div></div></div></div></main></div></div></div></div>
 </body>
 </html>
