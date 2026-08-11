@@ -42,6 +42,18 @@
        nothing repairs the grandchild. The whole aggregate goes out in one POST.
     4. Is it dead? No. It is alive and it writes an invalid foreign key.
 
+  ITEMS 1 AND 3 ARE THE MEASUREMENT OF #262, AND #297 MOVED HALF OF ITEM 3.
+  "and it stays" and "nothing repairs the grandchild" were exact when they were
+  written and are no longer exact in general: TRESTDataSetAdapter<M>
+  .ApplyInserter now RE-READS the aggregate it inserted, so a grandchild left on
+  the placeholder can be repaired by the answer afterwards. What did NOT move is
+  everything this file measures: the recursion must not COPY a key that does not
+  exist yet, whatever comes back later, and the write under test happens before
+  any answer could arrive. The re-read does not reach the run below either -
+  TSeqRestConnection answers every verb with a `params` document and
+  TRESTDataSetAdapter<M>._AnswerIsTheRowUnderTheCursor discards an answer that
+  is not this row - which is why the clause reads the same number as before.
+
   THE LOCAL FAMILY CHANGED ITS ANSWER WHEN #276 LANDED, and that is why the
   order of attack was #276 -> #262. Before #276 the grandchild ROW was destroyed
   by the read of .Current on the grandparent before the cascade reached it, so

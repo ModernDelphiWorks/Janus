@@ -114,6 +114,7 @@ type
     FPutCount: Integer;
     FDeleteCount: Integer;
     FPostAnswer: String;
+    FPostAnswers: TStringList;
     FGetAnswer: String;
     function DoExecute(const ARequestMethod: TRESTRequestMethodType;
       const AParams: TProc): String;
@@ -152,6 +153,10 @@ type
     property GetCount: Integer read FGetCount;
     property PutCount: Integer read FPutCount;
     property DeleteCount: Integer read FDeleteCount;
+    /// One answer per POST, consumed in order. Empty means "the same answer
+    ///  every time" - which is fine for one root and a LIE for two, because two
+    ///  roots that come back on the SAME primary key are not two roots.
+    procedure QueuePostAnswer(const AAnswer: String);
     property PostAnswer: String read FPostAnswer write FPostAnswer;
     property GetAnswer: String read FGetAnswer write FGetAnswer;
   end;
@@ -289,6 +294,40 @@ type
     /// recursive instead of one level deep.
     [Test]
     procedure Cost_AStaleGrandchildAloneStillBuysTheGet;
+    /// Every level already carries a key of its own. Nothing is stale, so there
+    /// is nothing to ask about - the fifth and last case that pays nothing, and
+    /// the only one that had no clause of its own.
+    [Test]
+    procedure Cost_AGraphThatAlreadyCarriesEveryKeyBuysNoGet;
+    /// `params` came back, but named no column this row has - so the stamp
+    /// wrote nothing and the root is STILL on the placeholder. Gating on
+    /// "params arrived" instead of "the key arrived" sent the GET out as
+    /// $filter=root_id=-1, a round trip that can only answer somebody else's
+    /// row or nothing at all - and it contradicted the message of the clause
+    /// right above it, which says the re-read must not fire on a placeholder.
+    [Test]
+    procedure Cost_ParamsThatNameNoColumnOfThisRowBuyNoGet;
+
+    // -----------------------------------------------------------------------
+    // An answer SHALLOWER than the graph the client is holding.
+    // -----------------------------------------------------------------------
+
+    /// The answer carries the middle level but not the grandchild - which is
+    /// what the shipped server does whenever the association is Lazy, because
+    /// TRESTObjectManager.FillAssociation skips exactly those. Applying it
+    /// would empty a grandchild dataset the server had JUST written from the
+    /// POST, and nothing would ever put those rows back.
+    [Test]
+    procedure Shallow_AnAnswerMissingTheGrandchildBranchIsRefused;
+    /// The same one level up: the answer carries no children at all, while the
+    /// client holds children that went out in that very POST.
+    [Test]
+    procedure Shallow_AnAnswerWithNoChildBranchAtAllIsRefused;
+    /// The control that keeps the two above from being a blanket refusal: where
+    /// the CLIENT holds nothing, an answer that carries nothing is not shallow -
+    /// it agrees, and the levels that ARE there must still be reconciled.
+    [Test]
+    procedure Shallow_AnAnswerIsNotRefusedForALevelTheClientDoesNotHold;
 
     // -----------------------------------------------------------------------
     // The design constraint the repair had to obey.
@@ -387,12 +426,14 @@ begin
   inherited Create;
   FBodies := TStringList.Create;
   FQueries := TStringList.Create;
+  FPostAnswers := TStringList.Create;
   FPostAnswer := cPOSTANSWER;
   FGetAnswer := cGETANSWER;
 end;
 
 destructor TReplayRestConnection.Destroy;
 begin
+  FPostAnswers.Free;
   FQueries.Free;
   FBodies.Free;
   inherited;
@@ -416,7 +457,10 @@ begin
     TRESTRequestMethodType.rtPOST:
       begin
         Inc(FPostCount);
-        Result := FPostAnswer;
+        if FPostCount <= FPostAnswers.Count then
+          Result := FPostAnswers[FPostCount - 1]
+        else
+          Result := FPostAnswer;
       end;
     TRESTRequestMethodType.rtGET:
       begin
@@ -450,6 +494,11 @@ function TReplayRestConnection.Execute(const AResource: String;
   const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): String;
 begin
   Result := DoExecute(ARequestMethod, AParams);
+end;
+
+procedure TReplayRestConnection.QueuePostAnswer(const AAnswer: String);
+begin
+  FPostAnswers.Add(AAnswer);
 end;
 
 procedure TReplayRestConnection.AddBodyParam(AValue: String);
@@ -852,6 +901,97 @@ begin
     'wrong forever');
   Assert.AreEqual(cSRVLEAF, KeyOf(FLeafMem, cLEAFKEY),
     'and the grandchild really was reconciled');
+end;
+
+procedure TTestRestReReadAfterInsert.Cost_AGraphThatAlreadyCarriesEveryKeyBuysNoGet;
+begin
+  BuildMemTree;
+  SeedRoot(FRootMem, 'root');
+  FMidMem.Append;
+  FMidMem.FieldByName(cMIDKEY).AsInteger := cSRVMID;
+  FMidMem.FieldByName(cROOTKEY).AsInteger := cPLACEHOLDER;
+  FMidMem.FieldByName(cTAG).AsString := 'typed';
+  FMidMem.Post;
+  FLeafMem.Append;
+  FLeafMem.FieldByName(cLEAFKEY).AsInteger := cSRVLEAF;
+  FLeafMem.FieldByName(cMIDKEY).AsInteger := cSRVMID;
+  FLeafMem.FieldByName(cROOTKEY).AsInteger := cPLACEHOLDER;
+  FLeafMem.FieldByName(cTAG).AsString := 'typed';
+  FLeafMem.Post;
+  TMemApply<TAitRoot>.Apply(FMemRoot);
+  Assert.AreEqual(1, FRep.PostCount, 'premise: the aggregate was sent');
+  Assert.AreEqual(0, FRep.GetCount,
+    'both levels below the root already carry a key of their own, so there is ' +
+    'no divergence to reconcile and no round trip to pay for');
+end;
+
+procedure TTestRestReReadAfterInsert.Cost_ParamsThatNameNoColumnOfThisRowBuyNoGet;
+begin
+  // A well-formed answer that names a column this entity does not have. The
+  // stamp loop skips it - FindField answers nil - so nothing is written and the
+  // root comes out of ApplyInserter still on the placeholder.
+  FRep.PostAnswer := '{"result":"ok","params":[{"nosuchcolumn":"9"}]}';
+  RunMem;
+  Assert.AreEqual(cPLACEHOLDER, KeyOf(FRootMem, cROOTKEY),
+    'premise of this clause: nothing was stamped, so the root is still on the ' +
+    'placeholder even though params did come back');
+  Assert.AreEqual(0, FRep.GetCount,
+    'the gate has to be "the root key arrived", not "an answer arrived": with ' +
+    'the root still at -1 the only filter the re-read could build is ' +
+    'root_id=-1');
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Shallow_AnAnswerMissingTheGrandchildBranchIsRefused;
+begin
+  // Exactly what the shipped server answers when `leafs` is Lazy: the middle
+  // level is there, the grandchild branch is not.
+  FRep.GetAnswer :=
+    '[{"root_id":777,"tag":"root","others":[],"mids":[' +
+      '{"mid_id":555,"root_id":777,"tag":"mid"}]}]';
+  RunMem;
+  Assert.AreEqual(1, FRep.GetCount, 'premise: the re-read really was issued');
+  Assert.AreEqual(1, FLeafMem.RecordCount,
+    'the grandchild row went out in the POST and the server wrote it. An ' +
+    'answer that does not mention that level is not permission to delete it');
+  Assert.AreEqual(1, FMidMem.RecordCount,
+    'and the middle row is still there too');
+  Assert.AreEqual(cPLACEHOLDER, KeyOf(FMidMem, cMIDKEY),
+    'the answer was refused WHOLE rather than applied in part: a half-applied ' +
+    'graph is a third state nobody can reason about');
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Shallow_AnAnswerWithNoChildBranchAtAllIsRefused;
+begin
+  FRep.GetAnswer := '[{"root_id":777,"tag":"root","others":[],"mids":[]}]';
+  RunMem;
+  Assert.AreEqual(1, FRep.GetCount, 'premise: the re-read really was issued');
+  Assert.AreEqual(1, FMidMem.RecordCount,
+    'the middle row went out in the POST and the server wrote it');
+  Assert.AreEqual(1, FLeafMem.RecordCount,
+    'and so did the grandchild - emptying the middle level takes it along ' +
+    'through its own CascadeDelete, so this clause loses two rows if the ' +
+    'refusal is missing');
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Shallow_AnAnswerIsNotRefusedForALevelTheClientDoesNotHold;
+begin
+  // Root and one middle row, no grandchild anywhere - not in the client, not
+  // in the answer.
+  BuildMemTree;
+  SeedRoot(FRootMem, 'root');
+  SeedMid(FMidMem, 'mid');
+  FRep.GetAnswer :=
+    '[{"root_id":777,"tag":"root","others":[],"mids":[' +
+      '{"mid_id":555,"root_id":777,"tag":"mid"}]}]';
+  TMemApply<TAitRoot>.Apply(FMemRoot);
+  Assert.AreEqual(1, FRep.GetCount, 'premise: the re-read really was issued');
+  Assert.AreEqual(cSRVMID, KeyOf(FMidMem, cMIDKEY),
+    'the client holds no grandchild, so an answer with no grandchild branch ' +
+    'agrees with it and must be applied - a refusal that fired here would ' +
+    'turn the whole repair off for every two-level aggregate');
 end;
 
 procedure TTestRestReReadAfterInsert
