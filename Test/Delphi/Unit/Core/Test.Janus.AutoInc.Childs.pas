@@ -1316,10 +1316,16 @@ begin
   // AND WHAT THE SECOND PASS DOES NOT DO ANY MORE - issue #265, and this
   // paragraph replaces the one that stood here. Until #265 the two master rows
   // below recorded NO identity, because appending them with the adapter muted
-  // is exactly what unhooks DoNewRecord, and _AutoIncToChildRows waves through
+  // is exactly what unhooks DoNewRecord, and _AutoIncToChildRows waved through
   // any child whose parentage is unrecorded - so R1 wrote R2 children on its
   // own pass and R2 wrote them again on its. This test pinned that as the
   // documented fallback.
+  // THE PAST TENSE IS LOAD-BEARING and issue #261 is what earned it: that
+  // wave-through is not unconditional any more. An unrecorded child is still
+  // written where ONE master is pending and by NONE where more than one is -
+  // see TDataSetBaseAdapter<M>._IsOwnedByMasterRow and FCascadeMasterRows.
+  // Nothing below changes, because the children here are typed with their
+  // events LIVE and do record a parent.
   //
   // It is not a fallback any more, it is closed.
   // TDataSetBaseAdapter<M>._EnsureMasterRowToken gives a master ROW an identity

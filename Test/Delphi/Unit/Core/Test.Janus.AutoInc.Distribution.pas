@@ -2670,8 +2670,9 @@ begin
       'while the child records NO parentage: there was no identity to read ' +
       'and the row was in no state to receive one, so this falls back to the ' +
       'historical behaviour. THIS IS A DECLARED LIMIT, not a fix - a child ' +
-      'typed here is still claimable by any pending master, exactly as it was ' +
-      'before issue #265');
+      'typed here is still claimable by THE pending master when there is one, ' +
+      'as it was before issue #265, and by NONE when there is more than one, ' +
+      'which is the boundary issue #261 put on that fallback');
     if LRootTable.State in [dsInsert, dsEdit] then
       LRootTable.Cancel;
   finally
@@ -3488,7 +3489,8 @@ begin
     'levels down, which CheckBrowseMode would have Cancelled and not Posted ' +
     'had no control been attached - so the child being typed records no ' +
     'parentage and falls back to the behaviour that shipped before issue ' +
-    '#265, and stays claimable by any pending master. THIS IS A DECLARED ' +
+    '#265 - claimable by THE pending master where there is one, and by none ' +
+    'where there is more than one, since issue #261. THIS IS A DECLARED ' +
     'LIMIT, not a defect');
   Assert.IsTrue(LState = dsEdit,
     'and it must still be open. Measured state: ' +
@@ -3730,7 +3732,8 @@ begin
     Assert.AreEqual(cNOTOKEN, TokenOfTaggedRow(LMidTable, 'C0', cOWNERTOKEN),
       'AND THE PRICE OF THAT, STATED RATHER THAN HIDDEN: the child comes out ' +
       'naming NOBODY, and falls back to the pre-#265 behaviour of being ' +
-      'claimable by whichever pending master is passing. Writing the token ' +
+      'claimable by whichever pending master is passing - bounded since issue ' +
+      '#261 to the case where exactly ONE is passing. Writing the token ' +
       'into the open buffer instead would leave Modified=True on an edit the ' +
       'operator has not finished - which the local family would swallow but ' +
       'TRESTDataSetAdapter<M>.ApplyUpdater turns into a PUT, and which a ' +
