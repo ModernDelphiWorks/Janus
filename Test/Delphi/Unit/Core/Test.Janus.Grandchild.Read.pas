@@ -99,6 +99,13 @@
   perfect silence - no exception at all. OneToOneTop_ReadingCurrentOnTheGrandparent
   is that measurement.
 
+  THAT PARAGRAPH IS HISTORY IN ONE RESPECT: since issue #296 a nil association
+  no longer raises anything, it makes _ExecuteOneToOne leave in silence. The
+  one line that fills the property is still there and is now LOAD-BEARING for a
+  different reason - without it the walk never reaches the child cursor and the
+  clause goes green on an empty premise. The comment over the line records the
+  two runs that measured that.
+
   What genuinely differs between the two is the SIZE of the hole:
   _ExecuteOneToMany exposes two scrolls, _ExecuteOneToOne exposes one, because
   the latter restores its bookmark while BlockReadSize is still MaxInt and the
@@ -1901,12 +1908,26 @@ procedure TTestGrandchildRead.OneToOneTop_ReadingCurrentOnTheGrandparent_KeepsTh
 begin
   BuildOneToOneTree;
   // TAsymTreeOneRoot.mid starts nil BY DESIGN - its model header says so - and
-  // a nil there is a DIFFERENT defect: _ExecuteOneToOne takes LValue.AsObject
-  // and hands the nil straight to Bind.SetFieldToProperty, which dereferences
-  // it. That AccessViolation is not what this test is about and it is not an
-  // obstacle either: filling the property costs ONE line, and the line is safe
-  // because with the root dataset still empty Current returns FCurrentInternal
-  // on its RecordCount = 0 exit and walks nothing.
+  // the line below fills it because a nil branch would leave this clause with
+  // NOTHING TO MEASURE. Since issue #296 _ExecuteOneToOne leaves in silence
+  // when the association is nil, so with the property left alone the walk
+  // never reaches the child cursor and the grandchild row survives whether or
+  // not the #276 repair is there at all.
+  //
+  // THAT IS NOT A GUESS, IT WAS MEASURED AT COMMIT 219ebcd, twice. Deleting
+  // this line alone leaves the whole project green - 567 found, 0 failures, 0
+  // errors. Deleting it AND taking the #276 suppression back out of
+  // _ExecuteOneToOne ALSO leaves this clause green; the two that go red there
+  // are Test.Janus.OneToOne.NilAssociation's assigned-branch clauses, which
+  // read the leaf list the walk builds. So removing the line would not shrink
+  // this test, it would silently stop it from testing anything.
+  //
+  // THE LINE USED TO BE HERE FOR A DIFFERENT REASON AND THAT REASON IS GONE: a
+  // nil used to reach Bind.SetFieldToProperty and dereference address zero,
+  // which is issue #296. It is safe where it stands for the reason it always
+  // was - with the root dataset still empty Current returns FCurrentInternal
+  // on its RecordCount = 0 exit and walks nothing - and the adapter's entity
+  // frees the branch in its own destructor.
   FOneRoot.Current.mid := TAsymTreeMid.Create;
 
   FOneRootTable.Append;
