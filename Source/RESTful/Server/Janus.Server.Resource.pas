@@ -120,9 +120,42 @@ uses
 ///  has been selected, and the first version of this repair learned the
 ///  difference the hard way: it selected the number branch correctly for an
 ///  unsigned 64-bit key and then handed the caller the negative
-///  reinterpretation of it. Selection and conversion are two surfaces, and
-///  each needs its own clause - see BigIntegerKey_MustNotBeNarrowed and
-///  UnsignedKeyAboveHighInt64_MustNotFlipSign.
+///  reinterpretation of it. Selection and conversion are two surfaces and each
+///  needs its own clause, on BOTH numeric branches - see
+///  BigIntegerKey_MustNotBeNarrowed and UnsignedKeyAboveHighInt64_MustNotFlipSign
+///  for the ordinal one, FractionalKey_MustNotBeTruncatedByANarrowerFloat for
+///  this one.
+///
+///  THE TWO NUMERIC BRANCHES CONVERT DIFFERENTLY, AND THE ASYMMETRY WAS
+///  MEASURED RATHER THAN ASSUMED. VarToStr was run over varInteger, varInt64,
+///  varUInt64, varDouble, varCurrency and varSingle under four FormatSettings:
+///  the ambient pt-BR one, then ThousandSeparator forced to '.', then to '#',
+///  then DecimalSeparator forced to '@'. Results:
+///
+///    - No ORDINAL type took a separator under ANY of the four. That is what
+///      makes VarToStr safe above.
+///    - varDouble and varSingle follow the ambient DECIMAL separator: under
+///      '@' they rendered 1234567@75 and 1234@5. That is what makes VarToStr
+///      unsafe here, and why this branch hands an explicit Double to
+///      TJSONNumber instead.
+///    - ThousandSeparator moved nothing, for any of the six types. The hazard
+///      on this path is the decimal separator alone.
+///    - varCurrency did not follow the '@' either - it kept the ambient comma.
+///      Measured, not explained; it is routed through the same Double here and
+///      the clause does not depend on why.
+///
+///  There is a safety net under the ordinal branch worth knowing about:
+///  TJSONNumber.Create(string) runs StrToFloat with JSONFormatSettings, so a
+///  string that ever did arrive grouped would RAISE rather than become a
+///  silently malformed document.
+///
+///  The float branch has a ceiling and it is the RTL's, not this code's:
+///  FloatToJson prints with JSONFormatSettings, whose Precision is 15.
+///  Measured through this very path - 0.123456789 comes back verbatim,
+///  12345678.9012345678 comes back as 12345678.9012346. A key needing more
+///  than 15 significant digits is therefore rounded here, and no clause in the
+///  fixture stands in front of that: pinning it would be pinning RTL
+///  formatting, and no mapping in this repository produces such a key.
 ///
 ///  The guard above catches TWO Variant states, not one, and they are reached
 ///  by different shapes. MetaDbDiff's TRttiPropertyHelper.GetNullableValue

@@ -214,6 +214,16 @@ type
     [Test]
     procedure FractionalKey_TheResponseMustBeParseableJson;
 
+    /// The float branch's own selection-versus-conversion seam, and the twin
+    /// of BigIntegerKey_MustNotBeNarrowed. 10.5 survives every narrowing there
+    /// is - Currency, Single, and the 15-significant-digit ceiling - so the
+    /// clause above pins WHICH branch is taken and nothing about what that
+    /// branch does once taken. Swap Double for Currency and a fractional key
+    /// silently loses everything past four decimal places, with the whole
+    /// suite green.
+    [Test]
+    procedure FractionalKey_MustNotBeTruncatedByANarrowerFloat;
+
     /// SELECTING the number branch is not the same as CONVERTING inside it.
     /// Nothing about the selection depends on width, so a conversion narrowed
     /// to 32 bits leaves every other clause in this fixture green and
@@ -550,6 +560,38 @@ begin
   Assert.AreEqual(10.5, StrToFloat(LPair.JsonValue.Value,
     TFormatSettings.Invariant), 0.0001,
     'The fractional key did not survive the round trip. Got: '
+    + LPair.JsonValue.ToJSON);
+end;
+
+procedure TTestServerResourceKeyQuoting.FractionalKey_MustNotBeTruncatedByANarrowerFloat;
+var
+  LPair: TJSONPair;
+begin
+  /// Nine significant digits: past Currency's four decimal places and past
+  /// Single's ~7 significant digits, and still inside the 15 that
+  /// TJSONNumber's JSONFormatSettings will print. Measured at this commit -
+  /// 0.123456789 comes back verbatim, 12345678.9012345678 comes back as
+  /// 12345678.9012346, which is that 15-digit ceiling and not a defect of
+  /// this branch.
+  ///
+  /// ONE WARNING FOR WHOEVER MUTATES THIS LINE NEXT. Writing Single(...) as a
+  /// CAST around the expression does not narrow anything: measured, Double(
+  /// Single(x)) and Double(x) are bit-identical here, because the value never
+  /// leaves the FPU at Single width. A mutation written that way survives, and
+  /// it survives because it changed NOTHING - not because this clause is
+  /// blind. Narrowing for real, through an actual Single variable, yields
+  /// 0.123456791043282 and this clause kills it. Both were measured.
+  LPair := KeyPairOf('KeyTypeFloat',
+    '{"ktnum":0.123456789,"kttag":"precise"}');
+  Assert.AreEqual('ktnum', LPair.JsonString.Value,
+    'The response no longer names the key column.');
+  Assert.IsTrue(LPair.JsonValue is TJSONNumber,
+    'A fractional key must stay a JSON NUMBER. Got: '
+    + LPair.JsonValue.ClassName);
+  Assert.AreEqual('0.123456789', LPair.JsonValue.Value,
+    'The fractional key was truncated on its way into the response. Currency '
+    + 'would leave 0.1235 and Single 0.123456791043282; both are valid JSON, '
+    + 'so only the VALUE says which one happened. Got: '
     + LPair.JsonValue.ToJSON);
 end;
 
