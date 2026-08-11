@@ -39,14 +39,21 @@
   Same model, same seed, same answer - one POST answer naming BOTH key columns
   of a composite AutoInc key, over a child that is still on its own placeholder:
 
-    parser before #300 : ck1 = -1, ck2 = 9, GetCount = 0
-    parser after  #300 : ck1 =  7, ck2 = 9, GetCount = 1
+    parser before the repair : ck1 = -1,          GetCount = 0
+    parser after  the repair : ck1 =  7, ck2 = 9, GetCount = 1
 
-  ANCHOR REMOVED - PENDING RE-MEASUREMENT. The commit these two numbers were
-  stamped with was orphaned by a rebase and is not reachable from this branch;
-  its post-rebase twin carries a DIFFERENT tree, so it does not stand in for a
-  measurement that was never taken on it. Both figures are unanchored until
-  they are measured again at this HEAD.
+  Re-measured at 0f13601, RESTfulDriver, Debug/Win32. The AFTER row is that
+  commit as it stands: the suite closes 102 total, 0 failed. The BEFORE row is
+  the SAME commit with the inner-loop hunk of TSessionRestFul<M>.Insert
+  reverted in place and nothing else touched - proven applied by a MESSAGE WARN
+  directive that dcc32 echoed back on the reverted line - where the suite gives
+  102 total, 8 failed and these two clauses report "Expected [7] but got [-1]"
+  and "Expected [1] but got [0]".
+
+  ck2 is deliberately NOT stated for the BEFORE row, because nothing read it
+  there: CompositeKey_BothColumnsReachTheRootRow asserts ck1 first, so the
+  clause aborts before it reaches ck2 in that configuration. A number nobody
+  read is not a number.
 
   That is not a regression of #297, it is #297 finally reaching a shape it could
   never reach: with the key incomplete there was nothing to ask BY, and the gate
@@ -61,7 +68,9 @@
   adapter and requires zero GETs, so the new firing is the gate opening and not
   the guard disappearing.
 
-  ANCHORS ARE BY METHOD, NEVER BY `file:line`.
+  ANCHORS INTO THE SUITE ARE BY METHOD, NEVER BY `file:line` - a clause anchor
+  must not rot the day a line moves. Citations INTO SOURCE are by `file:line`,
+  and each was re-read at the commit named beside it.
 }
 
 unit Test.Janus.Rest.CompositeKeyReReadGate;

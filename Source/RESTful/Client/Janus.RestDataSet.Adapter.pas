@@ -274,10 +274,24 @@ begin
                 // composta. Sobre o mesmo modelo e a mesma resposta: antes da
                 // #300 GetCount = 0, depois GetCount = 1, por
                 // Test.Janus.Rest.CompositeKeyReReadGate,
-                // CompositeKey_TheGateOpensAndExactlyOneGetIsIssued.
-                // ANCORA REMOVIDA - PENDENTE DE REMEDICAO. O commit citado aqui
-                // foi orfanado pelo rebase e nao e alcancavel desta branch; o
-                // gemeo pos-rebase tem OUTRA arvore e nao substitui a medicao.
+                // CompositeKey_TheGateOpensAndExactlyOneGetIsIssued. REMEDIDO
+                // em 0f13601, RESTfulDriver Debug/Win32: com o conserto a suite
+                // fecha 102/0 e essa clausula exige GetCount = 1; com o trecho
+                // do parser revertido em cima do mesmo commit a suite da 102/8
+                // e a clausula devolve GetCount = 0.
+                //
+                // E O LACO ACIMA ESCREVE MAIS DO QUE ESCREVIA. Ele percorre
+                // 0..Count-1 e carimba TODA coluna que o dataset tenha e a
+                // resposta nomeie - nao so as da chave; a guarda e o FindField
+                // nil, nao a chave primaria. Antes da #300 um objeto rendia UM
+                // param, logo no maximo UMA coluna por objeto era escrita.
+                // Medido em 0f13601, sonda descartavel sobre TCkRoot sem filho
+                // (para este portao nao disparar e reescrever a linha), com a
+                // resposta {"tag":"fromserver","ck1":7,"ck2":9}: com o conserto
+                // sai tag=fromserver ck1=7 ck2=9; com ele revertido sai
+                // tag=root ck1=-1 ck2=9. Hoje o alcance so e estreito porque o
+                // SERVIDOR percorre apenas colunas de PK
+                // (Janus.Server.Resource.pas:304-307) - o limite nao esta aqui.
                 if _GraphBelowIsStale(Self) and
                    not _RowKeyIsUngenerated(Self) then
                   LStale.Add(FOrmDataSet.GetBookmark);

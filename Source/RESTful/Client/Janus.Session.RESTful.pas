@@ -401,17 +401,34 @@ begin
     // excecao e sem log. O laco EXTERNO continua: a resposta tambem pode trazer
     // um objeto por coluna, e as duas formas sao lidas.
     //
+    // ISTO ALARGA O QUE UMA RESPOSTA PODE ESCREVER NA LINHA, e o alargamento
+    // esta declarado aqui porque nao esta escrito em nenhum outro lugar. O
+    // consumidor (TRESTDataSetAdapter<M>.ApplyInserter,
+    // Janus.RestDataSet.Adapter.pas:241-246) percorre 0..Count-1 e escreve
+    // TODA coluna que o dataset tenha e a resposta nomeie - nao so as da chave.
+    // Antes deste conserto o objeto rendia UM param, logo no maximo UMA coluna
+    // por objeto podia ser escrita; agora sao todas. Medido em 0f13601 com uma
+    // sonda descartavel sobre TCkRoot e sem filho (para o re-ler da #297 nao
+    // disparar e reescrever a linha), resposta
+    // {"tag":"fromserver","ck1":7,"ck2":9}:
+    //   com este conserto        : GetCount 0, tag=fromserver ck1=7  ck2=9
+    //   com este trecho revertido: GetCount 0, tag=root       ck1=-1 ck2=9
+    // Ou seja: de UMA escrita (o ultimo par) para TRES, uma delas numa coluna
+    // que NAO e da chave. Hoje isso e limitado porque o servidor so percorre
+    // colunas de PK (Janus.Server.Resource.pas:304-307) - o limite mora no
+    // SERVIDOR, e o cliente nao o impoe.
+    //
     // ISSO MUDA QUANDO O RE-LER DA #297 DISPARA, e o numero esta medido em
     // Test.Janus.Rest.CompositeKeyReReadGate: o portao de
     // TRESTDataSetAdapter<M>.ApplyInserter e `not _RowKeyIsUngenerated`, que le
     // a chave da linha COLUNA A COLUNA. Com a chave composta pela metade ele
     // recusava - e recusava certo, porque nao havia por que perguntar. Sobre o
     // mesmo modelo e a mesma resposta: antes deste conserto GetCount = 0, com
-    // ele GetCount = 1.
-    // ANCORA REMOVIDA - PENDENTE DE REMEDICAO. O commit que estava citado aqui
-    // foi orfanado pelo rebase e nao e alcancavel a partir desta branch; o
-    // gemeo pos-rebase tem OUTRA arvore, logo nao substitui a medicao. Os dois
-    // numeros acima estao sem ancora ate serem medidos de novo neste HEAD.
+    // ele GetCount = 1. REMEDIDO em 0f13601, RESTfulDriver Debug/Win32: com o
+    // conserto no lugar a suite fecha 102/0 e
+    // CompositeKey_TheGateOpensAndExactlyOneGetIsIssued exige GetCount = 1;
+    // com ESTE trecho revertido em cima do mesmo commit a suite da 102/8 e a
+    // mesma clausula devolve GetCount = 0.
     for LFor := 0 to LParamsArray.Count -1 do
     begin
       LValuesObject := LParamsArray.Items[LFor] as TJSONObject;

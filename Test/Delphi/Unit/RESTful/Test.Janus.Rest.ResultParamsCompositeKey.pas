@@ -28,10 +28,52 @@
   pair. The surviving param was the LAST pair; every earlier column of the key
   was discarded with no exception and no log.
 
-  The one consumer is TRESTDataSetAdapter<M>.ApplyInserter, which stamps the
-  dataset from ResultParams - so a REST entity with a composite key came back
-  from an insert with one key column filled and the rest still on the AutoInc
-  placeholder, and any later UPDATE or DELETE aimed at a key nobody has.
+  WHO READS THAT LIST - THE POPULATION, ENUMERATED
+
+  `git grep ResultParams` over the whole repository at 0f13601 returns nine
+  files. Only TWO of them READ the contents of the list this parser fills:
+
+    Janus.RestDataSet.Adapter.pas:241-246 - TRESTDataSetAdapter<M>.ApplyInserter,
+      the ONE production consumer;
+    this fixture's own TParamsProbe<M>.Render, added by #300.
+
+  The others do not read it. Janus.Session.Abstract.pas owns the field and
+  exposes the accessor, Janus.Session.RESTful.pas is the writer, and
+  Janus.Server.RestObjectSet.Session.pas has an FResultParams of its OWN on the
+  SERVER side - a different list that never meets this one. The remaining hits
+  are a comment, a project reference and a clause name.
+
+  So "two readers" only adds up if the probe this issue added is counted. In
+  Source/ there is exactly ONE, and it does not depend on one-param-per-object:
+  it iterates 0..Count-1, calls FindField on each param name and skips the nil.
+  More params simply mean more columns found.
+
+  That one consumer stamps the dataset from ResultParams - so a REST entity
+  with a composite key came back from an insert with one key column filled and
+  the rest still on the AutoInc placeholder, and any later UPDATE or DELETE
+  aimed at a key nobody has.
+
+  WHAT THE REPAIR WIDENS, DECLARED
+
+  The same class of change as the empty-object one declared at
+  AnEmptyParamsObject, and a bigger one. ApplyInserter's guard is
+  FindField <> nil, not "is this a key column". Before the repair one params
+  OBJECT yielded one TParam, so at most ONE column of the row could be written
+  per object; now EVERY pair is written, key column or not.
+
+  Measured at 0f13601 with a throwaway probe over TCkRoot and NO child adapter
+  - so the #297 re-read cannot fire and write over the row - driving one params
+  object carrying the three pairs "tag":"fromserver", "ck1":7 and "ck2":9, in
+  that order:
+
+    with the repair        : GetCount 0, tag=fromserver, ck1=7,  ck2=9
+    with the hunk reverted : GetCount 0, tag=root,       ck1=-1, ck2=9
+
+  Three writes where there was one, and one of the three lands on a column that
+  is not part of the key. What keeps that narrow today is that the SERVER walks
+  LPrimaryKey.Columns only (Janus.Server.Resource.pas:304-307). That bound
+  lives in the server and is written down nowhere on the client side, which is
+  why it is written down here.
 
   WHY THE ASSERTION IS THE WHOLE LIST AND NOT THE COUNT
 
@@ -77,7 +119,9 @@
   client does with such a body today, so the day the server is fixed this clause
   is the one that says so.
 
-  ANCHORS ARE BY METHOD, NEVER BY `file:line`.
+  ANCHORS INTO THE SUITE ARE BY METHOD, NEVER BY `file:line` - a clause anchor
+  must not rot the day a line moves. Citations INTO SOURCE are by `file:line`,
+  and each was re-read at the commit named beside it.
 }
 
 unit Test.Janus.Rest.ResultParamsCompositeKey;
@@ -267,20 +311,37 @@ var
   LActual: String;
 begin
   // NOT a property of this parser and NOT changed by #300. TParams.GetItem
-  // (Data.DB.pas:11219-11223) returns Item.ParamRef, and TParam.ParamRef
+  // (Data.DB.pas:11219-11223) returns Item.ParamRef; TParam.ParamRef
   // (Data.DB.pas:11589-11595) resolves a named param to
-  // TParams(Collection).ParamByName(Name) - the FIRST param of that name. So
-  // two params sharing a name are one param wearing two slots, on write and on
-  // read alike, and the second value is simply not there to be found.
+  // TParams(Collection).ParamByName(Name), which is FindParam
+  // (Data.DB.pas:11311-11321) returning the FIRST param of that name; and
+  // TParams.Update (Data.DB.pas:11214-11215), which runs on every Add, walks
+  // Items[i] - GetItem again - and clears FParamRef. TParam.SetAsVariant
+  // (Data.DB.pas:12580-12581) writes THROUGH ParamRef as well.
   //
-  // MEASURED, not reasoned: this body was originally written into the clause
-  // above expecting k1=10|k2=20|k1=30|k2=40, and it came back as
-  // k1=10|k2=20|k1=10|k2=40. It is pinned here so the next reader does not
-  // mistake the aliasing for a parser defect.
-  // ANCHOR REMOVED - PENDING RE-MEASUREMENT. The commit this rendering was
-  // stamped with was orphaned by a rebase and is not reachable from this
-  // branch; its post-rebase twin carries a DIFFERENT tree and does not stand
-  // in for it. The figure is unanchored until measured again at this HEAD.
+  // WHAT IS MEASURED. This body was originally written into the clause above
+  // expecting k1=10|k2=20|k1=30|k2=40, and it came back as
+  // k1=10|k2=20|k1=10|k2=40 - re-measured at 0f13601, where this clause is
+  // green and the whole RESTfulDriver suite closes 102/0. It is load-bearing:
+  // with the parser hunk reverted at that same commit it dies as k2=20|k2=40.
+  //
+  // AND THE ASYMMETRY IS POSITIONAL, NOT PER-COLUMN. The second k2 keeps its
+  // 40 while the second k1 loses its 30, which no reading of ParamRef alone
+  // explains - so it was measured, at 0f13601, with a throwaway console
+  // program driving TParams through the very same calls this loop makes:
+  //
+  //   k1,k2,k1,k2       -> k1=10|k2=20|k1=10|k2=40   slots 0 1 0 3
+  //   k1,k2,k1,k2,k3    -> k1=10|k2=20|k1=10|k2=20|k3=50   slots 0 1 0 1 4
+  //   k1,k2,k1          -> k1=10|k2=20|k1=30         slots 0 1 2
+  //
+  // A duplicated slot keeps the value written into it until the NEXT Add; from
+  // then on it resolves to the first slot of its name and the value it was
+  // given stops being reachable. The LAST slot is never re-pointed, because no
+  // Add follows it - which is the whole of the asymmetry. So "the second value
+  // is simply not there to be found" is FALSE: it is written, and it is still
+  // readable when it happens to be the last pair. The exact ordering inside
+  // TParams.Update was NOT instrumented; what is stated here is the observed
+  // behaviour, not a claim about the RTL's internal sequence.
   //
   // It costs nothing today: the answer ParseInsert builds is ONE object whose
   // pairs are the columns of one primary key, and a key has no repeated column.
@@ -325,11 +386,26 @@ var
 begin
   // A BEHAVIOUR CHANGE, DECLARED. With the object as the unit of iteration an
   // empty object still produced one nameless param, so ResultParams.Count came
-  // out 1 and TRESTDataSetAdapter<M>.ApplyInserter entered its stamping block
-  // for an answer that named nothing. With the PAIR as the unit it produces
-  // none and the block is skipped. ParseInsert cannot emit `{}` - it raises
-  // when the entity has no primary key - so this is a degenerate body, not a
-  // shape of the shipped contract.
+  // out 1 and TRESTDataSetAdapter<M>.ApplyInserter entered the block its
+  // `if FSession.ResultParams.Count > 0` guards for an answer that named
+  // nothing. With the PAIR as the unit it produces none and that block is
+  // skipped.
+  //
+  // AND THAT BLOCK IS BIGGER THAN THE STAMPING LOOP. In the shape this branch
+  // leaves behind, the guard is Janus.RestDataSet.Adapter.pas:239 and what it
+  // wraps runs to :298 - three things, not one: the stamping loop at :241-247,
+  // SetAutoIncValueChilds at :249, and the #297 stale-bookmark gate at
+  // :295-297. Skipping on `{}` skips all three, not just the stamping.
+  //
+  // MEASURED: this clause is green at 0f13601 alongside the whole 102/0 suite,
+  // so nothing in the shipped suite notices the wider skip. REASONED, and
+  // labelled as such: the nameless param the old parser produced named no
+  // column, and no field carries an empty FieldName, so FindField('') could
+  // only answer nil and the loop could only write nothing - which leaves the
+  // other two members of the block with nothing new to act on. That argument
+  // was NOT put to a measurement of its own. ParseInsert cannot emit `{}`
+  // anyway - it raises when the entity has no primary key - so this is a
+  // degenerate body, not a shape of the shipped contract.
   LActual := TParamsProbe<TKeyOnly>.Render('{"result":"ok","params":[{}]}');
   Assert.AreEqual('', LActual, False,
     'an object with no pairs contributes no param - a param with no name ' +
