@@ -26,14 +26,32 @@
     aitroot.root_id  = the AutoInc PLACEHOLDER   (the answer was discarded)
     aitmid.root_id   = the SAME placeholder      (the cascade copied it down)
 
-  MEASURED, and the anchor is reachable: at commit 16f3279 - this fixture with
-  NO source change - Janus.Tests.RESTfulDriver came out total=96 failures=3, and
-  the two lines above printed -1 while the answer said 555. The basal one commit
-  below it was total=87 failures=0.
+  MEASURED, and the anchor is reachable: at commit 16f3279 - the first nine of
+  these clauses, with NO source change - Janus.Tests.RESTfulDriver came out
+  total=96 failures=3, and the two lines above printed -1 while the answer said
+  555. The basal one commit below it was total=87 failures=0.
 
   (The figure first carried the anchor ceebdbe. A rebase orphaned that commit
   the same afternoon it was written, and a dead anchor does not announce itself
   - it just stops being checkable. 16f3279 is the rebased twin.)
+
+  READING THE ANSWER MUST NOT HAVE BOUGHT AN EXCEPTION
+
+  Before #301 nothing read this answer, so no answer of any shape could make an
+  insert fail. The first repair did buy one: it guarded with VarIsNull/VarIsEmpty
+  and then handed the value to TParam.AsInteger, and since the parser forces
+  every param to ftString the guard could not fire and the conversion raised.
+  Measured at 9096e62 - this fixture over that reader - total=102 ERRORS=3, all
+  three saying `Could not convert variant of type (UnicodeString) into type
+  (Integer)`. Measured against the adapter as it SHIPPED, at 865370e:
+  total=102 errors=0 failures=5 - five things wrong and nothing raised, which is
+  the bar the repair had to clear and did not.
+
+  So three clauses below drive documents that PARSE and still carry no usable
+  key - a JSON null, an empty string, a quoted non-number - and require that the
+  placeholder simply stands. They are not about the key arriving; they are about
+  the save not ending in an exception. cMALFORMEDANSWER cannot stand in for
+  them: that document does not parse, so the reader is never even reached.
 
   This is NOT issue #297. There the DataSet family DID stamp the root and the
   gap was levels two and three; here the root itself was never reconciled, so
