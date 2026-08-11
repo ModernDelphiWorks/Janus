@@ -54,7 +54,10 @@ type
       cRESOURCEVERBNOTALLOWED = '{"exception":"HTTP %s not allowed for %s"}';
       cEXCEPTIONJSON       = '{"exception":"There was an error in trying to convert JSON into the class [%s]!"}';
       cRESOURCEDELETE      = '{"result":"Resource %s delete command executed successfully"}';
-      cRESOURCEINSERT      = '{"result":"Resource %s insert command executed successfully", "params":[{%s}]}';
+      /// The %s is now a whole serialised JSON OBJECT, braces included - it
+      /// used to be the inside of a pair list, with the braces written here.
+      /// The document on the wire is unchanged.
+      cRESOURCEINSERT      = '{"result":"Resource %s insert command executed successfully", "params":[%s]}';
       cRESOURCEUPDATE      = '{"result":"Resource %s update command executed successfully"}';
     function ResolverFindToSkip(const AObjectSet: TRESTObjectSet;
       const AQuery: TRESTQueryParse): string;
@@ -83,6 +86,7 @@ type
 implementation
 
 uses
+  JSON,
   MetaDbDiff.mapping.classes,
   MetaDbDiff.mapping.attributes,
   MetaDbDiff.rtti.helper,
@@ -90,6 +94,116 @@ uses
   Janus.Objects.Helper,
   Janus.Core.Consts,
   Janus.Server.RestView.Manager;
+
+/// <summary> The JSON VALUE of one primary key column, BUILT rather than
+///  pasted into a string.
+///
+///  What it replaces emitted the value raw, straight out of VarToStr, next to
+///  a hand-quoted name. That is valid JSON only while the value happens to
+///  look like a JSON number, which is to say only for an integer key. A
+///  textual key came out as a bare token, a generated GUID came out with
+///  braces and hyphens, a date came out with slashes, and a fractional key
+///  came out with whatever the AMBIENT decimal separator is - a comma on a
+///  pt-BR machine. None of those is JSON, and the client discards a document
+///  it cannot parse through a bare Exit, silently.
+///
+///  WHY THIS DISPATCHES ON THE VARIANT AND NOT ON TColumnMapping.FieldType.
+///  The argument is about SELECTING a branch, and about nothing else. A
+///  FieldType table is a list of enum labels, and a label in the wrong bucket
+///  cannot be caught by anything short of one entity per label - drop
+///  ftLargeint from the numeric bucket and a 64-bit key silently starts
+///  arriving quoted, with the whole suite green. The Variant has FOUR states
+///  reachable from a mapped property and the fixture has a clause for each:
+///  null, ordinal, float, everything else.
+///
+///  That says nothing whatsoever about the CONVERSION performed once a branch
+///  has been selected, and the first version of this repair learned the
+///  difference the hard way: it selected the number branch correctly for an
+///  unsigned 64-bit key and then handed the caller the negative
+///  reinterpretation of it. Selection and conversion are two surfaces and each
+///  needs its own clause, on BOTH numeric branches - see
+///  BigIntegerKey_MustNotBeNarrowed and UnsignedKeyAboveHighInt64_MustNotFlipSign
+///  for the ordinal one, FractionalKey_MustNotBeTruncatedByANarrowerFloat for
+///  this one.
+///
+///  THE TWO NUMERIC BRANCHES CONVERT DIFFERENTLY, AND THE ASYMMETRY WAS
+///  MEASURED RATHER THAN ASSUMED. VarToStr was run over varInteger, varInt64,
+///  varUInt64, varDouble, varCurrency and varSingle under four FormatSettings:
+///  the ambient pt-BR one, then ThousandSeparator forced to '.', then to '#',
+///  then DecimalSeparator forced to '@'. Results:
+///
+///    - No ORDINAL type took a separator under ANY of the four. That is what
+///      makes VarToStr safe above.
+///    - varDouble and varSingle follow the ambient DECIMAL separator: under
+///      '@' they rendered 1234567@75 and 1234@5. That is what makes VarToStr
+///      unsafe here, and why this branch hands an explicit Double to
+///      TJSONNumber instead.
+///    - ThousandSeparator moved nothing, for any of the six types. The hazard
+///      on this path is the decimal separator alone.
+///    - varCurrency did not follow the '@' either - it kept the ambient comma.
+///      Measured, not explained; it is routed through the same Double here and
+///      the clause does not depend on why.
+///
+///  There is a safety net under the ordinal branch worth knowing about:
+///  TJSONNumber.Create(string) runs StrToFloat with JSONFormatSettings, so a
+///  string that ever did arrive grouped would RAISE rather than become a
+///  silently malformed document.
+///
+///  The float branch has a ceiling and it is the RTL's, not this code's:
+///  FloatToJson prints with JSONFormatSettings, whose Precision is 15.
+///  Measured through this very path - 0.123456789 comes back verbatim,
+///  12345678.9012345678 comes back as 12345678.9012346. A key needing more
+///  than 15 significant digits is therefore rounded here, and no clause in the
+///  fixture stands in front of that: pinning it would be pinning RTL
+///  formatting, and no mapping in this repository produces such a key.
+///
+///  The guard above catches TWO Variant states, not one, and they are reached
+///  by different shapes. MetaDbDiff's TRttiPropertyHelper.GetNullableValue
+///  answers a Variant NULL for a Nullable whose FHasValue is clear, and leaves
+///  the Default(TValue) it started with - an EMPTY TValue - by three other
+///  routes: a nil instance, a Nullable-shaped record with no FHasValue field,
+///  and one with FHasValue set but no FValue field. TValue.AsVariant on an
+///  empty value does not raise and does not answer Null; AsTypeInternal takes
+///  the branch that zero-fills the result, and a zeroed Variant is varEmpty.
+///  So VarIsNull is False there and only VarIsEmpty catches it.
+///
+///  A nil instance cannot happen at this call site - the caller has just
+///  dereferenced that object - but the third route is reachable by a mapping
+///  the framework accepts, because IsNullable is a check BY NAME. Measured,
+///  not argued: Test.Janus.Model.KeyTypeDecoy declares such a record and
+///  NullableShapedKeyWithNoValueField_ComesBackAsJsonNull dies when the
+///  VarIsEmpty half of this guard is removed. Both halves are load-bearing,
+///  and removing either is not response-neutral: an empty Variant would leave
+///  as "" rather than null, and an empty string is something a client writes
+///  into a field as if it were the value.
+///
+///
+///  Booleans are deliberately NOT mapped onto a JSON boolean: VarIsOrdinal is
+///  true for varBoolean, so the guard below excludes it and a boolean key
+///  leaves as the quoted string VarToStr already produced. That is valid JSON
+///  and it is what the previous behaviour meant to say; turning it into a JSON
+///  literal would be a contract change no clause here measures.
+///
+///  varDate is excluded from the float branch by VarIsFloat itself, which
+///  covers only varSingle, varDouble and varCurrency. A date key therefore
+///  reaches the string branch and keeps rendering exactly as it did - what
+///  changes is only that it is now QUOTED. Whether that rendering should be
+///  ISO-8601 instead of the ambient FormatSettings is a question about what a
+///  consumer receives, and it is not this repair's to answer. </summary>
+function _PrimaryKeyValueToJson(const AColumn: TColumnMapping;
+  const AObject: TObject): TJSONValue;
+var
+  LValue: Variant;
+begin
+  LValue := AColumn.ColumnProperty.GetNullableValue(AObject).AsVariant;
+  if VarIsNull(LValue) or VarIsEmpty(LValue) then
+    Exit(TJSONNull.Create);
+  if VarIsOrdinal(LValue) and (VarType(LValue) <> varBoolean) then
+    Exit(TJSONNumber.Create(VarToStr(LValue)));
+  if VarIsFloat(LValue) then
+    Exit(TJSONNumber.Create(Double(VarAsType(LValue, varDouble))));
+  Result := TJSONString.Create(VarToStr(LValue));
+end;
 
 { TAppResourceBase }
 
@@ -265,7 +379,7 @@ var
   LObject: TObject;
   LClassType: TClass;
   LObjectSet: TRESTObjectSet;
-  LValues: string;
+  LParams: TJSONObject;
   LAllowVerbs: TRESTAllowVerbCache;
 begin
   LClassType := TMappingExplorer.GetRepositoryMapping
@@ -295,19 +409,31 @@ begin
 
     try
       LObjectSet.Insert(LObject);
-      LValues := '';
       LPrimaryKey := TMappingExplorer
                        .GetMappingPrimaryKeyColumns(LObject.ClassType);
       if LPrimaryKey = nil then
         raise Exception.Create(cMESSAGEPKNOTFOUND);
 
-      for LColumn in LPrimaryKey.Columns do
-        LValues := LValues + '"'  + LColumn.ColumnProperty.Name
-                           + '":' + VarToStr(LColumn.ColumnProperty.GetNullableValue(LObject).AsVariant)
-                           + ',';
-
-      LValues[Length(LValues)] := ' ';
-      Result := Format(cRESOURCEINSERT, [AQuery.ResourceName, Trim(LValues)]);
+      /// The pairs are ADDED to a TJSONObject and serialised by it. Escaping a
+      /// quote or a backslash inside the value, and rendering a number with
+      /// the decimal separator JSON requires rather than the one the machine's
+      /// locale requires, are then the serialiser's job and not this loop's.
+      LParams := TJSONObject.Create;
+      try
+        for LColumn in LPrimaryKey.Columns do
+          LParams.AddPair(LColumn.ColumnProperty.Name,
+                          _PrimaryKeyValueToJson(LColumn, LObject));
+        /// ToJSON and NOT ToString: both run TJSONAncestor.ToChars, so both
+        /// escape the quote and the backslash, but ToString passes no options
+        /// while ToJSON passes EncodeBelow32 and EncodeAbove127. A control
+        /// character raw inside a JSON string is illegal, so ToString is the
+        /// one that can still emit a document nobody can parse.
+        /// An empty column list now yields {} instead of indexing LValues[0].
+        Result := Format(cRESOURCEINSERT, [AQuery.ResourceName,
+                                           LParams.ToJSON]);
+      finally
+        LParams.Free;
+      end;
     finally
       LObject.Free;
       LObjectSet.Free;

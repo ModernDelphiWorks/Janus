@@ -157,6 +157,9 @@
         <DCCReference Include="RESTHorse\Test.Janus.Server.RestObjectSet.NoOpUpdate.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.LazyTwoBranch.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.RestObjectSet.LoadLazy.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.KeyTypes.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.KeyTypeDecoy.pas"/>
+        <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.KeyQuoting.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
