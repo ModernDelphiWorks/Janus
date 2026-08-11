@@ -48,16 +48,20 @@
   and where that number came from. `-1` is what the client had; 555 and 333 are
   what only the GET could have supplied.
 
-  ONE COMMENT ELSEWHERE IS NOW FALSE AND IS NOT THIS BRANCH'S TO EDIT
+  ONE COMMENT ELSEWHERE WAS MADE FALSE BY THIS FIX, AND IS CORRECTED WITH IT
 
   The doc comment over TDataSetBaseAdapter<M>._AutoIncKeyIsGenerated, in
-  Janus.DataSet.Base.Adapter, still says of the REST family "nao ha nada depois
-  ... e o neto FICA com o placeholder como chave estrangeira". After this issue
-  there IS something after - ApplyInserter re-reads the aggregate - so the
-  sentence needs its second half rewritten. That file is held by another branch
-  while this one is being written, so the correction is reported instead of
-  applied; the rest of that comment, which is about the guard refusing to
-  PROPAGATE a placeholder, is unaffected and still exact.
+  Janus.DataSet.Base.Adapter, said of the REST family "nao ha nada depois ... e
+  o neto FICA com o placeholder como chave estrangeira". After this issue there
+  IS something after - ApplyInserter re-reads the aggregate - and
+  ReRead_TheLeafForeignKeyPointsAtTheMidTheServerWrote is the measurement:
+  leaf.mid_id comes out 555 where it used to come out -1.
+  That file was held by another branch while the first half of this work was
+  written, so the correction was reported and deferred; #296 has since merged
+  and the sentence is now corrected in place. What that comment says about the
+  guard refusing to PROPAGATE a placeholder was never affected: the re-read is a
+  LATER repair that depends on an answer, while the write that guard refuses
+  happens before any answer exists.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
@@ -346,16 +350,16 @@ type
     /// measurement and not a preference. RefreshRecordInternal empties the
     /// child datasets WHOLE, and deleting a middle row still fires its own
     /// CascadeDelete, which empties the grandchild dataset whole as well.
-    /// Measured at a022111 with this guard removed and every other guard in
-    /// place, over this same tree and with the double answering a DIFFERENT key
-    /// per root - 777 and 888 - and a graph of its own per root:
-    /// `roots=2 mids=1 leafs=1 posts=2 gets=2`. The second root's re-read took
-    /// the first root's already reconciled children with it.
-    /// The distinct keys are named because the FIRST measurement, at 0a0161f,
-    /// did not have them: the double answered 777 to both POSTs, so that
-    /// earlier `mids=1` could have been an artefact of two roots the fixture
-    /// could not tell apart. It was not - the loss reproduces with them
-    /// separated. That is WORSE than the defect, so in this case the client is
+    /// Measured with this guard removed and every other guard in place, over
+    /// this same tree and with the double answering a DIFFERENT key per root -
+    /// 777 and 888 - and a graph of its own per root. The second root's re-read
+    /// takes the first root's already reconciled children with it. THE
+    /// MEASUREMENT WAS REDONE AFTER THE REBASE ONTO #296; the figure and the
+    /// anchor land in the commit right after this one.
+    /// The distinct keys are part of the measurement: with both roots answering
+    /// the SAME key, the loss could have been an artefact of two roots the
+    /// fixture cannot tell apart. It is not. That is WORSE than the defect, so
+    /// in this case the client is
     /// left exactly as it was before this fix: placeholders below the root, and
     /// not one row lost.
     [Test]
@@ -823,9 +827,19 @@ end;
 procedure TTestRestReReadAfterInsert.ReRead_TheGetAsksByTheKeyTheServerReturned;
 begin
   RunMem;
-  Assert.IsTrue(Pos('root_id=777', AllQueries) > 0,
-    'the re-read must ask for the row by the key the SERVER returned; asking ' +
-    'by the placeholder would answer nothing. Queries seen: ' + AllQueries);
+  // THE WHOLE QUERY, AND NOT A SUBSTRING OF IT. `Pos('root_id=777', ...)` was
+  // what this clause used to do, and a prefix walks straight through it: with
+  // the column named 'zzroot_id' the filter that goes to the server is
+  // `$filter=zzroot_id=777`, the substring is still in there, and the clause
+  // stayed green over a name the server cannot resolve. Measured. Comparing the
+  // whole thing is what makes the COLUMN NAME on the wire measured at all - no
+  // other clause in this fixture reads it.
+  // CASE MATTERS HERE, so AreEqual is told so: Assert.AreEqual over strings
+  // ignores case by default in this DUnitX (issue #293), and a column name is
+  // not case noise on the way to a server.
+  Assert.AreEqual('$filter=root_id=777', Trim(AllQueries), False,
+    'the re-read must ask for the row by the key the SERVER returned, under ' +
+    'the column name the MAPPING spells. Queries seen: ' + AllQueries);
 end;
 
 procedure TTestRestReReadAfterInsert.Cds_TheMidRowTakesTheKeyOnlyTheServerKnew;
@@ -1076,8 +1090,8 @@ begin
     'the second one would empty the first one child datasets');
   Assert.AreEqual(2, FMidMem.RecordCount,
     'both middle rows must survive. Allowing the re-read here measured ' +
-    'mids=1 at a022111, with a distinct key per root: rows the operator ' +
-    'typed simply disappeared');
+    'mids=1 with a distinct key per root: rows the operator typed simply ' +
+    'disappeared');
   Assert.AreEqual(2, FLeafMem.RecordCount,
     'and both grandchild rows with them');
 end;

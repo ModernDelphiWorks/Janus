@@ -2423,10 +2423,22 @@ end;
 ///  a arvore de tres niveis, com o neto semeado num valor que nenhuma linha do
 ///  meio carrega: LEAF.mid_id ia de -7 para -1 nas duas. Na familia local o
 ///  ApplyInserter do proprio nivel do meio reescreve o valor logo depois e o
-///  estrago e transitorio; na familia REST nao ha nada depois -
-///  TRESTFDMemTableAdapter<M>.ApplyInternal nao itera FMasterObject, o nivel do
-///  meio nunca e aplicado sozinho, e o neto FICA com o placeholder como chave
-///  estrangeira. Medido por Test.Janus.AutoInc.UngeneratedKey.
+///  estrago e transitorio; na familia REST o ApplyInternal
+///  (TRESTFDMemTableAdapter<M>) nao itera FMasterObject e o nivel do meio nunca
+///  e aplicado sozinho, entao nada NAQUELE PASSO desfaz a escrita. Medido por
+///  Test.Janus.AutoInc.UngeneratedKey.
+///  A SEGUNDA METADE DESTA FRASE MUDOU COM A #297, e o que ela dizia era "e o
+///  neto FICA com o placeholder como chave estrangeira". Nao fica mais:
+///  TRESTDataSetAdapter<M>.ApplyInserter RE-LE o agregado que acabou de
+///  inserir, e a resposta do GET reescreve os datasets filhos - medido por
+///  Test.Janus.Rest.ReReadAfterInsert
+///  .ReRead_TheLeafForeignKeyPointsAtTheMidTheServerWrote, onde leaf.mid_id sai
+///  de -1 para 555.
+///  ISSO NAO ENFRAQUECE ESTA GUARDA, E A RAZAO IMPORTA PARA QUEM FOR MEXER
+///  AQUI: a re-leitura e um CONSERTO POSTERIOR e depende de uma resposta do
+///  servidor, enquanto a escrita que esta guarda recusa acontece ANTES de
+///  qualquer resposta existir. Onde a resposta nao vem, ou vem mais rasa do que
+///  o cliente, a re-leitura e recusada de proposito e so esta guarda sobra.
 ///
 ///  A GUARDA E SOBRE O VALOR, E NAO SOBRE O ESTADO DA LINHA, e a diferenca e o
 ///  conserto inteiro. "Nao recursar sobre linha pendente" seria mais simples e

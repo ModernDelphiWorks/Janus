@@ -49,10 +49,27 @@
   the placeholder can be repaired by the answer afterwards. What did NOT move is
   everything this file measures: the recursion must not COPY a key that does not
   exist yet, whatever comes back later, and the write under test happens before
-  any answer could arrive. The re-read does not reach the run below either -
-  TSeqRestConnection answers every verb with a `params` document and
-  TRESTDataSetAdapter<M>._AnswerIsTheRowUnderTheCursor discards an answer that
-  is not this row - which is why the clause reads the same number as before.
+  any answer could arrive.
+
+  WHY THE RE-READ DOES NOT REACH THE RUN BELOW, AND IT IS TWO GUARDS AND NOT
+  ONE. TSeqRestConnection answers EVERY verb with a `params` document, so the
+  GET that the re-read fires comes back as an object that is neither this row
+  nor as deep as the client's own graph, and each of TRESTDataSetAdapter<M>'s
+  two guards refuses it on its own:
+
+    _AnswerIsTheRowUnderTheCursor    - the answer carries no root_id at all, so
+                                       it is not the row under the cursor;
+    _AnswerReachesEveryLoadedLevel   - the answer carries no `mids` while the
+                                       client is holding a middle row.
+
+  NAMING ONLY ONE OF THEM IS A TRAP FOR WHOEVER MUTATES IT, and this paragraph
+  exists because that trap was live for one commit: whoever forced the identity
+  guard to answer True, expecting this file to redden, would have seen
+  Janus.Tests.Units stay green and concluded the guard was dead. Measured: with
+  the identity guard forced True, Units is 558/0 - the depth guard alone still
+  refuses the answer. Mutating either guard by itself proves nothing here; only
+  mutating both does. That is also why the clause below reads the same number as
+  it did before #297.
 
   THE LOCAL FAMILY CHANGED ITS ANSWER WHEN #276 LANDED, and that is why the
   order of attack was #276 -> #262. Before #276 the grandchild ROW was destroyed

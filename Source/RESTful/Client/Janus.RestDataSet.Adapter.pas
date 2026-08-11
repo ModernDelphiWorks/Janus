@@ -867,7 +867,29 @@ end;
 ///  BASTA UM OBJETO DA LISTA alcancar o nivel de baixo. A resposta traz N
 ///  objetos de meio e o cliente tem UM dataset de netos: exigir que todos os N
 ///  tragam netos recusaria a resposta certa de um agregado onde so uma linha do
-///  meio tem filhos. </summary>
+///  meio tem filhos - medido por
+///  Shallow_OneObjectOfTheListReachingDeeperIsEnough, onde a exigencia estrita
+///  derruba uma resposta correta.
+///
+///  E ESSA METADE TEM UM RESIDUO, QUE FICA DECLARADO E NAO ESCONDIDO. Se o
+///  cliente segura neto sob DUAS linhas do meio e a resposta traz neto so para a
+///  PRIMEIRA, esta funcao aceita a resposta e o neto da SEGUNDA - que o operador
+///  digitou e que o POST levou - e apagado pelo esvaziamento. Medido: entram 2
+///  netos, sai 1.
+///  POR QUE ISSO FICA ASSIM, e nao e a mesma coisa que o defeito que esta guarda
+///  conserta:
+///    * o gatilho REAL de resposta rasa e a associacao Lazy, e Lazy e por
+///      ASSOCIACAO e nao por linha - o servidor devolve o ramo para TODAS as
+///      linhas ou para NENHUMA. No caso "para nenhuma" esta guarda recusa, e e
+///      isso que as duas clausulas Shallow medem;
+///    * a granularidade que falta e a MESMA causa-raiz do caso multi-raiz logo
+///      abaixo: RefreshRecordInternal esvazia o dataset filho INTEIRO sem
+///      perguntar de qual linha do meio a linha e. Consertar por linha e
+///      consertar os dois de uma vez, e e a issue propria ja aberta para o
+///      multi-raiz;
+///    * apertar so este lado - exigir que TODOS os objetos alcancem - troca uma
+///      perda rara por uma recusa comum, medida na clausula citada acima.
+///  </summary>
 function TRESTDataSetAdapter<M>._AnswerReachesEveryLoadedLevel(
   const AAdapter: TDataSetBaseAdapter<M>; const AObject: TObject): Boolean;
 var
@@ -986,8 +1008,9 @@ end;
 ///  placeholder como conceito, e nenhuma das duas deve responder "defasado".
 ///
 ///  A GUARDA DE cINTEGERKINDS SOBREVIVE A MUTACAO, e esta declarada em vez de
-///  escondida. Medido em f5bd30a: removendo as duas linhas, RESTfulDriver
-///  86/86 verdes, zero vermelhos, zero erros - nenhuma clausula morre. A razao
+///  escondida. MEDICAO REFEITA APOS O REBASE NA #296 - o numero e a ancora
+///  entram no commit seguinte a este. Removendo as duas linhas nenhuma
+///  clausula morre. A razao
 ///  e que nenhum modelo do repositorio declara chave primaria AutoInc que nao
 ///  seja inteira, de modo que o ramo nao e alcancavel por teste nenhum hoje.
 ///  Ela fica porque cAutoIncNotGenerated e o inteiro -1: sobre um ftGuid ou um
@@ -1042,8 +1065,9 @@ end;
 ///  E A CHAVE PROPRIA, E NAO A ESTRANGEIRA. A decisao e por SENSIBILIDADE, e o
 ///  que segue e MEDIDO. Substituindo esta leitura por uma que percorre as
 ///  colunas da ASSOCIACAO no dataset filho - a chave estrangeira - e re-rodando
-///  a suite em f5bd30a: 86 total, DUAS clausulas morrem - e sao estas duas, nao
-///  um numero estimado. As duas dizem exatamente onde a leitura pela FK e cega:
+///  a suite - MEDICAO REFEITA APOS O REBASE NA #296, numero e ancora no commit
+///  seguinte a este - morrem DUAS clausulas, e sao estas duas. As duas dizem
+///  exatamente onde a leitura pela FK e cega:
 ///    * o agregado de DOIS niveis - a FK do filho para a raiz JA foi
 ///      reconciliada pelo carimbo mais SetAutoIncValueChilds, entao pela FK nao
 ///      sobra nada para denunciar, e so a chave propria do filho denuncia
@@ -1189,14 +1213,20 @@ begin
         // mesmos params - TDataSetBaseAdapter<M>.RefreshRecord - nomeia por
         // LPrimaryKey.Columns, e o filtro que sai daqui viaja como nome de
         // coluna ate o servidor.
-        // ESTA LINHA SOBREVIVE A MUTACAO e esta declarada: medido em 5c8acea,
-        // trocando por LField.FieldName a suite fica 86/86 verde. As duas
-        // grafias coincidem em todo modelo do repositorio, entao a divergencia
-        // NAO E MEDIDA e NAO E MEDIVEL hoje. Ela fica porque escrever a mesma
-        // das duas e o que impede que a divergencia apareca, e porque duas
-        // montagens do MESMO param em dois arquivos ja sao duas chances de
-        // divergirem - unificar num helper exigiria mexer no adapter BASE, que
-        // nao e deste branch.
+        // ESTA LINHA JA FOI UM SOBREVIVENTE DECLARADO, E A DECLARACAO ESTAVA
+        // ERRADA. Ela dizia que a divergencia entre as duas grafias "nao e
+        // medivel hoje": e medivel, com o duplo que esta fixtura ja tem, e o
+        // que faltava era a ASSERCAO. ReRead_TheGetAsksByTheKeyTheServerReturned
+        // comparava a query por SUBSTRING, de modo que um PREFIXO no nome da
+        // coluna - 'zzroot_id=777' contem 'root_id=777' - passava verde,
+        // enquanto trocar o nome inteiro morria. Ou seja: o nome de coluna que
+        // viaja no $filter nao tinha cobertura nenhuma, e uma corrupcao real
+        // dele passava. Hoje a clausula compara a query INTEIRA e esta linha
+        // esta coberta. MEDICAO REFEITA APOS O REBASE NA #296 - os numeros e a
+        // ancora entram no commit seguinte a este.
+        // A ESCOLHA CONTINUA SENDO A GRAFIA DO MAPEAMENTO, que e a do irmao em
+        // TDataSetBaseAdapter<M>.RefreshRecord; unificar as duas montagens num
+        // helper exigiria mexer no adapter BASE.
         Name := LPrimaryKey.Columns.Items[LFor];
         ParamType := ptInput;
         DataType := LField.DataType;
@@ -1229,16 +1259,15 @@ end;
 ///  o laco de Delete nao pergunta de qual master a linha e -, e apagar uma
 ///  linha do meio ainda dispara a CascadeDelete dela, que esvazia o dataset dos
 ///  netos inteiro tambem.
-///  MEDIDO EM a022111, com esta guarda removida e com o resto da correcao ja no
-///  lugar: duas raizes com uma linha de meio e um neto cada, o duplo
-///  respondendo CHAVES DIFERENTES por raiz - 777 e 888 no POST, e um grafo
-///  proprio por raiz no GET. Resultado: `roots=2 mids=1 leafs=1 posts=2
-///  gets=2`. A re-leitura da segunda raiz levou os filhos JA RECONCILIADOS da
-///  primeira.
-///  AS CHAVES DISTINTAS ESTAO DECLARADAS PORQUE A PRIMEIRA MEDICAO NAO AS TINHA:
-///  em 0a0161f o duplo devolvia 777 para as duas raizes, de modo que aquele
-///  mesmo `mids=1` podia ser artefato de duas raizes indistinguiveis. Nao era -
-///  a perda se reproduz com as raizes separadas.
+///  MEDIDO com esta guarda removida e com o resto da correcao ja no lugar: duas
+///  raizes com uma linha de meio e um neto cada, o duplo respondendo CHAVES
+///  DIFERENTES por raiz - 777 e 888 no POST, e um grafo proprio por raiz no
+///  GET. A re-leitura da segunda raiz leva os filhos JA RECONCILIADOS da
+///  primeira. MEDICAO REFEITA APOS O REBASE NA #296 - o resultado e a ancora
+///  entram no commit seguinte a este.
+///  AS CHAVES DISTINTAS SAO PARTE DA MEDICAO: com as duas raizes respondendo a
+///  MESMA chave, a perda medida podia ser artefato de duas raizes que a fixtura
+///  nao consegue distinguir. Nao e - ela se reproduz com as raizes separadas.
 ///  Isso e PIOR do que o defeito que esta correcao conserta, entao neste caso o
 ///  cliente fica exatamente como ficava antes dela: com as chaves proprias no
 ///  placeholder, e sem perder linha nenhuma. Consertar tambem esse caso exige
