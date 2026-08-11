@@ -17,13 +17,20 @@
   WHY THESE EXIST
 
   The insert response the REST server emits names the primary key of the row it
-  just wrote. The whole tree of test models declares its primary key as
-  ftInteger, with a single exception - Test.Janus.Model.RestLazyKeys.TStrMaster,
-  whose `smkey` is ftString - and that entity is linked only into
-  Janus.Tests.RESTfulDriver and Janus.Tests.Units, neither of which compiles
-  Janus.Server.Resource. Measured, not assumed: a scan of every [PrimaryKey]
-  under Test\ resolved to its [Column] declaration returns 39 ftInteger and 1
-  ftString.
+  just wrote. AT 865370e, the commit this branch starts from, the whole tree of
+  test models declared its primary key as ftInteger with a single exception -
+  Test.Janus.Model.RestLazyKeys.TStrMaster, whose `smkey` is ftString - and
+  that entity is linked only into Janus.Tests.RESTfulDriver and
+  Janus.Tests.Units, neither of which compiles Janus.Server.Resource. Measured,
+  not assumed: a scan of every [PrimaryKey] under Test\ resolved to its
+  [Column] declaration returned 39 ftInteger and 1 ftString THERE.
+
+  THE COUNT IS PINNED TO THAT COMMIT AND THIS UNIT IS WHY IT MOVED. The
+  entities below are themselves textual, GUID, date, fractional, boolean,
+  64-bit, unsigned and composite keys, so the same scan on any commit of this
+  branch answers something larger. The figure is quoted for the state it
+  describes - the state in which the defect went unseen - and re-deriving it
+  means checking out that commit.
 
   So the server side had no model at all whose key was not a bare integer, and
   a response that only ever has to render an integer never has to answer the

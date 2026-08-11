@@ -37,13 +37,19 @@
 
   Two independent reasons, both measured rather than assumed.
 
-  Every primary key in the test tree is an integer, save one: a scan of every
-  [PrimaryKey] under Test\ resolved against its [Column] declaration returns 39
-  ftInteger and 1 ftString, and that ftString entity - TStrMaster, in
+  AT 865370e, the commit this branch starts from, every primary key in the test
+  tree was an integer save one: a scan of every [PrimaryKey] under Test\
+  resolved against its [Column] declaration returned 39 ftInteger and 1
+  ftString THERE, and that ftString entity - TStrMaster, in
   Test.Janus.Model.RestLazyKeys - is linked only into Janus.Tests.RESTfulDriver
   and Janus.Tests.Units. Neither compiles Janus.Server.Resource: proved with a
   {$MESSAGE ERROR} tripwire in that unit, which only Janus.Tests.RESTHorse,
   Janus.Tests.RESTMARS and Janus.Tests.RESTOracle echoed.
+
+  The count is pinned to that commit deliberately. Test.Janus.Model.KeyTypes,
+  which arrives with this fixture, is a pile of non-integer keys, so re-running
+  that scan anywhere on this branch answers something larger - which is the
+  point of the fixture and not a contradiction of the sentence.
 
   And on the client the response is read behind a gate. TSessionRestFul<M>.Insert
   parses it, but the only consumer of the FResultParams it fills - the REST
