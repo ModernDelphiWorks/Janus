@@ -67,14 +67,31 @@ type
     ///  rule is: write only what the declared type provably accepts, and leave
     ///  the property alone otherwise.
     ///
-    ///  WHAT IT DOES NOT COVER, DECLARED. A key whose property is a Nullable, a
-    ///  tkFloat or a tkEnumeration falls through the case untouched - which is
-    ///  the behaviour that shipped, so nothing regresses. The Nullable branch
-    ///  was written and then REMOVED: writing text into a Nullable goes through
-    ///  SetValueNullable, which casts to the element type and raises on
-    ///  anything that is not one, and there is no model in this repository with
-    ///  such a key to hold the code honest. An untestable branch that can raise
-    ///  is worth less than the placeholder it would have replaced.
+    ///  A KNOWN LIMIT, NOT AN OVERSIGHT. A key whose property is a Nullable, a
+    ///  tkFloat or a tkEnumeration falls through the case untouched. Such an
+    ///  entity comes out of an insert WITHOUT its generated key reconciled - it
+    ///  keeps the placeholder, exactly as it did before #301, so nothing
+    ///  regresses; but #301 does not reach it either. That shape needs a
+    ///  follow-up, not a patch here.
+    ///
+    ///  WHY THE NULLABLE BRANCH WAS WRITTEN AND THEN REMOVED. Writing text into
+    ///  a Nullable goes through SetValueNullable, which casts to the element
+    ///  type and raises on anything that is not one - so the branch could make
+    ///  an insert fail on an answer the shipped code simply ignored. The rule
+    ///  above settles it on its own: a branch that can raise and cannot be held
+    ///  honest by a test is worth less than the placeholder it would replace.
+    ///
+    ///  AND THE SCOPE OF THAT "CANNOT BE HELD HONEST" IS Test/Delphi, NOT THIS
+    ///  REPOSITORY. Measured: of the 39 entities carrying a [PrimaryKey] under
+    ///  Test/Delphi none has a Nullable key - but Examples/ has SEVENTEEN
+    ///  entities whose key is non-numeric or Nullable, eight of them Nullable
+    ///  (Orion.Model.Contato and five siblings on Nullable<Integer>,
+    ///  Orion.Model.Cidade and Orion.Model.Estado on Nullable<String>), besides
+    ///  Double keys in Model.Setor and several String keys. The fixture
+    ///  material EXISTS in this repository; it is simply not wired into any test
+    ///  project today, and none of those eight carries a [Sequence] either,
+    ///  which is a second thing a fixture would have to supply.
+    ///
     ///  NOT MEASURED against a live server. </summary>
     procedure _SetGeneratedKeyValue(const AObject: TObject;
       const AColumn: TColumnMapping);
