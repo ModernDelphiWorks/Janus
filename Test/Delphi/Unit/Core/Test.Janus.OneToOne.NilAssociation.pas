@@ -33,7 +33,9 @@
   WHAT THAT PREMISE DOES NOT SAY IS THAT THE OLD GUARD EARNS ITS PLACE. It
   measures only that the guard CANNOT catch a nil. Whether it catches anything
   else is not measured here and is not measured anywhere: deleting it outright
-  leaves this project at 567 found, 0 failures, 0 errors. It is pre-existing
+  leaves this project at 567 found, 0 failures, 0 errors - a number measured on
+  issue #296's branch and NOT re-run since, so it is the total this project had
+  BEFORE issue #307 added twelve clauses and took it to 579. It is pre-existing
   and it is left alone, uncovered - said plainly so the premise below is not
   read as a defence of it.
 

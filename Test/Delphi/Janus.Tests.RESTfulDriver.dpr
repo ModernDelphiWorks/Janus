@@ -75,6 +75,9 @@ uses
   /// String key and composite key - the two association shapes the REST lazy
   /// filter had no model for. Issue #251.
   Test.Janus.Model.RestLazyKeys in 'Common\Test.Janus.Model.RestLazyKeys.pas',
+  /// A key declared NotInc and with NO [Sequence] - the one entity family in
+  /// the test tree for which ExistSequence answers False. Issue #301.
+  Test.Janus.Model.NotIncKey in 'Common\Test.Janus.Model.NotIncKey.pas',
   /// Doubles
   Test.Janus.RestConnection.Double in 'Common\Test.Janus.RestConnection.Double.pas',
   /// Tests - the DRIVERRESTFUL branch
@@ -102,7 +105,10 @@ uses
   Test.Janus.Rest.ResultParamsCompositeKey in 'Unit\RESTful\Test.Janus.Rest.ResultParamsCompositeKey.pas',
   /// What that repair does to the gate the #297 re-read stands behind - the
   /// only place where more params changes WHEN a round trip is bought
-  Test.Janus.Rest.CompositeKeyReReadGate in 'Unit\RESTful\Test.Janus.Rest.CompositeKeyReReadGate.pas';
+  Test.Janus.Rest.CompositeKeyReReadGate in 'Unit\RESTful\Test.Janus.Rest.CompositeKeyReReadGate.pas',
+  /// The OBJECT half of the same family: the insert answer carries the key the
+  /// server generated, and TRESTObjectSetAdapter never read it - issue #301
+  Test.Janus.Rest.ObjectSetInsertKey in 'Unit\RESTful\Test.Janus.Rest.ObjectSetInsertKey.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

@@ -146,7 +146,9 @@ uses
   /// The cascade must not carry a key the generator has not produced - #262
   Test.Janus.AutoInc.UngeneratedKey in 'Unit\Core\Test.Janus.AutoInc.UngeneratedKey.pas',
   /// A single-object association left nil must stay nil, not raise - #296
-  Test.Janus.OneToOne.NilAssociation in 'Unit\Core\Test.Janus.OneToOne.NilAssociation.pas';
+  Test.Janus.OneToOne.NilAssociation in 'Unit\Core\Test.Janus.OneToOne.NilAssociation.pas',
+  /// And the SIBLING branch: a LIST association left nil - issue #307
+  Test.Janus.OneToMany.NilList in 'Unit\Core\Test.Janus.OneToMany.NilList.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
