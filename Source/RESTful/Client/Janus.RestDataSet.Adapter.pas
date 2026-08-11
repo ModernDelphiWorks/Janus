@@ -76,6 +76,12 @@ type
     function _WhereAssociation(
       const AOwnerObject: TDataSetBaseAdapter<M>): String;
     function _FilterLiteral(const AField: TField): String;
+    function _OwnKeyIsUngenerated(
+      const AAdapter: TDataSetBaseAdapter<M>): Boolean;
+    function _GraphBelowIsStale(
+      const AAdapter: TDataSetBaseAdapter<M>): Boolean;
+    procedure _ReReadRootRow;
+    procedure _ReReadStaleRoots(const AMarks: TList<TBookmark>);
   protected
     procedure PopularDataSetOneToOne(const AObject: TObject;
       const AAssociation: TAssociationMapping); virtual; abstract;
@@ -177,6 +183,7 @@ var
   LFor: Integer;
   LField: TField;
   LParam: TParam;
+  LStale: TList<TBookmark>;
 begin
   inherited;
   // Filtar somente os registros inseridos
@@ -189,46 +196,71 @@ begin
   // master nao descarta nada. Ver TDataSetBaseAdapter<M>.FCascadeMasterRows -
   // issue #261.
   FCascadeMasterRows := FOrmDataSet.RecordCount;
+  LStale := TList<TBookmark>.Create;
   try
-    while not FOrmDataSet.Eof do
-    begin
-      // Append/Insert
-      if TDataSetState(FOrmDataSet.Fields[FInternalIndex].AsInteger) in [dsInsert] then
+    try
+      while not FOrmDataSet.Eof do
       begin
-        LObject := M.Create;
-        try
-          TBind.Instance.SetFieldToProperty(FOrmDataSet, LObject);
-          for LDataSetChild in FMasterObject.Values do
-            LDataSetChild.FillMastersClass(LDataSetChild, LObject);
-          ///
-          FSession.Insert(LObject);
-          FOrmDataSet.Edit;
-          if FSession.ExistSequence then
-          begin
-            if FSession.ResultParams.Count > 0 then
+        // Append/Insert
+        if TDataSetState(FOrmDataSet.Fields[FInternalIndex].AsInteger) in [dsInsert] then
+        begin
+          LObject := M.Create;
+          try
+            TBind.Instance.SetFieldToProperty(FOrmDataSet, LObject);
+            for LDataSetChild in FMasterObject.Values do
+              LDataSetChild.FillMastersClass(LDataSetChild, LObject);
+            ///
+            FSession.Insert(LObject);
+            FOrmDataSet.Edit;
+            if FSession.ExistSequence then
             begin
-              for LFor := 0 to FSession.ResultParams.Count -1 do
+              if FSession.ResultParams.Count > 0 then
               begin
-                LParam := FSession.ResultParams.Items[LFor];
-                LField := FOrmDataSet.FindField(LParam.Name);
-                if LField <> nil then
-                  LField.Value := LParam.Value;
+                for LFor := 0 to FSession.ResultParams.Count -1 do
+                begin
+                  LParam := FSession.ResultParams.Items[LFor];
+                  LField := FOrmDataSet.FindField(LParam.Name);
+                  if LField <> nil then
+                    LField.Value := LParam.Value;
+                end;
+                // Atualiza o valor do AutoInc nas sub tabelas
+                SetAutoIncValueChilds;
+                // ISSUE #297 - A RESPOSTA DO INSERT NOMEIA A CHAVE DA RAIZ E
+                // NADA ABAIXO DELA. O carimbo acima reconcilia a FK que os
+                // filhos apontam para esta raiz; as chaves PROPRIAS dos niveis
+                // 2 e 3 continuam no placeholder de AutoInc enquanto o servidor
+                // ja gerou valores reais - o cliente fica com um grafo que o
+                // servidor nao tem, e qualquer UPDATE ou DELETE feito dessa
+                // tela mira uma chave que nao existe.
+                // A pergunta e feita AQUI, com o cursor ainda parado sobre a
+                // linha, e a resposta e' guardada como bookmark: o Post logo
+                // abaixo tira a linha do filtro e leva o cursor embora.
+                if _GraphBelowIsStale(Self) then
+                  LStale.Add(FOrmDataSet.GetBookmark);
               end;
-              // Atualiza o valor do AutoInc nas sub tabelas
-              SetAutoIncValueChilds;
             end;
+            FOrmDataSet.Fields[FInternalIndex].AsInteger := -1;
+            FOrmDataSet.Post;
+          finally
+            LObject.Free;
           end;
-          FOrmDataSet.Fields[FInternalIndex].AsInteger := -1;
-          FOrmDataSet.Post;
-        finally
-          LObject.Free;
         end;
       end;
+    finally
+      FCascadeMasterRows := 0;
+      FOrmDataSet.Filtered := False;
+      FOrmDataSet.Filter := '';
     end;
+    // FORA do laco e DEPOIS de o filtro cair, e as duas coisas por medicao:
+    // dentro do laco a re-leitura apagaria os filhos AINDA NAO ENVIADOS das
+    // raizes seguintes - RefreshRecordInternal esvazia os datasets filhos
+    // inteiros -, e com o filtro ligado o bookmark aponta para uma linha que o
+    // conjunto filtrado nao contem mais.
+    _ReReadStaleRoots(LStale);
   finally
-    FCascadeMasterRows := 0;
-    FOrmDataSet.Filtered := False;
-    FOrmDataSet.Filter := '';
+    for LFor := 0 to LStale.Count -1 do
+      FOrmDataSet.FreeBookmark(LStale[LFor]);
+    LStale.Free;
   end;
 end;
 
@@ -729,6 +761,208 @@ begin
       _PopularDataSetChilds(AObject);
   finally
     FOrmDataSet.EnableControls;
+  end;
+end;
+
+/// <summary> Alguma linha deste adapter carrega ainda o placeholder de AutoInc
+///  na sua PROPRIA chave primaria? - issue #297.
+///
+///  E A CHAVE PROPRIA, E NAO A ESTRANGEIRA, e a distincao e o conserto inteiro.
+///  A FK que o filho aponta para o master JA e reconciliada pelo carimbo de
+///  ApplyInserter mais SetAutoIncValueChilds; a chave propria do filho nunca e -
+///  nada na resposta do insert a nomeia. Perguntar pela FK responderia "esta
+///  tudo bem" exatamente no caso que esta issue existe para consertar.
+///
+///  PERGUNTA POR VALOR, PELOS MESMOS MOTIVOS DE
+///  TDataSetBaseAdapter<M>._AutoIncKeyIsGenerated: entidade sem chave mapeada,
+///  chave que nao e AutoInc - onde -1 pode ser uma chave legitima -, coluna
+///  ausente do dataset ou coluna nao inteira (ftGuid) nao tem placeholder como
+///  conceito, e nenhuma delas deve responder "defasado".
+///
+///  A CAMINHADA DESLIGA OS EVENTOS DO FILHO, e nao e cosmetico: andar num
+///  dataset filho dispara o AfterScroll dele, que chama OpenDataSetChilds e
+///  RE-LE os netos do servidor - perguntar se o filho esta defasado destruiria
+///  os netos ainda nao gravados. Mesma armadilha e mesma tecnica de
+///  TDataSetBaseAdapter<M>._HasPendingRows e de SetAutoIncValueChilds. </summary>
+function TRESTDataSetAdapter<M>._OwnKeyIsUngenerated(
+  const AAdapter: TDataSetBaseAdapter<M>): Boolean;
+const
+  cINTEGERKINDS = [ftInteger, ftSmallint, ftWord, ftLargeint, ftAutoInc,
+                   ftLongWord, ftShortint, ftByte];
+var
+  LPrimaryKey: TPrimaryKeyMapping;
+  LDataSet: TDataSet;
+  LField: TField;
+  LMark: TBookmark;
+  LFor: Integer;
+begin
+  Result := False;
+  if AAdapter = nil then
+    Exit;
+  if AAdapter.FCurrentInternal = nil then
+    Exit;
+  LDataSet := AAdapter.FOrmDataSet;
+  if LDataSet = nil then
+    Exit;
+  if not LDataSet.Active then
+    Exit;
+  if LDataSet.IsEmpty then
+    Exit;
+  LPrimaryKey := TMappingExplorer
+                   .GetMappingPrimaryKey(AAdapter.FCurrentInternal.ClassType);
+  if LPrimaryKey = nil then
+    Exit;
+  if not LPrimaryKey.AutoIncrement then
+    Exit;
+  AAdapter.DisableDataSetEvents;
+  LDataSet.DisableControls;
+  LMark := LDataSet.GetBookmark;
+  try
+    LDataSet.First;
+    while not LDataSet.Eof do
+    begin
+      for LFor := 0 to LPrimaryKey.Columns.Count -1 do
+      begin
+        LField := LDataSet.FindField(LPrimaryKey.Columns.Items[LFor]);
+        if LField = nil then
+          Continue;
+        if not (LField.DataType in cINTEGERKINDS) then
+          Continue;
+        if LField.AsInteger = cAutoIncNotGenerated then
+          Exit(True);
+      end;
+      LDataSet.Next;
+    end;
+  finally
+    if LDataSet.BookmarkValid(LMark) then
+      LDataSet.GotoBookmark(LMark);
+    LDataSet.FreeBookmark(LMark);
+    LDataSet.EnableControls;
+    AAdapter.EnableDataSetEvents;
+  end;
+end;
+
+/// <summary> O grafo abaixo de AAdapter esta defasado em relacao ao servidor?
+///  - issue #297.
+///
+///  SO AS ASSOCIACOES CascadeAutoInc, e nao todas: uma associacao que o modelo
+///  NAO marcou para cascatear chave nao teve chave nenhuma gerada pelo servidor
+///  a partir desta insercao, e um -1 nela e do consumidor. TAitRoot.others
+///  existe no fixture exatamente para isso.
+///
+///  RECURSA PORQUE O DEFEITO E DE PROFUNDIDADE. Com dois niveis o carimbo ja
+///  resolvia; o que nunca foi reconciliado comeca no nivel 2 (chave propria) e
+///  segue no 3. Parar no primeiro nivel deixaria o neto para tras, que e
+///  exatamente o que a opcao de reordenar nao alcancava. </summary>
+function TRESTDataSetAdapter<M>._GraphBelowIsStale(
+  const AAdapter: TDataSetBaseAdapter<M>): Boolean;
+var
+  LAssociations: TAssociationMappingList;
+  LAssociation: TAssociationMapping;
+  LChild: TDataSetBaseAdapter<M>;
+begin
+  Result := False;
+  if AAdapter = nil then
+    Exit;
+  if AAdapter.FCurrentInternal = nil then
+    Exit;
+  if AAdapter.FMasterObject = nil then
+    Exit;
+  if AAdapter.FMasterObject.Count = 0 then
+    Exit;
+  LAssociations := TMappingExplorer
+                     .GetMappingAssociation(AAdapter.FCurrentInternal.ClassType);
+  if LAssociations = nil then
+    Exit;
+  for LAssociation in LAssociations do
+  begin
+    if not (TCascadeAction.CascadeAutoInc in LAssociation.CascadeActions) then
+      Continue;
+    if not AAdapter.FMasterObject.TryGetValue(LAssociation.ClassNameRef,
+                                              LChild) then
+      Continue;
+    if LChild = nil then
+      Continue;
+    if _OwnKeyIsUngenerated(LChild) then
+      Exit(True);
+    if _GraphBelowIsStale(LChild) then
+      Exit(True);
+  end;
+end;
+
+/// <summary> A re-leitura de UMA raiz: monta os params da chave primaria da
+///  linha corrente e desce em TSessionRestFul<M>.RefreshRecord, que emite o GET
+///  na rota que ja existe e devolve o grafo inteiro - o FillAssociation do
+///  servidor recursa e so pula as associacoes Lazy. Quem reescreve o cliente
+///  do outro lado e RefreshRecordInternal, logo acima.
+///
+///  POR QUE ESTE METODO EXISTE EM VEZ DE UMA CHAMADA A
+///  TDataSetBaseAdapter<M>.RefreshRecord, que monta os mesmos params: aquele
+///  metodo se cerca de DisableDataSetEvents/EnableDataSetEvents, e esse par e
+///  uma TROCA e nao um contador. Um segundo Disable encontra os handlers ja em
+///  nil, nao guarda nada, e o Enable correspondente devolve os ORIGINAIS ao
+///  dataset enquanto o chamador de fora ainda acredita que estao desligados.
+///  Aqui isso re-armaria o DoBeforePost no meio do ApplyInternal, e o
+///  ApplyUpdater que roda em seguida NAO TERMINA com ele armado - e a nota
+///  "load-bearing" do DisableDataSetEvents nos dois ApplyInternal da familia.
+///  Medido por Test.Janus.Rest.ReReadAfterInsert
+///  .Design_TheEventSwitchIsASwapAndNotACounter. </summary>
+procedure TRESTDataSetAdapter<M>._ReReadRootRow;
+var
+  LPrimaryKey: TPrimaryKeyMapping;
+  LParams: TParams;
+  LField: TField;
+  LFor: Integer;
+begin
+  if FCurrentInternal = nil then
+    Exit;
+  LPrimaryKey := TMappingExplorer
+                   .GetMappingPrimaryKey(FCurrentInternal.ClassType);
+  if LPrimaryKey = nil then
+    Exit;
+  LParams := TParams.Create(nil);
+  try
+    for LFor := 0 to LPrimaryKey.Columns.Count -1 do
+    begin
+      LField := FOrmDataSet.FindField(LPrimaryKey.Columns.Items[LFor]);
+      if LField = nil then
+        Exit;
+      with LParams.Add as TParam do
+      begin
+        Name := LField.FieldName;
+        ParamType := ptInput;
+        DataType := LField.DataType;
+        Value := LField.Value;
+      end;
+    end;
+    if LParams.Count = 0 then
+      Exit;
+    FSession.RefreshRecord(LParams);
+  finally
+    LParams.Clear;
+    LParams.Free;
+  end;
+end;
+
+/// <summary> Uma re-leitura por raiz inserida cujo grafo ficou defasado, e
+///  NENHUMA para as outras - e o unico custo que esta correcao cobra.
+///
+///  A LISTA VEM VAZIA NO CASO ORDINARIO: uma raiz sem filhos registrados, ou
+///  cujos filhos ja carregam chave propria, nao entra nela, e o metodo sai sem
+///  tocar na rede. </summary>
+procedure TRESTDataSetAdapter<M>._ReReadStaleRoots(
+  const AMarks: TList<TBookmark>);
+var
+  LFor: Integer;
+begin
+  if AMarks.Count = 0 then
+    Exit;
+  for LFor := 0 to AMarks.Count -1 do
+  begin
+    if not FOrmDataSet.BookmarkValid(AMarks[LFor]) then
+      Continue;
+    FOrmDataSet.GotoBookmark(AMarks[LFor]);
+    _ReReadRootRow;
   end;
 end;
 
