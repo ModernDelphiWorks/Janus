@@ -39,8 +39,14 @@ type
   ///  is the framework's own read walk - _ExecuteOneToMany AND
   ///  _ExecuteOneToOne, BOTH of them, so a read routed through the
   ///  single-object branch discards nothing either. OneToOne and ManyToOne both
-  ///  route to that branch, by multiplicity; what is MEASURED is the BRANCH,
-  ///  driven through a OneToOne - no test carries the ManyToOne label.
+  ///  route to that branch, by multiplicity; what is MEASURED HERE is the
+  ///  BRANCH, driven through a OneToOne. SINCE ISSUE #296 THE LABEL IS NO
+  ///  LONGER UNWORN: Test.Janus.OneToOne.NilAssociation declares
+  ///  TAsymTreeManyRoot with TMultiplicity.ManyToOne and drives the same
+  ///  branch through it. What that fixture measures is the nil-association
+  ///  exit and not this suppression, so the sentence above still says what it
+  ///  says - the ManyToOne label reaches the branch, it does not yet reach the
+  ///  re-open guard.
   ///  Neither walk is a scroll anybody chose. pcaPost saves the pending
   ///  children first. pcaCancel calls Abort, so the master never leaves the
   ///  row. Nothing here changes on its own: the enum is only read when a

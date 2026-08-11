@@ -607,6 +607,102 @@ begin
   if not LValue.IsObject then
     Exit;
   LObject := LValue.AsObject;
+  // ISSUE #296 - AN UNFILLED ASSOCIATION IS "NO DATA", NOT A CRASH.
+  // The guard above does NOT cover this one and cannot: TValue.IsObject
+  // classifies the KIND of the value, and a nil class reference is still of
+  // object kind, so it answers True. What got through was a nil TObject, and
+  // it was handed on TWICE - to Bind.SetFieldToProperty, which opens with
+  // TMappingExplorer.GetMappingColumn(AObject.ClassType), and to the
+  // FillMastersClass recursion at the end, which opens the same way. The first
+  // of the two dereferenced address zero and a plain read of .Current raised
+  // EAccessViolation - not an exception a consumer's try..except can name, on
+  // a path ApplyInserter takes by itself.
+  //
+  // NOT A HYPOTHETICAL STATE: TAsymTreeOneRoot ships in this repository with
+  // its OneToOne property left nil on purpose and its model header says so. A
+  // consumer that declares a single-object association and does not construct
+  // it in the constructor - the Delphi default - is in exactly that state.
+  //
+  // LEAVING IN SILENCE IS THE DECISION, and the other two candidates were
+  // refused for named reasons. INSTANTIATING the object here changes
+  // OWNERSHIP: nothing in this walk would be responsible for freeing what it
+  // created. RAISING A NAMED EXCEPTION would break the shape the shipped model
+  // hands over deliberately. An association nobody filled in is "no data", and
+  // the consumer gets back the branch it had - nil.
+  //
+  // THE SIBLING IS _ExecuteOneToMany AND IT IS NOT REPAIRED BY THIS. It has a
+  // nil hazard of its own at a different line - LObjectList.MethodCall('Add',
+  // ...) over a list property no constructor created - reached only for a
+  // child row that survives the foreign-key filter, and it is not what issue
+  // #296 names. Measured, not assumed: on commit 221899a, with the guard below
+  // removed and a throwaway clause added over a TAsymTreeRoot whose `mids` was
+  // set to nil, ONE run raised both - the walk here at module offset 89F831 and
+  // the sibling at 7FB9B9. Two offsets in a single build, so they are two code
+  // sites and not one site seen twice. Recorded so the next reader does not
+  // take this guard for cover it does not give.
+  //
+  // NO CLAUSE IN THE SUITE DRIVES THAT SIBLING HAZARD, measured from the other
+  // side on commit 219ebcd: adding the equivalent nil guard to
+  // _ExecuteOneToMany with everything else intact turned NOTHING red - 567
+  // found, 0 failures, 0 errors, exactly as without it. Every model
+  // Janus.Tests.Units compiles builds its list in its own constructor.
+  //
+  // THAT SENTENCE IS ABOUT ONE PROJECT AND IT DOES NOT GENERALISE TO THE
+  // REPOSITORY. TLazyBranchRoot has no constructor at all - both of its
+  // OneToMany properties are Lazy<TObjectList<...>> and the list is
+  // materialised on first read by Lazy<T>.GetValue through CreateDefaultValue,
+  // not by the owner. It is compiled ONLY by Janus.Tests.RESTHorse, so it is
+  // outside the run the numbers above come from, and the conclusion survives
+  // it either way: materialised is not nil, so that model's list is never nil
+  // when the walk reads it.
+  //
+  // OF THE SEVEN TEST PROJECTS, ONLY TWO COMPILE THIS FILE - Janus.Tests.Units
+  // and Janus.Tests.RESTfulDriver - AND A SUITE NUMBER QUOTED ABOUT IT IS EMPTY
+  // UNLESS IT COMES FROM ONE OF THEM. Measured, because a green from a project
+  // that never reads the source is indistinguishable from a green that means
+  // something: a hard {$MESSAGE ERROR} placed in this method fails the build of
+  // those two and of no other test project - RESTHorse, LiveBindings, RESTMARS,
+  // RESTWiRL and RESTOracle all build and run clean straight through it.
+  // RESTHorse is the trap, because it is the project TLazyBranchRoot lives in:
+  // it returns the same 92 with this guard, without it, or with this file made
+  // impossible to compile. The recipe is written down rather than just its
+  // answer, so the list can be re-derived in one build when it goes stale.
+  //
+  // THE SENTENCE IS ABOUT TEST PROJECTS AND STOPS THERE. This unit is SHIPPED:
+  // Components/Packages/Delphi/JanusCore.dpk names it in its `contains` clause,
+  // which is the definition of what that package compiles, and JanusCore.dproj
+  // carries the matching DCCReference; Examples/Delphi/Data/SQLDirect names it
+  // too. So a dependency added here that both test projects happen to satisfy
+  // can still break the runtime package that goes to the consumer, and no run
+  // of this suite would say so.
+  //
+  // THE SECOND MEASUREMENT THEREFORE COMES FROM Janus.Tests.RESTfulDriver -
+  // the sibling guard added there reads 62 found, 0 failures, 0 errors, that
+  // project's basal exactly, with dcc32 echoing a marker from the added line
+  // itself so the run is known to have compiled it.
+  //
+  // AND THE `IsObject` GUARD ABOVE IS ITSELF UNCOVERED. Deleting it outright
+  // leaves the project at 567 found, 0 failures, 0 errors - nothing in the
+  // suite holds it up. It is PRE-EXISTING and this change neither measures it
+  // nor claims it earns its place; what is measured is only that it cannot
+  // catch a nil, which is why the exit below had to be added rather than the
+  // guard above widened.
+  //
+  // THE POSITION OF THE EXIT IS NOT PINNED BY ANY CLAUSE EITHER, and the
+  // measurement is worse than that sentence sounds. Moved to just after the
+  // First - so past the bookmark, past the scroll, and skipping the restore
+  // and the FreeBookmark in the inner `finally` - the project still reads 567
+  // found, 0 failures, 0 errors. That placement LEAKS A BOOKMARK and leaves
+  // the child cursor parked on its first row, and nothing in the suite
+  // notices, because the #276 suppression makes the movement unobservable.
+  // Where it sits now is strictly better - it does no work it will throw away
+  // and takes no bookmark it will not give back - and nothing defends it.
+  // Declared as a surviving mutation rather than repaired with a clause:
+  // pinning it would mean asserting on cursor state no consumer can see.
+  //
+  // Measured by Test.Janus.OneToOne.NilAssociation.
+  if LObject = nil then
+    Exit;
   LBookMark := ADatasetBase.FOrmDataSet.Bookmark;
   // ISSUE #276 - SAME DEFECT AS _ExecuteOneToMany, AND NOT THE SAME SIZE.
   // This walk moves the same child cursor for the same reason, so its First

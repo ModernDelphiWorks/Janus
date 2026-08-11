@@ -144,7 +144,9 @@ uses
   /// Reading .Current of a grandparent must not destroy grandchild rows - #276
   Test.Janus.Grandchild.Read in 'Unit\Core\Test.Janus.Grandchild.Read.pas',
   /// The cascade must not carry a key the generator has not produced - #262
-  Test.Janus.AutoInc.UngeneratedKey in 'Unit\Core\Test.Janus.AutoInc.UngeneratedKey.pas';
+  Test.Janus.AutoInc.UngeneratedKey in 'Unit\Core\Test.Janus.AutoInc.UngeneratedKey.pas',
+  /// A single-object association left nil must stay nil, not raise - #296
+  Test.Janus.OneToOne.NilAssociation in 'Unit\Core\Test.Janus.OneToOne.NilAssociation.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
