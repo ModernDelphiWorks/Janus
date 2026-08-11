@@ -782,6 +782,12 @@ end;
 ///  COMPARA POR VALOR DE VARIANTE, e nao por texto: chave de data, de moeda ou
 ///  de GUID chegaria formatada diferente dos dois lados e seria recusada por
 ///  engano. VarCompareValue trata Null contra Null como igual.
+///  E ESSE RAMO NAO TEM TESTE. NAO MEDIDO: toda clausula que exercita esta
+///  guarda usa chave INTEIRA, porque nao ha no repositorio modelo REST com
+///  chave primaria de data, moeda ou GUID para dirigir por aqui. Que a
+///  comparacao por variante nao recusa por formatacao e RACIOCINIO sobre
+///  VarCompareValue, e nao medicao - quem for acrescentar um modelo desses
+///  comeca por aqui.
 ///
 ///  RESPONDE True QUANDO NAO HA PERGUNTA A FAZER - sem chave primaria mapeada,
 ///  sem a coluna no dataset, sem a propriedade no objeto, ou com o dataset
@@ -980,14 +986,15 @@ end;
 ///  placeholder como conceito, e nenhuma das duas deve responder "defasado".
 ///
 ///  A GUARDA DE cINTEGERKINDS SOBREVIVE A MUTACAO, e esta declarada em vez de
-///  escondida. Medido em afa52c8: removendo as duas linhas, 86/86 verdes, zero
-///  vermelhos. A razao e que nenhum modelo do repositorio declara chave
-///  primaria AutoInc que nao seja inteira, de modo que o ramo nao e alcancavel
-///  hoje por teste nenhum. Ela fica porque cAutoIncNotGenerated e o inteiro -1:
-///  sobre um ftGuid ou um ftString, AsInteger ou levanta ou responde 0, e as
-///  duas respostas seriam sobre uma pergunta que nao existe. E a mesma guarda,
-///  pela mesma razao, de _AutoIncKeyIsGenerated - onde ela e alcancavel, porque
-///  la o ftGuid entra pela lista de colunas da ASSOCIACAO. </summary>
+///  escondida. Medido em f5bd30a: removendo as duas linhas, RESTfulDriver
+///  86/86 verdes, zero vermelhos, zero erros - nenhuma clausula morre. A razao
+///  e que nenhum modelo do repositorio declara chave primaria AutoInc que nao
+///  seja inteira, de modo que o ramo nao e alcancavel por teste nenhum hoje.
+///  Ela fica porque cAutoIncNotGenerated e o inteiro -1: sobre um ftGuid ou um
+///  ftString, AsInteger ou levanta ou responde 0, e as duas respostas seriam
+///  sobre uma pergunta que nao existe. E a mesma guarda, pela mesma razao, de
+///  _AutoIncKeyIsGenerated - onde ela E alcancavel, porque la as colunas vem da
+///  ASSOCIACAO e nao da chave primaria. </summary>
 function TRESTDataSetAdapter<M>._RowKeyIsUngenerated(
   const AAdapter: TDataSetBaseAdapter<M>): Boolean;
 const
@@ -1033,15 +1040,23 @@ end;
 ///  - issue #297.
 ///
 ///  E A CHAVE PROPRIA, E NAO A ESTRANGEIRA. A decisao e por SENSIBILIDADE, e o
-///  que segue e medido, nao raciocinado. Trocando a chave propria pela coluna da
-///  associacao - a FK - e re-rodando a suite em afa52c8, morre UMA clausula so:
-///  as outras dez continuam vermelhas, porque a FK do NETO para o meio tambem
-///  nunca e reconciliada e denuncia o mesmo grafo pelo nivel 3. Ou seja: as duas
-///  leituras enxergam o defeito de tres niveis; a da chave propria enxerga
-///  TAMBEM o agregado de dois niveis, onde a FK do filho JA foi reconciliada
-///  pelo carimbo mais SetAutoIncValueChilds e so a chave propria dele denuncia.
-///  A chave propria e estritamente mais sensivel, e e por isso que fica -
-///  nao porque a outra leitura seja cega.
+///  que segue e MEDIDO. Substituindo esta leitura por uma que percorre as
+///  colunas da ASSOCIACAO no dataset filho - a chave estrangeira - e re-rodando
+///  a suite em f5bd30a: 86 total, DUAS clausulas morrem e as outras nove que
+///  medem o defeito continuam verdes. As duas que morrem dizem exatamente onde
+///  a leitura pela FK e cega:
+///    * o agregado de DOIS niveis - a FK do filho para a raiz JA foi
+///      reconciliada pelo carimbo mais SetAutoIncValueChilds, entao pela FK nao
+///      sobra nada para denunciar, e so a chave propria do filho denuncia
+///      (Shallow_AnAnswerIsNotRefusedForALevelTheClientDoesNotHold);
+///    * o meio que carrega uma chave que o operador DIGITOU - a cascata propaga
+///      essa chave para a FK do neto, que fica correta, enquanto a chave propria
+///      do neto continua no placeholder
+///      (Cost_AStaleGrandchildAloneStillBuysTheGet).
+///  Fora esses dois, as duas leituras enxergam o mesmo: na arvore de tres niveis
+///  a FK do neto para o meio tambem nunca e reconciliada e denuncia o grafo pelo
+///  nivel 3. A chave propria e ESTRITAMENTE mais sensivel, e e por isso que
+///  fica - nao porque a outra leitura seja cega.
 ///
 ///  A CAMINHADA DESLIGA OS EVENTOS DO FILHO, e nao e cosmetico: andar num
 ///  dataset filho dispara o AfterScroll dele, que chama OpenDataSetChilds e
