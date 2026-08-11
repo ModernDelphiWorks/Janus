@@ -726,6 +726,8 @@ type
     [Test]
     procedure UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
     [Test]
+    procedure ClientDataSetUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
+    [Test]
     procedure RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
     [Test]
     procedure ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster;
@@ -3861,6 +3863,103 @@ begin
   finally
     LChildTable.Free;
     LMasterTable.Free;
+  end;
+end;
+
+procedure TTestAutoIncDistribution.ClientDataSetUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
+var
+  LMasterCds: TClientDataSet;
+  LChildCds: TClientDataSet;
+  LMaster: TClientDataSetAdapter<TAitRoot>;
+  LChild: TClientDataSetAdapter<TAitMid>;
+  LInternal: TField;
+  LKeyA: Integer;
+  LKeyB: Integer;
+begin
+  // THE SECOND LOCAL FAMILY, and it is here for a mutation rather than for
+  // symmetry. The number of pending masters cannot be taken from inside the
+  // cascade - see TDataSetBaseAdapter<M>.FCascadeMasterRows - so it is read at
+  // the top of each ApplyInserter, and there are THREE of those:
+  // TFDMemTableAdapter<M>, TClientDataSetAdapter<M> and TRESTDataSetAdapter<M>.
+  // The three reads are near enough identical to invite the argument that
+  // measuring one measures the others. It does not: delete the read from THIS
+  // family alone and only THIS fixture reddens, which is the whole reason it
+  // was written rather than inferred from the FDMemTable twin.
+  //
+  // Everything else - what is muted, why the pending markers are written by
+  // hand, why the child foreign key starts on cUNCLAIMEDSEED - is the same as
+  // in UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither and is explained
+  // there rather than repeated here.
+  LMasterCds := TClientDataSet.Create(nil);
+  LChildCds := TClientDataSet.Create(nil);
+  try
+    LMaster := TClientDataSetAdapter<TAitRoot>.Create(FConn, LMasterCds, -1,
+                 nil);
+    LChild := TClientDataSetAdapter<TAitMid>.Create(FConn, LChildCds, -1,
+                LMaster);
+    try
+      TCascadeAccess<TAitRoot>.Mute(LMaster);
+      TCascadeAccess<TAitMid>.Mute(LChild);
+      try
+        LMasterCds.Append;
+        LMasterCds.FieldByName(cKEY).AsInteger := cROOTOLD;
+        LMasterCds.FieldByName(cTAG).AsString := 'R1';
+        LMasterCds.Post;
+        LInternal := LMasterCds.FieldByName(cInternalField);
+        LMasterCds.Edit;
+        LInternal.AsInteger := Integer(dsInsert);
+        LMasterCds.Post;
+        LMasterCds.Append;
+        LMasterCds.FieldByName(cKEY).AsInteger := cROOTOLD;
+        LMasterCds.FieldByName(cTAG).AsString := 'R2';
+        LMasterCds.Post;
+        LMasterCds.Edit;
+        LInternal.AsInteger := Integer(dsInsert);
+        LMasterCds.Post;
+        LChildCds.Append;
+        LChildCds.FieldByName(cOWNKEY).AsInteger := 0;
+        LChildCds.FieldByName(cKEY).AsInteger := cUNCLAIMEDSEED;
+        LChildCds.FieldByName(cTAG).AsString := 'C0';
+        LChildCds.Post;
+        LChildCds.Edit;
+        LChildCds.FieldByName(cInternalField).AsInteger := Integer(dsInsert);
+        LChildCds.Post;
+      finally
+        TCascadeAccess<TAitMid>.Unmute(LChild);
+        TCascadeAccess<TAitRoot>.Unmute(LMaster);
+      end;
+      Assert.AreEqual(1, CountWithColumn(LChildCds, cOWNERTOKEN, cNOTOKEN),
+        'PREMISE: the child must carry the NEVER RECORDED value in this ' +
+        'family too - ' + DumpColumn(LChildCds, cOWNERTOKEN));
+      Assert.AreEqual(2,
+        CountWithColumn(LMasterCds, cInternalField, Integer(dsInsert)),
+        'PREMISE: TWO master rows must be pending - that is the ambiguity');
+      Assert.AreEqual(1,
+        CountWithColumn(LChildCds, cInternalField, Integer(dsInsert)),
+        'PREMISE: and the child row must be PENDING, or _IsPendingInsertRow ' +
+        'refuses it before parentage is ever asked about');
+
+      TCascadeAccess<TAitRoot>.ApplyAll(LMaster);
+
+      LKeyA := KeyOfMasterRow(LMasterCds, False);
+      LKeyB := KeyOfMasterRow(LMasterCds, True);
+      Assert.IsTrue(LKeyA > 0,
+        'PREMISE: the first master must have received a generated key');
+      Assert.AreNotEqual(LKeyA, LKeyB,
+        'PREMISE: the two masters must carry DIFFERENT keys');
+      Assert.AreEqual(cUNCLAIMEDSEED, KeyOfTaggedRow(LChildCds, 'C0'),
+        'THE ROW C0 must still carry the foreign key it was seeded with in ' +
+        'the ClientDataSet family as well - ' + DumpColumn(LChildCds, cKEY));
+      Assert.AreEqual(0, CountWithColumn(LChildCds, cKEY, LKeyB),
+        'and specifically NOT the key of the LAST pending master - ' +
+        DumpColumn(LChildCds, cKEY));
+    finally
+      LChild.Free;
+      LMaster.Free;
+    end;
+  finally
+    LChildCds.Free;
+    LMasterCds.Free;
   end;
 end;
 
