@@ -187,6 +187,11 @@ uses
   /// For TAsymTreeOneRoot, the only entity in the repository whose TOP level
   /// association is OneToOne - which is the branch _ExecuteOneToOne serves.
   Test.Janus.Model.AsymTree,
+  /// For TCompMaster/TCompChild, the only association in the repository whose
+  /// key is COMPOSITE - seven columns of five different types - which is what
+  /// makes "every column of the key is compared, whatever its type" a
+  /// measurement instead of a claim.
+  Test.Janus.Model.RestLazyKeys,
   Test.Janus.Cursor.Double,
   /// Only for TInertRestConnection, the IRESTConnection double that fixture
   /// already ships.
@@ -238,12 +243,19 @@ type
     FAsymRoot: TFDMemTableAdapter<TAsymTreeRoot>;
     FAsymMid: TFDMemTableAdapter<TAsymTreeMid>;
     FAsymLeaf: TFDMemTableAdapter<TAsymTreeLeaf>;
+    FCompMasterTable: TFDMemTable;
+    FCompChildTable: TFDMemTable;
+    FCompMaster: TFDMemTableAdapter<TCompMaster>;
+    FCompChild: TFDMemTableAdapter<TCompChild>;
     /// What the CONSUMER's own AfterScroll saw, and whether it is to raise.
     FSeenByConsumer: String;
     FRaiseOnNextScroll: Boolean;
     procedure MidConsumerAfterScroll(DataSet: TDataSet);
     procedure BuildOneToOneTree;
     procedure BuildAsymTree;
+    procedure BuildCompositeKeyPair;
+    procedure AddCompositeRow(const ADataSet: TDataSet; const AKeyColumn: String;
+      const AKeyValue: Integer; const APrefix: String; const ATime: TDateTime);
     procedure BuildLocalTree(const AWithLeaf: Boolean = True;
       const AWithConsumerScroll: Boolean = False);
     procedure BuildCdsTree;
@@ -355,6 +367,24 @@ type
     /// hid behind matching names.
     [Test]
     procedure AsymNames_TwoMidRows_EachMidObjectCarriesOnlyItsOwnGrandchildRow;
+    /// A child row whose foreign key names NO parent, with TWO parents on the
+    /// table. It is given to NEITHER, and that is a decision and not an
+    /// accident: the same one the house already took one layer down, in
+    /// UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither. A row handed to
+    /// the wrong parent is invisible; a row handed to nobody is still sitting
+    /// in the dataset where the operator can see it.
+    /// With ONE parent it is handed over - that is what
+    /// EachMidObjectInTheGraphCarriesTheGrandchildRowsThatAreLoaded says, and
+    /// the two together are the whole rule.
+    [Test]
+    procedure AGrandchildRowWithNoForeignKey_AndTwoMidRows_IsClaimedByNeither;
+    /// The COMPOSITE key - seven columns, five types. The two master rows here
+    /// differ in the SEVENTH column alone and agree on the other six, so a
+    /// comparison that stops before the last one hands both children to both
+    /// masters. That is what makes this a statement about every column of the
+    /// key and not about the first.
+    [Test]
+    procedure CompositeKey_EveryColumnOfTheKeyDecidesWhichRowsTheMasterCarries;
     /// The guard that keeps the repair from swallowing the scroll contract.
     /// Once the read is over, an operator keypress on the middle grid must
     /// still re-open the leaf from the database and still discard - that is
@@ -457,6 +487,16 @@ const
   cASYMMIDKEY2  = 22;
   cASYMLEAFTAGA = 'ALA';
   cASYMLEAFTAGB = 'ALB';
+  /// The six columns of the composite key that the two master rows AGREE on -
+  /// #295. Everything the two rows can be told apart by is in the seventh.
+  cCOMPMASTERKEY = 'cmkey';
+  cCOMPCHILDKEY  = 'cckey';
+  cCOMPMASTERPFX = 'cmk';
+  cCOMPCHILDPFX  = 'cck';
+  cCOMPK1 = 7;
+  cCOMPK2 = 'CK';
+  cCOMPK3 = '{2B2E4A02-0C4F-4E4D-9E2D-9B1F0F4A6C31}';
+  cCOMPK5 = 12.34;
 
 type
   /// Saved BeforeScroll/AfterScroll pair, so a fixture helper can walk a
@@ -562,6 +602,10 @@ begin
   FreeAndNil(FAsymLeafTable);
   FreeAndNil(FAsymMidTable);
   FreeAndNil(FAsymRootTable);
+  FreeAndNil(FCompChild);
+  FreeAndNil(FCompMaster);
+  FreeAndNil(FCompChildTable);
+  FreeAndNil(FCompMasterTable);
   FRest := nil;
   FConn := nil;
 end;
@@ -606,6 +650,38 @@ begin
   FAsymLeafTable := TFDMemTable.Create(nil);
   FAsymLeaf := TFDMemTableAdapter<TAsymTreeLeaf>.Create(FConn, FAsymLeafTable,
                  -1, FAsymMid);
+end;
+
+procedure TTestGrandchildRead.BuildCompositeKeyPair;
+begin
+  FCompMasterTable := TFDMemTable.Create(nil);
+  FCompMaster := TFDMemTableAdapter<TCompMaster>.Create(FConn,
+                   FCompMasterTable, -1, nil);
+  FCompChildTable := TFDMemTable.Create(nil);
+  FCompChild := TFDMemTableAdapter<TCompChild>.Create(FConn, FCompChildTable,
+                  -1, FCompMaster);
+end;
+
+/// One row of either end of the composite association. The two ends spell
+/// their columns differently - `cmk`N and `cck`N - and APrefix is which end
+/// this row belongs to; everything else is identical BY CONSTRUCTION, because
+/// the pair is what the filter has to match. Only ATime differs between the
+/// two families of row, and it is the SEVENTH and last column of the key.
+procedure TTestGrandchildRead.AddCompositeRow(const ADataSet: TDataSet;
+  const AKeyColumn: String; const AKeyValue: Integer; const APrefix: String;
+  const ATime: TDateTime);
+begin
+  ADataSet.Append;
+  ADataSet.FieldByName(AKeyColumn).AsInteger := AKeyValue;
+  ADataSet.FieldByName(APrefix + '1').AsInteger := cCOMPK1;
+  ADataSet.FieldByName(APrefix + '2').AsString := cCOMPK2;
+  ADataSet.FieldByName(APrefix + '3').AsString := cCOMPK3;
+  ADataSet.FieldByName(APrefix + '4').AsDateTime := EncodeDate(2026, 8, 11);
+  ADataSet.FieldByName(APrefix + '5').AsCurrency := cCOMPK5;
+  ADataSet.FieldByName(APrefix + '6').AsDateTime := EncodeDate(2026, 8, 11) +
+                                                    EncodeTime(9, 30, 0, 0);
+  ADataSet.FieldByName(APrefix + '7').AsDateTime := ATime;
+  ADataSet.Post;
 end;
 
 procedure TTestGrandchildRead.BuildCdsTree;
@@ -1005,6 +1081,84 @@ begin
     'object the whole list again - which is the defect, back under a repair ' +
     'that looks present. On AutoIncTree that swap is invisible: both ends are ' +
     'spelled `mid_id`');
+end;
+
+procedure TTestGrandchildRead.AGrandchildRowWithNoForeignKey_AndTwoMidRows_IsClaimedByNeither;
+var
+  LRoot: TAitRoot;
+begin
+  BuildLocalTree;
+  AddRoot(FRootTable, cROOTTAG);
+  AddMid(FMidTable, cMIDTAG, cMIDKEY1);
+  AddMid(FMidTable, cMIDTAG2, cMIDKEY2);
+  // `mid_id` is left untouched, so it is NULL: DoNewRecord fetches the
+  // master's values only for a row that HAS children of its own, and a leaf
+  // never does. That is the ordinary state of a grandchild line the operator
+  // has just started typing.
+  FLeafTable.Append;
+  FLeafTable.FieldByName(cTAG).AsString := cLEAFTAG;
+  FLeafTable.FieldByName(cROOTKEY).AsInteger := 0;
+  FLeafTable.Post;
+
+  Assert.IsTrue(FLeafTable.FieldByName(cMIDKEY).IsNull,
+    'premise: the grandchild row really names no parent. If something filled ' +
+    'the foreign key in, this test measures the ordinary case and not this one');
+
+  LRoot := FRoot.Current;
+
+  Assert.AreEqual(cMIDTAG + '[]' + cMIDTAG2 + '[]', GraphSignature(LRoot),
+    False,
+    'with two possible parents and nothing to choose between them, the row is ' +
+    'given to NEITHER. Giving it to both is the defect this issue is about, ' +
+    'and giving it to one is worse than not giving it at all - a row in the ' +
+    'wrong parent''s list is invisible, a row in nobody''s list is still ' +
+    'sitting in the dataset. Same answer the house already took for the same ' +
+    'question one layer down, in ' +
+    'UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither');
+end;
+
+procedure TTestGrandchildRead.CompositeKey_EveryColumnOfTheKeyDecidesWhichRowsTheMasterCarries;
+var
+  LMaster: TCompMaster;
+  LChild: TCompChild;
+  LResult: String;
+  LMute: TScrollMute;
+begin
+  BuildCompositeKeyPair;
+  AddCompositeRow(FCompMasterTable, cCOMPMASTERKEY, 1, cCOMPMASTERPFX,
+    EncodeTime(9, 30, 0, 0));
+  AddCompositeRow(FCompMasterTable, cCOMPMASTERKEY, 2, cCOMPMASTERPFX,
+    EncodeTime(18, 45, 0, 0));
+  AddCompositeRow(FCompChildTable, cCOMPCHILDKEY, 1, cCOMPCHILDPFX,
+    EncodeTime(9, 30, 0, 0));
+  AddCompositeRow(FCompChildTable, cCOMPCHILDKEY, 2, cCOMPCHILDPFX,
+    EncodeTime(18, 45, 0, 0));
+
+  // Parked on the SECOND master row, and muted, because moving the master with
+  // the events live is the operator scroll that re-opens - and empties - the
+  // child. The second and not the first on purpose: parked on the first, a
+  // repair that simply handed everyone the FIRST master's children would pass.
+  LMute := MuteScroll(FCompMasterTable);
+  try
+    FCompMasterTable.Last;
+  finally
+    UnmuteScroll(FCompMasterTable, LMute);
+  end;
+
+  LMaster := FCompMaster.Current;
+
+  Assert.AreEqual(2, LMaster.cmkey,
+    'premise: the read really bound the SECOND master row');
+  LResult := '';
+  for LChild in LMaster.childs do
+    LResult := LResult + IntToStr(LChild.cckey) + ';';
+  Assert.AreEqual('2;', LResult, False,
+    'the two master rows agree on six of the seven columns of the key and ' +
+    'differ only in the seventh, which is an ftTime. A comparison that stops ' +
+    'anywhere before the last column cannot tell them apart and hands both ' +
+    'children to both masters. This is also the only place the value ' +
+    'comparison meets ftGuid, ftCurrency, ftDate, ftDateTime and ftTime at ' +
+    'all - everything else in this fixture is ftInteger');
 end;
 
 procedure TTestGrandchildRead.AfterTheRead_AnOperatorScrollStillDiscards;
