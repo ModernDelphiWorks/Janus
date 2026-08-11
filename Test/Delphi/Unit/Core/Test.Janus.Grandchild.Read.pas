@@ -201,13 +201,65 @@
   measured rather than assumed - all three answered
   M1[LA/11;LB/12;]M2[LA/11;LB/12;] where the right answer is M1[LA/11;]M2[LB/12;].
 
-  THE MUTATIONS THAT WERE RUN, AND WHAT DIED IN EACH. Baseline for all seven:
-  554 found, 554 passed - MEASURED AT COMMIT 563c726. Those numbers are the size
+  THE THREE FAMILIES CONVERGE ON THE WRITING PATH TOO, and that is where a
+  wrong list stops being cosmetic. Every clause that reads .Current answers what
+  a SCREEN sees; TRESTDataSetAdapter<M>.ApplyInserter never reads .Current at
+  all - it builds its own object per master row and hands it to FSession.Insert,
+  which serialises it and puts it on the wire. That is a SECOND site of the same
+  walk. What it POSTed, with two middle rows and one leaf under each:
+      Expected [R1;M1;LA;M2;LB;] but got [R1;M1;LA;LB;M2;LA;LB;]
+  Two orders, two items, every order stored carrying both items - no exception,
+  no trace. TheGraphThatWouldBePosted_CarriesOnlyEachMidRowsOwnLeaves asserts on
+  the POST body itself, which is the last form the graph takes before it leaves
+  the process.
+
+  AND THE TOP LEVEL WAS NEVER ASKED ANYTHING UNTIL TwoRootRows. Every other
+  clause leaves ONE row at the grandparent, so the top level always took the
+  single-master slack and no clause here filtered it. With two grandparent rows
+  and one middle row under each, BOTH levels of the walk have to filter:
+      Expected [M1[LA/11;]] but got [M1[LA/11;LB/12;]M2[LA/11;LB/12;]]
+
+  THE KEY IS COMPARED BY VALUE, NOT BY TEXT, AND THAT WAS A REPAIR OF THIS
+  REPAIR. The first version compared every column with AsString, on the argument
+  that one routine for every type is total and cannot fail. It is total, and it
+  is NARROWER THAN THE VALUE in two families a key can legitimately use - and
+  through either one this issue's defect comes back whole and silent:
+
+    - date and time. TDateTimeField.AsString goes through DateTimeToStr, which
+      does not carry the millisecond. Two master rows one millisecond apart gave
+      the same text, so the filter separated nothing:
+          Expected [2;] but got [1;2;]
+      which is the identical shape to the unrepaired defect. A timestamp key is
+      not exotic.
+    - Currency. FloatToStr renders fifteen significant digits and a Currency
+      holds nineteen, so two amounts differing in the sixteenth gave the same
+      text and the same wrong answer.
+
+  Neither family says anything about the other, so each has its own clause and
+  each was mutated on its own - n9 and n10 below. The clause that came first,
+  CompositeKey_EveryColumnOfTheKey..., can see NEITHER: it separates its two
+  master rows by NINE HOURS.
+
+  TRAILING BLANKS ARE SIGNIFICANT, AND THAT IS A DIFFERENCE FROM A DATABASE
+  JOIN. Measured at 53b9ac6 on the composite association, with two master rows:
+  a master holding 'CC   ' - the field keeps the blanks - against a child
+  holding 'CC' gives NO parent claiming the child, where before this repair
+  BOTH claimed it. A join over CHAR in Firebird would treat the two as equal, so
+  the rule here is STRICTER than the database's, and on the writing path "no
+  parent" means THE ROW IS NEVER SENT. That is the declared price of the rule
+  "a row that names no parent belongs to nobody" - see
+  TwoMastersWithNoKeyAtAll_ClaimNoChildRow, which pins the same rule where it is
+  not a matter of dialect. WHICH dialect's semantics to emulate is not this
+  repair's decision and there is deliberately NO clause pinning it: it is
+  measured and written down here, for whoever decides.
+
+  THE MUTATIONS THAT WERE RUN, AND WHAT DIED IN EACH. Baseline for all fifteen:
+  558 found, 558 passed - MEASURED AT COMMIT 53b9ac6. Those numbers are the size
   of THAT run; whoever re-tries a mutation re-runs it rather than scaling it.
 
     n1. the filter never consulted - every row admitted, which is the state of
         the code before this repair
-        -> 7 red, and they are the seven clauses below and nothing else.
+        -> 11 red, and they are the eleven #295 clauses and nothing else.
     n2. the single-master slack removed - the filter applies even with ONE
         master row
         -> 1 red, and it is a #276 clause:
@@ -225,31 +277,63 @@
            decides the case where the MASTER's column is null too.
     n4. the two ends of the association swapped - the master's column name
         looked up on the child dataset and back
-        -> 3 red, and NOT the three AutoIncTree clauses, which stay green
+        -> 5 red, and NOT the three AutoIncTree clauses, which stay GREEN
            because that model spells `mid_id` at both ends and the swap
-           resolves by coincidence. What dies is everything on a model that
-           spells its columns once: AsymNames, CompositeKey and
-           TwoMastersWithNoKeyAtAll.
+           resolves by coincidence. What dies is every clause on a model that
+           spells its columns once: AsymNames and the four composite ones.
     n8. only the FIRST column of the key compared
-        -> 1 red, and only one: CompositeKey. Also survived GREEN until that
-           clause existed - every other association the suite reaches at this
-           walk has a single column.
+        -> 3 red, all three composite clauses that vary a column, because each
+           of them varies one that is not the first. Survived GREEN until the
+           first of them existed - every other association the suite reaches at
+           this walk has a single column.
+    n9. the date-and-time branch deleted, that family back on AsString
+        -> 1 red, and only one:
+           CompositeKey_TwoMasterRowsThatDifferByOneMillisecond...
+    n10. the Currency branch deleted, that family back on AsString
+        -> 1 red, and only one:
+           CompositeKey_TwoMasterRowsThatDifferInTheSixteenthDigit...
 
-  TWO MUTATIONS THAT SURVIVE, DECLARED RATHER THAN HIDDEN. Both are early exits
-  of _ForeignKeyFieldPairs and both are defensive:
+  n9 and n10 are the pair that matters most in this table. The two branches look
+  alike and neither is the other's justification, so each had to kill its own
+  clause and only its own - which is the house's rule about siblings, applied to
+  the two halves of one line of reasoning.
 
-    n5. `if not LMaster.Active then Exit` deleted -> 554 GREEN.
-    n6. `if LChild = nil then Exit` deleted -> 554 GREEN.
+  EIGHT MUTATIONS THAT SURVIVE, DECLARED RATHER THAN HIDDEN. All eight are at
+  558 GREEN, MEASURED AT COMMIT 53b9ac6, and each has its own reason:
 
-  Neither state is constructible from the fixture: every adapter it builds
-  holds an open dataset. They stay for the reason the house already keeps the
-  same pair in _RecurseOverChildRows - `LDataSet = nil` and `not LDataSet.Active`,
-  in that order, before anything is read off the dataset. What n5 guards is the
-  RecordCount call immediately after it, and RecordCount on a dataset that is
-  not open is not a question this fixture has any measurement for - which is
-  precisely why the Active check goes first instead of being reasoned about.
-  Repairing either with a test would mean inventing a closed or datasetless
-  adapter, which is a wider change than this issue is.
+    n5.  `if not LMaster.Active then Exit` deleted.
+    n6.  `if LChild = nil then Exit` deleted.
+    n14. `if AChildAdapter.FOwnerMasterObject = nil then Exit` deleted.
+    n15. `if LMaster = nil then Exit` deleted.
+         Four guards over states the fixture cannot build: every adapter it
+         makes holds an open dataset, and _ExecuteOneToMany is only ever reached
+         through a CHILD adapter, which by construction has an owner. They stay
+         for the reason the house already keeps the same pair in
+         _RecurseOverChildRows - `LDataSet = nil` then `not LDataSet.Active`, in
+         that order, before anything is read off the dataset. Repairing them
+         would mean inventing a closed or datasetless adapter.
+    n11. the binary-float branch deleted (ftFloat/ftSingle/ftExtended back on
+         AsString). NO MODEL in the repository joins on a float column, so
+         nothing here can see it. The branch exists because it rides on the SAME
+         width argument as Currency, which IS measured by n10 - and it is
+         declared unmeasured rather than deleted, because deleting it would
+         leave a known-narrow rendering deciding a key.
+    n12. the bounds `if LFor > High(ColumnsNameRef) then Break` deleted. Needs
+         an association whose two ends declare DIFFERENT numbers of columns; the
+         one composite model in the repository declares seven on both sides.
+    n13. `if LAssociation = nil then Continue` deleted. GetAssociation never
+         yields nil anywhere the suite reaches. It mirrors the identical guard
+         in FillMastersClass, which is where this walk is entered from.
+    n16. a column missing on one side made to admit EVERY row instead of
+         dropping that one pair. Needs an association naming a column that is
+         absent from one of the two datasets. It is reached only under n4, which
+         is part of why THAT mutation kills anything at all.
+
+  None of the eight was repaired with a clause, and the reason is the same for
+  all of them: each would need a NEW MODEL or a deliberately broken adapter, and
+  inventing either would widen this change past what it is for. They are written
+  here so the next reader knows they were run and what they mean, instead of
+  finding them by re-running the sweep.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
