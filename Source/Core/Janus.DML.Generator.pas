@@ -646,9 +646,9 @@ begin
          // FK GUID nao preenchida: o TGUID chega zerado (ou Nullable sem
          // valor, ver _GetGuidValue). Devolver '' faz a guarda de :265-266 e
          // :328-329 emitir '1 = 0' - o mesmo contrato de FK nula que o irmao
-         // REST ja pratica em Janus.RestDataSet.Adapter.pas:439-440. Emitir
-         // o literal do GUID zerado tambem casaria zero linhas, mas por
-         // acidente e nao por contrato.
+         // REST pratica em TRESTDataSetAdapter<M>._WhereAssociation (ancora
+         // por METODO: a de linha apodreceu duas vezes). Emitir o literal do
+         // GUID zerado casaria zero linhas, por acidente e nao por contrato.
          if LGuid = TGUID.Empty then
            Result := ''
          else
