@@ -126,6 +126,8 @@ type
     [Test]
     procedure TwoObjectsCarryingTwoPairsEach_YieldFourParams;
     [Test]
+    procedure DuplicateNamesAliasOntoTheFirst_AnRtlPropertyOfTParams;
+    [Test]
     procedure TheSameAnswerParsesTheSameThroughAnUnrelatedEntity;
     [Test]
     procedure AnAnswerWithNoParamsElement_YieldsNoParams;
@@ -251,12 +253,38 @@ var
   LActual: String;
 begin
   // Both loops at once: dropping either one leaves two params instead of four,
-  // and the rendering names which two were lost.
+  // and the rendering names which two were lost. The four names are DISTINCT
+  // on purpose - see DuplicateNamesAliasOntoTheFirst_AnRtlPropertyOfTParams.
   LActual := TParamsProbe<TKeyOnly>.Render(
-    '{"result":"ok","params":[{"k1":10,"k2":20},{"k1":30,"k2":40}]}');
-  Assert.AreEqual('k1=10|k2=20|k1=30|k2=40', LActual, False,
+    '{"result":"ok","params":[{"k1":10,"k2":20},{"k3":30,"k4":40}]}');
+  Assert.AreEqual('k1=10|k2=20|k3=30|k4=40', LActual, False,
     'the objects are walked in order and each object contributes all of its ' +
     'pairs - neither loop may swallow the other');
+end;
+
+procedure TTestRestResultParamsCompositeKey.DuplicateNamesAliasOntoTheFirst_AnRtlPropertyOfTParams;
+var
+  LActual: String;
+begin
+  // NOT a property of this parser and NOT changed by #300. TParams.GetItem
+  // (Data.DB.pas:11219-11223) returns Item.ParamRef, and TParam.ParamRef
+  // (Data.DB.pas:11589-11595) resolves a named param to
+  // TParams(Collection).ParamByName(Name) - the FIRST param of that name. So
+  // two params sharing a name are one param wearing two slots, on write and on
+  // read alike, and the second value is simply not there to be found.
+  //
+  // MEASURED, not reasoned: this body was originally written into the clause
+  // above expecting k1=10|k2=20|k1=30|k2=40, and it came back as
+  // k1=10|k2=20|k1=10|k2=40 with the fix in place. It is pinned here so the
+  // next reader does not mistake the aliasing for a parser defect.
+  //
+  // It costs nothing today: the answer ParseInsert builds is ONE object whose
+  // pairs are the columns of one primary key, and a key has no repeated column.
+  LActual := TParamsProbe<TKeyOnly>.Render(
+    '{"result":"ok","params":[{"k1":10,"k2":20},{"k1":30,"k2":40}]}');
+  Assert.AreEqual('k1=10|k2=20|k1=10|k2=40', LActual, False,
+    'four slots, but the two repeated names alias onto the first param of ' +
+    'each name - an RTL property of TParams, measured, not this parser');
 end;
 
 procedure TTestRestResultParamsCompositeKey.TheSameAnswerParsesTheSameThroughAnUnrelatedEntity;

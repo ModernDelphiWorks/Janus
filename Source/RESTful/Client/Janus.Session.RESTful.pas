@@ -391,16 +391,25 @@ begin
     if LParamsArray = nil then
       Exit;
 
+    // ISSUE #300 - UM TParam POR PAR, NAO POR OBJETO. O servidor emite a chave
+    // primaria INTEIRA num unico objeto: Janus.Server.Resource.pas:305-308
+    // acrescenta um `"nome":valor,` por coluna da chave dentro do unico objeto
+    // que cRESOURCEINSERT (:57) reserva. Com o `with FResultParams.Add` do lado
+    // de FORA deste laco interno, Name e Value eram sobrescritos a cada par e
+    // so o ULTIMO sobrevivia - uma entidade REST de chave composta voltava do
+    // insert com uma coluna da chave preenchida e as demais no placeholder, sem
+    // excecao e sem log. O laco EXTERNO continua: a resposta tambem pode trazer
+    // um objeto por coluna, e as duas formas sao lidas.
     for LFor := 0 to LParamsArray.Count -1 do
     begin
       LValuesObject := LParamsArray.Items[LFor] as TJSONObject;
-      with FResultParams.Add as TParam do
+      for LPar := 0 to LValuesObject.Count -1 do
       begin
-        for LPar := 0 to LValuesObject.Count -1 do
+        with FResultParams.Add as TParam do
         begin
           Name := LValuesObject.Pairs[LPar].JsonString.Value;
           DataType := ftString;
-          Value := LValuesObject.Pairs[LPar].JsonValue.Value
+          Value := LValuesObject.Pairs[LPar].JsonValue.Value;
         end;
       end;
     end;
