@@ -1474,8 +1474,9 @@ begin
       Assert.AreEqual(0, CountWithKey(LChildTable, LKeyA),
         'not one child is left on the first master key');
       Assert.AreEqual(cGRANDS, CountWithKey(LChildTable, LKeyB),
-        'they all end up on the LAST pending master row - last writer wins, ' +
-        'measured through the shipped ApplyInserter');
+        'they all end up on the LAST pending master row - because R2 is ' +
+        'their PARENT, not because it wrote last, measured through the ' +
+        'shipped ApplyInserter');
     finally
       LChild.Free;
       LMaster.Free;
