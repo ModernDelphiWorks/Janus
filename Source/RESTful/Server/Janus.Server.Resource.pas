@@ -361,6 +361,11 @@ begin
         for LColumn in LPrimaryKey.Columns do
           LParams.AddPair(LColumn.ColumnProperty.Name,
                           _PrimaryKeyValueToJson(LColumn, LObject));
+        /// ToJSON and NOT ToString: both run TJSONAncestor.ToChars, so both
+        /// escape the quote and the backslash, but ToString passes no options
+        /// while ToJSON passes EncodeBelow32 and EncodeAbove127. A control
+        /// character raw inside a JSON string is illegal, so ToString is the
+        /// one that can still emit a document nobody can parse.
         /// An empty column list now yields {} instead of indexing LValues[0].
         Result := Format(cRESOURCEINSERT, [AQuery.ResourceName,
                                            LParams.ToJSON]);

@@ -57,6 +57,7 @@ uses
   Classes,
   DB,
   SysUtils,
+  Janus.Types.Nullable,
   MetaDbDiff.mapping.attributes,
   MetaDbDiff.Types.Mapping,
   MetaDbDiff.Mapping.Register;
@@ -176,6 +177,72 @@ type
     property kttag: String read Fkttag write Fkttag;
   end;
 
+  /// The COLUMN and the PROPERTY are deliberately named differently. The
+  /// response names the PROPERTY - it always did - and while every other
+  /// entity in this tree spells the two the same, no clause could tell the
+  /// difference and swapping one for the other was invisible.
+  [Entity]
+  [Table('ktalias', '')]
+  [PrimaryKey('kt_code', TAutoIncType.NotInc,
+                         TGeneratorType.NoneInc,
+                         TSortingOrder.NoSort,
+                         True, 'Textual key whose column is not its property')]
+  TKeyTypeAlias = class
+  private
+    Fktcode: String;
+    Fkttag: String;
+  public
+    [Restrictions([TRestriction.NotNull])]
+    [Column('kt_code', ftString, 60)]
+    property ktcode: String read Fktcode write Fktcode;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
+  /// A boolean key. Absurd as a design and perfectly legal as a mapping, and
+  /// it is the only shape that can tell whether VarIsOrdinal - which is TRUE
+  /// for varBoolean - is allowed to swallow it into the number branch.
+  [Entity]
+  [Table('ktbool', '')]
+  [PrimaryKey('ktflag', TAutoIncType.NotInc,
+                        TGeneratorType.NoneInc,
+                        TSortingOrder.NoSort,
+                        True, 'Boolean primary key')]
+  TKeyTypeBool = class
+  private
+    Fktflag: Boolean;
+    Fkttag: String;
+  public
+    [Restrictions([TRestriction.NotNull])]
+    [Column('ktflag', ftBoolean)]
+    property ktflag: Boolean read Fktflag write Fktflag;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
+  /// A NULLABLE key, left unset by the caller. This is the only shape that
+  /// reaches the null branch of the value builder: GetNullableValue answers a
+  /// Variant Null for a Nullable property with no value, and for nothing else.
+  [Entity]
+  [Table('ktnull', '')]
+  [PrimaryKey('ktopt', TAutoIncType.NotInc,
+                       TGeneratorType.NoneInc,
+                       TSortingOrder.NoSort,
+                       True, 'Nullable primary key')]
+  TKeyTypeNullable = class
+  private
+    Fktopt: Nullable<String>;
+    Fkttag: String;
+  public
+    [Column('ktopt', ftString, 60)]
+    property ktopt: Nullable<String> read Fktopt write Fktopt;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
 implementation
 
 initialization
@@ -188,5 +255,8 @@ initialization
   TRegisterClass.RegisterEntity(TKeyTypeGuid);
   TRegisterClass.RegisterEntity(TKeyTypeDate);
   TRegisterClass.RegisterEntity(TKeyTypeFloat);
+  TRegisterClass.RegisterEntity(TKeyTypeAlias);
+  TRegisterClass.RegisterEntity(TKeyTypeBool);
+  TRegisterClass.RegisterEntity(TKeyTypeNullable);
 
 end.

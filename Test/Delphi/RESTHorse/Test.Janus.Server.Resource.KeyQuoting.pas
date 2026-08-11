@@ -163,6 +163,23 @@ type
     [Test]
     procedure TextualKeyCarryingABackslash_MustSurviveIntoTheResponse;
 
+    /// A control character in the key must round trip.
+    [Test]
+    procedure TextualKeyCarryingAControlCharacter_MustSurviveIntoTheResponse;
+
+    /// ...and it must not travel RAW. RFC 8259 forbids an unescaped character
+    /// below #32 inside a JSON string. Delphi's own parser accepts one anyway,
+    /// so round-tripping it through TJSONObject.ParseJSONValue proves nothing
+    /// about the document that leaves this machine - measured, not assumed:
+    /// serialising with ToString instead of ToJSON keeps every other clause in
+    /// this fixture green. TJSONAncestor.ToString runs ToChars with no options
+    /// and ToJSON runs it with EncodeBelow32 / EncodeAbove127; the structural
+    /// escaping of the quote and the backslash happens either way. This is the
+    /// only clause that separates the two, and it asserts the WIRE, which is
+    /// where a stricter consumer than Delphi is standing.
+    [Test]
+    procedure TheResponseCarriesNoRawControlCharacter;
+
     /// Types whose ambient rendering carries a separator: a hyphen and braces,
     /// a slash, and - on a pt-BR machine - a decimal comma.
     [Test]
@@ -171,6 +188,23 @@ type
     procedure DateKey_TheResponseMustBeParseableJson;
     [Test]
     procedure FractionalKey_TheResponseMustBeParseableJson;
+
+    /// The pair names the PROPERTY, not the column. Every other entity in this
+    /// tree spells the two the same, so nothing could tell them apart and
+    /// trading one for the other was invisible.
+    [Test]
+    procedure TheKeyPairNamesTheProperty_NotTheColumn;
+
+    /// VarIsOrdinal answers True for varBoolean. Without an explicit exclusion
+    /// a boolean key would leave as -1 / 0.
+    [Test]
+    procedure BooleanKey_IsNotSwallowedIntoTheNumberBranch;
+
+    /// A key the server could not determine must come back as JSON null - not
+    /// as an empty string, which a client would write into the field as if it
+    /// were the value.
+    [Test]
+    procedure NullableKeyWithNoValue_ComesBackAsJsonNull;
 
     /// The whole response, not just its params element, must stay a single
     /// well-formed document - the `result` message has to survive intact.
@@ -196,6 +230,12 @@ const
                '  ktday DATE PRIMARY KEY, kttag VARCHAR(60))';
   cDDL_FLOAT = 'CREATE TABLE IF NOT EXISTS ktfloat (' +
                '  ktnum NUMERIC(18,4) PRIMARY KEY, kttag VARCHAR(60))';
+  cDDL_ALIAS = 'CREATE TABLE IF NOT EXISTS ktalias (' +
+               '  kt_code VARCHAR(60) PRIMARY KEY, kttag VARCHAR(60))';
+  cDDL_BOOL  = 'CREATE TABLE IF NOT EXISTS ktbool ('  +
+               '  ktflag BOOLEAN PRIMARY KEY, kttag VARCHAR(60))';
+  cDDL_NULL  = 'CREATE TABLE IF NOT EXISTS ktnull ('  +
+               '  ktopt VARCHAR(60), kttag VARCHAR(60))';
 
 { TTestServerResourceKeyQuoting }
 
@@ -217,6 +257,9 @@ begin
   FConnection.ExecuteDirect(cDDL_GUID);
   FConnection.ExecuteDirect(cDDL_DATE);
   FConnection.ExecuteDirect(cDDL_FLOAT);
+  FConnection.ExecuteDirect(cDDL_ALIAS);
+  FConnection.ExecuteDirect(cDDL_BOOL);
+  FConnection.ExecuteDirect(cDDL_NULL);
 end;
 
 procedure TTestServerResourceKeyQuoting.TearDownFixture;
@@ -238,6 +281,9 @@ begin
   FConnection.ExecuteDirect('DELETE FROM ktguid');
   FConnection.ExecuteDirect('DELETE FROM ktdate');
   FConnection.ExecuteDirect('DELETE FROM ktfloat');
+  FConnection.ExecuteDirect('DELETE FROM ktalias');
+  FConnection.ExecuteDirect('DELETE FROM ktbool');
+  FConnection.ExecuteDirect('DELETE FROM ktnull');
 end;
 
 function TTestServerResourceKeyQuoting.ScalarInt(const ASQL: String): Integer;
@@ -351,6 +397,35 @@ begin
     'A backslash inside the key did not survive into the response.');
 end;
 
+procedure TTestServerResourceKeyQuoting.TextualKeyCarryingAControlCharacter_MustSurviveIntoTheResponse;
+var
+  LPair: TJSONPair;
+begin
+  /// The body carries A<VT>B. The VERTICAL TAB and not the horizontal one:
+  /// TJSONString.ToChars has a dedicated two-character escape for #9, #10,
+  /// #13, #8 and #12 that it writes with or without options, so those five
+  /// cannot tell ToJSON and ToString apart. #$0B falls into the \uXXXX branch,
+  /// which is the branch the options govern.
+  LPair := KeyPairOf('KeyTypeText', '{"ktcode":"A\u000BB","kttag":"vtabbed"}');
+  Assert.AreEqual('A'#$0B'B', LPair.JsonValue.Value,
+    'A control character inside the key did not survive into the response.');
+end;
+
+procedure TTestServerResourceKeyQuoting.TheResponseCarriesNoRawControlCharacter;
+var
+  LRaw: String;
+  LIndex: Integer;
+begin
+  LRaw := InsertRaw('KeyTypeText', '{"ktcode":"A\u000BB","kttag":"vtabbed"}');
+  for LIndex := 1 to Length(LRaw) do
+    if LRaw[LIndex] < #32 then
+      Assert.Fail(Format(
+        'The response carries a RAW control character #%d at position %d. '
+        + 'RFC 8259 forbids it unescaped inside a JSON string. Body was: %s',
+        [Ord(LRaw[LIndex]), LIndex, LRaw]));
+  Assert.Pass;
+end;
+
 procedure TTestServerResourceKeyQuoting.GuidKey_TheResponseMustBeParseableJson;
 var
   LPair: TJSONPair;
@@ -401,6 +476,50 @@ begin
     TFormatSettings.Invariant), 0.0001,
     'The fractional key did not survive the round trip. Got: '
     + LPair.JsonValue.ToJSON);
+end;
+
+procedure TTestServerResourceKeyQuoting.TheKeyPairNamesTheProperty_NotTheColumn;
+var
+  LPair: TJSONPair;
+begin
+  /// TKeyTypeAlias maps the property `ktcode` onto the column `kt_code`.
+  LPair := KeyPairOf('KeyTypeAlias', '{"ktcode":"ABC","kttag":"aliased"}');
+  Assert.AreEqual('ktcode', LPair.JsonString.Value,
+    'The insert response names the COLUMN. It named the PROPERTY before, and '
+    + 'the client looks the name up as a dataset field.');
+  Assert.AreEqual('ABC', LPair.JsonValue.Value,
+    'The key value did not survive the round trip.');
+end;
+
+procedure TTestServerResourceKeyQuoting.BooleanKey_IsNotSwallowedIntoTheNumberBranch;
+var
+  LPair: TJSONPair;
+begin
+  LPair := KeyPairOf('KeyTypeBool', '{"ktflag":true,"kttag":"flagged"}');
+  Assert.AreEqual('ktflag', LPair.JsonString.Value,
+    'The response no longer names the key column.');
+  Assert.IsTrue(LPair.JsonValue is TJSONString,
+    'A boolean key left as the number branch would render it. That is a '
+    + 'contract change no clause here asked for. Got: '
+    + LPair.JsonValue.ClassName + ' / ' + LPair.JsonValue.ToJSON);
+  Assert.AreEqual('True', LPair.JsonValue.Value,
+    'The boolean key did not survive the round trip in the form VarToStr '
+    + 'already produced.');
+end;
+
+procedure TTestServerResourceKeyQuoting.NullableKeyWithNoValue_ComesBackAsJsonNull;
+var
+  LPair: TJSONPair;
+begin
+  /// The caller sends no key at all, and the property is Nullable, so nothing
+  /// gives it a value: GetNullableValue answers a Variant Null.
+  LPair := KeyPairOf('KeyTypeNullable', '{"kttag":"unset"}');
+  Assert.AreEqual('ktopt', LPair.JsonString.Value,
+    'The response no longer names the key column.');
+  Assert.IsTrue(LPair.JsonValue is TJSONNull,
+    'A key with no value must come back as JSON null, not as an empty string '
+    + 'the client would take for the value. Got: '
+    + LPair.JsonValue.ClassName + ' / ' + LPair.JsonValue.ToJSON);
 end;
 
 procedure TTestServerResourceKeyQuoting.TheResponseKeepsItsResultMessage;
