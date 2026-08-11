@@ -244,7 +244,15 @@ type
     procedure AddRoot(const ADataSet: TDataSet; const ATag: String);
     procedure AddMid(const ADataSet: TDataSet; const ATag: String;
       const AOwnKey: Integer);
-    procedure AddLeaf(const ADataSet: TDataSet; const ATag: String);
+    /// AMidKey is the leaf's own `mid_id`, and it is a PARAMETER rather than a
+    /// constant because the two questions this fixture asks need different
+    /// values there. #276 needs the SENTINEL, which belongs to no middle row,
+    /// so "the row survived" can never be read off a row that was rebuilt;
+    /// #295 needs the REAL key of a real middle row, because "each middle
+    /// object got ITS OWN leaves" cannot be told from "each got them all"
+    /// unless the leaves are distinguishable by parent.
+    procedure AddLeaf(const ADataSet: TDataSet; const ATag: String;
+      const AMidKey: Integer);
     procedure ParkOnFirst(const ADataSet: TDataSet);
     function SignatureOf(const ADataSet: TDataSet; const ATagColumn: String;
       const AForeignKey: String): String;
@@ -310,6 +318,25 @@ type
     /// leafs list.
     [Test]
     procedure EachMidObjectInTheGraphCarriesTheGrandchildRowsThatAreLoaded;
+    /// ISSUE #295 - the same walk, with TWO middle rows and one leaf under
+    /// each. The test above cannot tell "the right list" from "the whole list"
+    /// because it has one middle row and one leaf; this one can, and the answer
+    /// it recorded before the repair was M1[LA/11;LB/12;]M2[LA/11;LB/12;] -
+    /// each middle object carrying the sibling's leaf as well as its own.
+    [Test]
+    procedure TwoMidRows_EachMidObjectCarriesOnlyItsOwnGrandchildRow;
+    /// The other local family, measured and not assumed - the two families
+    /// have already diverged once in this campaign.
+    [Test]
+    procedure ClientDataSet_TwoMidRows_EachMidObjectCarriesOnlyItsOwnGrandchildRow;
+    /// And the REST family, which is NOT a repetition here even though it was
+    /// the family with nothing to repair in #276. Its exemption there came from
+    /// TRESTDataSetAdapter<M>.OpenDataSetChilds having an empty body, and that
+    /// is exactly what makes it the family MOST exposed to this one: it never
+    /// re-queries the leaf per middle row, so its leaf dataset legitimately
+    /// holds the leaves of EVERY middle row at once.
+    [Test]
+    procedure Rest_TwoMidRows_EachMidObjectCarriesOnlyItsOwnGrandchildRow;
     /// The guard that keeps the repair from swallowing the scroll contract.
     /// Once the read is over, an operator keypress on the middle grid must
     /// still re-open the leaf from the database and still discard - that is
@@ -363,6 +390,11 @@ const
   cMIDTAG   = 'M1';
   cMIDTAG2  = 'M2';
   cLEAFTAG  = 'L1';
+  /// One leaf per middle row - #295. Two tags AND two foreign keys, because a
+  /// list that carries the wrong leaf and a list that carries both have to be
+  /// told apart from the list that carries the right one.
+  cLEAFTAGA = 'LA';
+  cLEAFTAGB = 'LB';
   /// A foreign key value NO row of the middle level carries, so a leaf that
   /// came back from a re-query can never be mistaken for the leaf that was
   /// typed.
@@ -579,15 +611,17 @@ end;
 
 /// `root_id` on the leaf is NotNull and NO association names it - it is the
 /// negative control the AutoIncTree model documents - so it is typed by hand.
-/// `mid_id` gets the sentinel: DoNewRecord only fetches the master's values
-/// when the row HAS children, and the last level of a hierarchy never does.
+/// `mid_id` is typed by hand too, and for the same kind of reason:
+/// DoNewRecord only fetches the master's values when the row HAS children, and
+/// the last level of a hierarchy never does. WHICH value it receives is the
+/// caller's choice - see the declaration.
 procedure TTestGrandchildRead.AddLeaf(const ADataSet: TDataSet;
-  const ATag: String);
+  const ATag: String; const AMidKey: Integer);
 begin
   ADataSet.Append;
   ADataSet.FieldByName(cTAG).AsString := ATag;
   ADataSet.FieldByName(cROOTKEY).AsInteger := 0;
-  ADataSet.FieldByName(cMIDKEY).AsInteger := cSENTINEL;
+  ADataSet.FieldByName(cMIDKEY).AsInteger := AMidKey;
   ADataSet.Post;
 end;
 
@@ -663,7 +697,7 @@ begin
   BuildLocalTree;
   AddRoot(FRootTable, cROOTTAG);
   AddMid(FMidTable, cMIDTAG, cMIDKEY1);
-  AddLeaf(FLeafTable, cLEAFTAG);
+  AddLeaf(FLeafTable, cLEAFTAG, cSENTINEL);
 
   Assert.AreEqual(cLEAFTAG + '/' + IntToStr(cSENTINEL) + ';',
     Signature(FLeafTable, cMIDKEY),
@@ -677,7 +711,7 @@ begin
   BuildLocalTree;
   AddRoot(FRootTable, cROOTTAG);
   AddMid(FMidTable, cMIDTAG, cMIDKEY1);
-  AddLeaf(FLeafTable, cLEAFTAG);
+  AddLeaf(FLeafTable, cLEAFTAG, cSENTINEL);
 
   // ONE read. No ApplyUpdates, no scroll, no post - the smallest thing a
   // screen can do with the grandparent.
@@ -718,7 +752,7 @@ begin
   BuildCdsTree;
   AddRoot(FRootCds, cROOTTAG);
   AddMid(FMidCds, cMIDTAG, cMIDKEY1);
-  AddLeaf(FLeafCds, cLEAFTAG);
+  AddLeaf(FLeafCds, cLEAFTAG, cSENTINEL);
 
   FCdsRoot.Current;
 
@@ -733,7 +767,7 @@ begin
   BuildRestTree;
   AddRoot(FRestRootTable, cROOTTAG);
   AddMid(FRestMidTable, cMIDTAG, cMIDKEY1);
-  AddLeaf(FRestLeafTable, cLEAFTAG);
+  AddLeaf(FRestLeafTable, cLEAFTAG, cSENTINEL);
 
   FRestRoot.Current;
 
@@ -751,7 +785,7 @@ begin
   AddRoot(FRootTable, cROOTTAG);
   AddMid(FMidTable, cMIDTAG, cMIDKEY1);
   AddMid(FMidTable, cMIDTAG2, cMIDKEY2);
-  AddLeaf(FLeafTable, cLEAFTAG);
+  AddLeaf(FLeafTable, cLEAFTAG, cSENTINEL);
   ParkOnFirst(FMidTable);
 
   FRoot.Current;
@@ -768,7 +802,7 @@ begin
   BuildLocalTree;
   AddRoot(FRootTable, cROOTTAG);
   AddMid(FMidTable, cMIDTAG, cMIDKEY1);
-  AddLeaf(FLeafTable, cLEAFTAG);
+  AddLeaf(FLeafTable, cLEAFTAG, cSENTINEL);
 
   // The adapter owns the instance Current hands back - it is FCurrentInternal,
   // not a copy, so it is not freed here.
@@ -782,13 +816,95 @@ begin
     'every middle object carrying an EMPTY leafs list');
 end;
 
+/// The expected signature the three tests below assert. Written ONCE because
+/// the three families must answer the same thing and a reader has to be able to
+/// see that they do; the message is passed in, because what each family is
+/// being asked is not the same.
+function OneLeafPerMidSignature: String;
+begin
+  Result := cMIDTAG  + '[' + cLEAFTAGA + '/' + IntToStr(cMIDKEY1) + ';]' +
+            cMIDTAG2 + '[' + cLEAFTAGB + '/' + IntToStr(cMIDKEY2) + ';]';
+end;
+
+procedure TTestGrandchildRead.TwoMidRows_EachMidObjectCarriesOnlyItsOwnGrandchildRow;
+var
+  LRoot: TAitRoot;
+begin
+  BuildLocalTree;
+  AddRoot(FRootTable, cROOTTAG);
+  AddMid(FMidTable, cMIDTAG, cMIDKEY1);
+  AddMid(FMidTable, cMIDTAG2, cMIDKEY2);
+  // One leaf per middle row, each carrying the REAL key of its own parent. The
+  // leaves are appended after BOTH middle rows on purpose: an operator scroll
+  // between them would re-open - and therefore discard - the first one, which
+  // is the contract AfterTheRead_AnOperatorScrollStillDiscards pins.
+  AddLeaf(FLeafTable, cLEAFTAGA, cMIDKEY1);
+  AddLeaf(FLeafTable, cLEAFTAGB, cMIDKEY2);
+
+  LRoot := FRoot.Current;
+
+  // ignoreCase FALSE, and not because two tags here differ only in case - none
+  // do. It is passed because this DUnitX defaults it to True (issue #293) and
+  // an assertion about an identity string has no business being lenient about
+  // any character of it.
+  Assert.AreEqual(OneLeafPerMidSignature, GraphSignature(LRoot), False,
+    'the walk builds one middle object per middle row and recurses into the ' +
+    'leaf adapter for each of them, but the leaf DATASET is never re-consulted ' +
+    'between the two - the Next of the walk runs in dsBlockRead and ' +
+    'DoAfterScroll asks for dsBrowse. So the recursion ran twice over the same ' +
+    'two rows and every middle object came back carrying BOTH leaves, its own ' +
+    'and its sibling''s. The list has to be filtered by the foreign key while ' +
+    'it is being built');
+end;
+
+procedure TTestGrandchildRead.ClientDataSet_TwoMidRows_EachMidObjectCarriesOnlyItsOwnGrandchildRow;
+var
+  LRoot: TAitRoot;
+begin
+  BuildCdsTree;
+  AddRoot(FRootCds, cROOTTAG);
+  AddMid(FMidCds, cMIDTAG, cMIDKEY1);
+  AddMid(FMidCds, cMIDTAG2, cMIDKEY2);
+  AddLeaf(FLeafCds, cLEAFTAGA, cMIDKEY1);
+  AddLeaf(FLeafCds, cLEAFTAGB, cMIDKEY2);
+
+  LRoot := FCdsRoot.Current;
+
+  Assert.AreEqual(OneLeafPerMidSignature, GraphSignature(LRoot), False,
+    'the walk that builds the list lives in TDataSetBaseAdapter<M>, above ' +
+    'both local families, so TClientDataSetAdapter<M> cannot escape it. ' +
+    'MEASURED here rather than inferred from the FDMemTable clause: in this ' +
+    'campaign the families have already diverged once');
+end;
+
+procedure TTestGrandchildRead.Rest_TwoMidRows_EachMidObjectCarriesOnlyItsOwnGrandchildRow;
+var
+  LRoot: TAitRoot;
+begin
+  BuildRestTree;
+  AddRoot(FRestRootTable, cROOTTAG);
+  AddMid(FRestMidTable, cMIDTAG, cMIDKEY1);
+  AddMid(FRestMidTable, cMIDTAG2, cMIDKEY2);
+  AddLeaf(FRestLeafTable, cLEAFTAGA, cMIDKEY1);
+  AddLeaf(FRestLeafTable, cLEAFTAGB, cMIDKEY2);
+
+  LRoot := FRestRoot.Current;
+
+  Assert.AreEqual(OneLeafPerMidSignature, GraphSignature(LRoot), False,
+    'the REST family had NOTHING to repair in #276 and is the most exposed of ' +
+    'the three here, which is the opposite conclusion from the same fact: ' +
+    'TRESTDataSetAdapter<M>.OpenDataSetChilds has an empty body, so its leaf ' +
+    'dataset is never narrowed to one middle row by anybody, at any time. ' +
+    'The whole-list answer is not a transient there');
+end;
+
 procedure TTestGrandchildRead.AfterTheRead_AnOperatorScrollStillDiscards;
 begin
   BuildLocalTree;
   AddRoot(FRootTable, cROOTTAG);
   AddMid(FMidTable, cMIDTAG, cMIDKEY1);
   AddMid(FMidTable, cMIDTAG2, cMIDKEY2);
-  AddLeaf(FLeafTable, cLEAFTAG);
+  AddLeaf(FLeafTable, cLEAFTAG, cSENTINEL);
   ParkOnFirst(FMidTable);
 
   FRoot.Current;
@@ -855,7 +971,7 @@ begin
   AddRoot(FRootTable, cROOTTAG);
   AddMid(FMidTable, cMIDTAG, cMIDKEY1);
   AddMid(FMidTable, cMIDTAG2, cMIDKEY2);
-  AddLeaf(FLeafTable, cLEAFTAG);
+  AddLeaf(FLeafTable, cLEAFTAG, cSENTINEL);
   ParkOnFirst(FMidTable);
 
   LRaised := '';
@@ -890,7 +1006,7 @@ begin
   AddRoot(FRootTable, cROOTTAG);
   AddMid(FMidTable, cMIDTAG, cMIDKEY1);
   AddMid(FMidTable, cMIDTAG2, cMIDKEY2);
-  AddLeaf(FLeafTable, cLEAFTAG);
+  AddLeaf(FLeafTable, cLEAFTAG, cSENTINEL);
   ParkOnFirst(FMidTable);
   FSeenByConsumer := '';
 
@@ -913,7 +1029,7 @@ begin
   AddRoot(FRootTable, cROOTTAG);
   AddMid(FMidTable, cMIDTAG, cMIDKEY1);
   AddMid(FMidTable, cMIDTAG2, cMIDKEY2);
-  AddLeaf(FLeafTable, cLEAFTAG);
+  AddLeaf(FLeafTable, cLEAFTAG, cSENTINEL);
   ParkOnFirst(FMidTable);
 
   LBefore := TReadAccess<TAitMid>.LastPK(FMid);
