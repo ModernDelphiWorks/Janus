@@ -63,9 +63,9 @@
   repository entity that owns seven columns of seven types, and it cannot be
   the probe: it declares cmk3 as TGUID, and TJanusJson.ObjectToJsonString -
   which Insert calls on the way OUT, before any answer exists - raises
-  `Erro no SetValue() da propriedade [cmk3]` on it. Measured: with TCompMaster
-  as the probe entity two clauses of this fixture came back ERRORED, not
-  failed. That is a defect of the JSON layer, not of this parser, and it is
+  `Erro no SetValue() da propriedade [cmk3]` on it. Measured on top of 03595a6:
+  with TCompMaster as the probe entity two clauses of this fixture came back
+  ERRORED, not failed. That is a defect of the JSON layer, not of this parser, and it is
   reported rather than repaired here.
 
   WHAT THIS FIXTURE DOES NOT FIX, AND MEASURES ANYWAY
@@ -275,8 +275,8 @@ begin
   //
   // MEASURED, not reasoned: this body was originally written into the clause
   // above expecting k1=10|k2=20|k1=30|k2=40, and it came back as
-  // k1=10|k2=20|k1=10|k2=40 with the fix in place. It is pinned here so the
-  // next reader does not mistake the aliasing for a parser defect.
+  // k1=10|k2=20|k1=10|k2=40 with the parser of fe1e40f in place. It is pinned
+  // here so the next reader does not mistake the aliasing for a parser defect.
   //
   // It costs nothing today: the answer ParseInsert builds is ONE object whose
   // pairs are the columns of one primary key, and a key has no repeated column.

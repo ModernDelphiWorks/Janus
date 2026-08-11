@@ -264,6 +264,17 @@ begin
                 // como $filter=root_id=-1, que so pode responder a linha de
                 // outro ou coisa nenhuma. Medido por
                 // Cost_ParamsThatNameNoColumnOfThisRowBuyNoGet.
+                //
+                // ISSUE #300 - E A CHAVE PODE CHEGAR PELA METADE. Com chave
+                // primaria COMPOSTA, _RowKeyIsUngenerated le coluna a coluna e
+                // basta UMA no placeholder para o portao fechar. Ate a #300 o
+                // cliente caia sempre nesse estado, porque o parser de
+                // ResultParams criava um TParam por OBJETO e so a ULTIMA coluna
+                // da chave sobrevivia - logo este portao nunca abria para chave
+                // composta. Sobre o mesmo modelo e a mesma resposta: antes da
+                // #300 GetCount = 0, depois GetCount = 1. Medido em fe1e40f por
+                // Test.Janus.Rest.CompositeKeyReReadGate,
+                // CompositeKey_TheGateOpensAndExactlyOneGetIsIssued.
                 if _GraphBelowIsStale(Self) and
                    not _RowKeyIsUngenerated(Self) then
                   LStale.Add(FOrmDataSet.GetBookmark);

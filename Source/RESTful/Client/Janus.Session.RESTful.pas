@@ -392,7 +392,7 @@ begin
       Exit;
 
     // ISSUE #300 - UM TParam POR PAR, NAO POR OBJETO. O servidor emite a chave
-    // primaria INTEIRA num unico objeto: Janus.Server.Resource.pas:305-308
+    // primaria INTEIRA num unico objeto: Janus.Server.Resource.pas:304-307
     // acrescenta um `"nome":valor,` por coluna da chave dentro do unico objeto
     // que cRESOURCEINSERT (:57) reserva. Com o `with FResultParams.Add` do lado
     // de FORA deste laco interno, Name e Value eram sobrescritos a cada par e
@@ -400,6 +400,15 @@ begin
     // insert com uma coluna da chave preenchida e as demais no placeholder, sem
     // excecao e sem log. O laco EXTERNO continua: a resposta tambem pode trazer
     // um objeto por coluna, e as duas formas sao lidas.
+    //
+    // ISSO MUDA QUANDO O RE-LER DA #297 DISPARA, e o numero esta medido em
+    // Test.Janus.Rest.CompositeKeyReReadGate: o portao de
+    // TRESTDataSetAdapter<M>.ApplyInserter e `not _RowKeyIsUngenerated`, que le
+    // a chave da linha COLUNA A COLUNA. Com a chave composta pela metade ele
+    // recusava - e recusava certo, porque nao havia por que perguntar. Sobre o
+    // mesmo modelo e a mesma resposta: antes deste conserto GetCount = 0, com
+    // ele GetCount = 1. Medido em fe1e40f, com este trecho revertido no lugar
+    // para o numero de antes.
     for LFor := 0 to LParamsArray.Count -1 do
     begin
       LValuesObject := LParamsArray.Items[LFor] as TJSONObject;

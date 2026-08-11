@@ -42,6 +42,9 @@
     parser before #300 : ck1 = -1, ck2 = 9, GetCount = 0
     parser after  #300 : ck1 =  7, ck2 = 9, GetCount = 1
 
+  Both measured at fe1e40f - the second on its tree, the first with the parser
+  hunk of that commit reverted in place and nothing else touched.
+
   That is not a regression of #297, it is #297 finally reaching a shape it could
   never reach: with the key incomplete there was nothing to ask BY, and the gate
   was right to refuse - Cost_WithoutResultParamsNoGetIsIssued says the same
