@@ -1008,9 +1008,9 @@ end;
 ///  placeholder como conceito, e nenhuma das duas deve responder "defasado".
 ///
 ///  A GUARDA DE cINTEGERKINDS SOBREVIVE A MUTACAO, e esta declarada em vez de
-///  escondida. MEDICAO REFEITA APOS O REBASE NA #296 - o numero e a ancora
-///  entram no commit seguinte a este. Removendo as duas linhas nenhuma
-///  clausula morre. A razao
+///  escondida. Medido em f7f8e76, ja sobre a #296: removendo as duas linhas,
+///  RESTfulDriver 87 total, zero falhas, zero erros - nenhuma clausula morre.
+///  A razao
 ///  e que nenhum modelo do repositorio declara chave primaria AutoInc que nao
 ///  seja inteira, de modo que o ramo nao e alcancavel por teste nenhum hoje.
 ///  Ela fica porque cAutoIncNotGenerated e o inteiro -1: sobre um ftGuid ou um
@@ -1065,9 +1065,9 @@ end;
 ///  E A CHAVE PROPRIA, E NAO A ESTRANGEIRA. A decisao e por SENSIBILIDADE, e o
 ///  que segue e MEDIDO. Substituindo esta leitura por uma que percorre as
 ///  colunas da ASSOCIACAO no dataset filho - a chave estrangeira - e re-rodando
-///  a suite - MEDICAO REFEITA APOS O REBASE NA #296, numero e ancora no commit
-///  seguinte a este - morrem DUAS clausulas, e sao estas duas. As duas dizem
-///  exatamente onde a leitura pela FK e cega:
+///  a suite em f7f8e76, ja sobre a #296: 87 total, morrem DUAS clausulas - e sao
+///  estas duas, nao um numero estimado. As duas dizem exatamente onde a leitura
+///  pela FK e cega:
 ///    * o agregado de DOIS niveis - a FK do filho para a raiz JA foi
 ///      reconciliada pelo carimbo mais SetAutoIncValueChilds, entao pela FK nao
 ///      sobra nada para denunciar, e so a chave propria do filho denuncia
@@ -1218,12 +1218,14 @@ begin
         // medivel hoje": e medivel, com o duplo que esta fixtura ja tem, e o
         // que faltava era a ASSERCAO. ReRead_TheGetAsksByTheKeyTheServerReturned
         // comparava a query por SUBSTRING, de modo que um PREFIXO no nome da
-        // coluna - 'zzroot_id=777' contem 'root_id=777' - passava verde,
-        // enquanto trocar o nome inteiro morria. Ou seja: o nome de coluna que
-        // viaja no $filter nao tinha cobertura nenhuma, e uma corrupcao real
-        // dele passava. Hoje a clausula compara a query INTEIRA e esta linha
-        // esta coberta. MEDICAO REFEITA APOS O REBASE NA #296 - os numeros e a
-        // ancora entram no commit seguinte a este.
+        // coluna passava verde e so a troca do nome inteiro morria - ou seja, o
+        // nome de coluna que viaja no $filter nao tinha cobertura nenhuma.
+        // Hoje a clausula compara a query INTEIRA, e as duas mutacoes morrem.
+        // Medido em f7f8e76, RESTfulDriver 87 total, uma falha em cada:
+        //   prefixo      -> Expected [$filter=root_id=777]
+        //                   but got  [$filter=zzroot_id=777]
+        //   nome trocado -> Expected [$filter=root_id=777]
+        //                   but got  [$filter=nope=777]
         // A ESCOLHA CONTINUA SENDO A GRAFIA DO MAPEAMENTO, que e a do irmao em
         // TDataSetBaseAdapter<M>.RefreshRecord; unificar as duas montagens num
         // helper exigiria mexer no adapter BASE.
@@ -1259,12 +1261,12 @@ end;
 ///  o laco de Delete nao pergunta de qual master a linha e -, e apagar uma
 ///  linha do meio ainda dispara a CascadeDelete dela, que esvazia o dataset dos
 ///  netos inteiro tambem.
-///  MEDIDO com esta guarda removida e com o resto da correcao ja no lugar: duas
-///  raizes com uma linha de meio e um neto cada, o duplo respondendo CHAVES
-///  DIFERENTES por raiz - 777 e 888 no POST, e um grafo proprio por raiz no
-///  GET. A re-leitura da segunda raiz leva os filhos JA RECONCILIADOS da
-///  primeira. MEDICAO REFEITA APOS O REBASE NA #296 - o resultado e a ancora
-///  entram no commit seguinte a este.
+///  MEDIDO EM f7f8e76, ja sobre a #296, com esta guarda removida e com o resto
+///  da correcao no lugar: duas raizes com uma linha de meio e um neto cada, o
+///  duplo respondendo CHAVES DIFERENTES por raiz - 777 e 888 no POST, e um grafo
+///  proprio por raiz no GET. Resultado:
+///  `roots=2 mids=1 leafs=1 posts=2 gets=2`. A re-leitura da segunda raiz levou
+///  os filhos JA RECONCILIADOS da primeira.
 ///  AS CHAVES DISTINTAS SAO PARTE DA MEDICAO: com as duas raizes respondendo a
 ///  MESMA chave, a perda medida podia ser artefato de duas raizes que a fixtura
 ///  nao consegue distinguir. Nao e - ela se reproduz com as raizes separadas.

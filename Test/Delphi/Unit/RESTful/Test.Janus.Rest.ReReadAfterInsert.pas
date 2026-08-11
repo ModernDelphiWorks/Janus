@@ -350,12 +350,11 @@ type
     /// measurement and not a preference. RefreshRecordInternal empties the
     /// child datasets WHOLE, and deleting a middle row still fires its own
     /// CascadeDelete, which empties the grandchild dataset whole as well.
-    /// Measured with this guard removed and every other guard in place, over
-    /// this same tree and with the double answering a DIFFERENT key per root -
-    /// 777 and 888 - and a graph of its own per root. The second root's re-read
-    /// takes the first root's already reconciled children with it. THE
-    /// MEASUREMENT WAS REDONE AFTER THE REBASE ONTO #296; the figure and the
-    /// anchor land in the commit right after this one.
+    /// Measured at f7f8e76, already on top of #296, with this guard removed and
+    /// every other guard in place, over this same tree and with the double
+    /// answering a DIFFERENT key per root - 777 and 888 - and a graph of its own
+    /// per root: `roots=2 mids=1 leafs=1 posts=2 gets=2`. The second root's
+    /// re-read took the first root's already reconciled children with it.
     /// The distinct keys are part of the measurement: with both roots answering
     /// the SAME key, the loss could have been an artefact of two roots the
     /// fixture cannot tell apart. It is not. That is WORSE than the defect, so
@@ -1090,8 +1089,8 @@ begin
     'the second one would empty the first one child datasets');
   Assert.AreEqual(2, FMidMem.RecordCount,
     'both middle rows must survive. Allowing the re-read here measured ' +
-    'mids=1 with a distinct key per root: rows the operator typed simply ' +
-    'disappeared');
+    'mids=1 at f7f8e76, with a distinct key per root: rows the operator ' +
+    'typed simply disappeared');
   Assert.AreEqual(2, FLeafMem.RecordCount,
     'and both grandchild rows with them');
 end;
