@@ -1208,16 +1208,23 @@ end;
 ///  PREFERENCIA. RefreshRecordInternal esvazia os datasets filhos INTEIROS -
 ///  o laco de Delete nao pergunta de qual master a linha e -, e apagar uma
 ///  linha do meio ainda dispara a CascadeDelete dela, que esvazia o dataset dos
-///  netos inteiro tambem. Com duas raizes salvas juntas, medido em 0a0161f
-///  sobre a arvore de tres niveis: entraram 2 linhas de meio e 2 de neto,
-///  sairam `roots=2 mids=1 leafs=1` - a re-leitura da segunda raiz levou os
-///  filhos ja reconciliados da primeira. Isso e PIOR do que o defeito que esta
-///  correcao conserta, entao neste caso o cliente fica exatamente como ficava
-///  antes dela: com as chaves proprias no placeholder, e sem perder linha
-///  nenhuma. Consertar tambem esse caso exige que o esvaziamento seja limitado
-///  as linhas DAQUELE master, nos dois niveis - inclusive dentro de
-///  DeleteDataSetChilds, que e o guarda da #235 e serve tambem o caminho de
-///  exclusao de verdade. Issue propria.
+///  netos inteiro tambem.
+///  MEDIDO EM a022111, com esta guarda removida e com o resto da correcao ja no
+///  lugar: duas raizes com uma linha de meio e um neto cada, o dublê
+///  respondendo CHAVES DIFERENTES por raiz - 777 e 888 no POST, e um grafo
+///  proprio por raiz no GET. Resultado: `roots=2 mids=1 leafs=1 posts=2
+///  gets=2`. A re-leitura da segunda raiz levou os filhos JA RECONCILIADOS da
+///  primeira.
+///  AS CHAVES DISTINTAS ESTAO DECLARADAS PORQUE A PRIMEIRA MEDICAO NAO AS TINHA:
+///  em 0a0161f o dublê devolvia 777 para as duas raizes, de modo que aquele
+///  mesmo `mids=1` podia ser artefato de duas raizes indistinguiveis. Nao era -
+///  a perda se reproduz com as raizes separadas.
+///  Isso e PIOR do que o defeito que esta correcao conserta, entao neste caso o
+///  cliente fica exatamente como ficava antes dela: com as chaves proprias no
+///  placeholder, e sem perder linha nenhuma. Consertar tambem esse caso exige
+///  que o esvaziamento seja limitado as linhas DAQUELE master, nos dois niveis -
+///  inclusive dentro de DeleteDataSetChilds, que e o guarda da #235 e serve
+///  tambem o caminho de exclusao de verdade. Issue propria.
 ///  MEDIDO POR MultiRoot_TwoRootsSavedTogetherAreLeftAloneAndKeepEveryRow.
 ///  </summary>
 procedure TRESTDataSetAdapter<M>._ReReadStaleRoots(

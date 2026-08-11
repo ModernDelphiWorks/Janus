@@ -339,13 +339,19 @@ type
     /// TWO roots saved in ONE ApplyUpdates are left alone, and that is a
     /// measurement and not a preference. RefreshRecordInternal empties the
     /// child datasets WHOLE, and deleting a middle row still fires its own
-    /// CascadeDelete, which empties the grandchild dataset whole as well. With
-    /// the re-read allowed to run over two roots, measured at 0a0161f over this
-    /// same tree: two middle rows and two leaves went in and
-    /// `roots=2 mids=1 leafs=1` came out - the second root's re-read took the
-    /// first root's already reconciled children with it. That is WORSE than the
-    /// defect, so in this case the client is left exactly as it was before this
-    /// fix: placeholders below the root, and not one row lost.
+    /// CascadeDelete, which empties the grandchild dataset whole as well.
+    /// Measured at a022111 with this guard removed and every other guard in
+    /// place, over this same tree and with the double answering a DIFFERENT key
+    /// per root - 777 and 888 - and a graph of its own per root:
+    /// `roots=2 mids=1 leafs=1 posts=2 gets=2`. The second root's re-read took
+    /// the first root's already reconciled children with it.
+    /// The distinct keys are named because the FIRST measurement, at 0a0161f,
+    /// did not have them: the double answered 777 to both POSTs, so that
+    /// earlier `mids=1` could have been an artefact of two roots the fixture
+    /// could not tell apart. It was not - the loss reproduces with them
+    /// separated. That is WORSE than the defect, so in this case the client is
+    /// left exactly as it was before this fix: placeholders below the root, and
+    /// not one row lost.
     [Test]
     procedure MultiRoot_TwoRootsSavedTogetherAreLeftAloneAndKeepEveryRow;
     /// The server answers the re-read with NO row - the aggregate was deleted
@@ -1038,7 +1044,8 @@ begin
     'the second one would empty the first one child datasets');
   Assert.AreEqual(2, FMidMem.RecordCount,
     'both middle rows must survive. Allowing the re-read here measured ' +
-    'mids=1 at 0a0161f: rows the operator typed simply disappeared');
+    'mids=1 at a022111, with a distinct key per root: rows the operator ' +
+    'typed simply disappeared');
   Assert.AreEqual(2, FLeafMem.RecordCount,
     'and both grandchild rows with them');
 end;
