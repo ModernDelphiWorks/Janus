@@ -928,9 +928,10 @@ end;
 ///  NENHUM pai reivindica o filho; com ele desligado - mutacao n1, que e o
 ///  estado anterior a este conserto - o pai reivindica.
 ///  Um join sobre CHAR num Firebird trataria os dois como iguais, e isto nao e
-///  hipotese distante: o comentario de TDMLGeneratorPostgreSQL.GuidLiteral
-///  registra que o DDL desta casa PRETENDE CHAR(n) para chave ftGuid em varios
-///  dialetos, que e exatamente o tipo onde o enchimento de brancos decide.
+///  hipotese distante: o comentario de TDMLGeneratorAbstract.CanonicalGuidLiteral
+///  registra que o DDL desta casa PRETENDE CHAR para chave ftGuid em
+///  PostgreSQL, Firebird, InterBase e MySQL - e e' exatamente CHAR o tipo onde
+///  o enchimento de brancos decide um join.
 ///  A regra aqui e mais ESTRITA que a do banco, e no caminho que GRAVA "nenhum
 ///  pai" quer dizer LINHA NUNCA ENVIADA - o preco declarado da regra "quem nao
 ///  nomeia pai nao e de ninguem". Qual semantica de dialeto emular NAO e
