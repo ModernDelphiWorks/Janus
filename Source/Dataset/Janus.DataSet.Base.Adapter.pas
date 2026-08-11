@@ -921,15 +921,21 @@ end;
 ///
 ///  BRANCOS A DIREITA SAO SIGNIFICATIVOS, e isto e uma DIFERENCA DE SEMANTICA
 ///  em relacao a um JOIN de banco, declarada aqui porque ninguem a escolheu.
-///  Medido em 6e29b60, na associacao composta: master `'CC   '` contra filho
-///  `'CC'` - o campo guarda os brancos - da NENHUM pai reivindicando o filho,
-///  enquanto ANTES deste conserto os dois reivindicavam. Um join sobre CHAR
-///  num Firebird trataria os dois como iguais. A regra aqui e mais ESTRITA que
-///  a do banco, e no caminho que GRAVA "nenhum pai" quer dizer LINHA NUNCA
-///  ENVIADA - o preco declarado da regra "quem nao nomeia pai nao e de
-///  ninguem". Qual semantica de dialeto emular NAO e decisao deste conserto e
-///  por isso nao ha clausula pinando-a: fica medida e escrita, para quem
-///  decidir. </summary>
+///  Medido sobre o codigo de 53b9ac6, com uma clausula TEMPORARIA que NAO
+///  ficou na arvore - quem repetir monta assim: duas linhas de TCompMaster
+///  iguais em tudo menos `cmk2`, uma com 'CC' e outra com 'CC   ', e UMA linha
+///  de TCompChild com 'CC'; o campo guarda os brancos. Com o filtro ligado,
+///  NENHUM pai reivindica o filho; com ele desligado - mutacao n1, que e o
+///  estado anterior a este conserto - o pai reivindica.
+///  Um join sobre CHAR num Firebird trataria os dois como iguais, e isto nao e
+///  hipotese distante: o comentario de TDMLGeneratorPostgreSQL.GuidLiteral
+///  registra que o DDL desta casa PRETENDE CHAR(n) para chave ftGuid em varios
+///  dialetos, que e exatamente o tipo onde o enchimento de brancos decide.
+///  A regra aqui e mais ESTRITA que a do banco, e no caminho que GRAVA "nenhum
+///  pai" quer dizer LINHA NUNCA ENVIADA - o preco declarado da regra "quem nao
+///  nomeia pai nao e de ninguem". Qual semantica de dialeto emular NAO e
+///  decisao deste conserto e por isso nao ha clausula pinando-a: fica medida e
+///  escrita, para quem decidir. </summary>
 function TDataSetBaseAdapter<M>._FieldValuesMatch(const AMasterField,
   AChildField: TField): Boolean;
 /// DECLARADOS DENTRO DO METODO, e nao ao lado de cNoRowToken na secao de
