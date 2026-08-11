@@ -61,10 +61,21 @@ type
     ///  THIS IS NOT THE SAME CODE AS THE DATASET FAMILY'S, and the duplication
     ///  is deliberate - see the note over Insert.
     ///
-    ///  WHAT IT DOES NOT COVER, DECLARED: a key whose property is tkFloat or
-    ///  tkEnumeration falls through the case and is left exactly as it was,
-    ///  which is the behaviour that shipped. No such primary key exists in this
-    ///  repository's models - NOT MEASURED against a live server. </summary>
+    ///  IT MUST NOT BE ABLE TO RAISE. Before #301 no answer of any shape could
+    ///  reach the client, so no answer could make an insert fail; reading the
+    ///  answer must not have bought that. Every value arrives as TEXT, so the
+    ///  rule is: write only what the declared type provably accepts, and leave
+    ///  the property alone otherwise.
+    ///
+    ///  WHAT IT DOES NOT COVER, DECLARED. A key whose property is a Nullable, a
+    ///  tkFloat or a tkEnumeration falls through the case untouched - which is
+    ///  the behaviour that shipped, so nothing regresses. The Nullable branch
+    ///  was written and then REMOVED: writing text into a Nullable goes through
+    ///  SetValueNullable, which casts to the element type and raises on
+    ///  anything that is not one, and there is no model in this repository with
+    ///  such a key to hold the code honest. An untestable branch that can raise
+    ///  is worth less than the placeholder it would have replaced.
+    ///  NOT MEASURED against a live server. </summary>
     procedure _SetGeneratedKeyValue(const AObject: TObject;
       const AColumn: TColumnMapping);
   public
@@ -89,7 +100,6 @@ implementation
 
 uses
   Janus.Session.RESTful,
-  Janus.RTTI.Helper,
   MetaDbDiff.mapping.explorer,
   Janus.Core.Consts;
 
@@ -156,8 +166,13 @@ var
   LProperty: TRttiProperty;
   LParam: TParam;
   LFor: Integer;
+  LText: String;
+  LInteger: Integer;
+  LInt64: Int64;
 begin
   LProperty := AColumn.ColumnProperty;
+  // Mirrors TBind.SetFieldToProperty, which skips a column whose property is
+  // not writable rather than letting SetValue raise on it.
   if not LProperty.IsWritable then
     Exit;
   for LFor := 0 to FSession.ResultParams.Count -1 do
@@ -169,22 +184,37 @@ begin
     // spelling back.
     if not SameText(LParam.Name, LProperty.Name) then
       Continue;
-    if VarIsNull(LParam.Value) or VarIsEmpty(LParam.Value) then
-      Exit;
 
+    // EVERYTHING THAT ARRIVES HERE IS TEXT, and that is not an assumption -
+    // Janus.Session.RESTful.pas builds every param with `DataType := ftString`
+    // and assigns `JsonValue.Value`. A JSON null arrives as the EMPTY STRING,
+    // never as a Null or an Empty variant, so the shape of guard that asks
+    // VarIsNull/VarIsEmpty can never fire; it was written here, it never ran,
+    // and the empty text went straight on to TParam.AsInteger, which raised
+    // `Could not convert variant of type (UnicodeString) into type (Integer)`.
+    //
+    // BEFORE #301 NOTHING READ THIS ANSWER, so no answer of any shape could
+    // make an insert fail. Reading it must not have bought that. The rule is
+    // therefore: write only what the property's declared type provably accepts,
+    // and otherwise leave the property exactly as it was - which is the
+    // behaviour that shipped.
+    LText := VarToStr(LParam.Value);
     case LProperty.PropertyType.TypeKind of
       tkInteger:
-        LProperty.SetValue(AObject, TValue.From<Integer>(LParam.AsInteger));
+        if TryStrToInt(LText, LInteger) then
+          LProperty.SetValue(AObject, TValue.From<Integer>(LInteger));
       tkInt64:
-        LProperty.SetValue(AObject, TValue.From<Int64>(LParam.AsLargeInt));
+        if TryStrToInt64(LText, LInt64) then
+          LProperty.SetValue(AObject, TValue.From<Int64>(LInt64));
       tkString, tkLString, tkWString, tkUString:
-        LProperty.SetValue(AObject, TValue.From<String>(LParam.AsString));
-      tkRecord:
-        LProperty.SetValueNullable(AObject,
-                                   LProperty.PropertyType.Handle,
-                                   LParam.Value,
-                                   False);
+        if LText <> '' then
+          LProperty.SetValue(AObject, TValue.From<String>(LText));
     end;
+    // The FIRST param that names this key decides, whether or not its value
+    // could be used. The shipped contract emits one object per primary key
+    // column and so cannot produce a second one naming the same key; pinning
+    // the reading here is what keeps a later edit from silently making the
+    // LAST one win instead.
     Exit;
   end;
 end;
