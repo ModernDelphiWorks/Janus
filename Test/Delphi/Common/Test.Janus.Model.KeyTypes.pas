@@ -185,9 +185,17 @@ type
   end;
 
   /// The COLUMN and the PROPERTY are deliberately named differently. The
-  /// response names the PROPERTY - it always did - and while every other
-  /// entity in this tree spells the two the same, no clause could tell the
-  /// difference and swapping one for the other was invisible.
+  /// response names the PROPERTY - it always did - and swapping one for the
+  /// other was invisible until this entity existed.
+  ///
+  /// The claim has to be narrow to be true, and the narrow version is the one
+  /// that matters: the response emits PRIMARY KEY columns and nothing else,
+  /// and every PRIMARY KEY column in the units this project links spells the
+  /// same as its property. Measured over the 24 units named with a path in
+  /// Janus.Tests.RESTHorse.dpr: 29 key columns, exactly one divergent - this
+  /// one. NON-key columns are a different story and diverge freely; there are
+  /// five in RestHorseTest.Models alone (customer_id/CustomerId and four more
+  /// in TCustomerOrderSummary), which is why the sentence says KEY.
   [Entity]
   [Table('ktalias', '')]
   [PrimaryKey('kt_code', TAutoIncType.NotInc,
@@ -305,9 +313,19 @@ type
     property kttag: String read Fkttag write Fkttag;
   end;
 
-  /// A NULLABLE key, left unset by the caller. This is the only shape that
-  /// reaches the null branch of the value builder: GetNullableValue answers a
-  /// Variant Null for a Nullable property with no value, and for nothing else.
+  /// A NULLABLE key, left unset by the caller. It reaches the null branch of
+  /// the value builder through the VarIsNull HALF of that guard:
+  /// GetNullableValue answers a Variant NULL for a Nullable property whose
+  /// FHasValue is clear.
+  ///
+  /// It is NOT the only shape that reaches that branch, and an earlier version
+  /// of this comment said it was. TKeyTypeDecoy, in
+  /// Test.Janus.Model.KeyTypeDecoy, reaches the same branch through the OTHER
+  /// half - VarIsEmpty, with a varEmpty rather than a varNull. Measured:
+  /// deleting the whole branch kills BOTH clauses, while deleting only the
+  /// VarIsEmpty half kills only the decoy's. The decoy arrived two commits
+  /// after this sentence and falsified it in place, which is exactly the way
+  /// an absolute claim goes stale without anyone touching it.
   [Entity]
   [Table('ktnull', '')]
   [PrimaryKey('ktopt', TAutoIncType.NotInc,

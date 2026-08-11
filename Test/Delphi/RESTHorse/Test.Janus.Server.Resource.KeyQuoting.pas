@@ -235,9 +235,14 @@ type
     [Test]
     procedure CompositeTextualKey_CarriesBothPairsEscaped;
 
-    /// The pair names the PROPERTY, not the column. Every other entity in this
-    /// tree spells the two the same, so nothing could tell them apart and
-    /// trading one for the other was invisible.
+    /// The pair names the PROPERTY, not the column. The response emits KEY
+    /// columns and nothing else, and every PRIMARY KEY column in the units
+    /// this project links spells the same as its property - 29 of them across
+    /// the 24 units Janus.Tests.RESTHorse.dpr names with a path, with exactly
+    /// one divergence, which is TKeyTypeAlias and exists for this clause. So
+    /// nothing could tell the two apart and trading one for the other was
+    /// invisible. NON-key columns diverge freely - five in RestHorseTest.Models
+    /// alone - which is why this says KEY and not "every entity".
     [Test]
     procedure TheKeyPairNamesTheProperty_NotTheColumn;
 
