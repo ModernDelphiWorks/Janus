@@ -65,11 +65,11 @@
   NAMING ONLY ONE OF THEM IS A TRAP FOR WHOEVER MUTATES IT, and this paragraph
   exists because that trap was live for one commit: whoever forced the identity
   guard to answer True, expecting this file to redden, would have seen
-  Janus.Tests.Units stay green and concluded the guard was dead. Measured: with
-  the identity guard forced True, Units is 558/0 - the depth guard alone still
-  refuses the answer. Mutating either guard by itself proves nothing here; only
-  mutating both does. That is also why the clause below reads the same number as
-  it did before #297.
+  Janus.Tests.Units stay green and concluded the guard was dead. Measured at
+  39bd01b: with the identity guard forced True, Units is 567/0 - the depth
+  guard alone still refuses the answer. Mutating either guard by itself proves
+  nothing here; only mutating both does. That is also why the clause below reads
+  the same number as it did before #297.
 
   THE LOCAL FAMILY CHANGED ITS ANSWER WHEN #276 LANDED, and that is why the
   order of attack was #276 -> #262. Before #276 the grandchild ROW was destroyed
