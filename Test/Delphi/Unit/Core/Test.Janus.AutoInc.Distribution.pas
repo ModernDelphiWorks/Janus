@@ -51,25 +51,35 @@
   section says why - and the two recursion fixtures build a three level tree
   under ONE root, so neither shape applies to them.
 
-  WHAT IS MUTED, AND WHERE - FOUR EXCEPTIONS, NOT ONE
+  WHAT IS MUTED, AND WHERE
 
-  Most of the file runs the configuration Janus ships: no adapter muted in the
-  set-up, no marker written by hand, no handler installed. FOUR tests are
-  exceptions, and each says why in its own body:
+  The distribution and recursion fixtures run the configuration Janus ships: no
+  adapter muted in the set-up, no marker written by hand, no handler installed.
+  These are the exceptions among them, and each says why in its own body:
 
-    * UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither mutes BOTH
-      adapters for the whole set-up and writes the pending markers by hand -
-      having no row provenance at all is the very thing it measures;
+    * UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither and its
+      ClientDataSet twin mute BOTH adapters for the whole set-up and write the
+      pending markers by hand - having no row provenance at all is the very
+      thing they measure;
     * RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither mutes the
       CHILD adapter for ONE of its three child rows and writes that row's
       pending marker by hand - the other two are typed live, which is what lets
       it measure the unparented row beside two parented ones in one run;
+    * Recursion_UntokenisedLeaf_WithTwoPendingMidRows_IsClaimedByNeither mutes
+      the LEAF adapter for its one leaf row, same reason, one level down;
     * ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster mutes the
       CHILD adapter only, and writes that child's pending marker by hand, so
       that the master identifies itself and the child does not;
     * Recursion_WithNoPendingChildRow_StillReachesTheGrandchildren unhooks the
       mid table's BeforePost for one write, to set the ALREADY SAVED marker
       that the adapter's own BeforePost would otherwise flip straight back.
+
+  THAT LIST IS NOT A CENSUS OF THE FILE, and an earlier revision of this
+  paragraph carried a total - "THREE exceptions" - that had stopped being one.
+  The issue #265 fixtures further down mute the master adapter as a matter of
+  course, because a master with no recorded identity is what they are about, and
+  they say so in their own bodies and in their shared helpers. No number is
+  given here because nobody re-counted the file.
 
   Separately, and in every test, the MEASUREMENT helpers - RowCount,
   CountWithColumn, DumpColumn, KeyOfMasterRow - unhook BeforeScroll and
@@ -461,6 +471,125 @@
   family - appending the second master runs TDataSetAdapter<M>.DoNewRecord,
   which empties the children first. The REST family is where it is reachable,
   and the two REST tests earlier in this file are the ones that exercise it.
+
+  ISSUE #261, THE LAST ARM - THE CHILD ROW NOBODY RECORDED
+
+  #264 and #265 gave every row an identity and closed the two ways a child could
+  end up naming nobody. ONE way was left open on purpose, as the documented
+  escape hatch: a child row appended with its own adapter's events unhooked, or
+  read back from a store that has no such column, records nothing, and
+  _IsOwnedByMasterRow answers True for it to whoever asks. With ONE pending
+  master that is right, and it is why the hatch exists.
+
+  With TWO it was not a decision, it was an ordering. Both masters asked, both
+  were answered True, the row was written twice and kept what the SECOND one
+  wrote. RED FIRST, measured against 8e1a5c6: two of these four fixtures - the
+  local FDMemTable one and the REST one - were written and RUN before a line of
+  Source changed, one at each end of the two families. Total 545, TWO reds, the
+  unparented child on the second master's key in
+  both families: "Expected [-31] but got [201]" with the dump reading
+  [C0 root_id=201], and "Expected [-31] but got [600]" with the dump reading
+  [A0 root_id=300][B0 root_id=600][C0 root_id=600] - the orphan sitting on B0's
+  key, indistinguishable from a row that really was typed under R2. The same
+  tree with the fix in place is 545 and zero.
+
+  WHAT SHIPS ADDS NO STATE TO THE TOKEN. The column still carries exactly the
+  two values #264 gave it, and the third state #265 measured and rejected is
+  still rejected. What gained a second input is the QUESTION: the answer True
+  for an unrecorded row is now weighed against the number of master rows doing
+  the asking, which TDataSetBaseAdapter<M>.FCascadeMasterRows carries. The hatch
+  survives where there is one master and closes where there is a real ambiguity,
+  and a row nobody claims stays PENDING carrying the key it came in with - which
+  is visible, whereas a row written by the wrong master is not.
+
+  THE FOUR FIXTURES, AND WHY FOUR
+
+  UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither is the rewrite of
+  UntokenisedRows_KeepTheHistoricalBehaviour. Its set-up is unchanged line for
+  line except for ONE value - the child's foreign key starts on cUNCLAIMEDSEED
+  instead of on cROOTOLD, because 0 is what an unwritten integer column reads as
+  anyway and a clause asserting 0 would pass on a run that populated nothing.
+  Its result is inverted, and two PREMISE clauses were added that state the
+  shape as numbers: two pending masters, one pending child. It was renamed
+  rather than deleted because it builds the only ambiguous shape in the file.
+
+  RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither is the other half
+  of the red, and it is not a translation of the local one: the REST family
+  discards nothing when the master scrolls, so it holds THREE child rows at once
+  - one under each master, plus the orphan - and reads all three back in a
+  single run.
+
+  THE OTHER TWO WERE WRITTEN AFTER THE FIX, and the order they were written in
+  is the reason they exist rather than a tidying-up. The count cannot be taken
+  from inside the cascade and is therefore read at the top of ApplyInserter, and
+  there are THREE ApplyInserter implementations, near enough identical to invite
+  the argument that measuring one measures the rest.
+  ClientDataSetUntokenisedRow_... covers the third of them, which no fixture
+  reached. Recursion_UntokenisedLeaf_WithTwoPendingMidRows_IsClaimedByNeither
+  covers the level BELOW the top, where there is no ApplyInserter at all and
+  _RecurseOverChildRows is the only thing that knows how many masters the next
+  level faces - and it was written because that mutation was RUN and SURVIVED:
+  at ff096e2, with the assignment deleted, 546 tests and zero reds. It goes
+  through
+  TCascadeAccess.Propagate for isolation, and pays the same price
+  Recursion_LeavesTypedUnderTheMiddleMidRow... pays: the master state is forged,
+  so it pins the walk and not the walk's caller.
+
+  HOW THE #261 CLAUSES WERE SHOWN TO BIND
+
+  Every figure below was measured at d01d4f3, full rebuild, Janus.Tests.Units,
+  where the untouched tree is 547 tests and zero failures. Each mutation was
+  applied ALONE and reverted before the next:
+
+    * restoring the unconditional slack - `Exit(FCascadeMasterRows <= 1)` back
+      to a bare `Exit` -> FOUR reds, and they are the four fixtures above and
+      nothing else;
+    * refusing every unparented child instead - `Exit(False)`, which is the
+      design that was proposed and rejected -> ONE red, and it is
+      ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster. That single
+      number is the whole argument for conditioning the slack rather than
+      removing it: refusing outright leaves that child on its old key with
+      nobody ever repairing it;
+    * deleting the count read from TFDMemTableAdapter<M>.ApplyInserter alone ->
+      ONE red, UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
+    * from TClientDataSetAdapter<M>.ApplyInserter alone -> ONE red, the
+      ClientDataSet twin;
+    * from TRESTDataSetAdapter<M>.ApplyInserter alone -> ONE red, the REST one.
+      Three mutations, three reds, three different fixtures: the three reads are
+      not each other's evidence;
+    * deleting `AChildAdapter.FCascadeMasterRows := LMarks.Count` from
+      _RecurseOverChildRows -> ONE red,
+      Recursion_UntokenisedLeaf_WithTwoPendingMidRows_IsClaimedByNeither, and
+      the three top-level fixtures stay green, which is what says the two kinds
+      of caller are measured separately;
+    * MOVING the read from before the ApplyInserter loop to inside it - that is,
+      counting the pending masters on demand instead of capturing the number
+      once -> ONE red, the local FDMemTable fixture. This is the mutation that
+      earns the design: the filtered RecordCount DECAYS as the loop clears each
+      marker, so the last master row sees 1, decides there is no ambiguity and
+      claims the orphan - last-one-wins restored under a new name.
+
+  THE ONE MUTATION THAT SURVIVES, declared rather than left to be found:
+  deleting `AChildAdapter.FCascadeMasterRows := 1` from the no-pending-row
+  branch of _RecurseOverChildRows reddens NOTHING - 547 green. 0 and 1 give the
+  same answer to the only reader, and the field arrives at that branch holding 0
+  on every path this suite reaches. The line is kept because the two values do
+  not MEAN the same thing, and the comment at the site says so.
+
+  WHAT THE #261 ASSERTIONS DO NOT CLAIM. The "and not the other master's key"
+  clauses are arithmetic complements of the clause above them plus the premise
+  that the two keys differ, because those fixtures have exactly ONE unparented
+  child row - exactly as the #265 paragraph further up says of its own. That
+  applies to the two LOCAL top-level fixtures and to the level 3 one; they were
+  not inverted one at a time, and they are there to make the failure message say
+  WHERE the row went. In all three, the clause that carries the measurement is
+  the one that reads the row back BY TAG.
+
+  THE REST FIXTURE IS THE EXCEPTION AND THAT IS ITS POINT. Its three child rows
+  are three different rows, so "A0 is on the first master's key", "B0 is on the
+  second's" and "C0 is on neither" are three independent readings taken in one
+  run. The first two are what say the count of pending masters does not touch a
+  row whose parentage IS recorded - a claim no complement clause can make.
 
   WHAT IS NOT MEASURED HERE
 

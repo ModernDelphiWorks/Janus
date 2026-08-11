@@ -161,11 +161,36 @@ type
     ///
     ///  SET BY TWO KINDS OF CALLER, and the two agree on the meaning:
     ///  - the ApplyInserter of each family, from the filtered RecordCount, for
-    ///    the top of a cascade;
+    ///    the top of a cascade. THERE ARE THREE of those and each was measured
+    ///    on its own - see the mutation table in the header of
+    ///    Test.Janus.AutoInc.Distribution;
     ///  - _RecurseOverChildRows, from the number of rows it is about to ride,
-    ///    for every level below the top.
-    ///  Both save and restore the previous value, because a hierarchy brings
-    ///  the same adapter back into a walk that is already running. </summary>
+    ///    for every level below the top, which is the ONLY place that number
+    ///    exists once the top-level loop is over.
+    ///
+    ///  ONE SIDE SAVES AND RESTORES AND THE OTHER RESETS TO ZERO, and the
+    ///  asymmetry is deliberate rather than an oversight. _RecurseOverChildRows
+    ///  writes into ANOTHER adapter's field and must therefore put back what it
+    ///  found; ApplyInserter writes into its own and is never reached from
+    ///  inside a cascade - SetAutoIncValueChilds does not call it - so there is
+    ///  nothing to put back and zero, "not established", is the honest value.
+    ///
+    ///  READ THROUGH A CAST THAT LIES, exactly like FOrmDataSet and
+    ///  FMasterObject a few lines away in _RecurseOverChildRows: the child
+    ///  adapter is held as TDataSetBaseAdapter<M of the master>. Field access
+    ///  resolves an OFFSET against the declared instantiation and executes
+    ///  against the real one, which works because both are generated from this
+    ///  declaration and lay out the same fields. That is the field-level twin
+    ///  of the VMT assumption the comment on FRowTokenSeq spells out.
+    ///
+    ///  DECLARED AT THE END OF THE FIELD BLOCK for the reason the comment on
+    ///  _MintRowToken gives for methods, weakened to what is actually true of
+    ///  data: a field inserted in the MIDDLE moves the offset of every field
+    ///  after it, and a descendant compiled earlier would read the wrong ones.
+    ///  Adding one at the end moves nothing that already exists here, and it
+    ///  moves no VMT slot at all - a field is not a virtual method. A
+    ///  descendant still has to be recompiled, as it does for any field
+    ///  addition. </summary>
     FCascadeMasterRows: Integer;
     function _GetCurrentPKAsString: String;
     procedure DoBeforeScroll(DataSet: TDataSet); virtual;
@@ -1736,12 +1761,20 @@ end;
 ///  escrita e visivel - continua pendente, com a chave que tinha - enquanto
 ///  uma linha escrita pelo master errado nao e.
 ///  NAO E "RECUSAR O FILHO SEM PROVENIENCIA", e a diferenca e o conserto
-///  inteiro: recusar sempre derruba
-///  ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster e
-///  MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired, que tem UM
-///  master cada e onde a resposta nunca foi ambigua. Medido nas duas familias
-///  por UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither e
-///  RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither.
+///  inteiro. Medido em d01d4f3, trocando a linha por Exit(False): UM vermelho
+///  em 547, e ele e
+///  ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster - o caso de UM
+///  master so, onde nunca houve ambiguidade e o filho sempre foi escrito.
+///  UM E NAO DOIS, e a conta importa:
+///  MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired PARECE o
+///  mesmo caso e nao e - o filho dele foi digitado com os eventos LIGADOS,
+///  portanto tem proveniencia registrada e nunca passa por esta folga.
+///  Nas duas familias locais e na REST, medido por
+///  UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither,
+///  ClientDataSetUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither e
+///  RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither; um andar
+///  abaixo, por
+///  Recursion_UntokenisedLeaf_WithTwoPendingMidRows_IsClaimedByNeither.
 ///
 ///  DUAS RESPOSTAS, E NAO TRES - issue #265. Houve a tentacao de acrescentar
 ///  aqui um terceiro estado, "registrado, e o meu master nao tinha
@@ -1870,6 +1903,15 @@ begin
     // defeito do nivel 2 um andar abaixo. Ver FCascadeMasterRows.
     // O RAMO SEM LINHA PENDENTE VALE 1, e nao 0: ele recursa UMA vez, de onde
     // o cursor estiver, portanto ha um master so e nada e ambiguo.
+    // ESTA ATRIBUICAO SOBREVIVE A MUTACAO, e esta declarada em vez de
+    // escondida. Medido em d01d4f3: apagando a linha, 547 verdes, zero
+    // vermelhos. A razao e que 0 e 1 dao a MESMA resposta ao unico leitor -
+    // _IsOwnedByMasterRow compara com <= 1 - e o campo do filho chega aqui em
+    // 0 em todo caminho que a suite alcanca. Ela fica porque as duas
+    // quantidades nao SIGNIFICAM a mesma coisa: 0 e "ninguem estabeleceu" e 1 e
+    // "eu estabeleci, e e um". Se algum dia este adapter for reentrado com um
+    // valor herdado maior que 1 - hierarquia com ciclo - a linha e o que
+    // impede a recursao de recusar por causa da contagem do nivel de cima.
     if LMarks.Count = 0 then
     begin
       AChildAdapter.FCascadeMasterRows := 1;
