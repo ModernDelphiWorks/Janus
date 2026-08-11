@@ -148,6 +148,36 @@
   client does with such a body today, so the day the server is fixed this clause
   is the one that says so.
 
+  WHAT THIS FIXTURE STILL DOES NOT CATCH
+
+  Written down because a survivor nobody lists is a survivor nobody closes.
+  Every figure measured at 4a1532e on the three lines of the parser loop, each
+  proven applied by a MESSAGE WARN directive echoed back by dcc32, with the exe
+  deleted before every build:
+
+    DataType := ftInteger      survives, 103/0/0
+    DataType := ftWideString   survives, 103/0/0
+    Name := Trim(name)         survives, 103/0/0
+    Value := VarToStr(value)   survives, 103/0/0
+
+  The first three READ as equivalent under the one production consumer -
+  DataType is never observed, and TRESTDataSetAdapter<M>.ApplyInserter assigns
+  LParam.Value straight into a TField - but EQUIVALENCE WAS NOT PROVED, only
+  argued, and they are listed as survivors rather than dismissed as equivalent.
+
+  The fourth is this fixture's own doing, and TParamsProbe says why: the probe
+  renders through VarToStr, so no clause can tell an integer 10 from a string
+  '10'.
+
+  For contrast, the same three lines are well covered elsewhere:
+  Name := name + '_' kills 27, Name := 'p' kills 27, and
+  Value := JsonString.Value kills 35, all measured at the same commit.
+
+  ONE MORE THING THAT IS A CONTROL, NOT A SURVIVOR: UpperCase on the name
+  together with ALL TWELVE ignoreCase flags in this fixture flipped from False
+  to True also gives 103/0/0. That is not a hole - it is the measurement that
+  proves the flags are load-bearing, since UpperCase alone kills 8.
+
   ANCHORS INTO THE SUITE ARE BY METHOD, NEVER BY `file:line` - a clause anchor
   must not rot the day a line moves. Citations INTO SOURCE are by `file:line`,
   and each was re-read at the commit named beside it.
