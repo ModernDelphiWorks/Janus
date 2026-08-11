@@ -656,16 +656,25 @@ begin
   // it either way: materialised is not nil, so that model's list is never nil
   // when the walk reads it.
   //
-  // ONLY TWO PROJECTS COMPILE THIS FILE - Janus.Tests.Units and
-  // Janus.Tests.RESTfulDriver - AND A PER-PROJECT NUMBER QUOTED ABOUT IT IS
-  // EMPTY UNLESS IT COMES FROM ONE OF THEM. Measured, because a green from a
-  // project that never reads the source is indistinguishable from a green that
-  // means something: a hard {$MESSAGE ERROR} placed in this method fails the
-  // build of those two and of NO other - RESTHorse, LiveBindings, RESTMARS,
+  // OF THE SEVEN TEST PROJECTS, ONLY TWO COMPILE THIS FILE - Janus.Tests.Units
+  // and Janus.Tests.RESTfulDriver - AND A SUITE NUMBER QUOTED ABOUT IT IS EMPTY
+  // UNLESS IT COMES FROM ONE OF THEM. Measured, because a green from a project
+  // that never reads the source is indistinguishable from a green that means
+  // something: a hard {$MESSAGE ERROR} placed in this method fails the build of
+  // those two and of no other test project - RESTHorse, LiveBindings, RESTMARS,
   // RESTWiRL and RESTOracle all build and run clean straight through it.
   // RESTHorse is the trap, because it is the project TLazyBranchRoot lives in:
   // it returns the same 92 with this guard, without it, or with this file made
-  // impossible to compile.
+  // impossible to compile. The recipe is written down rather than just its
+  // answer, so the list can be re-derived in one build when it goes stale.
+  //
+  // THE SENTENCE IS ABOUT TEST PROJECTS AND STOPS THERE. This unit is SHIPPED:
+  // Components/Packages/Delphi/JanusCore.dpk names it in its `contains` clause,
+  // which is the definition of what that package compiles, and JanusCore.dproj
+  // carries the matching DCCReference; Examples/Delphi/Data/SQLDirect names it
+  // too. So a dependency added here that both test projects happen to satisfy
+  // can still break the runtime package that goes to the consumer, and no run
+  // of this suite would say so.
   //
   // THE SECOND MEASUREMENT THEREFORE COMES FROM Janus.Tests.RESTfulDriver -
   // the sibling guard added there reads 62 found, 0 failures, 0 errors, that
