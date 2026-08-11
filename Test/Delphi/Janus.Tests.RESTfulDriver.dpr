@@ -86,7 +86,10 @@ uses
   Test.Janus.Rest.Lazy in 'Unit\RESTful\Test.Janus.Rest.Lazy.pas',
   /// The same LoadLazy over the other concrete adapter of the family, whose
   /// OpenWhereInternal is a separate override - issue #251
-  Test.Janus.Rest.Lazy.Cds in 'Unit\RESTful\Test.Janus.Rest.Lazy.Cds.pas';
+  Test.Janus.Rest.Lazy.Cds in 'Unit\RESTful\Test.Janus.Rest.Lazy.Cds.pas',
+  /// The client re-reads the aggregate it has just inserted, because the insert
+  /// answer names the ROOT key and nothing below it - issue #297
+  Test.Janus.Rest.ReReadAfterInsert in 'Unit\RESTful\Test.Janus.Rest.ReReadAfterInsert.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
