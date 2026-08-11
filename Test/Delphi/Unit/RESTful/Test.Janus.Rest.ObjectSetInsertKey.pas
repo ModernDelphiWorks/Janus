@@ -96,11 +96,20 @@ const
     '{"result":"Resource aitroot insert command executed successfully", ' +
     '"params":[{"root_id":555}]}';
 
-  /// Well formed, same shape, but it names a column that is NOT part of the
-  /// primary key. Nothing may be stamped from it.
+  /// Well formed, same shape, but NOT ONE of the three names it carries is the
+  /// primary key. Nothing may be stamped from any of them.
+  ///
+  /// THE THREE NAMES ARE GRADED, and that is the whole reason there are three.
+  /// `tag` is an unrelated name and catches an implementation that matches
+  /// NOTHING and takes whatever came first. `root` is a strict PREFIX of
+  /// `root_id` and catches one that compares beginnings. `oot_id` is a strict
+  /// SUFFIX and catches one that asks Pos() instead of asking for equality.
+  /// With only `tag` here, the prefix and the substring readings both stayed
+  /// green - measured, and that is exactly the false alibi this repository has
+  /// been bitten by before.
   cANSWERNAMINGNOKEY =
     '{"result":"Resource aitroot insert command executed successfully", ' +
-    '"params":[{"tag":"555"}]}';
+    '"params":[{"tag":"555"},{"root":"111"},{"oot_id":"222"}]}';
 
   /// The same contract for the entity whose key is NOT generated - no
   /// [Sequence], so ExistSequence is False.
@@ -305,8 +314,9 @@ begin
     LAdapter.Free;
   end;
   Assert.AreEqual(cPLACEHOLDER, FRoot.root_id,
-    'the answer named `tag`, not a primary key column. Stamping from it would ' +
-    'mean the reader takes whatever came first instead of matching the name');
+    'not one of `tag`, `root`, `oot_id` IS `root_id`. 555 here means the ' +
+    'reader took whatever came first; 111 means it compared prefixes; 222 ' +
+    'means it asked Pos() instead of asking for equality');
   Assert.AreEqual('root', FRoot.tag, False,
     'and `tag` itself must not have been overwritten either - the reader is ' +
     'scoped to the primary key, which is the only thing the contract carries');
