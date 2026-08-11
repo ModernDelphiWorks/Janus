@@ -232,11 +232,18 @@ type
     FOneRoot: TFDMemTableAdapter<TAsymTreeOneRoot>;
     FOneMid: TFDMemTableAdapter<TAsymTreeMid>;
     FOneLeaf: TFDMemTableAdapter<TAsymTreeLeaf>;
+    FAsymRootTable: TFDMemTable;
+    FAsymMidTable: TFDMemTable;
+    FAsymLeafTable: TFDMemTable;
+    FAsymRoot: TFDMemTableAdapter<TAsymTreeRoot>;
+    FAsymMid: TFDMemTableAdapter<TAsymTreeMid>;
+    FAsymLeaf: TFDMemTableAdapter<TAsymTreeLeaf>;
     /// What the CONSUMER's own AfterScroll saw, and whether it is to raise.
     FSeenByConsumer: String;
     FRaiseOnNextScroll: Boolean;
     procedure MidConsumerAfterScroll(DataSet: TDataSet);
     procedure BuildOneToOneTree;
+    procedure BuildAsymTree;
     procedure BuildLocalTree(const AWithLeaf: Boolean = True;
       const AWithConsumerScroll: Boolean = False);
     procedure BuildCdsTree;
@@ -260,6 +267,7 @@ type
       const AForeignKey: String): String;
     function TagUnderCursor(const ADataSet: TDataSet): String;
     function GraphSignature(const ARoot: TAitRoot): String;
+    function AsymGraphSignature(const ARoot: TAsymTreeRoot): String;
   public
     [Setup]
     procedure Setup;
@@ -337,6 +345,16 @@ type
     /// holds the leaves of EVERY middle row at once.
     [Test]
     procedure Rest_TwoMidRows_EachMidObjectCarriesOnlyItsOwnGrandchildRow;
+    /// The SAME question over the model that spells every column exactly once
+    /// across the three levels - AsymTree. The three tests above run on
+    /// AutoIncTree, where the association names `mid_id` at BOTH ends, so a
+    /// repair that took the master's column name and looked it up on the CHILD
+    /// - or the other way round - would resolve by coincidence and pass all
+    /// three. Here the ends are `mkey` and `lparent` and the coincidence is
+    /// gone. The model's own header records that three defects in this series
+    /// hid behind matching names.
+    [Test]
+    procedure AsymNames_TwoMidRows_EachMidObjectCarriesOnlyItsOwnGrandchildRow;
     /// The guard that keeps the repair from swallowing the scroll contract.
     /// Once the read is over, an operator keypress on the middle grid must
     /// still re-open the leaf from the database and still discard - that is
@@ -426,6 +444,19 @@ const
   cONEMIDTAG  = 'mtag';
   cONELEAFTAG = 'ltag';
   cONELEAFFK  = 'lparent';
+  /// The SAME three levels of AsymTree under its OneToMany root - #295. The
+  /// keys are 21/22 and not 11/12 so that a value read off the WRONG level
+  /// cannot be mistaken for a value read off the right one while both fixtures
+  /// live in the same unit.
+  cASYMROOTTAG  = 'rtag';
+  cASYMMIDTAG   = 'mtag';
+  cASYMMIDKEY   = 'mkey';
+  cASYMMIDTAG1  = 'AM1';
+  cASYMMIDTAG2  = 'AM2';
+  cASYMMIDKEY1  = 21;
+  cASYMMIDKEY2  = 22;
+  cASYMLEAFTAGA = 'ALA';
+  cASYMLEAFTAGB = 'ALB';
 
 type
   /// Saved BeforeScroll/AfterScroll pair, so a fixture helper can walk a
@@ -525,6 +556,12 @@ begin
   FreeAndNil(FOneLeafTable);
   FreeAndNil(FOneMidTable);
   FreeAndNil(FOneRootTable);
+  FreeAndNil(FAsymLeaf);
+  FreeAndNil(FAsymMid);
+  FreeAndNil(FAsymRoot);
+  FreeAndNil(FAsymLeafTable);
+  FreeAndNil(FAsymMidTable);
+  FreeAndNil(FAsymRootTable);
   FRest := nil;
   FConn := nil;
 end;
@@ -556,6 +593,19 @@ begin
   FOneLeafTable := TFDMemTable.Create(nil);
   FOneLeaf := TFDMemTableAdapter<TAsymTreeLeaf>.Create(FConn, FOneLeafTable, -1,
                 FOneMid);
+end;
+
+procedure TTestGrandchildRead.BuildAsymTree;
+begin
+  FAsymRootTable := TFDMemTable.Create(nil);
+  FAsymRoot := TFDMemTableAdapter<TAsymTreeRoot>.Create(FConn, FAsymRootTable,
+                 -1, nil);
+  FAsymMidTable := TFDMemTable.Create(nil);
+  FAsymMid := TFDMemTableAdapter<TAsymTreeMid>.Create(FConn, FAsymMidTable, -1,
+                FAsymRoot);
+  FAsymLeafTable := TFDMemTable.Create(nil);
+  FAsymLeaf := TFDMemTableAdapter<TAsymTreeLeaf>.Create(FConn, FAsymLeafTable,
+                 -1, FAsymMid);
 end;
 
 procedure TTestGrandchildRead.BuildCdsTree;
@@ -686,6 +736,24 @@ begin
     Result := Result + LMid.tag + '[';
     for LLeaf in LMid.leafs do
       Result := Result + LLeaf.tag + '/' + IntToStr(LLeaf.mid_id) + ';';
+    Result := Result + ']';
+  end;
+  if Result = '' then
+    Result := cNOROW;
+end;
+
+function TTestGrandchildRead.AsymGraphSignature(
+  const ARoot: TAsymTreeRoot): String;
+var
+  LMid: TAsymTreeMid;
+  LLeaf: TAsymTreeLeaf;
+begin
+  Result := '';
+  for LMid in ARoot.mids do
+  begin
+    Result := Result + LMid.mtag + '[';
+    for LLeaf in LMid.leafs do
+      Result := Result + LLeaf.ltag + '/' + IntToStr(LLeaf.lparent) + ';';
     Result := Result + ']';
   end;
   if Result = '' then
@@ -896,6 +964,47 @@ begin
     'TRESTDataSetAdapter<M>.OpenDataSetChilds has an empty body, so its leaf ' +
     'dataset is never narrowed to one middle row by anybody, at any time. ' +
     'The whole-list answer is not a transient there');
+end;
+
+procedure TTestGrandchildRead.AsymNames_TwoMidRows_EachMidObjectCarriesOnlyItsOwnGrandchildRow;
+var
+  LRoot: TAsymTreeRoot;
+begin
+  BuildAsymTree;
+  FAsymRootTable.Append;
+  FAsymRootTable.FieldByName(cASYMROOTTAG).AsString := 'AR1';
+  FAsymRootTable.Post;
+  FAsymMidTable.Append;
+  FAsymMidTable.FieldByName(cASYMMIDTAG).AsString := cASYMMIDTAG1;
+  FAsymMidTable.FieldByName(cASYMMIDKEY).AsInteger := cASYMMIDKEY1;
+  FAsymMidTable.Post;
+  FAsymMidTable.Append;
+  FAsymMidTable.FieldByName(cASYMMIDTAG).AsString := cASYMMIDTAG2;
+  FAsymMidTable.FieldByName(cASYMMIDKEY).AsInteger := cASYMMIDKEY2;
+  FAsymMidTable.Post;
+  FAsymLeafTable.Append;
+  FAsymLeafTable.FieldByName(cONELEAFTAG).AsString := cASYMLEAFTAGA;
+  FAsymLeafTable.FieldByName(cONELEAFFK).AsInteger := cASYMMIDKEY1;
+  FAsymLeafTable.Post;
+  FAsymLeafTable.Append;
+  FAsymLeafTable.FieldByName(cONELEAFTAG).AsString := cASYMLEAFTAGB;
+  FAsymLeafTable.FieldByName(cONELEAFFK).AsInteger := cASYMMIDKEY2;
+  FAsymLeafTable.Post;
+
+  LRoot := FAsymRoot.Current;
+
+  Assert.AreEqual(cASYMMIDTAG1 + '[' + cASYMLEAFTAGA + '/' +
+                    IntToStr(cASYMMIDKEY1) + ';]' +
+                  cASYMMIDTAG2 + '[' + cASYMLEAFTAGB + '/' +
+                    IntToStr(cASYMMIDKEY2) + ';]',
+    AsymGraphSignature(LRoot), False,
+    'the association joins `mkey` on the middle row to `lparent` on the leaf, ' +
+    'and the two names share nothing. A filter that took the master column ' +
+    'name to the child dataset, or the child column name to the master ' +
+    'dataset, finds neither field, asks nothing, and hands every middle ' +
+    'object the whole list again - which is the defect, back under a repair ' +
+    'that looks present. On AutoIncTree that swap is invisible: both ends are ' +
+    'spelled `mid_id`');
 end;
 
 procedure TTestGrandchildRead.AfterTheRead_AnOperatorScrollStillDiscards;
