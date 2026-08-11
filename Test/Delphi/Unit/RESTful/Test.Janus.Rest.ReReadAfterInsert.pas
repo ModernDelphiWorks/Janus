@@ -186,6 +186,8 @@ type
     FCdsLeaf: TRESTClientDataSetAdapter<TAitLeaf>;
     FLoneMem: TFDMemTable;
     FLone: TRESTFDMemTableAdapter<TAitLeaf>;
+    FOtherMem: TFDMemTable;
+    FOther: TRESTFDMemTableAdapter<TAitNoCascade>;
     procedure BuildMemTree;
     procedure BuildCdsTree;
     procedure SeedRoot(const ADataSet: TDataSet; const ATag: String);
@@ -264,6 +266,18 @@ type
     /// is nothing to ask BY. The re-read must not fire on a placeholder.
     [Test]
     procedure Cost_WithoutResultParamsNoGetIsIssued;
+    /// A child under an association the model did NOT mark CascadeAutoInc had
+    /// no key generated for it by this insert, so a placeholder there is the
+    /// consumer's own value and reconciles nothing. TAitRoot.others is the only
+    /// association in the repository shaped to ask this.
+    [Test]
+    procedure Cost_APlaceholderUnderANonCascadeAssociationBuysNoGet;
+    /// The middle row already carries a key the operator typed, and ONLY the
+    /// grandchild is still on the placeholder. Level two answers "nothing wrong
+    /// here" and the re-read must fire anyway - which is what makes the walk
+    /// recursive instead of one level deep.
+    [Test]
+    procedure Cost_AStaleGrandchildAloneStillBuysTheGet;
 
     // -----------------------------------------------------------------------
     // The design constraint the repair had to obey.
@@ -326,6 +340,7 @@ const
   cROOTKEY = 'root_id';
   cMIDKEY  = 'mid_id';
   cLEAFKEY = 'leaf_id';
+  cOTHERKEY = 'other_id';
   cTAG     = 'tag';
   cPLACEHOLDER = -1;
   /// The three numbers the server generated. They are DIFFERENT from each other
@@ -559,6 +574,8 @@ end;
 
 procedure TTestRestReReadAfterInsert.TearDown;
 begin
+  FreeAndNil(FOther);
+  FreeAndNil(FOtherMem);
   FreeAndNil(FLone);
   FreeAndNil(FLoneMem);
   FreeAndNil(FCdsLeaf);
@@ -780,6 +797,50 @@ begin
   Assert.AreEqual(0, FRep.GetCount,
     'with the root key unknown there is nothing to ask BY, so the re-read ' +
     'must not fire on a placeholder');
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Cost_APlaceholderUnderANonCascadeAssociationBuysNoGet;
+begin
+  FRootMem := TFDMemTable.Create(nil);
+  FMemRoot := TRESTFDMemTableAdapter<TAitRoot>.Create(FConn, FRootMem, -1, nil);
+  FOtherMem := TFDMemTable.Create(nil);
+  FOther := TRESTFDMemTableAdapter<TAitNoCascade>.Create(FConn, FOtherMem, -1,
+              FMemRoot);
+  SeedRoot(FRootMem, 'root');
+  FOtherMem.Append;
+  FOtherMem.FieldByName(cOTHERKEY).AsInteger := cPLACEHOLDER;
+  FOtherMem.FieldByName(cROOTKEY).AsInteger := cPLACEHOLDER;
+  FOtherMem.Post;
+  TMemApply<TAitRoot>.Apply(FMemRoot);
+  Assert.AreEqual(1, FRep.PostCount, 'premise: the aggregate was sent');
+  Assert.AreEqual(cPLACEHOLDER, KeyOf(FOtherMem, cOTHERKEY),
+    'premise: the child really is sitting on the placeholder');
+  Assert.AreEqual(0, FRep.GetCount,
+    'TAitRoot.others carries CascadeInsert and CascadeUpdate but NOT ' +
+    'CascadeAutoInc, so this insert generated no key for it and there is ' +
+    'nothing to reconcile - paying for a round trip here would be paying for ' +
+    'a value the consumer typed');
+end;
+
+procedure TTestRestReReadAfterInsert.Cost_AStaleGrandchildAloneStillBuysTheGet;
+begin
+  BuildMemTree;
+  SeedRoot(FRootMem, 'root');
+  // The middle row carries a key the OPERATOR typed. Level two is not stale.
+  FMidMem.Append;
+  FMidMem.FieldByName(cMIDKEY).AsInteger := cSRVMID;
+  FMidMem.FieldByName(cROOTKEY).AsInteger := cPLACEHOLDER;
+  FMidMem.FieldByName(cTAG).AsString := 'typed';
+  FMidMem.Post;
+  SeedLeaf(FLeafMem, 'leaf');
+  TMemApply<TAitRoot>.Apply(FMemRoot);
+  Assert.AreEqual(1, FRep.GetCount,
+    'only the GRANDCHILD is on the placeholder here, so a walk that stopped ' +
+    'at the first level would answer "nothing to do" and leave level three ' +
+    'wrong forever');
+  Assert.AreEqual(cSRVLEAF, KeyOf(FLeafMem, cLEAFKEY),
+    'and the grandchild really was reconciled');
 end;
 
 procedure TTestRestReReadAfterInsert
