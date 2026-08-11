@@ -1743,10 +1743,11 @@ end;
 ///  de master identificada por AMasterToken.
 ///  A FOLGA E DE UM LADO SO, e isso e uma decisao medida. Quando o FILHO nao
 ///  tem proveniencia registrada - linha acrescentada com os eventos do adapter
-///  filho desligados, ou lida de um armazenamento que nao tem a coluna - a
-///  resposta e True e a linha recebe a chave como sempre recebeu; tirar essa
-///  folga faria o filho deixar de ser escrito, que e regressao silenciosa.
-///  Medido por Test.Janus.AutoInc.Distribution
+///  filho desligados, ou lida de um armazenamento que nao tem a coluna - e HA
+///  UM MASTER PENDENTE SO, que e a condicao do paragrafo seguinte e nao um
+///  detalhe dele, a resposta e True e a linha recebe a chave como sempre
+///  recebeu; tirar essa folga faria o filho deixar de ser escrito, que e
+///  regressao silenciosa. Medido por Test.Janus.AutoInc.Distribution
 ///  .ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster.
 ///  Do lado do MASTER nao ha folga: um filho que sabe de quem e filho nao e
 ///  reapontado para uma linha de master que nao se identifica.
