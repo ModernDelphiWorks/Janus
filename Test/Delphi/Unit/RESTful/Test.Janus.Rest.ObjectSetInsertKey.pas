@@ -31,9 +31,10 @@
   total=96 failures=3, and the two lines above printed -1 while the answer said
   555. The basal one commit below it was total=87 failures=0.
 
-  (The figure first carried the anchor ceebdbe. A rebase orphaned that commit
-  the same afternoon it was written, and a dead anchor does not announce itself
-  - it just stops being checkable. 16f3279 is the rebased twin.)
+  (The figure first carried the anchor ceebdbe, which is ORPHANED - do not go
+  looking for it. A rebase dropped it the same afternoon it was written, and a
+  dead anchor does not announce itself, it just quietly stops being checkable.
+  16f3279 is the rebased twin and is the one to use.)
 
   READING THE ANSWER MUST NOT HAVE BOUGHT AN EXCEPTION
 
