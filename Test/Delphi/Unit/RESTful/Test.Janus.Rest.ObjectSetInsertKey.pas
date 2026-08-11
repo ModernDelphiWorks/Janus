@@ -26,10 +26,14 @@
     aitroot.root_id  = the AutoInc PLACEHOLDER   (the answer was discarded)
     aitmid.root_id   = the SAME placeholder      (the cascade copied it down)
 
-  MEASURED, and the anchor is reachable: at commit ceebdbe - this fixture on
-  top of 03595a6 with NO source change - Janus.Tests.RESTfulDriver came out
-  total=96 failures=3, and the two lines above printed -1 while the answer said
-  555. The basal at 03595a6 was total=87 failures=0.
+  MEASURED, and the anchor is reachable: at commit 16f3279 - this fixture with
+  NO source change - Janus.Tests.RESTfulDriver came out total=96 failures=3, and
+  the two lines above printed -1 while the answer said 555. The basal one commit
+  below it was total=87 failures=0.
+
+  (The figure first carried the anchor ceebdbe. A rebase orphaned that commit
+  the same afternoon it was written, and a dead anchor does not announce itself
+  - it just stops being checkable. 16f3279 is the rebased twin.)
 
   This is NOT issue #297. There the DataSet family DID stamp the root and the
   gap was levels two and three; here the root itself was never reconciled, so
@@ -122,6 +126,48 @@ const
     '{"result":"Resource aitroot insert command executed successfully", ' +
     '"params":[{"root_id":ABC}]}';
 
+  /// THE THREE DOCUMENTS THAT PARSE AND STILL CARRY NO USABLE KEY.
+  ///
+  /// These are the ones cMALFORMEDANSWER could never reach: that one does not
+  /// parse, so TSessionRestFul<M>.Insert exits early and the reader is never
+  /// called at all. These three DO parse, so a param really is built and the
+  /// reader really does run - and what it is handed is TEXT, always.
+  ///
+  /// Janus.Session.RESTful.pas forces `DataType := ftString` on every param and
+  /// assigns `JsonValue.Value`, so a JSON `null` arrives as the EMPTY STRING,
+  /// never as a Null or Empty variant. That is why a guard written as
+  /// VarIsNull/VarIsEmpty could not fire, and why these clauses exist.
+  cANSWERWHOSEKEYISJSONNULL =
+    '{"result":"Resource aitroot insert command executed successfully", ' +
+    '"params":[{"root_id":null}]}';
+
+  cANSWERWHOSEKEYISEMPTY =
+    '{"result":"Resource aitroot insert command executed successfully", ' +
+    '"params":[{"root_id":""}]}';
+
+  /// A server that DOES quote its values, answering something that is not a
+  /// number for a numeric key. Parses cleanly; converts to nothing.
+  cANSWERWHOSEKEYISNOTANUMBER =
+    '{"result":"Resource aitroot insert command executed successfully", ' +
+    '"params":[{"root_id":"ABC"}]}';
+
+  /// The contract's own name, spelled in another case. The reader is
+  /// deliberately case-insensitive and this is what holds it to that.
+  cANSWERSHOUTINGTHEKEYNAME =
+    '{"result":"Resource aitroot insert command executed successfully", ' +
+    '"params":[{"ROOT_ID":555}]}';
+
+  /// Two objects naming the SAME key. The shipped producer emits one object per
+  /// primary key column and so can never produce this, which is exactly why the
+  /// reading has to be pinned rather than left to whichever loop shape survives
+  /// the next edit.
+  cANSWERNAMINGTHEKEYTWICE =
+    '{"result":"Resource aitroot insert command executed successfully", ' +
+    '"params":[{"root_id":555},{"root_id":999}]}';
+
+  /// The value only a SECOND param object could put on the root.
+  cSECONDKEY = 999;
+
   /// The same contract for the entity whose key is NOT generated - no
   /// [Sequence], so ExistSequence is False.
   cANSWERFORTHENOSEQUENCEENTITY =
@@ -136,6 +182,10 @@ type
     FRecorder: TRecordingRestConnection;
     FRoot: TAitRoot;
     function BuildTree: TAitRoot;
+    /// Insert the canonical tree against AAnswer and require that NOTHING
+    /// moved - on the root and on the child both. Shared by the three answers
+    /// that parse and still carry no usable key.
+    procedure _InsertAndExpectThePlaceholder(const AAnswer, AWhy: String);
   public
     [Setup]
     procedure Setup;
@@ -198,6 +248,28 @@ type
     /// number, because it never quotes the value.
     [Test]
     procedure Insert_AMalformedAnswerLeavesThePlaceholder;
+
+    /// THE THREE THAT PARSE AND CARRY NO USABLE KEY. Before #301 no answer of
+    /// any shape could reach the client, so none of these could do anything at
+    /// all. The reader must not have made any of them worse than that: the
+    /// placeholder stands, and nothing is raised.
+    [Test]
+    procedure Insert_AKeyThatIsJsonNullLeavesThePlaceholder;
+    [Test]
+    procedure Insert_AKeyThatIsAnEmptyStringLeavesThePlaceholder;
+    [Test]
+    procedure Insert_AKeyThatIsNotANumberLeavesThePlaceholder;
+
+    /// The reader is case-insensitive ON PURPOSE, and until this clause existed
+    /// nothing said so - the argument lived only in a comment.
+    [Test]
+    procedure Insert_TheKeyIsMatchedIgnoringTheCaseTheServerUsed;
+
+    /// The scan stops at the FIRST param that names the key. Pinned because the
+    /// contract cannot produce a second one, so nothing else would notice the
+    /// day the loop stopped stopping.
+    [Test]
+    procedure Insert_TheFirstParamThatNamesTheKeyDecides;
   end;
 
 implementation
@@ -445,6 +517,89 @@ begin
   Assert.AreEqual(cPLACEHOLDER, FRoot.mids[0].root_id,
     'and the cascade must have handed down the unchanged value, not crashed ' +
     'half way');
+end;
+
+procedure TTestRestObjectSetInsertKey._InsertAndExpectThePlaceholder(
+  const AAnswer, AWhy: String);
+var
+  LAdapter: TRESTObjectSetAdapter<TAitRoot>;
+begin
+  FRecorder.Response := AAnswer;
+  FRoot := BuildTree;
+  LAdapter := TRESTObjectSetAdapter<TAitRoot>.Create(FConn);
+  try
+    // An ERROR rather than a failure on the next line is the whole point of
+    // these three: the reader must not RAISE on an answer it cannot use. Before
+    // #301 nothing read the answer, so nothing could raise.
+    LAdapter.Insert(FRoot);
+  finally
+    LAdapter.Free;
+  end;
+  Assert.AreEqual(cPLACEHOLDER, FRoot.root_id, AWhy);
+  Assert.AreEqual(cPLACEHOLDER, FRoot.mids[0].root_id,
+    AWhy + ' - and the cascade must have handed the unchanged value down');
+end;
+
+procedure TTestRestObjectSetInsertKey.Insert_AKeyThatIsJsonNullLeavesThePlaceholder;
+begin
+  _InsertAndExpectThePlaceholder(cANSWERWHOSEKEYISJSONNULL,
+    'a JSON null carries no key. It reaches the reader as the EMPTY STRING - ' +
+    'the parser forces ftString on every param - so a guard that asks ' +
+    'VarIsNull or VarIsEmpty never fires and the empty text goes on to a ' +
+    'numeric conversion that raises');
+end;
+
+procedure TTestRestObjectSetInsertKey.Insert_AKeyThatIsAnEmptyStringLeavesThePlaceholder;
+begin
+  _InsertAndExpectThePlaceholder(cANSWERWHOSEKEYISEMPTY,
+    'an explicitly empty string carries no key either, and arrives at the ' +
+    'reader indistinguishable from the JSON null above');
+end;
+
+procedure TTestRestObjectSetInsertKey.Insert_AKeyThatIsNotANumberLeavesThePlaceholder;
+begin
+  _InsertAndExpectThePlaceholder(cANSWERWHOSEKEYISNOTANUMBER,
+    'a quoted non numeric value parses cleanly and converts to nothing. The ' +
+    'key stays as it was rather than the save ending in an exception');
+end;
+
+procedure TTestRestObjectSetInsertKey.Insert_TheKeyIsMatchedIgnoringTheCaseTheServerUsed;
+var
+  LAdapter: TRESTObjectSetAdapter<TAitRoot>;
+begin
+  FRecorder.Response := cANSWERSHOUTINGTHEKEYNAME;
+  FRoot := BuildTree;
+  LAdapter := TRESTObjectSetAdapter<TAitRoot>.Create(FConn);
+  try
+    LAdapter.Insert(FRoot);
+  finally
+    LAdapter.Free;
+  end;
+  Assert.AreEqual(cSERVERKEY, FRoot.root_id,
+    'the answer named ROOT_ID and the property is root_id. The reader matches ' +
+    'without regard to case because a third party server is not obliged to ' +
+    'echo the spelling back - and that argument is only worth making if ' +
+    'something measures it');
+  Assert.AreEqual(cSERVERKEY, FRoot.mids[0].root_id,
+    'and the cascade carries that same key down');
+end;
+
+procedure TTestRestObjectSetInsertKey.Insert_TheFirstParamThatNamesTheKeyDecides;
+var
+  LAdapter: TRESTObjectSetAdapter<TAitRoot>;
+begin
+  FRecorder.Response := cANSWERNAMINGTHEKEYTWICE;
+  FRoot := BuildTree;
+  LAdapter := TRESTObjectSetAdapter<TAitRoot>.Create(FConn);
+  try
+    LAdapter.Insert(FRoot);
+  finally
+    LAdapter.Free;
+  end;
+  Assert.AreEqual(cSERVERKEY, FRoot.root_id,
+    'the scan stops at the first param that names the key. ' +
+    IntToStr(cSECONDKEY) + ' here means it kept scanning and the LAST one ' +
+    'won instead');
 end;
 
 initialization
