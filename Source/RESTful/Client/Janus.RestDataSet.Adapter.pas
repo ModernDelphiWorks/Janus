@@ -1189,9 +1189,15 @@ begin
         // A GRAFIA DO MAPEAMENTO, e nao a do dataset. O irmao que monta os
         // mesmos params - TDataSetBaseAdapter<M>.RefreshRecord - nomeia por
         // LPrimaryKey.Columns, e o filtro que sai daqui viaja como nome de
-        // coluna ate o servidor. As duas grafias coincidem em todo modelo do
-        // repositorio, entao a divergencia NAO E MEDIDA; escrever a mesma das
-        // duas e o que impede que ela apareca.
+        // coluna ate o servidor.
+        // ESTA LINHA SOBREVIVE A MUTACAO e esta declarada: medido em 5c8acea,
+        // trocando por LField.FieldName a suite fica 86/86 verde. As duas
+        // grafias coincidem em todo modelo do repositorio, entao a divergencia
+        // NAO E MEDIDA e NAO E MEDIVEL hoje. Ela fica porque escrever a mesma
+        // das duas e o que impede que a divergencia apareca, e porque duas
+        // montagens do MESMO param em dois arquivos ja sao duas chances de
+        // divergirem - unificar num helper exigiria mexer no adapter BASE, que
+        // nao e deste branch.
         Name := LPrimaryKey.Columns.Items[LFor];
         ParamType := ptInput;
         DataType := LField.DataType;

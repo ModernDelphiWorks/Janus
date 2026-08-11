@@ -331,6 +331,12 @@ type
     /// it agrees, and the levels that ARE there must still be reconciled.
     [Test]
     procedure Shallow_AnAnswerIsNotRefusedForALevelTheClientDoesNotHold;
+    /// ONE object of a list reaching the level below is enough. Two middle rows
+    /// where only the first has grandchildren is an ordinary aggregate, and
+    /// demanding that EVERY object reach deeper would refuse the correct answer
+    /// to it.
+    [Test]
+    procedure Shallow_OneObjectOfTheListReachingDeeperIsEnough;
 
     // -----------------------------------------------------------------------
     // The design constraint the repair had to obey.
@@ -1014,6 +1020,32 @@ begin
 end;
 
 procedure TTestRestReReadAfterInsert
+  .Shallow_OneObjectOfTheListReachingDeeperIsEnough;
+begin
+  BuildMemTree;
+  SeedRoot(FRootMem, 'root');
+  SeedMid(FMidMem, 'midA');
+  SeedMid(FMidMem, 'midB');
+  SeedLeaf(FLeafMem, 'leaf');
+  // Two middle objects come back and only the FIRST carries grandchildren -
+  // which is what an aggregate looks like when one middle row has children and
+  // the other does not.
+  FRep.GetAnswer :=
+    '[{"root_id":777,"tag":"root","others":[],"mids":[' +
+      '{"mid_id":555,"root_id":777,"tag":"midA","leafs":[' +
+        '{"leaf_id":333,"mid_id":555,"root_id":777,"tag":"leaf"}]},' +
+      '{"mid_id":556,"root_id":777,"tag":"midB","leafs":[]}]}]';
+  TMemApply<TAitRoot>.Apply(FMemRoot);
+  Assert.AreEqual(1, FRep.GetCount, 'premise: the re-read really was issued');
+  Assert.AreEqual(cSRVMID, KeyOf(FMidMem, cMIDKEY),
+    'the answer must be applied: demanding that EVERY object of the list ' +
+    'reach the level below refuses a perfectly correct answer whenever one ' +
+    'middle row happens to have no children');
+  Assert.AreEqual(cSRVLEAF, KeyOf(FLeafMem, cLEAFKEY),
+    'and the grandchild that DOES exist was reconciled');
+end;
+
+procedure TTestRestReReadAfterInsert
   .MultiRoot_TwoRootsSavedTogetherAreLeftAloneAndKeepEveryRow;
 begin
   // TWO ROOTS MEANS TWO KEYS. Answering both POSTs with the same primary key
@@ -1066,10 +1098,14 @@ end;
 
 procedure TTestRestReReadAfterInsert.Foreign_AnAnswerThatIsNotThisRowIsDiscarded;
 begin
-  // A well-formed aggregate, but for ANOTHER root.
+  // A well-formed aggregate, but for ANOTHER root - and carrying every level
+  // this client holds, so that the DEPTH guard has nothing to object to and
+  // only the identity of the row can refuse it. With a shallower stranger the
+  // two guards overlap and neither one is measured on its own.
   FRep.GetAnswer :=
     '[{"root_id":901,"tag":"someone else","others":[],"mids":[' +
-      '{"mid_id":902,"root_id":901,"tag":"theirs","leafs":[]}]}]';
+      '{"mid_id":902,"root_id":901,"tag":"theirs","leafs":[' +
+        '{"leaf_id":903,"mid_id":902,"root_id":901,"tag":"theirs"}]}]}]';
   RunMem;
   Assert.AreEqual(1, FRep.GetCount, 'premise: the re-read really was issued');
   Assert.AreEqual(cSRVROOT, KeyOf(FRootMem, cROOTKEY),
