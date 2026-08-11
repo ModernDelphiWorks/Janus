@@ -111,6 +111,15 @@ const
     '{"result":"Resource aitroot insert command executed successfully", ' +
     '"params":[{"tag":"555"},{"root":"111"},{"oot_id":"222"}]}';
 
+  /// WHAT THE SHIPPED SERVER ACTUALLY EMITS FOR A NON NUMERIC KEY.
+  /// Janus.Server.Resource.pas builds the answer with VarToStr and NEVER quotes
+  /// the value, so a key that is not a number leaves as `"root_id":ABC` - which
+  /// is not JSON. The reader is driven with it here to state what the client
+  /// does when the document does not parse.
+  cMALFORMEDANSWER =
+    '{"result":"Resource aitroot insert command executed successfully", ' +
+    '"params":[{"root_id":ABC}]}';
+
   /// The same contract for the entity whose key is NOT generated - no
   /// [Sequence], so ExistSequence is False.
   cANSWERFORTHENOSEQUENCEENTITY =
@@ -180,6 +189,13 @@ type
     /// characterisation clauses above stop describing the same design.
     [Test]
     procedure Insert_TheWholeAggregateGoesOutInASinglePost;
+
+    /// An answer that is not JSON must leave the client exactly as it was, and
+    /// must not take the caller down with it. This is not hypothetical: the
+    /// shipped server emits precisely this document whenever the key is not a
+    /// number, because it never quotes the value.
+    [Test]
+    procedure Insert_AMalformedAnswerLeavesThePlaceholder;
   end;
 
 implementation
@@ -408,6 +424,25 @@ begin
     'graph itself, and the two characterisation clauses would no longer hold');
   Assert.AreEqual(Ord(TRESTRequestMethodType.rtPOST),
     Ord(FRecorder.LastCall.RequestMethod), 'an Insert is a POST');
+end;
+
+procedure TTestRestObjectSetInsertKey.Insert_AMalformedAnswerLeavesThePlaceholder;
+var
+  LAdapter: TRESTObjectSetAdapter<TAitRoot>;
+begin
+  FRecorder.Response := cMALFORMEDANSWER;
+  FRoot := BuildTree;
+  LAdapter := TRESTObjectSetAdapter<TAitRoot>.Create(FConn);
+  try
+    LAdapter.Insert(FRoot);
+  finally
+    LAdapter.Free;
+  end;
+  Assert.AreEqual(cPLACEHOLDER, FRoot.root_id,
+    'a document that does not parse carries no key, so nothing may be stamped');
+  Assert.AreEqual(cPLACEHOLDER, FRoot.mids[0].root_id,
+    'and the cascade must have handed down the unchanged value, not crashed ' +
+    'half way');
 end;
 
 initialization
