@@ -48,6 +48,17 @@
   and where that number came from. `-1` is what the client had; 555 and 333 are
   what only the GET could have supplied.
 
+  ONE COMMENT ELSEWHERE IS NOW FALSE AND IS NOT THIS BRANCH'S TO EDIT
+
+  The doc comment over TDataSetBaseAdapter<M>._AutoIncKeyIsGenerated, in
+  Janus.DataSet.Base.Adapter, still says of the REST family "nao ha nada depois
+  ... e o neto FICA com o placeholder como chave estrangeira". After this issue
+  there IS something after - ApplyInserter re-reads the aggregate - so the
+  sentence needs its second half rewritten. That file is held by another branch
+  while this one is being written, so the correction is reported instead of
+  applied; the rest of that comment, which is about the guard refusing to
+  PROPAGATE a placeholder, is unaffected and still exact.
+
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
 

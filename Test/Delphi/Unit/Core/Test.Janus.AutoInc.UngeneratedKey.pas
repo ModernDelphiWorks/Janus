@@ -470,9 +470,18 @@ begin
         'applied, the REST family would repair the grandchild and this test ' +
         'would be measuring the local family by accident');
 
+      // THE REST FAMILY DOES COME BACK NOW - issue #297 - and this clause is
+      // still about the write that must never happen. ApplyInserter re-reads
+      // the aggregate it inserted, so a grandchild left on the placeholder can
+      // be repaired afterwards; what may not happen is the placeholder being
+      // COPIED into the grandchild in the first place, which is what
+      // _AutoIncKeyIsGenerated refuses and what this fixture measures. The
+      // re-read does not reach this run: TSeqRestConnection answers every verb
+      // with a `params` document, and TRESTDataSetAdapter<M>
+      // ._AnswerIsTheRowUnderTheCursor discards an answer that is not this row.
       Assert.AreNotEqual(cPLACEHOLDER, FirstRowValue(LLeafTable, cMIDKEY),
         'the grandchild must not be left holding the middle level autoinc ' +
-        'placeholder: nothing in the REST family ever comes back to fix it');
+        'placeholder: the cascade must never write a key that does not exist');
       Assert.AreEqual(cLEAFSEED, FirstRowValue(LLeafTable, cMIDKEY),
         'with no key to propagate, the grandchild must come out exactly as ' +
         'it went in - which is also what the POST carried to the server');
