@@ -104,6 +104,12 @@ type
       const AAssociation: TAssociationMapping): Boolean;
     function _HasPendingRows(const AAdapter: TDataSetBaseAdapter<M>): Boolean;
     function _PendingChilds: TArray<TDataSet>;
+    procedure _ForeignKeyFieldPairs(
+      const AChildAdapter: TDataSetBaseAdapter<M>;
+      const AProperty: TRttiProperty;
+      const AMasterFields, AChildFields: TList<TField>);
+    function _ChildRowIsUnderTheCurrentMasterRow(
+      const AMasterFields, AChildFields: TList<TField>): Boolean;
   protected
     FBeforeScrollPendingChilds: TBeforeScrollPendingChildsEvent;
     FDataSetEvents: TDataSetEvents;
@@ -648,6 +654,8 @@ var
   LObjectList: TObject;
   LDataSetChild: TDataSetBaseAdapter<M>;
   LDataSet: TDataSet;
+  LMasterFields: TList<TField>;
+  LChildFields: TList<TField>;
 begin
   LPropertyType := AProperty.PropertyType;
   LPropertyType := AProperty.GetTypeValue(LPropertyType);
@@ -691,34 +699,173 @@ begin
   // measured on its own and neither was inferred from the other.
   //
   // Measured by Test.Janus.Grandchild.Read.
-  Inc(ADatasetBase.FChildReopenSuppressed);
+  //
+  // ISSUE #295 - AND THE ROWS THIS CURSOR HOLDS ARE NOT ALL THIS MASTER'S.
+  // What the suppression above buys is that the child dataset is NOT
+  // re-consulted between one master row and the next. The price is that this
+  // walk then runs over the SAME content on every pass: with two middle rows
+  // and one leaf under each, every middle object came back carrying both
+  // leaves, its own AND its sibling's. Nobody's list was right - before #276
+  // every one of them was EMPTY, after it every one of them was WHOLE.
+  //
+  // So the list is filtered HERE, in memory, by the association's own foreign
+  // key, instead of asking the store again. Asking again is what #276 removed,
+  // and it removed it because the re-open DESTROYS the grandchildren.
+  //
+  // THE PAIRS ARE RESOLVED ONCE, BEFORE THE WALK, and the reason is not only
+  // cost: LMaster.RecordCount is read there, and reading it after the walk has
+  // started would read it from a cursor the walk is moving.
+  //
+  // AN EMPTY PAIR LIST MEANS "NO QUESTION TO ASK" and every row is admitted -
+  // no master adapter, no columns in common, or a master holding a single row.
+  // That last one is not an optimisation, it is the same slack
+  // _IsOwnedByMasterRow already grants on FCascadeMasterRows <= 1: with one
+  // master row there is no ambiguity to resolve, and a child row that names no
+  // parent - a pending insert still on the AutoInc placeholder, which is the
+  // ordinary state of a typed row - must not be dropped on the floor. With TWO
+  // it is refused by both, which is the answer the house already took for the
+  // same question one layer down - see
+  // UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither. A row given to
+  // the wrong parent is invisible; a row given to nobody is not.
+  LMasterFields := TList<TField>.Create;
+  LChildFields := TList<TField>.Create;
   try
-    LDataSet.First;
-    LDataSet.BlockReadSize := MaxInt;
+    _ForeignKeyFieldPairs(ADatasetBase, AProperty, LMasterFields, LChildFields);
+    Inc(ADatasetBase.FChildReopenSuppressed);
     try
-      while not LDataSet.Eof do
-      begin
-        LObjectType := LPropertyType.AsInstance.MetaclassType.Create;
-        LObjectType.MethodCall('Create', []);
-        // Popula o objeto M e o adiciona na lista e objetos com o registro do DataSet.
-        Bind.SetFieldToProperty(LDataSet, LObjectType);
+      LDataSet.First;
+      LDataSet.BlockReadSize := MaxInt;
+      try
+        while not LDataSet.Eof do
+        begin
+          if not _ChildRowIsUnderTheCurrentMasterRow(LMasterFields,
+                                                     LChildFields) then
+          begin
+            LDataSet.Next;
+            Continue;
+          end;
+          LObjectType := LPropertyType.AsInstance.MetaclassType.Create;
+          LObjectType.MethodCall('Create', []);
+          // Popula o objeto M e o adiciona na lista e objetos com o registro do DataSet.
+          Bind.SetFieldToProperty(LDataSet, LObjectType);
 
-        LObjectList := AProperty.GetNullableValue(TObject(AObject)).AsObject;
-        LObjectList.MethodCall('Add', [LObjectType]);
-        // Populando em hierarquia de varios niveis
-        for LDataSetChild in ADatasetBase.FMasterObject.Values do
-          LDataSetChild.FillMastersClass(LDataSetChild, LObjectType);
+          LObjectList := AProperty.GetNullableValue(TObject(AObject)).AsObject;
+          LObjectList.MethodCall('Add', [LObjectType]);
+          // Populando em hierarquia de varios niveis
+          for LDataSetChild in ADatasetBase.FMasterObject.Values do
+            LDataSetChild.FillMastersClass(LDataSetChild, LObjectType);
 
-        // Proximo registro
-        LDataSet.Next;
+          // Proximo registro
+          LDataSet.Next;
+        end;
+      finally
+        LDataSet.BlockReadSize := 0;
+        LDataSet.GotoBookmark(LBookMark);
+        LDataSet.FreeBookmark(LBookMark);
       end;
     finally
-      LDataSet.BlockReadSize := 0;
-      LDataSet.GotoBookmark(LBookMark);
-      LDataSet.FreeBookmark(LBookMark);
+      Dec(ADatasetBase.FChildReopenSuppressed);
     end;
   finally
-    Dec(ADatasetBase.FChildReopenSuppressed);
+    LChildFields.Free;
+    LMasterFields.Free;
+  end;
+end;
+
+/// <summary> Os pares de TField que a associacao junta: a coluna da chave na
+///  linha do MASTER sobre a qual a caminhada esta parada, e a coluna da chave
+///  estrangeira na linha do FILHO - issue #295.
+///
+///  DEVOLVE LISTA VAZIA QUANDO NAO HA PERGUNTA A FAZER, e cada saida cedo e uma
+///  pergunta diferente que nao tem resposta:
+///  - sem adapter de master registrado nao existe "a linha do master";
+///  - com o dataset do master fechado tambem nao;
+///  - com UMA linha de master so nao ha ambiguidade nenhuma a resolver, e essa
+///    e a folga que _IsOwnedByMasterRow ja concede em FCascadeMasterRows <= 1,
+///    escrita aqui pelo mesmo motivo: um filho pendente cuja FK ainda e o
+///    placeholder de AutoInc nao pode sumir da lista do unico pai possivel;
+///  - coluna que nao existe num dos dois datasets nao compara nada, e o par e
+///    simplesmente omitido - as outras colunas da chave composta continuam
+///    valendo.
+///
+///  O DATASET DO MASTER E LIDO POR FOwnerMasterObject, e nao pelo objeto
+///  AObject que a caminhada esta preenchendo, pela mesma razao que
+///  _GetMasterValues e _AutoIncToChildRows fazem o mesmo: a associacao nomeia
+///  COLUNAS, e colunas vivem no dataset. Ir pelo objeto obrigaria a resolver
+///  nome de coluna para nome de propriedade, que e uma traducao a mais para
+///  errar. O cast e o mesmo que aqueles dois metodos usam e esta coberto pela
+///  checagem unica de SetMasterObject. </summary>
+procedure TDataSetBaseAdapter<M>._ForeignKeyFieldPairs(
+  const AChildAdapter: TDataSetBaseAdapter<M>;
+  const AProperty: TRttiProperty;
+  const AMasterFields, AChildFields: TList<TField>);
+var
+  LAssociation: Association;
+  LMaster: TDataSet;
+  LChild: TDataSet;
+  LMasterField: TField;
+  LChildField: TField;
+  LFor: Integer;
+begin
+  if AChildAdapter.FOwnerMasterObject = nil then
+    Exit;
+  LMaster := TDataSetBaseAdapter<M>(AChildAdapter.FOwnerMasterObject).FOrmDataSet;
+  if LMaster = nil then
+    Exit;
+  if not LMaster.Active then
+    Exit;
+  if LMaster.RecordCount <= 1 then
+    Exit;
+  LChild := AChildAdapter.FOrmDataSet;
+  if LChild = nil then
+    Exit;
+  for LAssociation in AProperty.GetAssociation do
+  begin
+    if LAssociation = nil then
+      Continue;
+    for LFor := 0 to Length(LAssociation.ColumnsName) -1 do
+    begin
+      if LFor > High(LAssociation.ColumnsNameRef) then
+        Break;
+      LMasterField := LMaster.FindField(LAssociation.ColumnsName[LFor]);
+      LChildField := LChild.FindField(LAssociation.ColumnsNameRef[LFor]);
+      if (LMasterField = nil) or (LChildField = nil) then
+        Continue;
+      AMasterFields.Add(LMasterField);
+      AChildFields.Add(LChildField);
+    end;
+  end;
+end;
+
+/// <summary> Se a linha corrente do dataset filho e filha da linha corrente do
+///  dataset master - issue #295. Sem par nenhum responde True: ver
+///  _ForeignKeyFieldPairs, que e quem decide se ha pergunta.
+///
+///  NULO DE QUALQUER DOS LADOS RESPONDE False, e isto so e alcancado quando ha
+///  DOIS OU MAIS masters, porque com um so nao ha par nenhum. Uma FK nula nao
+///  nomeia pai algum, e uma chave de master nula nao distingue um master do
+///  outro: nos dois casos entregar a linha a este pai seria entregar a linha ao
+///  pai errado com a mesma probabilidade de acertar. Nao entregar deixa a linha
+///  visivel onde ela esta; entregar ao errado nao.
+///
+///  COMPARA POR AsString DE PROPOSITO. A comparacao tem de ser TOTAL - qualquer
+///  par de tipos, sem excecao - porque uma FK pode ser inteira, string ou GUID,
+///  e os dois lados podem ate ser declarados com tipos diferentes num modelo que
+///  o repositorio nao proibe. Variant comparado com Variant levanta em
+///  combinacoes que TField.AsString atravessa sem ruido, e as duas pontas leem
+///  o mesmo valor pela mesma rotina. </summary>
+function TDataSetBaseAdapter<M>._ChildRowIsUnderTheCurrentMasterRow(
+  const AMasterFields, AChildFields: TList<TField>): Boolean;
+var
+  LFor: Integer;
+begin
+  Result := True;
+  for LFor := 0 to AMasterFields.Count -1 do
+  begin
+    if AMasterFields[LFor].IsNull or AChildFields[LFor].IsNull then
+      Exit(False);
+    if AMasterFields[LFor].AsString <> AChildFields[LFor].AsString then
+      Exit(False);
   end;
 end;
 
