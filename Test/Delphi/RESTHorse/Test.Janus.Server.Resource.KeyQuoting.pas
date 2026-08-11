@@ -575,12 +575,15 @@ begin
   /// this branch.
   ///
   /// ONE WARNING FOR WHOEVER MUTATES THIS LINE NEXT. Writing Single(...) as a
-  /// CAST around the expression does not narrow anything: measured, Double(
-  /// Single(x)) and Double(x) are bit-identical here, because the value never
-  /// leaves the FPU at Single width. A mutation written that way survives, and
-  /// it survives because it changed NOTHING - not because this clause is
-  /// blind. Narrowing for real, through an actual Single variable, yields
-  /// 0.123456791043282 and this clause kills it. Both were measured.
+  /// CAST around the expression does not narrow anything. MEASURED: Double(
+  /// Single(x)) and Double(x) both print 0.123456789 and compare equal, while
+  /// the same value assigned to a real Single variable and widened prints
+  /// 0.123456791043282 and compares UNequal to both. So a mutation written as
+  /// a cast survives because it changed NOTHING, not because this clause is
+  /// blind - and narrowing for real, through a Single variable, is killed by
+  /// this clause. WHY the cast is a no-op here was not measured; the compiler
+  /// keeping the value at a wider working precision is a plausible mechanism
+  /// and nothing above depends on it being the right one.
   LPair := KeyPairOf('KeyTypeFloat',
     '{"ktnum":0.123456789,"kttag":"precise"}');
   Assert.AreEqual('ktnum', LPair.JsonString.Value,
