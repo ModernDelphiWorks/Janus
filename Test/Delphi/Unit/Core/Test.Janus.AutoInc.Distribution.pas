@@ -14,22 +14,37 @@
 { @abstract(Janus Framework - CascadeAutoInc must reach the children of the
   parent row they were typed under, and no other.)
 
-  WHAT IS UNDER TEST - issue #261
+  WHAT WAS UNDER TEST - issue #261
 
-  TDataSetBaseAdapter<M>._AutoIncToChildRows writes the master's key into EVERY
-  pending child row, and TDataSetBaseAdapter<M>.SetAutoIncValueChilds recurses
-  into each child ADAPTER once, riding whatever row that child's cursor happens
-  to sit on. Neither step asks which parent row a pending child belongs to.
+  Before the fixes below, TDataSetBaseAdapter<M>._AutoIncToChildRows wrote the
+  master's key into EVERY pending child row, and
+  TDataSetBaseAdapter<M>.SetAutoIncValueChilds recursed into each child
+  ADAPTER once, riding whatever row that child's cursor happened to sit on.
+  Neither step asked which parent row a pending child belonged to.
 
-  With more than one pending parent that produces two different wrongs, and
+  With more than one pending parent that produced two different wrongs, and
   this file measures both:
 
     * level 2 - TFDMemTableAdapter<M>.ApplyInserter loops over every pending
       MASTER row calling SetAutoIncValueChilds once per row, and each pass
-      re-stamps the same child rows, so the LAST pending master wins;
-    * level 3 - the recursion enters the mid level exactly once, with the mid
-      cursor wherever _AutoIncToChildRows' own `finally` left it, so every leaf
-      is parented on THAT mid row whichever mid row it was typed under.
+      re-stamped the same child rows, so the LAST pending master won;
+    * level 3 - the recursion entered the mid level exactly once, with the mid
+      cursor wherever _AutoIncToChildRows' own `finally` had left it, so every
+      leaf was parented on THAT mid row, whichever mid row it was typed under.
+
+  THE PAST TENSE IS LOAD-BEARING, and issues #265 (row provenance) and #261
+  (the pending-master count) are what earned it. _AutoIncToChildRows now marks
+  a child eligible only when it is BOTH _IsPendingInsertRow and
+  _IsOwnedByMasterRow of the master row being written, and
+  SetAutoIncValueChilds's recursion - _RecurseOverChildRows - walks that same
+  pair of filters once PER PENDING ROW instead of once per adapter, so level 2
+  no longer re-stamps a sibling master's children and level 3 no longer rides
+  a stray cursor. An unrecorded child is still claimable, but bounded by
+  FCascadeMasterRows: by THE pending master where there is exactly one, by
+  NONE where there is more than one - "the last pending master wins" is no
+  longer the answer. Nothing below changes: these five tests still measure the
+  same collapse, now as the history the fix corrected rather than as a live
+  defect.
 
   THE ORDERING THAT MAKES THE STATE REACHABLE
 
