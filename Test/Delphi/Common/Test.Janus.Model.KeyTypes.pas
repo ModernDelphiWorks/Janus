@@ -222,6 +222,82 @@ type
     property kttag: String read Fkttag write Fkttag;
   end;
 
+  /// A 64-bit key whose value does not fit in 32 bits. Nothing about the
+  /// SELECTION of the number branch depends on width, so a conversion narrowed
+  /// to Integer inside that branch leaves every other clause green and
+  /// truncates the key silently. The value is also above 2^53, so a repair
+  /// that routed integers through Double would lose it too.
+  [Entity]
+  [Table('ktbig', '')]
+  [PrimaryKey('ktbig', TAutoIncType.NotInc,
+                       TGeneratorType.NoneInc,
+                       TSortingOrder.NoSort,
+                       True, '64-bit primary key')]
+  TKeyTypeBig = class
+  private
+    Fktbig: Int64;
+    Fkttag: String;
+  public
+    [Restrictions([TRestriction.NotNull])]
+    [Column('ktbig', ftLargeint)]
+    property ktbig: Int64 read Fktbig write Fktbig;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
+  /// An UNSIGNED 64-bit key above High(Int64). The Variant arrives as
+  /// varUInt64, and a cast through varInt64 REINTERPRETS the bit pattern as a
+  /// negative number. Both the right answer and the wrong one are valid JSON,
+  /// so no clause about parseability can tell them apart - only a clause about
+  /// the VALUE can.
+  [Entity]
+  [Table('ktunsigned', '')]
+  [PrimaryKey('ktu', TAutoIncType.NotInc,
+                     TGeneratorType.NoneInc,
+                     TSortingOrder.NoSort,
+                     True, 'Unsigned 64-bit primary key')]
+  TKeyTypeUnsigned = class
+  private
+    Fktu: UInt64;
+    Fkttag: String;
+  public
+    [Restrictions([TRestriction.NotNull])]
+    [Column('ktu', ftLargeint)]
+    property ktu: UInt64 read Fktu write Fktu;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
+  /// A COMPOSITE textual key. The pair list is a LOOP, and a loop that stops
+  /// after its first turn is invisible to every single-column clause in the
+  /// fixture. The declaration uses the comma form, which
+  /// MetaDbDiff.Mapping.Attributes splits with ExtractStrings([',', ';']).
+  [Entity]
+  [Table('ktcomp', '')]
+  [PrimaryKey('ktca,ktcb', TAutoIncType.NotInc,
+                           TGeneratorType.NoneInc,
+                           TSortingOrder.NoSort,
+                           True, 'Composite textual primary key')]
+  TKeyTypeComposite = class
+  private
+    Fktca: String;
+    Fktcb: String;
+    Fkttag: String;
+  public
+    [Restrictions([TRestriction.NotNull])]
+    [Column('ktca', ftString, 60)]
+    property ktca: String read Fktca write Fktca;
+
+    [Restrictions([TRestriction.NotNull])]
+    [Column('ktcb', ftString, 60)]
+    property ktcb: String read Fktcb write Fktcb;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
   /// A NULLABLE key, left unset by the caller. This is the only shape that
   /// reaches the null branch of the value builder: GetNullableValue answers a
   /// Variant Null for a Nullable property with no value, and for nothing else.
@@ -257,6 +333,9 @@ initialization
   TRegisterClass.RegisterEntity(TKeyTypeFloat);
   TRegisterClass.RegisterEntity(TKeyTypeAlias);
   TRegisterClass.RegisterEntity(TKeyTypeBool);
+  TRegisterClass.RegisterEntity(TKeyTypeBig);
+  TRegisterClass.RegisterEntity(TKeyTypeUnsigned);
+  TRegisterClass.RegisterEntity(TKeyTypeComposite);
   TRegisterClass.RegisterEntity(TKeyTypeNullable);
 
 end.

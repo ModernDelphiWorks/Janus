@@ -189,6 +189,27 @@ type
     [Test]
     procedure FractionalKey_TheResponseMustBeParseableJson;
 
+    /// SELECTING the number branch is not the same as CONVERTING inside it.
+    /// Nothing about the selection depends on width, so a conversion narrowed
+    /// to 32 bits leaves every other clause in this fixture green and
+    /// truncates a 64-bit key in silence.
+    [Test]
+    procedure BigIntegerKey_MustNotBeNarrowed;
+
+    /// An unsigned key above High(Int64). A cast through varInt64 reinterprets
+    /// the bit pattern and the key comes back NEGATIVE - still valid JSON, so
+    /// only a clause about the VALUE can see it. This one is a REGRESSION
+    /// guard: the concatenating code this fixture replaced got this case
+    /// right, and the first version of the repair did not.
+    [Test]
+    procedure UnsignedKeyAboveHighInt64_MustNotFlipSign;
+
+    /// The pair list is a LOOP. Every other clause here has a single key
+    /// column, so a loop that stops after its first turn is invisible to all
+    /// of them.
+    [Test]
+    procedure CompositeTextualKey_CarriesBothPairsEscaped;
+
     /// The pair names the PROPERTY, not the column. Every other entity in this
     /// tree spells the two the same, so nothing could tell them apart and
     /// trading one for the other was invisible.
@@ -236,6 +257,13 @@ const
                '  ktflag BOOLEAN PRIMARY KEY, kttag VARCHAR(60))';
   cDDL_NULL  = 'CREATE TABLE IF NOT EXISTS ktnull ('  +
                '  ktopt VARCHAR(60), kttag VARCHAR(60))';
+  cDDL_BIG   = 'CREATE TABLE IF NOT EXISTS ktbig ('   +
+               '  ktbig BIGINT PRIMARY KEY, kttag VARCHAR(60))';
+  cDDL_UNS   = 'CREATE TABLE IF NOT EXISTS ktunsigned (' +
+               '  ktu BIGINT PRIMARY KEY, kttag VARCHAR(60))';
+  cDDL_COMP  = 'CREATE TABLE IF NOT EXISTS ktcomp ('  +
+               '  ktca VARCHAR(60), ktcb VARCHAR(60), kttag VARCHAR(60),' +
+               '  PRIMARY KEY (ktca, ktcb))';
 
 { TTestServerResourceKeyQuoting }
 
@@ -260,6 +288,9 @@ begin
   FConnection.ExecuteDirect(cDDL_ALIAS);
   FConnection.ExecuteDirect(cDDL_BOOL);
   FConnection.ExecuteDirect(cDDL_NULL);
+  FConnection.ExecuteDirect(cDDL_BIG);
+  FConnection.ExecuteDirect(cDDL_UNS);
+  FConnection.ExecuteDirect(cDDL_COMP);
 end;
 
 procedure TTestServerResourceKeyQuoting.TearDownFixture;
@@ -284,6 +315,9 @@ begin
   FConnection.ExecuteDirect('DELETE FROM ktalias');
   FConnection.ExecuteDirect('DELETE FROM ktbool');
   FConnection.ExecuteDirect('DELETE FROM ktnull');
+  FConnection.ExecuteDirect('DELETE FROM ktbig');
+  FConnection.ExecuteDirect('DELETE FROM ktunsigned');
+  FConnection.ExecuteDirect('DELETE FROM ktcomp');
 end;
 
 function TTestServerResourceKeyQuoting.ScalarInt(const ASQL: String): Integer;
@@ -476,6 +510,57 @@ begin
     TFormatSettings.Invariant), 0.0001,
     'The fractional key did not survive the round trip. Got: '
     + LPair.JsonValue.ToJSON);
+end;
+
+procedure TTestServerResourceKeyQuoting.BigIntegerKey_MustNotBeNarrowed;
+var
+  LPair: TJSONPair;
+begin
+  /// Above High(Integer) AND above 2^53, so both a 32-bit narrowing and a
+  /// detour through Double are caught.
+  LPair := KeyPairOf('KeyTypeBig', '{"ktbig":9007199254740993,"kttag":"big"}');
+  Assert.AreEqual('ktbig', LPair.JsonString.Value,
+    'The response no longer names the key column.');
+  Assert.IsTrue(LPair.JsonValue is TJSONNumber,
+    'A 64-bit key must stay a JSON NUMBER. Got: ' + LPair.JsonValue.ClassName);
+  Assert.AreEqual('9007199254740993', LPair.JsonValue.Value,
+    'The 64-bit key did not survive the round trip verbatim.');
+end;
+
+procedure TTestServerResourceKeyQuoting.UnsignedKeyAboveHighInt64_MustNotFlipSign;
+var
+  LPair: TJSONPair;
+begin
+  /// High(Int64) + 1. Read as a signed 64-bit integer this exact bit pattern
+  /// is -9223372036854775808.
+  LPair := KeyPairOf('KeyTypeUnsigned',
+    '{"ktu":9223372036854775808,"kttag":"unsigned"}');
+  Assert.AreEqual('ktu', LPair.JsonString.Value,
+    'The response no longer names the key column.');
+  Assert.AreEqual('9223372036854775808', LPair.JsonValue.Value,
+    'An unsigned key above High(Int64) came back reinterpreted as a signed '
+    + 'value. Both forms are valid JSON, so nothing but this assertion sees '
+    + 'it. Got: ' + LPair.JsonValue.ToJSON);
+end;
+
+procedure TTestServerResourceKeyQuoting.CompositeTextualKey_CarriesBothPairsEscaped;
+var
+  LParams: TJSONObject;
+begin
+  LParams := ParamsOf(InsertRaw('KeyTypeComposite',
+    '{"ktca":"A\"B","ktcb":"C\\D","kttag":"composite"}'));
+  Assert.AreEqual(2, LParams.Count,
+    'A composite key must name EVERY one of its columns. The pair list is a '
+    + 'loop and this is the only clause that turns it more than once. Got: '
+    + LParams.ToJSON);
+  Assert.AreEqual('ktca', LParams.Pairs[0].JsonString.Value,
+    'The first key column is not the one declared first.');
+  Assert.AreEqual('ktcb', LParams.Pairs[1].JsonString.Value,
+    'The second key column is not the one declared second.');
+  Assert.AreEqual('A"B', LParams.Pairs[0].JsonValue.Value,
+    'The first key column did not survive escaping.');
+  Assert.AreEqual('C\D', LParams.Pairs[1].JsonValue.Value,
+    'The second key column did not survive escaping.');
 end;
 
 procedure TTestServerResourceKeyQuoting.TheKeyPairNamesTheProperty_NotTheColumn;

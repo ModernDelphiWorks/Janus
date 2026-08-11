@@ -108,13 +108,34 @@ uses
 ///  it cannot parse through a bare Exit, silently.
 ///
 ///  WHY THIS DISPATCHES ON THE VARIANT AND NOT ON TColumnMapping.FieldType.
-///  A FieldType table is a list of enum labels, and a label that is in the
-///  wrong bucket cannot be caught by anything short of one entity per label -
-///  drop ftLargeint from the numeric bucket and a 64-bit key silently starts
-///  arriving quoted, with the whole suite green. The variant has FOUR states
-///  reachable from a mapped property, and the fixture has a clause for each
-///  one: null, ordinal, float, everything else. There is no bucket here that
-///  no test stands in front of.
+///  The argument is about SELECTING a branch, and about nothing else. A
+///  FieldType table is a list of enum labels, and a label in the wrong bucket
+///  cannot be caught by anything short of one entity per label - drop
+///  ftLargeint from the numeric bucket and a 64-bit key silently starts
+///  arriving quoted, with the whole suite green. The Variant has FOUR states
+///  reachable from a mapped property and the fixture has a clause for each:
+///  null, ordinal, float, everything else.
+///
+///  That says nothing whatsoever about the CONVERSION performed once a branch
+///  has been selected, and the first version of this repair learned the
+///  difference the hard way: it selected the number branch correctly for an
+///  unsigned 64-bit key and then handed the caller the negative
+///  reinterpretation of it. Selection and conversion are two surfaces, and
+///  each needs its own clause - see BigIntegerKey_MustNotBeNarrowed and
+///  UnsignedKeyAboveHighInt64_MustNotFlipSign.
+///
+///  The one Variant state that has NO clause is varEmpty, and it is guarded
+///  above alongside Null. Enumerated rather than assumed: MetaDbDiff's
+///  TRttiPropertyHelper.GetNullableValue leaves an EMPTY TValue by exactly
+///  three routes - a nil instance, a Nullable-shaped record with no FHasValue
+///  field, and one with FHasValue set but no FValue field. The first cannot
+///  happen here, because the caller has just dereferenced that object. The
+///  other two need a record whose type NAME begins with 'Nullable<' - the
+///  check is by name - but whose layout is not Janus's, which no entity in
+///  this repository declares. The guard stays because removing it is NOT
+///  response-neutral: without it an empty Variant would leave as "" rather
+///  than null, and an empty string is something a client writes into a field.
+///
 ///
 ///  Booleans are deliberately NOT mapped onto a JSON boolean: VarIsOrdinal is
 ///  true for varBoolean, so the guard below excludes it and a boolean key
@@ -137,7 +158,7 @@ begin
   if VarIsNull(LValue) or VarIsEmpty(LValue) then
     Exit(TJSONNull.Create);
   if VarIsOrdinal(LValue) and (VarType(LValue) <> varBoolean) then
-    Exit(TJSONNumber.Create(Int64(VarAsType(LValue, varInt64))));
+    Exit(TJSONNumber.Create(VarToStr(LValue)));
   if VarIsFloat(LValue) then
     Exit(TJSONNumber.Create(Double(VarAsType(LValue, varDouble))));
   Result := TJSONString.Create(VarToStr(LValue));
