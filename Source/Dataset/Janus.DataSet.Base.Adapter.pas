@@ -110,6 +110,8 @@ type
       const AMasterFields, AChildFields: TList<TField>);
     function _ChildRowIsUnderTheCurrentMasterRow(
       const AMasterFields, AChildFields: TList<TField>): Boolean;
+    function _FieldValuesMatch(const AMasterField,
+      AChildField: TField): Boolean;
   protected
     FBeforeScrollPendingChilds: TBeforeScrollPendingChildsEvent;
     FDataSetEvents: TDataSetEvents;
@@ -712,9 +714,18 @@ begin
   // key, instead of asking the store again. Asking again is what #276 removed,
   // and it removed it because the re-open DESTROYS the grandchildren.
   //
-  // THE PAIRS ARE RESOLVED ONCE, BEFORE THE WALK, and the reason is not only
-  // cost: LMaster.RecordCount is read there, and reading it after the walk has
-  // started would read it from a cursor the walk is moving.
+  // THE PAIRS ARE RESOLVED ONCE, BEFORE THE WALK, and the reason is COST and
+  // nothing else. The pairs are TField references, which do not move while a
+  // dataset stays open, so resolving them per row would re-walk the
+  // association's RTTI attributes once per child row for an answer that cannot
+  // have changed.
+  // AN EARLIER VERSION OF THIS COMMENT GAVE A SECOND REASON AND IT WAS FALSE:
+  // that LMaster.RecordCount had to be read before the walk started because
+  // the walk moves that cursor. It does not. The walk moves LDataSet, the
+  // CHILD's cursor; LMaster is the master's dataset and nothing in this method
+  // touches it. Left recorded rather than quietly deleted, because a reason
+  // that is not true is worse than no reason and the next reader deserves to
+  // know which of the two this was.
   //
   // AN EMPTY PAIR LIST MEANS "NO QUESTION TO ASK" and every row is admitted -
   // no master adapter, no columns in common, or a master holding a single row.
@@ -841,12 +852,28 @@ end;
 ///  dataset master - issue #295. Sem par nenhum responde True: ver
 ///  _ForeignKeyFieldPairs, que e quem decide se ha pergunta.
 ///
+///  TODAS as colunas da chave tem de casar: uma chave composta so identifica
+///  uma linha inteira. Medido por
+///  CompositeKey_EveryColumnOfTheKeyDecidesWhichRowsTheMasterCarries. </summary>
+function TDataSetBaseAdapter<M>._ChildRowIsUnderTheCurrentMasterRow(
+  const AMasterFields, AChildFields: TList<TField>): Boolean;
+var
+  LFor: Integer;
+begin
+  Result := True;
+  for LFor := 0 to AMasterFields.Count -1 do
+    if not _FieldValuesMatch(AMasterFields[LFor], AChildFields[LFor]) then
+      Exit(False);
+end;
+
+/// <summary> Se uma coluna da chave casa dos dois lados - issue #295.
+///
 ///  NULO DE QUALQUER DOS LADOS RESPONDE False, e o que essa clausula DECIDE
 ///  sozinha e menos do que ela parece dizer - medido, e nao suposto. Nulo do
 ///  lado do filho contra um master COM chave ja e recusado pela comparacao de
-///  valor logo abaixo, porque '' nao e '11', de modo que apagar a clausula nao
-///  muda nada ali. O unico caso que ela decide e NULO CONTRA NULO: duas linhas
-///  de master que nao carregam chave nenhuma nao sao dois candidatos, sao ZERO
+///  valor, porque '' nao e '11', de modo que apagar a clausula nao muda nada
+///  ali. O unico caso que ela decide e NULO CONTRA NULO: duas linhas de master
+///  que nao carregam chave nenhuma nao sao dois candidatos, sao ZERO
 ///  candidatos, e le-las como iguais faria as duas reivindicarem o mesmo filho
 ///  - o defeito desta issue reproduzido pelo conserto dela. Medido por
 ///  Test.Janus.Grandchild.Read.TwoMastersWithNoKeyAtAll_ClaimNoChildRow, que e
@@ -855,27 +882,83 @@ end;
 ///  Nao entregar deixa a linha visivel onde ela esta; entregar ao pai errado
 ///  nao. Nada disto e alcancado com UM master so, porque ai nao ha par nenhum.
 ///
-///  COMPARA POR AsString DE PROPOSITO, para que a comparacao seja TOTAL: as
-///  duas pontas leem o valor pela MESMA rotina, nenhuma combinacao de tipos
-///  precisa de um ramo proprio, e nao ha conversao a falhar. O que esta MEDIDO
-///  e o par de mesmo tipo em ftInteger, ftString, ftGuid, ftDate, ftCurrency,
-///  ftDateTime e ftTime - CompositeKey_EveryColumnOfTheKeyDecidesWhichRows...
-///  compara os sete de uma vez. Par de tipos DIFERENTES nos dois lados da mesma
-///  associacao NAO ESTA MEDIDO - nao se procurou um modelo assim, e por isso
-///  aqui nao se afirma que nao existe. </summary>
-function TDataSetBaseAdapter<M>._ChildRowIsUnderTheCurrentMasterRow(
-  const AMasterFields, AChildFields: TList<TField>): Boolean;
-var
-  LFor: Integer;
+///  COMPARA POR VALOR ONDE O TEXTO E MAIS ESTREITO QUE O VALOR, E ESSA E A
+///  UNICA RAZAO DOS RAMOS. Uma versao anterior comparava TUDO por AsString, e
+///  isso foi MEDIDO como um buraco por onde o defeito desta issue volta inteiro
+///  e em silencio, em dados que ninguem chamaria de exoticos:
+///
+///  - data/hora: TDateTimeField.AsString passa por DateTimeToStr, que NAO
+///    carrega o milissegundo. Duas linhas de master separadas por 1 ms davam
+///    o mesmo texto, o filtro nao distinguia nada, e cada master recebia a
+///    lista inteira. Medido por
+///    CompositeKey_TwoMasterRowsThatDifferByOneMillisecond_AreStillTwoParents.
+///  - Currency: FloatToStr rende QUINZE digitos significativos e uma Currency
+///    guarda ate dezenove. Duas quantias que diferem no decimo sexto digito
+///    davam o mesmo texto. Medido por
+///    CompositeKey_TwoMasterRowsThatDifferInTheSixteenthDigit_AreStillTwoParents.
+///
+///  Os dois ramos foram medidos SEPARADAMENTE de proposito: "a familia de data
+///  e cega" nao diz nada sobre a familia numerica, e vice-versa. O ramo de
+///  ponto flutuante binario (ftFloat/ftSingle/ftExtended) acompanha o de
+///  Currency pelo mesmo argumento de largura - AsExtended nao perde o que
+///  FloatToStr perde - e esta DECLARADO COMO NAO MEDIDO: nenhum modelo do
+///  repositorio declara uma associacao sobre coluna de ponto flutuante, e
+///  inventar uma para pinar o ramo seria alargar esta issue.
+///
+///  ftBCD e ftFMTBcd FICAM NO AsString DE PROPOSITO, e isto e o oposto de um
+///  esquecimento: para BCD o TEXTO E a representacao exata - TFMTBCDField
+///  responde por BcdToStr - enquanto qualquer conversao para ponto flutuante
+///  perderia digitos que o BCD guarda. Aqui o ramo tipado seria o buraco.
+///  NAO MEDIDO tambem: nenhum modelo do repositorio declara essa associacao.
+///
+///  AsString CONTINUA SENDO O FUNDO, e continua sendo total: qualquer par que
+///  nao caia num ramo - inteiro, string, GUID, booleano, memo - le pela MESMA
+///  rotina dos dois lados e nao tem conversao a falhar.
+///
+///  O RAMO SO VALE COM OS DOIS LADOS NA MESMA FAMILIA. Par de tipos DIFERENTES
+///  cai no fundo, o que e a resposta conservadora e NAO ESTA MEDIDO - nao se
+///  procurou um modelo assim, e por isso aqui nao se afirma que nao existe.
+///
+///  BRANCOS A DIREITA SAO SIGNIFICATIVOS, e isto e uma DIFERENCA DE SEMANTICA
+///  em relacao a um JOIN de banco, declarada aqui porque ninguem a escolheu.
+///  Medido em 6e29b60, na associacao composta: master `'CC   '` contra filho
+///  `'CC'` - o campo guarda os brancos - da NENHUM pai reivindicando o filho,
+///  enquanto ANTES deste conserto os dois reivindicavam. Um join sobre CHAR
+///  num Firebird trataria os dois como iguais. A regra aqui e mais ESTRITA que
+///  a do banco, e no caminho que GRAVA "nenhum pai" quer dizer LINHA NUNCA
+///  ENVIADA - o preco declarado da regra "quem nao nomeia pai nao e de
+///  ninguem". Qual semantica de dialeto emular NAO e decisao deste conserto e
+///  por isso nao ha clausula pinando-a: fica medida e escrita, para quem
+///  decidir. </summary>
+function TDataSetBaseAdapter<M>._FieldValuesMatch(const AMasterField,
+  AChildField: TField): Boolean;
+/// DECLARADOS DENTRO DO METODO, e nao ao lado de cNoRowToken na secao de
+/// implementacao: um metodo de tipo PARAMETRIZADO declarado na interface nao
+/// pode usar simbolo da implementacao - E2506, medido. cNoRowToken escapa
+/// disso por ser constante inteira sem tipo, que o compilador resolve como
+/// literal; um conjunto tipado nao escapa.
+/// DB.ftSingle e DB.ftExtended QUALIFICADOS, e nao por estilo: TypInfo declara
+/// TFloatType com membros de nome IDENTICO e vem depois de DB no uses desta
+/// unit, de modo que o nome curto resolve para o enumerado ERRADO. Medido:
+/// E2010 'TFieldType' e 'TFloatType'.
+const
+  cDATETIMEFIELDKINDS = [ftDate, ftTime, ftDateTime, ftTimeStamp,
+                         ftTimeStampOffset, ftOraTimeStamp];
+  cCURRENCYFIELDKINDS = [ftCurrency];
+  cBINARYFLOATFIELDKINDS = [ftFloat, DB.ftSingle, DB.ftExtended];
 begin
-  Result := True;
-  for LFor := 0 to AMasterFields.Count -1 do
-  begin
-    if AMasterFields[LFor].IsNull or AChildFields[LFor].IsNull then
-      Exit(False);
-    if AMasterFields[LFor].AsString <> AChildFields[LFor].AsString then
-      Exit(False);
-  end;
+  if AMasterField.IsNull or AChildField.IsNull then
+    Exit(False);
+  if (AMasterField.DataType in cDATETIMEFIELDKINDS) and
+     (AChildField.DataType in cDATETIMEFIELDKINDS) then
+    Exit(AMasterField.AsDateTime = AChildField.AsDateTime);
+  if (AMasterField.DataType in cCURRENCYFIELDKINDS) and
+     (AChildField.DataType in cCURRENCYFIELDKINDS) then
+    Exit(AMasterField.AsCurrency = AChildField.AsCurrency);
+  if (AMasterField.DataType in cBINARYFLOATFIELDKINDS) and
+     (AChildField.DataType in cBINARYFLOATFIELDKINDS) then
+    Exit(AMasterField.AsExtended = AChildField.AsExtended);
+  Result := AMasterField.AsString = AChildField.AsString;
 end;
 
 procedure TDataSetBaseAdapter<M>.DisableDataSetEvents;

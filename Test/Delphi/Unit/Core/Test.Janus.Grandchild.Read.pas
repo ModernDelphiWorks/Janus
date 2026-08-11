@@ -275,6 +275,9 @@ uses
   FireDAC.Comp.DataSet,
   FireDAC.Comp.Client,
   DataEngine.FactoryInterfaces,
+  /// For TRESTRequestMethodType, which the IRESTConnection double has to
+  /// name in its Execute overloads.
+  Janus.Client.Methods,
   Janus.DataSet.Base.Adapter,
   Janus.DataSet.FDMemTable,
   Janus.DataSet.ClientDataSet,
@@ -285,9 +288,17 @@ uses
   /// association is OneToOne - which is the branch _ExecuteOneToOne serves.
   Test.Janus.Model.AsymTree,
   /// For TCompMaster/TCompChild, the only association in the repository whose
-  /// key is COMPOSITE - seven columns of five different types - which is what
-  /// makes "every column of the key is compared, whatever its type" a
-  /// measurement instead of a claim.
+  /// key is COMPOSITE - SEVEN columns of SEVEN different types: ftInteger,
+  /// ftString, ftGuid, ftDate, ftCurrency, ftDateTime and ftTime, counted off
+  /// the model itself. That is what makes "every column of the key is
+  /// compared, whatever its type" a measurement instead of a claim.
+  /// THE MODEL SAYS FIVE IN TWO PLACES AND DECLARES SEVEN. Its unit header
+  /// says "its FIVE columns are of five DIFFERENT TYPES" and the comment over
+  /// cck1 repeats "FIVE columns, every one of a DIFFERENT TYPE"; both then
+  /// declare cck1..cck7, and the comment over cck6 says in as many words that
+  /// ftDateTime and ftTime "each needs its own term". The count is stale, it
+  /// is PRE-EXISTING and not this issue's to correct, and it is named here so
+  /// the next reader who counts does not take one of the two for a typo.
   Test.Janus.Model.RestLazyKeys,
   Test.Janus.Cursor.Double,
   /// Only for TInertRestConnection, the IRESTConnection double that fixture
@@ -303,6 +314,62 @@ type
   TReadAccess<M: class, constructor> = class(TDataSetBaseAdapter<M>)
   public
     class function LastPK(const A: TDataSetBaseAdapter<M>): String;
+  end;
+
+  /// <summary> The same classic cracker, for ApplyUpdates, which is protected.
+  ///  It is the only way a test can reach the WRITING path from outside, and
+  ///  the writing path is where a wrong list stops being cosmetic: the graph
+  ///  ApplyInserter builds is the graph that goes on the wire. </summary>
+  TRestApply<M: class, constructor> = class(TRESTFDMemTableAdapter<M>)
+  public
+    class procedure Apply(const A: TRESTFDMemTableAdapter<M>);
+  end;
+
+  /// <summary> An IRESTConnection that answers nothing and REMEMBERS the body
+  ///  it was handed - issue #295.
+  ///
+  ///  WHY A SECOND DOUBLE AND NOT TInertRestConnection. That one is inert on
+  ///  purpose and records only how many times it was called, which cannot
+  ///  answer the question this fixture now asks: not "was the walk run" but
+  ///  "WHAT GRAPH would have gone on the wire". TSessionRestFul<M>.Insert
+  ///  serialises the object it is given and hands the string to AddBodyParam,
+  ///  so that string IS the graph, taken at the last point before the network.
+  ///  It is declared here rather than added to the shared double because the
+  ///  shared one belongs to another fixture and two fixtures editing one double
+  ///  is how doubles grow answers nobody asked for. </summary>
+  TCapturingRestConnection = class(TInterfacedObject, IRESTConnection)
+  private
+    FBodies: TStringList;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    function GetBaseURL: String;
+    function GetFullURL: String;
+    function GetUsername: String;
+    function GetPassword: String;
+    function GetMethodGET: String;
+    function GetMethodGETId: String;
+    function GetMethodGETWhere: String;
+    function GetMethodPOST: String;
+    function GetMethodPUT: String;
+    function GetMethodDELETE: String;
+    function GetMethodGETNextPacket: String;
+    function GetMethodGETNextPacketWhere: String;
+    function GetMethodToken: String;
+    function GetServerUse: Boolean;
+    procedure SetCommandMonitor(AMonitor: ICommandMonitor);
+    procedure SetClassNotServerUse(const Value: Boolean);
+    function CommandMonitor: ICommandMonitor;
+    function Execute(const AResource, ASubResource: String;
+      const ARequestMethod: TRESTRequestMethodType;
+      const AParams: TProc = nil): String; overload;
+    function Execute(const AResource: String;
+      const ARequestMethod: TRESTRequestMethodType;
+      const AParams: TProc = nil): String; overload;
+    procedure AddParam(AValue: String);
+    procedure AddQueryParam(AValue: String);
+    procedure AddBodyParam(AValue: String);
+    property Bodies: TStringList read FBodies;
   end;
 
   [TestFixture]
@@ -344,6 +411,14 @@ type
     FCompChildTable: TFDMemTable;
     FCompMaster: TFDMemTableAdapter<TCompMaster>;
     FCompChild: TFDMemTableAdapter<TCompChild>;
+    FCaptureConn: IRESTConnection;
+    FCapture: TCapturingRestConnection;
+    FCapRootTable: TFDMemTable;
+    FCapMidTable: TFDMemTable;
+    FCapLeafTable: TFDMemTable;
+    FCapRoot: TRESTFDMemTableAdapter<TAitRoot>;
+    FCapMid: TRESTFDMemTableAdapter<TAitMid>;
+    FCapLeaf: TRESTFDMemTableAdapter<TAitLeaf>;
     /// What the CONSUMER's own AfterScroll saw, and whether it is to raise.
     FSeenByConsumer: String;
     FRaiseOnNextScroll: Boolean;
@@ -351,8 +426,11 @@ type
     procedure BuildOneToOneTree;
     procedure BuildAsymTree;
     procedure BuildCompositeKeyPair;
+    procedure BuildCaptureRestTree;
     procedure AddCompositeRow(const ADataSet: TDataSet; const AKeyColumn: String;
-      const AKeyValue: Integer; const APrefix: String; const ATime: TDateTime);
+      const AKeyValue: Integer; const APrefix: String; const AText: String;
+      const AAmount: Currency; const AStamp: TDateTime; const ATime: TDateTime);
+    function ChildKeysOfTheSecondCompositeMaster: String;
     procedure BuildLocalTree(const AWithLeaf: Boolean = True;
       const AWithConsumerScroll: Boolean = False);
     procedure BuildCdsTree;
@@ -480,13 +558,25 @@ type
     /// the two together are the whole rule.
     [Test]
     procedure AGrandchildRowWithNoForeignKey_AndTwoMidRows_IsClaimedByNeither;
-    /// The COMPOSITE key - seven columns, five types. The two master rows here
+    /// The COMPOSITE key - seven columns, seven types. The two master rows here
     /// differ in the SEVENTH column alone and agree on the other six, so a
     /// comparison that stops before the last one hands both children to both
     /// masters. That is what makes this a statement about every column of the
     /// key and not about the first.
     [Test]
     procedure CompositeKey_EveryColumnOfTheKeyDecidesWhichRowsTheMasterCarries;
+    /// THE COMPARISON IS BY VALUE AND NOT BY TEXT, and these two are why. A
+    /// text rendering is NARROWER than the value it renders in two families
+    /// that a key can legitimately use, and in both the narrowing hands every
+    /// master the whole list again - the defect surviving its own repair, in
+    /// silence, on data nobody would call exotic (a timestamp; a large amount).
+    /// Each is measured on its own: neither family says anything about the
+    /// other, and the clause above cannot see either, because it separates its
+    /// two rows by NINE HOURS.
+    [Test]
+    procedure CompositeKey_TwoMasterRowsThatDifferByOneMillisecond_AreStillTwoParents;
+    [Test]
+    procedure CompositeKey_TwoMasterRowsThatDifferInTheSixteenthDigit_AreStillTwoParents;
     /// NULL DOES NOT MATCH NULL, and this is the only shape where that clause
     /// decides anything. A null foreign key against a master that HAS a key is
     /// already refused by the value comparison - '' is not '11' - so the
@@ -497,6 +587,24 @@ type
     /// NotNull restriction.
     [Test]
     procedure TwoMastersWithNoKeyAtAll_ClaimNoChildRow;
+    /// THE WRITING PATH, which is where a wrong list stops being cosmetic.
+    /// Every clause above reads .Current and asks what the CONSUMER sees.
+    /// TRESTDataSetAdapter<M>.ApplyInserter does not go through .Current at
+    /// all: it builds its own object per master row and hands it to
+    /// FSession.Insert, which serialises it and puts it on the wire. That is a
+    /// SECOND site of the same walk, and nothing above touches it. What is
+    /// asserted is the POST body itself - the last form the graph takes before
+    /// it leaves the process.
+    [Test]
+    procedure TheGraphThatWouldBePosted_CarriesOnlyEachMidRowsOwnLeaves;
+    /// TWO ROOT ROWS, which moves the question up a level. Everything above
+    /// varies the MIDDLE level and leaves one row at the top, so the top level
+    /// was never filtered by any of them - it took the single-row slack every
+    /// time. Here the grandparent has two rows and one middle row under each,
+    /// so BOTH levels of the walk have to filter for the answer to come out
+    /// right, and the signature says which mid AND which leaf arrived.
+    [Test]
+    procedure TwoRootRows_TheGrandparentCarriesOnlyItsOwnBranch;
     /// The guard that keeps the repair from swallowing the scroll contract.
     /// Once the read is over, an operator keypress on the middle grid must
     /// still re-open the leaf from the database and still discard - that is
@@ -547,6 +655,11 @@ implementation
 
 const
   cROOTTAG  = 'R1';
+  cROOTTAG2 = 'R2';
+  /// Two grandparent rows that can be told apart - #295. Only one clause needs
+  /// them, and every other one leaves the top level at a single row.
+  cROOTKEY1 = 101;
+  cROOTKEY2 = 102;
   cMIDTAG   = 'M1';
   cMIDTAG2  = 'M2';
   cLEAFTAG  = 'L1';
@@ -609,6 +722,14 @@ const
   cCOMPK2 = 'CK';
   cCOMPK3 = '{2B2E4A02-0C4F-4E4D-9E2D-9B1F0F4A6C31}';
   cCOMPK5 = 12.34;
+  /// One millisecond as a fraction of a day. TDateTime is a Double counting
+  /// days, so this is the smallest step DateTimeToStr cannot render.
+  cONEMILLISECOND = 1 / (24 * 60 * 60 * 1000);
+  /// The RAW scaled Int64 of two Currency values that differ by ONE ten
+  /// thousandth at the sixteenth significant digit: 123456789012.3456 and
+  /// 123456789012.3457. FloatToStr renders fifteen.
+  cCOMPK5BIGA = Int64(1234567890123456);
+  cCOMPK5BIGB = Int64(1234567890123457);
 
 type
   /// Saved BeforeScroll/AfterScroll pair, so a fixture helper can walk a
@@ -633,11 +754,187 @@ begin
   ADataSet.AfterScroll := AMute.After;
 end;
 
+{ TCapturingRestConnection }
+
+constructor TCapturingRestConnection.Create;
+begin
+  FBodies := TStringList.Create;
+end;
+
+destructor TCapturingRestConnection.Destroy;
+begin
+  FBodies.Free;
+  inherited;
+end;
+
+procedure TCapturingRestConnection.AddBodyParam(AValue: String);
+begin
+  FBodies.Add(AValue);
+end;
+
+procedure TCapturingRestConnection.AddParam(AValue: String);
+begin
+end;
+
+procedure TCapturingRestConnection.AddQueryParam(AValue: String);
+begin
+end;
+
+function TCapturingRestConnection.CommandMonitor: ICommandMonitor;
+begin
+  Result := nil;
+end;
+
+/// Runs the AParams closure, which is where the session puts its AddBodyParam
+/// call, and answers an empty document. Running it is the whole point: skip it
+/// and the body is never handed over and there is nothing to measure.
+function TCapturingRestConnection.Execute(const AResource, ASubResource: String;
+  const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): String;
+begin
+  if Assigned(AParams) then
+    AParams();
+  // An empty JSON OBJECT and not an empty array. TSessionRestFul<M>.Insert
+  // parses whatever comes back and reads `params` off it with an `as`, so an
+  // array answers EInvalidCast before the clause can assert anything - measured
+  // at 6e29b60, where this returned '[]' and the clause errored instead of
+  // failing. An object with no `params` key is the shape that says "nothing
+  // came back" without pretending to be a document.
+  Result := '{}';
+end;
+
+function TCapturingRestConnection.Execute(const AResource: String;
+  const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): String;
+begin
+  if Assigned(AParams) then
+    AParams();
+  // An empty JSON OBJECT and not an empty array. TSessionRestFul<M>.Insert
+  // parses whatever comes back and reads `params` off it with an `as`, so an
+  // array answers EInvalidCast before the clause can assert anything - measured
+  // at 6e29b60, where this returned '[]' and the clause errored instead of
+  // failing. An object with no `params` key is the shape that says "nothing
+  // came back" without pretending to be a document.
+  Result := '{}';
+end;
+
+function TCapturingRestConnection.GetBaseURL: String;
+begin
+  Result := '';
+end;
+
+function TCapturingRestConnection.GetFullURL: String;
+begin
+  Result := '';
+end;
+
+function TCapturingRestConnection.GetMethodDELETE: String;
+begin
+  Result := '';
+end;
+
+function TCapturingRestConnection.GetMethodGET: String;
+begin
+  Result := '';
+end;
+
+function TCapturingRestConnection.GetMethodGETId: String;
+begin
+  Result := '';
+end;
+
+function TCapturingRestConnection.GetMethodGETNextPacket: String;
+begin
+  Result := '';
+end;
+
+function TCapturingRestConnection.GetMethodGETNextPacketWhere: String;
+begin
+  Result := '';
+end;
+
+function TCapturingRestConnection.GetMethodGETWhere: String;
+begin
+  Result := '';
+end;
+
+function TCapturingRestConnection.GetMethodPOST: String;
+begin
+  Result := '';
+end;
+
+function TCapturingRestConnection.GetMethodPUT: String;
+begin
+  Result := '';
+end;
+
+function TCapturingRestConnection.GetMethodToken: String;
+begin
+  Result := '';
+end;
+
+function TCapturingRestConnection.GetPassword: String;
+begin
+  Result := '';
+end;
+
+function TCapturingRestConnection.GetServerUse: Boolean;
+begin
+  Result := False;
+end;
+
+function TCapturingRestConnection.GetUsername: String;
+begin
+  Result := '';
+end;
+
+procedure TCapturingRestConnection.SetClassNotServerUse(const Value: Boolean);
+begin
+end;
+
+procedure TCapturingRestConnection.SetCommandMonitor(AMonitor: ICommandMonitor);
+begin
+end;
+
 { TReadAccess<M> }
 
 class function TReadAccess<M>.LastPK(const A: TDataSetBaseAdapter<M>): String;
 begin
   Result := TReadAccess<M>(A).FLastPKValue;
+end;
+
+{ TRestApply<M> }
+
+class procedure TRestApply<M>.Apply(const A: TRESTFDMemTableAdapter<M>);
+begin
+  TRestApply<M>(A).ApplyUpdates(-1);
+end;
+
+/// The `tag` values of a JSON document in the order they appear in it - the
+/// same idea as GraphSignature, applied to the graph AFTER it has been
+/// serialised, which is the only form the writing path ever hands over.
+/// Blanks are stripped so the clause does not depend on the serialiser's
+/// spacing; no tag in this fixture contains one.
+function TagsInDocumentOrder(const AJson: String): String;
+const
+  cKEY = '"tag":"';
+var
+  LRest: String;
+  LAt: Integer;
+begin
+  Result := '';
+  LRest := StringReplace(AJson, ' ', '', [rfReplaceAll]);
+  LAt := Pos(cKEY, LRest);
+  while LAt > 0 do
+  begin
+    LRest := Copy(LRest, LAt + Length(cKEY), MaxInt);
+    LAt := Pos('"', LRest);
+    if LAt <= 0 then
+      Break;
+    Result := Result + Copy(LRest, 1, LAt - 1) + ';';
+    LRest := Copy(LRest, LAt + 1, MaxInt);
+    LAt := Pos(cKEY, LRest);
+  end;
+  if Result = '' then
+    Result := cNOROW;
 end;
 
 { TTestGrandchildRead }
@@ -718,6 +1015,14 @@ begin
   FreeAndNil(FCompMaster);
   FreeAndNil(FCompChildTable);
   FreeAndNil(FCompMasterTable);
+  FreeAndNil(FCapLeaf);
+  FreeAndNil(FCapMid);
+  FreeAndNil(FCapRoot);
+  FreeAndNil(FCapLeafTable);
+  FreeAndNil(FCapMidTable);
+  FreeAndNil(FCapRootTable);
+  FCapture := nil;
+  FCaptureConn := nil;
   FRest := nil;
   FConn := nil;
 end;
@@ -764,6 +1069,21 @@ begin
                  -1, FAsymMid);
 end;
 
+procedure TTestGrandchildRead.BuildCaptureRestTree;
+begin
+  FCapture := TCapturingRestConnection.Create;
+  FCaptureConn := FCapture;
+  FCapRootTable := TFDMemTable.Create(nil);
+  FCapRoot := TRESTFDMemTableAdapter<TAitRoot>.Create(FCaptureConn,
+                FCapRootTable, -1, nil);
+  FCapMidTable := TFDMemTable.Create(nil);
+  FCapMid := TRESTFDMemTableAdapter<TAitMid>.Create(FCaptureConn, FCapMidTable,
+               -1, FCapRoot);
+  FCapLeafTable := TFDMemTable.Create(nil);
+  FCapLeaf := TRESTFDMemTableAdapter<TAitLeaf>.Create(FCaptureConn,
+                FCapLeafTable, -1, FCapMid);
+end;
+
 procedure TTestGrandchildRead.BuildCompositeKeyPair;
 begin
   FCompMasterTable := TFDMemTable.Create(nil);
@@ -776,24 +1096,73 @@ end;
 
 /// One row of either end of the composite association. The two ends spell
 /// their columns differently - `cmk`N and `cck`N - and APrefix is which end
-/// this row belongs to; everything else is identical BY CONSTRUCTION, because
-/// the pair is what the filter has to match. Only ATime differs between the
-/// two families of row, and it is the SEVENTH and last column of the key.
+/// this row belongs to.
+///
+/// FOUR of the seven key columns are parameters and three are fixed, and which
+/// is which is not arbitrary: each clause that needs two master rows told apart
+/// varies exactly ONE column and leaves the other six identical, so what the
+/// clause measures is that COLUMN and nothing else. AText is the ftString one,
+/// AAmount the ftCurrency, AStamp the ftDateTime and ATime the ftTime.
 procedure TTestGrandchildRead.AddCompositeRow(const ADataSet: TDataSet;
   const AKeyColumn: String; const AKeyValue: Integer; const APrefix: String;
+  const AText: String; const AAmount: Currency; const AStamp: TDateTime;
   const ATime: TDateTime);
 begin
   ADataSet.Append;
   ADataSet.FieldByName(AKeyColumn).AsInteger := AKeyValue;
   ADataSet.FieldByName(APrefix + '1').AsInteger := cCOMPK1;
-  ADataSet.FieldByName(APrefix + '2').AsString := cCOMPK2;
+  ADataSet.FieldByName(APrefix + '2').AsString := AText;
   ADataSet.FieldByName(APrefix + '3').AsString := cCOMPK3;
   ADataSet.FieldByName(APrefix + '4').AsDateTime := EncodeDate(2026, 8, 11);
-  ADataSet.FieldByName(APrefix + '5').AsCurrency := cCOMPK5;
-  ADataSet.FieldByName(APrefix + '6').AsDateTime := EncodeDate(2026, 8, 11) +
-                                                    EncodeTime(9, 30, 0, 0);
+  ADataSet.FieldByName(APrefix + '5').AsCurrency := AAmount;
+  ADataSet.FieldByName(APrefix + '6').AsDateTime := AStamp;
   ADataSet.FieldByName(APrefix + '7').AsDateTime := ATime;
   ADataSet.Post;
+end;
+
+/// The ftDateTime term the clauses that are NOT about it all share.
+function CompStamp: TDateTime;
+begin
+  Result := EncodeDate(2026, 8, 11) + EncodeTime(9, 30, 0, 0);
+end;
+
+/// A Currency built from its RAW scaled Int64, which is what a Currency is:
+/// an Int64 divided by 10000. Written this way and not as a literal because
+/// the clause that uses it needs SIXTEEN significant digits to be exact, and a
+/// decimal literal reaches the field through Extended, which is where a digit
+/// could be lost before the measurement even starts.
+function CurrencyFromScaled(const AScaled: Int64): Currency;
+begin
+  Result := 0;
+  PInt64(@Result)^ := AScaled;
+end;
+
+/// Parks on the SECOND master row and reports which children that master
+/// object came back carrying.
+///
+/// THE SECOND AND NOT THE FIRST, in every clause that uses this: parked on the
+/// first, a repair that simply handed everyone the FIRST master's children
+/// would pass. Muted because moving the master with the events live is the
+/// OPERATOR scroll, which re-opens - and empties - the child, and that contract
+/// belongs to Test.Janus.Scroll.PendingChilds and not here.
+function TTestGrandchildRead.ChildKeysOfTheSecondCompositeMaster: String;
+var
+  LMaster: TCompMaster;
+  LChild: TCompChild;
+  LMute: TScrollMute;
+begin
+  LMute := MuteScroll(FCompMasterTable);
+  try
+    FCompMasterTable.Last;
+  finally
+    UnmuteScroll(FCompMasterTable, LMute);
+  end;
+  LMaster := FCompMaster.Current;
+  Assert.AreEqual(2, LMaster.cmkey,
+    'premise: the read really bound the SECOND master row');
+  Result := '';
+  for LChild in LMaster.childs do
+    Result := Result + IntToStr(LChild.cckey) + ';';
 end;
 
 procedure TTestGrandchildRead.BuildCdsTree;
@@ -1230,55 +1599,76 @@ begin
 end;
 
 procedure TTestGrandchildRead.CompositeKey_EveryColumnOfTheKeyDecidesWhichRowsTheMasterCarries;
-var
-  LMaster: TCompMaster;
-  LChild: TCompChild;
-  LResult: String;
-  LMute: TScrollMute;
 begin
   BuildCompositeKeyPair;
   AddCompositeRow(FCompMasterTable, cCOMPMASTERKEY, 1, cCOMPMASTERPFX,
-    EncodeTime(9, 30, 0, 0));
+    cCOMPK2, cCOMPK5, CompStamp, EncodeTime(9, 30, 0, 0));
   AddCompositeRow(FCompMasterTable, cCOMPMASTERKEY, 2, cCOMPMASTERPFX,
-    EncodeTime(18, 45, 0, 0));
+    cCOMPK2, cCOMPK5, CompStamp, EncodeTime(18, 45, 0, 0));
   AddCompositeRow(FCompChildTable, cCOMPCHILDKEY, 1, cCOMPCHILDPFX,
-    EncodeTime(9, 30, 0, 0));
+    cCOMPK2, cCOMPK5, CompStamp, EncodeTime(9, 30, 0, 0));
   AddCompositeRow(FCompChildTable, cCOMPCHILDKEY, 2, cCOMPCHILDPFX,
-    EncodeTime(18, 45, 0, 0));
+    cCOMPK2, cCOMPK5, CompStamp, EncodeTime(18, 45, 0, 0));
 
-  // Parked on the SECOND master row, and muted, because moving the master with
-  // the events live is the operator scroll that re-opens - and empties - the
-  // child. The second and not the first on purpose: parked on the first, a
-  // repair that simply handed everyone the FIRST master's children would pass.
-  LMute := MuteScroll(FCompMasterTable);
-  try
-    FCompMasterTable.Last;
-  finally
-    UnmuteScroll(FCompMasterTable, LMute);
-  end;
-
-  LMaster := FCompMaster.Current;
-
-  Assert.AreEqual(2, LMaster.cmkey,
-    'premise: the read really bound the SECOND master row');
-  LResult := '';
-  for LChild in LMaster.childs do
-    LResult := LResult + IntToStr(LChild.cckey) + ';';
-  Assert.AreEqual('2;', LResult, False,
+  Assert.AreEqual('2;', ChildKeysOfTheSecondCompositeMaster, False,
     'the two master rows agree on six of the seven columns of the key and ' +
     'differ only in the seventh, which is an ftTime. A comparison that stops ' +
     'anywhere before the last column cannot tell them apart and hands both ' +
     'children to both masters. This is also the only place the value ' +
-    'comparison meets ftGuid, ftCurrency, ftDate, ftDateTime and ftTime at ' +
-    'all - everything else in this fixture is ftInteger');
+    'comparison meets ftString, ftGuid, ftCurrency, ftDate, ftDateTime and ' +
+    'ftTime at all - everything else in this fixture is ftInteger');
+end;
+
+procedure TTestGrandchildRead.CompositeKey_TwoMasterRowsThatDifferByOneMillisecond_AreStillTwoParents;
+begin
+  BuildCompositeKeyPair;
+  // Six columns identical, including the ftTime one. The ONLY difference in
+  // the whole key is one MILLISECOND on the ftDateTime column.
+  AddCompositeRow(FCompMasterTable, cCOMPMASTERKEY, 1, cCOMPMASTERPFX,
+    cCOMPK2, cCOMPK5, CompStamp, EncodeTime(9, 30, 0, 0));
+  AddCompositeRow(FCompMasterTable, cCOMPMASTERKEY, 2, cCOMPMASTERPFX,
+    cCOMPK2, cCOMPK5, CompStamp + cONEMILLISECOND, EncodeTime(9, 30, 0, 0));
+  AddCompositeRow(FCompChildTable, cCOMPCHILDKEY, 1, cCOMPCHILDPFX,
+    cCOMPK2, cCOMPK5, CompStamp, EncodeTime(9, 30, 0, 0));
+  AddCompositeRow(FCompChildTable, cCOMPCHILDKEY, 2, cCOMPCHILDPFX,
+    cCOMPK2, cCOMPK5, CompStamp + cONEMILLISECOND, EncodeTime(9, 30, 0, 0));
+
+  Assert.AreEqual('2;', ChildKeysOfTheSecondCompositeMaster, False,
+    'TDateTimeField.AsString goes through DateTimeToStr, which does not carry ' +
+    'the millisecond - so a filter that compares the two ends AS TEXT is BLIND ' +
+    'below the second and hands both children to both masters, which is this ' +
+    'issue''s defect surviving its own repair. The two rows differ by exactly ' +
+    'one millisecond, and no clause with a coarser difference can see that. ' +
+    'The date-and-time family is therefore compared as a VALUE and not as text');
+end;
+
+procedure TTestGrandchildRead.CompositeKey_TwoMasterRowsThatDifferInTheSixteenthDigit_AreStillTwoParents;
+begin
+  BuildCompositeKeyPair;
+  // The ONLY difference is the last of SIXTEEN significant digits on the
+  // ftCurrency column - one ten-thousandth on an amount above a hundred
+  // billion. Currency holds it exactly; a 15-digit text rendering does not.
+  AddCompositeRow(FCompMasterTable, cCOMPMASTERKEY, 1, cCOMPMASTERPFX,
+    cCOMPK2, CurrencyFromScaled(cCOMPK5BIGA), CompStamp,
+    EncodeTime(9, 30, 0, 0));
+  AddCompositeRow(FCompMasterTable, cCOMPMASTERKEY, 2, cCOMPMASTERPFX,
+    cCOMPK2, CurrencyFromScaled(cCOMPK5BIGB), CompStamp,
+    EncodeTime(9, 30, 0, 0));
+  AddCompositeRow(FCompChildTable, cCOMPCHILDKEY, 1, cCOMPCHILDPFX,
+    cCOMPK2, CurrencyFromScaled(cCOMPK5BIGA), CompStamp,
+    EncodeTime(9, 30, 0, 0));
+  AddCompositeRow(FCompChildTable, cCOMPCHILDKEY, 2, cCOMPCHILDPFX,
+    cCOMPK2, CurrencyFromScaled(cCOMPK5BIGB), CompStamp,
+    EncodeTime(9, 30, 0, 0));
+
+  Assert.AreEqual('2;', ChildKeysOfTheSecondCompositeMaster, False,
+    'the sibling of the millisecond clause, in the OTHER family where a text ' +
+    'rendering is narrower than the stored value: FloatToStr carries fifteen ' +
+    'significant digits and a Currency can hold nineteen. Measured on its own ' +
+    'because "the date family is blind" says nothing about this one');
 end;
 
 procedure TTestGrandchildRead.TwoMastersWithNoKeyAtAll_ClaimNoChildRow;
-var
-  LMaster: TCompMaster;
-  LChild: TCompChild;
-  LResult: String;
-  LMute: TScrollMute;
 begin
   BuildCompositeKeyPair;
   // Only the primary key is typed. The seven columns the association joins on
@@ -1300,25 +1690,87 @@ begin
   Assert.IsTrue(FCompChildTable.FieldByName(cCOMPCHILDPFX + '1').IsNull,
     'premise: the child row really names no parent');
 
-  LMute := MuteScroll(FCompMasterTable);
-  try
-    FCompMasterTable.Last;
-  finally
-    UnmuteScroll(FCompMasterTable, LMute);
-  end;
-
-  LMaster := FCompMaster.Current;
-
-  Assert.AreEqual(2, LMaster.cmkey,
-    'premise: the read really bound the SECOND master row');
-  LResult := '';
-  for LChild in LMaster.childs do
-    LResult := LResult + IntToStr(LChild.cckey) + ';';
-  Assert.AreEqual('', LResult, False,
+  Assert.AreEqual('', ChildKeysOfTheSecondCompositeMaster, False,
     'two master rows that carry no key are not two candidates, they are ZERO ' +
     'candidates: nothing about either of them says the child is theirs. ' +
     'Reading a null as equal to a null makes them BOTH claim it, which is ' +
     'this issue''s defect reproduced by the repair meant to close it');
+end;
+
+procedure TTestGrandchildRead.TheGraphThatWouldBePosted_CarriesOnlyEachMidRowsOwnLeaves;
+begin
+  BuildCaptureRestTree;
+  AddRoot(FCapRootTable, cROOTTAG);
+  AddMid(FCapMidTable, cMIDTAG, cMIDKEY1);
+  AddMid(FCapMidTable, cMIDTAG2, cMIDKEY2);
+  AddLeaf(FCapLeafTable, cLEAFTAGA, cMIDKEY1);
+  AddLeaf(FCapLeafTable, cLEAFTAGB, cMIDKEY2);
+
+  TRestApply<TAitRoot>.Apply(FCapRoot);
+
+  Assert.AreEqual(1, FCapture.Bodies.Count,
+    'premise: exactly one graph was handed over to be POSTed. Zero would mean ' +
+    'the walk never ran and the clause below measures nothing');
+  Assert.AreEqual('R1;M1;LA;M2;LB;',
+    TagsInDocumentOrder(FCapture.Bodies[0]), False,
+    'this is the graph that goes ON THE WIRE, and the defect here is not a ' +
+    'display problem: with two orders and two items, every order was POSTed ' +
+    'carrying BOTH items. The server stores them twice, with no exception and ' +
+    'no trace. ApplyInserter never reads .Current, so no clause about .Current ' +
+    'covers this line');
+end;
+
+procedure TTestGrandchildRead.TwoRootRows_TheGrandparentCarriesOnlyItsOwnBranch;
+var
+  LRoot: TAitRoot;
+  LMute: TScrollMute;
+begin
+  BuildLocalTree;
+  // The root key is typed by hand here and nowhere else in this fixture,
+  // because this is the only clause where two root rows have to be told apart.
+  FRootTable.Append;
+  FRootTable.FieldByName(cTAG).AsString := cROOTTAG;
+  FRootTable.FieldByName(cROOTKEY).AsInteger := cROOTKEY1;
+  FRootTable.Post;
+  FRootTable.Append;
+  FRootTable.FieldByName(cTAG).AsString := cROOTTAG2;
+  FRootTable.FieldByName(cROOTKEY).AsInteger := cROOTKEY2;
+  FRootTable.Post;
+  // One middle row under each root, one leaf under each middle row.
+  FMidTable.Append;
+  FMidTable.FieldByName(cTAG).AsString := cMIDTAG;
+  FMidTable.FieldByName(cMIDKEY).AsInteger := cMIDKEY1;
+  FMidTable.FieldByName(cROOTKEY).AsInteger := cROOTKEY1;
+  FMidTable.Post;
+  FMidTable.Append;
+  FMidTable.FieldByName(cTAG).AsString := cMIDTAG2;
+  FMidTable.FieldByName(cMIDKEY).AsInteger := cMIDKEY2;
+  FMidTable.FieldByName(cROOTKEY).AsInteger := cROOTKEY2;
+  FMidTable.Post;
+  AddLeaf(FLeafTable, cLEAFTAGA, cMIDKEY1);
+  AddLeaf(FLeafTable, cLEAFTAGB, cMIDKEY2);
+
+  LMute := MuteScroll(FRootTable);
+  try
+    FRootTable.First;
+  finally
+    UnmuteScroll(FRootTable, LMute);
+  end;
+
+  Assert.AreEqual(cROOTKEY1, FRootTable.FieldByName(cROOTKEY).AsInteger,
+    'premise: the root row really carries the key that was typed - the column ' +
+    'is the AutoInc primary key and carries NoUpdate, so a clause that could ' +
+    'not write it would be measuring the placeholder in both rows. Read AFTER ' +
+    'the park, because two Appends leave the cursor on the SECOND row');
+
+  LRoot := FRoot.Current;
+
+  Assert.AreEqual(cMIDTAG + '[' + cLEAFTAGA + '/' + IntToStr(cMIDKEY1) + ';]',
+    GraphSignature(LRoot), False,
+    'the first grandparent must carry ITS middle row and that row must carry ' +
+    'ITS leaf. Two levels of the same walk, filtered on two different ' +
+    'associations, in one signature - every other clause here leaves ONE row ' +
+    'at the top and therefore never asks the top level anything');
 end;
 
 procedure TTestGrandchildRead.AfterTheRead_AnOperatorScrollStillDiscards;
