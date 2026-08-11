@@ -921,22 +921,33 @@ end;
 ///
 ///  BRANCOS A DIREITA SAO SIGNIFICATIVOS, e isto e uma DIFERENCA DE SEMANTICA
 ///  em relacao a um JOIN de banco, declarada aqui porque ninguem a escolheu.
-///  Medido sobre o codigo de 53b9ac6, com uma clausula TEMPORARIA que NAO
-///  ficou na arvore - quem repetir monta assim: duas linhas de TCompMaster
-///  iguais em tudo menos `cmk2`, uma com 'CC' e outra com 'CC   ', e UMA linha
-///  de TCompChild com 'CC'; o campo guarda os brancos. Com o filtro ligado,
-///  NENHUM pai reivindica o filho; com ele desligado - mutacao n1, que e o
-///  estado anterior a este conserto - o pai reivindica.
-///  Um join sobre CHAR num Firebird trataria os dois como iguais, e isto nao e
+///  MEDIDO sobre o codigo de 63f6825, com clausulas TEMPORARIAS que NAO ficaram
+///  na arvore. O arranjo: duas linhas de TCompMaster iguais em tudo menos
+///  `cmk2` e UMA linha de TCompChild com 'CC'; o campo guarda mesmo os brancos.
+///
+///    masters 'CC' e 'CC   '    -> parado em 'CC' o filho E reivindicado;
+///                                 parado em 'CC   ' NAO e.
+///    masters 'CC   ' e 'DD   ' -> nenhum dos dois reivindica.
+///
+///  Quem reivindica e o pai EXATO; quem perde e o candidato que um join de CHAR
+///  teria casado. O custo e MAIS ESTREITO do que uma versao anterior deste
+///  comentario dizia: ela afirmava que NENHUM pai reivindica, e a receita que
+///  ela mesma imprimia desmente isso ja na primeira linha. O filho fica ORFAO -
+///  e portanto nunca e enviado no caminho que GRAVA - so no segundo arranjo,
+///  onde TODO candidato carrega brancos. Com o filtro desligado - mutacao n1,
+///  o estado anterior a este conserto - os quatro casos reivindicam.
+///
+///  Um join sobre CHAR num Firebird casaria 'CC' com 'CC   ', e isto nao e
 ///  hipotese distante: o comentario de TDMLGeneratorAbstract.CanonicalGuidLiteral
 ///  registra que o DDL desta casa PRETENDE CHAR para chave ftGuid em
 ///  PostgreSQL, Firebird, InterBase e MySQL - e e' exatamente CHAR o tipo onde
 ///  o enchimento de brancos decide um join.
-///  A regra aqui e mais ESTRITA que a do banco, e no caminho que GRAVA "nenhum
-///  pai" quer dizer LINHA NUNCA ENVIADA - o preco declarado da regra "quem nao
-///  nomeia pai nao e de ninguem". Qual semantica de dialeto emular NAO e
-///  decisao deste conserto e por isso nao ha clausula pinando-a: fica medida e
-///  escrita, para quem decidir. </summary>
+///  A regra aqui e mais ESTRITA que a do banco. Qual semantica de dialeto
+///  emular NAO e decisao deste conserto e por isso nao ha clausula pinando-a; a
+///  regra "quem nao nomeia pai nao e de ninguem" ja esta pinada, sem depender
+///  de dialeto, por
+///  Test.Janus.Grandchild.Read.TwoMastersWithNoKeyAtAll_ClaimNoChildRow.
+///  Aqui fica so a medicao, para quem decidir. </summary>
 function TDataSetBaseAdapter<M>._FieldValuesMatch(const AMasterField,
   AChildField: TField): Boolean;
 /// DECLARADOS DENTRO DO METODO, e nao ao lado de cNoRowToken na secao de

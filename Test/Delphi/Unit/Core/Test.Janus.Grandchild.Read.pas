@@ -241,17 +241,26 @@
   master rows by NINE HOURS.
 
   TRAILING BLANKS ARE SIGNIFICANT, AND THAT IS A DIFFERENCE FROM A DATABASE
-  JOIN. Measured at 53b9ac6 on the composite association, with two master rows:
-  a master holding 'CC   ' - the field keeps the blanks - against a child
-  holding 'CC' gives NO parent claiming the child, where before this repair
-  BOTH claimed it. A join over CHAR in Firebird would treat the two as equal, so
-  the rule here is STRICTER than the database's, and on the writing path "no
-  parent" means THE ROW IS NEVER SENT. That is the declared price of the rule
-  "a row that names no parent belongs to nobody" - see
-  TwoMastersWithNoKeyAtAll_ClaimNoChildRow, which pins the same rule where it is
-  not a matter of dialect. WHICH dialect's semantics to emulate is not this
-  repair's decision and there is deliberately NO clause pinning it: it is
-  measured and written down here, for whoever decides.
+  JOIN. MEASURED over the code at 63f6825, with temporary clauses that did not
+  stay in the tree: two TCompMaster rows equal but for `cmk2`, one TCompChild
+  holding 'CC', and the field really keeps the blanks.
+
+    masters 'CC' and 'CC   '    -> parked on 'CC' the child IS claimed;
+                                   parked on 'CC   ' it is NOT.
+    masters 'CC   ' and 'DD   ' -> neither of them claims it.
+
+  So the EXACT parent claims, and what loses is the candidate a CHAR join would
+  have matched. The cost is NARROWER than an earlier version of this text said:
+  it claimed no parent claims at all, and the recipe it printed disproves that
+  on its own first row. The child is ORPHANED - and therefore never sent on the
+  writing path - only in the second arrangement, where EVERY candidate carries
+  blanks. With the filter off - mutation n1 - all four of those cases claim it.
+
+  A join over CHAR in Firebird would match 'CC' to 'CC   ', so the rule here is
+  STRICTER than the database's. WHICH dialect's semantics to emulate is not this
+  repair's decision and there is deliberately NO clause pinning it; the rule "a
+  row that names no parent belongs to nobody" is already pinned, free of any
+  dialect, by TwoMastersWithNoKeyAtAll_ClaimNoChildRow.
 
   THE MUTATIONS THAT WERE RUN, AND WHAT DIED IN EACH. Baseline for all fifteen:
   558 found, 558 passed - MEASURED AT COMMIT 53b9ac6. Those numbers are the size
