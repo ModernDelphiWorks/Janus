@@ -352,6 +352,11 @@ begin
   FOrmDataSet.Filtered := True;
   if not FOrmDataSet.IsEmpty then
     FOrmDataSet.First;
+  // A MESMA CONTAGEM DA OUTRA FAMILIA LOCAL, e escrita aqui em vez de herdada:
+  // esta classe carrega o seu proprio ApplyInserter, portanto o numero tem de
+  // ser estabelecido nos dois lacos ou um deles fica sem fronteira. Ver
+  // TDataSetBaseAdapter<M>.FCascadeMasterRows - issue #261.
+  FCascadeMasterRows := FOrmDataSet.RecordCount;
   try
     while FOrmDataSet.RecordCount > 0 do
     begin
@@ -382,6 +387,7 @@ begin
       end;
     end;
   finally
+    FCascadeMasterRows := 0;
     FOrmDataSet.Filtered := False;
     FOrmDataSet.Filter := '';
   end;

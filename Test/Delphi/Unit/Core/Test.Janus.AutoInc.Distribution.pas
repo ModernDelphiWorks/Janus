@@ -51,15 +51,19 @@
   section says why - and the two recursion fixtures build a three level tree
   under ONE root, so neither shape applies to them.
 
-  WHAT IS MUTED, AND WHERE - THREE EXCEPTIONS, NOT ONE
+  WHAT IS MUTED, AND WHERE - FOUR EXCEPTIONS, NOT ONE
 
   Most of the file runs the configuration Janus ships: no adapter muted in the
-  set-up, no marker written by hand, no handler installed. THREE tests are
+  set-up, no marker written by hand, no handler installed. FOUR tests are
   exceptions, and each says why in its own body:
 
-    * UntokenisedRows_KeepTheHistoricalBehaviour mutes BOTH adapters for the
-      whole set-up and writes the pending marker by hand - having no row
-      provenance at all is the very thing it measures;
+    * UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither mutes BOTH
+      adapters for the whole set-up and writes the pending markers by hand -
+      having no row provenance at all is the very thing it measures;
+    * RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither mutes the
+      CHILD adapter for ONE of its three child rows and writes that row's
+      pending marker by hand - the other two are typed live, which is what lets
+      it measure the unparented row beside two parented ones in one run;
     * ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster mutes the
       CHILD adapter only, and writes that child's pending marker by hand, so
       that the master identifies itself and the child does not;
@@ -205,6 +209,13 @@
   change it. The two link fixtures are green there for the plain reason that
   nothing is minted on develop at all; they exist to catch the fix, not the
   defect, and the mutation table below is where they earn their place.
+
+  ONE NAME IN THAT LIST NO LONGER RESOLVES, and it is left standing rather than
+  rewritten because the list is a record of what #265 measured, not a
+  description of the file as it is now. UntokenisedRows_KeepTheHistoricalBehaviour
+  was RENAMED and its result INVERTED by issue #261 - see the section below -
+  and it is UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither today.
+  Everything else in the list still resolves and is still green.
 
   THREE TESTS MEASURE THE FIX AGAINST ITSELF, and they exist because two
   candidate designs were shipped-and-withdrawn before this one:
@@ -713,7 +724,9 @@ type
 
     // --- the boundary of the fix -------------------------------------------
     [Test]
-    procedure UntokenisedRows_KeepTheHistoricalBehaviour;
+    procedure UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
+    [Test]
+    procedure RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
     [Test]
     procedure ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster;
 
@@ -778,6 +791,14 @@ const
   /// declares it in the IMPLEMENTATION section of Janus.DataSet.Base.Adapter,
   /// so a test cannot import it and must not pretend to.
   cNOTOKEN = 0;
+  /// issue #261, the ambiguity arm. The foreign key an UNTOKENISED child row is
+  /// seeded with when the question is "was it written at all", so that "nobody
+  /// claimed it" can never be read as "somebody claimed it and happened to
+  /// write the same number". NEGATIVE, so no generated key can reach it -
+  /// TTreeConnection hands out cSTEP, 2*cSTEP, ... and TSeqRestConnection
+  /// cRESTSTEP, 2*cRESTSTEP, ... - and NOT cPLACEHOLDER, because -1 is the one
+  /// negative the framework itself writes and _AutoIncKeyIsGenerated reads.
+  cUNCLAIMEDSEED = -31;
   cEDITEDTAG  = 'EDITING';
   /// The two tags the UNTOUCHED-dsEdit fixture tells apart: what a grandchild
   /// row was COMMITTED with, and what a data-aware control writes into it
@@ -3616,7 +3637,8 @@ begin
   // a second pending master would only re-ask B1.
   //
   // The pending marker is written BY HAND, with the adapter still muted, for
-  // the same reason UntokenisedRows_KeepTheHistoricalBehaviour writes it: the
+  // the same reason UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither
+  // writes it: the
   // muted append never reaches DoBeforePost. That is the one thing forged here,
   // and it is forged on the MASTER, never on the child.
   BuildTree(FConn, LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
@@ -3689,23 +3711,36 @@ end;
 // The boundary of the fix
 // ---------------------------------------------------------------------------
 
-procedure TTestAutoIncDistribution.UntokenisedRows_KeepTheHistoricalBehaviour;
+procedure TTestAutoIncDistribution.UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
 var
   LMasterTable: TFDMemTable;
   LChildTable: TFDMemTable;
   LMaster: TFDMemTableAdapter<TAitRoot>;
   LChild: TFDMemTableAdapter<TAitMid>;
   LInternal: TField;
+  LKeyA: Integer;
   LKeyB: Integer;
 begin
-  // WHAT THIS PINS AFTER #265 - rewritten, because that issue changed what the
-  // OTHER untokenised state even is.
+  // WHAT THIS PINS AFTER #261 - rewritten, and the NAME changed with it. Until
+  // this issue it was called UntokenisedRows_KeepTheHistoricalBehaviour and it
+  // asserted the opposite of the clause at the bottom: that the child ended on
+  // the key of the LAST pending master. That is the behaviour #261 is about, so
+  // the fixture that fixed it had to say something else; deleting it instead
+  // would have removed the only place in the suite where the ambiguous shape is
+  // built at all.
+  //
+  // THE HISTORICAL BEHAVIOUR DID NOT GO AWAY, IT GOT A BOUNDARY. An untokenised
+  // child under ONE pending master is still written by that master, unchanged
+  // and for the reason it always was - measured next door by
+  // ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster, which was green
+  // before this issue and is green after it, untouched. What changed is only
+  // the case where the answer was never a decision: with TWO pending masters
+  // the row was claimed by both, in order, and kept whatever the second one
+  // wrote. Two masters cannot both be right, so neither writes.
   //
   // This test mutes BOTH adapters, so the child row is appended without its own
   // adapter ever seeing it: DoNewRecord never runs on it, cOwnerTokenField is
-  // never written and reads back as the 0 a TField answers for NULL. Such a row
-  // is still written by whichever pending master is passing, last one wins,
-  // because refusing it would regress everything that shipped.
+  // never written and reads back as the 0 a TField answers for NULL.
   //
   // THE OTHER STATE NO LONGER EXISTS. Until #265, a child typed with its own
   // events LIVE under a master that had no identity - which every master read
@@ -3718,15 +3753,18 @@ begin
   // MutedMasterAppend_WithARealKey_ItsChildKeepsThatKey and
   // TwoUnidentifiedPendingMasters_ChildOfTheFirstIsNotClaimedByTheSecond.
   //
-  // WHAT DID NOT CHANGE. This test was GREEN before #265 and is green after,
-  // unedited in its set-up and in its result. That is not luck: minting is
-  // reached from the CHILD's DoBeforeInsert, and this set-up is exactly what
-  // stops the child adapter's events from running at all. The premise clause
-  // below is what says so out loud, so the day someone makes a muted append
-  // record something, this test reddens instead of quietly changing meaning
-  // again.
+  // WHAT DID NOT CHANGE IN THE SET-UP. Not one line of it moved for #261 except
+  // the foreign key the child is seeded with, which went from cROOTOLD to
+  // cUNCLAIMEDSEED: 0 is what an unwritten integer column reads as anyway, so
+  // asserting the child still carries 0 would pass on a run where the column
+  // was never populated at all. A number nothing else in the fixture can
+  // produce is what makes "nobody wrote it" a measurement.
   //
-  // TWO STATES STILL REACH 0 and both fall back here: this one, and a child
+  // The premise clause below still says out loud that the muted append recorded
+  // nothing, so the day someone makes a muted append record something, this
+  // test reddens instead of quietly changing meaning again.
+  //
+  // TWO STATES STILL REACH 0 and both arrive here: this one, and a child
   // typed while the master table has no row at all - measured by
   // ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow - plus a child
   // typed while the master row is being edited, measured by
@@ -3762,7 +3800,7 @@ begin
         LMasterTable.Post;
         LChildTable.Append;
         LChildTable.FieldByName(cOWNKEY).AsInteger := 0;
-        LChildTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+        LChildTable.FieldByName(cKEY).AsInteger := cUNCLAIMEDSEED;
         LChildTable.FieldByName(cTAG).AsString := 'C0';
         LChildTable.Post;
         LChildTable.Edit;
@@ -3780,15 +3818,150 @@ begin
         'gives the master an identity and this row names it, which is a ' +
         'different boundary measured by five other tests in this file - ' +
         DumpColumn(LChildTable, cOWNERTOKEN));
+      Assert.AreEqual(2,
+        CountWithColumn(LMasterTable, cInternalField, Integer(dsInsert)),
+        'PREMISE - AND THE WHOLE REASON THIS FIXTURE DIFFERS FROM ' +
+        'ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster: TWO master ' +
+        'rows must be pending. One is not an ambiguity and is still written; ' +
+        'if this ever reads 1 the test stops measuring what it is named after');
+      Assert.AreEqual(1,
+        CountWithColumn(LChildTable, cInternalField, Integer(dsInsert)),
+        'PREMISE: and the child row must be PENDING, or _IsPendingInsertRow ' +
+        'refuses it before parentage is ever asked about and every clause ' +
+        'below passes for the wrong reason');
 
       TCascadeAccess<TAitRoot>.ApplyAll(LMaster);
 
+      LKeyA := KeyOfMasterRow(LMasterTable, False);
       LKeyB := KeyOfMasterRow(LMasterTable, True);
+      Assert.IsTrue(LKeyA > 0,
+        'PREMISE: the first master must have received a generated key');
       Assert.IsTrue(LKeyB > 0,
         'PREMISE: the second master must have received a generated key');
-      Assert.AreEqual(1, CountWithColumn(LChildTable, cKEY, LKeyB),
-        'a child row with no recorded parentage keeps the historical ' +
-        'behaviour and ends on the LAST pending master - ' +
+      Assert.AreNotEqual(LKeyA, LKeyB,
+        'PREMISE: the two masters must carry DIFFERENT keys, or "claimed by ' +
+        'neither" and "claimed by both" are the same number');
+      Assert.AreEqual(cUNCLAIMEDSEED, KeyOfTaggedRow(LChildTable, 'C0'),
+        'THE ROW C0 - by tag, not by count - must still carry the foreign key ' +
+        'it was seeded with. With TWO pending masters and no recorded ' +
+        'parentage there is no answer, and the framework writes no answer ' +
+        'rather than the last one asked - ' + DumpColumn(LChildTable, cKEY));
+      Assert.AreEqual(0, CountWithColumn(LChildTable, cKEY, LKeyB),
+        'and specifically NOT the key of the LAST pending master, which is ' +
+        'what a walk that waves every untokenised row through leaves behind - ' +
+        DumpColumn(LChildTable, cKEY));
+      Assert.AreEqual(0, CountWithColumn(LChildTable, cKEY, LKeyA),
+        'nor the key of the FIRST - refusing the second claim while keeping ' +
+        'the first would be first-one-wins, which is the same coin flip with ' +
+        'the other face up - ' + DumpColumn(LChildTable, cKEY));
+    finally
+      LChild.Free;
+      LMaster.Free;
+    end;
+  finally
+    LChildTable.Free;
+    LMasterTable.Free;
+  end;
+end;
+
+procedure TTestAutoIncDistribution.RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
+var
+  LMasterTable: TFDMemTable;
+  LChildTable: TFDMemTable;
+  LMaster: TRESTFDMemTableAdapter<TAitRoot>;
+  LChild: TRESTFDMemTableAdapter<TAitMid>;
+  LKeyA: Integer;
+  LKeyB: Integer;
+begin
+  // THE SAME AMBIGUITY IN THE OTHER FAMILY, and it is run rather than inferred.
+  // The two families share _IsOwnedByMasterRow, but they do NOT share the loop
+  // that establishes how many masters are pending: TRESTDataSetAdapter<M> has
+  // its own ApplyInserter, so a fix applied to one ApplyInserter and not the
+  // other would leave this red and the local twin green.
+  //
+  // THE SET-UP IS THE REST ONE, NOT A COPY OF THE LOCAL SET-UP.
+  // TRESTDataSetAdapter<M>.OpenDataSetChilds has an empty body, so a master
+  // scroll discards nothing and the master adapter needs no mute: both masters
+  // go in LIVE, each carrying its own recorded identity, and each keeps its own
+  // tokenised child. Only the child adapter is muted, and only for the one row
+  // that is supposed to have no parentage - so this fixture measures the
+  // untokenised row NEXT TO two properly parented ones, in one run, which the
+  // local shape cannot do.
+  LMasterTable := TFDMemTable.Create(nil);
+  LChildTable := TFDMemTable.Create(nil);
+  try
+    LMaster := TRESTFDMemTableAdapter<TAitRoot>.Create(FRest, LMasterTable, -1,
+                 nil);
+    LChild := TRESTFDMemTableAdapter<TAitMid>.Create(FRest, LChildTable, -1,
+                LMaster);
+    try
+      LMasterTable.Append;
+      LMasterTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LMasterTable.FieldByName(cTAG).AsString := 'R1';
+      LMasterTable.Post;
+      LChildTable.Append;
+      LChildTable.FieldByName(cOWNKEY).AsInteger := 0;
+      LChildTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LChildTable.FieldByName(cTAG).AsString := 'A0';
+      LChildTable.Post;
+      LMasterTable.Append;
+      LMasterTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LMasterTable.FieldByName(cTAG).AsString := 'R2';
+      LMasterTable.Post;
+      LChildTable.Append;
+      LChildTable.FieldByName(cOWNKEY).AsInteger := 0;
+      LChildTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LChildTable.FieldByName(cTAG).AsString := 'B0';
+      LChildTable.Post;
+      // The one row nobody recorded. Muted for its own append only, and its
+      // pending marker written by hand for the reason the local twin does it:
+      // a muted append never reaches DoBeforePost.
+      TCascadeAccess<TAitMid>.Mute(LChild);
+      try
+        LChildTable.Append;
+        LChildTable.FieldByName(cOWNKEY).AsInteger := 0;
+        LChildTable.FieldByName(cKEY).AsInteger := cUNCLAIMEDSEED;
+        LChildTable.FieldByName(cTAG).AsString := 'C0';
+        LChildTable.Post;
+        LChildTable.Edit;
+        LChildTable.FieldByName(cInternalField).AsInteger := Integer(dsInsert);
+        LChildTable.Post;
+      finally
+        TCascadeAccess<TAitMid>.Unmute(LChild);
+      end;
+      Assert.AreEqual(3, RowCount(LChildTable),
+        'PREMISE: the REST family must hold all three child rows at once - ' +
+        'two parented and one orphaned - or this fixture is not the shape it ' +
+        'claims to be');
+      Assert.AreEqual(1, CountWithColumn(LChildTable, cOWNERTOKEN, cNOTOKEN),
+        'PREMISE: EXACTLY ONE of them must be the unrecorded one. Two would ' +
+        'mean the live appends recorded nothing either and the two clauses ' +
+        'about A0 and B0 below would be measuring the same escape hatch - ' +
+        DumpColumn(LChildTable, cOWNERTOKEN));
+      Assert.AreEqual(2,
+        CountWithColumn(LMasterTable, cInternalField, Integer(dsInsert)),
+        'PREMISE: TWO master rows must be pending - that is the ambiguity');
+
+      TCascadeAccess<TAitRoot>.ApplyAll(LMaster);
+
+      LKeyA := KeyOfMasterRow(LMasterTable, False);
+      LKeyB := KeyOfMasterRow(LMasterTable, True);
+      Assert.IsTrue(LKeyA > 0,
+        'PREMISE: the first master must have received a key from the server ' +
+        'answer, or ApplyInserter never reached SetAutoIncValueChilds');
+      Assert.AreNotEqual(LKeyA, LKeyB,
+        'PREMISE: the two masters must carry DIFFERENT keys');
+
+      Assert.AreEqual(LKeyA, KeyOfTaggedRow(LChildTable, 'A0'),
+        'THE ROW A0 recorded its parent and must still be written by it - the ' +
+        'count of pending masters may not touch a row that is not ambiguous - ' +
+        DumpColumn(LChildTable, cKEY));
+      Assert.AreEqual(LKeyB, KeyOfTaggedRow(LChildTable, 'B0'),
+        'and B0 likewise, on the OTHER master - ' +
+        DumpColumn(LChildTable, cKEY));
+      Assert.AreEqual(cUNCLAIMEDSEED, KeyOfTaggedRow(LChildTable, 'C0'),
+        'THE ROW C0 recorded nothing, and with two pending masters there is ' +
+        'no answer to give it, so it keeps the key it came in with - ' +
         DumpColumn(LChildTable, cKEY));
     finally
       LChild.Free;
