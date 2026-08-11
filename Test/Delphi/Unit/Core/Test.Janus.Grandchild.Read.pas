@@ -11,7 +11,15 @@
   ------------------------------------------------------------------------------
 }
 
-{ @abstract(Janus Framework - reading .Current must not destroy grandchild rows.)
+{ @abstract(Janus Framework - reading .Current must not destroy grandchild rows,
+  and must give each middle object ITS OWN.)
+
+  TWO ISSUES, ONE WALK. #276 is the first half of this header and #295 the
+  section at the end; they are the same method read twice. #276 asked whether
+  the read DESTROYS rows and #295 asks whether it gives them to the right
+  parent, and #295 exists BECAUSE of #276's answer: suppressing the re-open
+  left the child dataset holding the same rows for every middle row of the
+  walk.
 
   WHAT IS UNDER TEST - issue #276
 
@@ -38,9 +46,15 @@
   row that is not the one the operator typed - which is exactly what the issue
   measured against a real database, where two typed grandchildren were REPLACED
   by three read back. Every assertion here is a signature carrying the row's
-  own tag AND its foreign key, and the foreign key is seeded with a SENTINEL
-  (-7) that no row in the middle level carries, so "the row survived" can never
-  be read off a row that was rebuilt.
+  own tag AND its foreign key.
+
+  THE #276 CLAUSES seed that foreign key with a SENTINEL (-7) that no row in
+  the middle level carries, so "the row survived" can never be read off a row
+  that was rebuilt. THE #295 CLAUSES do the opposite and seed the REAL key of a
+  real middle row, because their question is WHICH middle object got the row,
+  and a leaf that belongs to nobody cannot answer it. AddLeaf therefore takes
+  the value instead of choosing it - the two questions need opposite seeds and
+  neither is the fixture's default.
 
   WHAT THIS FIXTURE DELIBERATELY DOES NOT TOUCH
 
@@ -62,6 +76,14 @@
   the REST family never lost anything and needs no repair -
   Rest_ReadingCurrentOnTheGrandparent_NeverDestroyedTheGrandchildRow measures
   that claim instead of repeating it, and it was green before the fix as well.
+
+  THAT SENTENCE IS ABOUT #276 AND DOES NOT CARRY TO #295. There the three
+  families answered the SAME wrong string, and the REST family was the most
+  exposed of the three for the very reason that exempted it here: an
+  OpenDataSetChilds with an empty body never narrows the grandchild dataset to
+  one middle row, so the whole-list answer is its permanent state and not a
+  transient. Measured, not inferred -
+  Rest_TwoMidRows_EachMidObjectCarriesOnlyItsOwnGrandchildRow.
 
   TWO BRANCHES, NOT ONE - AND THEY NEEDED DIFFERENT AMOUNTS OF REPAIR
 
@@ -153,6 +175,81 @@
   the lazy proxies are injected belongs to the lazy contract
   (Test.Janus.Container.DataSet.AutoLazy and its neighbours), not to #276, and
   inventing a test for it here would widen this change past what it is for.
+
+  ---------------------------------------------------------------------------
+  ISSUE #295 - THE SAME WALK GIVES EVERY MIDDLE OBJECT THE SAME LIST
+  ---------------------------------------------------------------------------
+
+  #276 stopped the read from EMPTYING the grandchild dataset. The price is that
+  the dataset is then not re-consulted between one middle row and the next, so
+  _ExecuteOneToMany's recursion runs over the SAME content on every pass and
+  every middle object receives ALL of it. Before #276 every middle object got
+  an EMPTY list; after it, the WHOLE list. Neither is that parent's list.
+
+  EachMidObjectInTheGraphCarriesTheGrandchildRowsThatAreLoaded cannot see this,
+  and the reason is worth writing down rather than discovering twice: with ONE
+  middle row and ONE leaf, "the whole list" and "the right list" are the same
+  string. A second middle row and a second leaf, one per parent, are what part
+  them.
+
+  THE REPAIR IS A FILTER WHERE THE LIST IS BUILT, in memory, against the
+  columns the association itself names. Re-querying the child per middle row
+  was the other candidate and was refused: it is exactly what #276 removed, and
+  it removed it because the re-open destroys the grandchildren.
+
+  THE THREE FAMILIES CONVERGE HERE, which is the opposite of #276 and was
+  measured rather than assumed - all three answered
+  M1[LA/11;LB/12;]M2[LA/11;LB/12;] where the right answer is M1[LA/11;]M2[LB/12;].
+
+  THE MUTATIONS THAT WERE RUN, AND WHAT DIED IN EACH. Baseline for all seven:
+  554 found, 554 passed - MEASURED AT COMMIT 563c726. Those numbers are the size
+  of THAT run; whoever re-tries a mutation re-runs it rather than scaling it.
+
+    n1. the filter never consulted - every row admitted, which is the state of
+        the code before this repair
+        -> 7 red, and they are the seven clauses below and nothing else.
+    n2. the single-master slack removed - the filter applies even with ONE
+        master row
+        -> 1 red, and it is a #276 clause:
+           EachMidObjectInTheGraphCarriesTheGrandchildRowsThatAreLoaded. That
+           is the whole reason the slack exists. Its leaf carries the sentinel,
+           which belongs to no middle row, so a filter with no slack drops it
+           and the graph comes back EMPTY - #276's error restored by #295's
+           repair. The slack is the same one _IsOwnedByMasterRow already grants
+           on FCascadeMasterRows <= 1, for the same reason.
+    n3. a NULL read as equal to a NULL
+        -> 1 red, and only one: TwoMastersWithNoKeyAtAll_ClaimNoChildRow. It
+           survived GREEN until that clause existed, and the reason was sharper
+           than expected: a null foreign key against a master that HAS a key is
+           already refused by the value comparison, so the null clause only
+           decides the case where the MASTER's column is null too.
+    n4. the two ends of the association swapped - the master's column name
+        looked up on the child dataset and back
+        -> 3 red, and NOT the three AutoIncTree clauses, which stay green
+           because that model spells `mid_id` at both ends and the swap
+           resolves by coincidence. What dies is everything on a model that
+           spells its columns once: AsymNames, CompositeKey and
+           TwoMastersWithNoKeyAtAll.
+    n8. only the FIRST column of the key compared
+        -> 1 red, and only one: CompositeKey. Also survived GREEN until that
+           clause existed - every other association the suite reaches at this
+           walk has a single column.
+
+  TWO MUTATIONS THAT SURVIVE, DECLARED RATHER THAN HIDDEN. Both are early exits
+  of _ForeignKeyFieldPairs and both are defensive:
+
+    n5. `if not LMaster.Active then Exit` deleted -> 554 GREEN.
+    n6. `if LChild = nil then Exit` deleted -> 554 GREEN.
+
+  Neither state is constructible from the fixture: every adapter it builds
+  holds an open dataset. They stay for the reason the house already keeps the
+  same pair in _RecurseOverChildRows - `LDataSet = nil` and `not LDataSet.Active`,
+  in that order, before anything is read off the dataset. What n5 guards is the
+  RecordCount call immediately after it, and RecordCount on a dataset that is
+  not open is not a question this fixture has any measurement for - which is
+  precisely why the Active check goes first instead of being reasoned about.
+  Repairing either with a test would mean inventing a closed or datasetless
+  adapter, which is a wider change than this issue is.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
@@ -336,6 +433,11 @@ type
     /// re-query was there to serve - the re-open emptied the leaf dataset
     /// BEFORE the walk read it, so every middle object came back with an EMPTY
     /// leafs list.
+    /// SINCE #295 IT ALSO PINS THE OTHER SIDE OF THAT RULE, and it is the only
+    /// clause here that does: its leaf carries the sentinel, which belongs to
+    /// no middle row, and there is exactly ONE middle row to give it to. A
+    /// filter with no single-master slack drops it and this clause goes red -
+    /// #276's empty list, restored by #295's repair. See mutation n2.
     [Test]
     procedure EachMidObjectInTheGraphCarriesTheGrandchildRowsThatAreLoaded;
     /// ISSUE #295 - the same walk, with TWO middle rows and one leaf under
