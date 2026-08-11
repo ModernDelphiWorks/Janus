@@ -26,8 +26,10 @@
     aitroot.root_id  = the AutoInc PLACEHOLDER   (the answer was discarded)
     aitmid.root_id   = the SAME placeholder      (the cascade copied it down)
 
-  Measured on this fixture BEFORE the fix, at 03595a6: both came out -1 while
-  the answer said 555.
+  MEASURED, and the anchor is reachable: at commit ceebdbe - this fixture on
+  top of 03595a6 with NO source change - Janus.Tests.RESTfulDriver came out
+  total=96 failures=3, and the two lines above printed -1 while the answer said
+  555. The basal at 03595a6 was total=87 failures=0.
 
   This is NOT issue #297. There the DataSet family DID stamp the root and the
   gap was levels two and three; here the root itself was never reconciled, so
