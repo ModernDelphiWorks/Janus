@@ -30,18 +30,25 @@
 
   WHO READS THAT LIST - THE POPULATION, ENUMERATED
 
-  `git grep ResultParams` over the whole repository at 0f13601 returns nine
-  files. Only TWO of them READ the contents of the list this parser fills:
+  `git grep -l ResultParams` over the whole repository, run at d4d38f7, returns
+  TEN files. Only TWO of them READ the contents of the list this parser fills:
 
     Janus.RestDataSet.Adapter.pas:241-246 - TRESTDataSetAdapter<M>.ApplyInserter,
       the ONE production consumer;
     this fixture's own TParamsProbe<M>.Render, added by #300.
 
-  The others do not read it. Janus.Session.Abstract.pas owns the field and
-  exposes the accessor, Janus.Session.RESTful.pas is the writer, and
-  Janus.Server.RestObjectSet.Session.pas has an FResultParams of its OWN on the
-  SERVER side - a different list that never meets this one. The remaining hits
-  are a comment, a project reference and a clause name.
+  The other eight do not read it:
+
+    Janus.Session.Abstract.pas          owns the field, exposes the accessor
+    Janus.Session.RESTful.pas           the writer - this parser
+    Janus.Server.RestObjectSet.Session  an FResultParams of its OWN, on the
+                                        SERVER side; a different list that
+                                        never meets this one
+    Janus.Tests.RESTfulDriver.dpr       project reference
+    Janus.Tests.RESTfulDriver.dproj     project reference
+    Test.Janus.AutoInc.Distribution     a comment
+    Test.Janus.Rest.ReReadAfterInsert   a clause NAME
+    Test.Janus.Rest.CompositeKeyReReadGate  prose only
 
   So "two readers" only adds up if the probe this issue added is counted. In
   Source/ there is exactly ONE, and it does not depend on one-param-per-object:
