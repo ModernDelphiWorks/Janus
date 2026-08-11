@@ -643,6 +643,13 @@ begin
   // already in place and Test.Janus.OneToMany.NilList raised six times at
   // 7FB9B9 and never at 89F831: this guard is no cover at all for that one.
   //
+  // THOSE TWO FIGURES ARE NOT REPRODUCIBLE AND THE ARGUMENT DOES NOT REST ON
+  // THEM - see the paragraph in _ExecuteOneToMany that measures it. A module
+  // offset moves with the build environment on the same commit; two builds of
+  // 865370e printed 89F831/7FB9B9 and 89F819/7FB9A1. What repeats byte for byte
+  // is the DISTANCE between the two sites, 0xA3E78, and that is what makes
+  // "two sites and not one" a measurement.
+  //
   // NO CLAUSE IN THE SUITE DROVE THAT SIBLING HAZARD UNTIL #307 WROTE ONE,
   // measured from the other side on commit 219ebcd: adding the equivalent nil
   // guard to _ExecuteOneToMany with everything else intact turned NOTHING red -
@@ -900,7 +907,9 @@ begin
           // Test.Janus.OneToMany.NilList raised
           //   Access violation ... (offset 7FB9B9). Read of address 00000000
           // which is the offset the sibling comment records for THIS site, not
-          // the 89F831 it records for its own.
+          // the 89F831 it records for its own. BOTH FIGURES ARE BUILD-LOCAL and
+          // the paragraph further down measures how far they move; what carries
+          // the argument is the distance between them, not either value.
           //
           // LEAVING IN SILENCE IS A DECISION THE OWNER TOOK, NOT WHAT WAS LEFT
           // STANDING WHEN THE OTHERS FAILED. All three candidates were built and
