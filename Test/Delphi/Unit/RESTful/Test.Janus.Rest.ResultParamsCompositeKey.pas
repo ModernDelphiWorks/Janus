@@ -97,6 +97,28 @@
   that flag to True (Assert.fIgnoreCaseDefault) and a COLUMN NAME is not
   case noise - issue #293.
 
+  AND THAT CLAIM USED TO BE HALF TRUE, WHICH IS WORSE THAN FALSE
+
+  A flag that says "case matters" is only worth what the CORPUS lets it catch.
+  Every column name this fixture drove was lower case - k1, k2, cmk1..cmk7,
+  and ck1, ck2, tag next door - so the flags could only ever catch a defect
+  that RAISED the case. Measured at 3ba57dd, on the one line that builds the
+  name:
+
+    Name := UpperCase(...)  killed 7 clauses
+    Name := LowerCase(...)  killed NONE - 102 total, 0 failed
+
+  Not a defect of the repair: TFields.FindField and TParams.ParamByName are
+  both case-insensitive, so production would not notice either. It is the
+  DECLARED CONTRACT being stronger than the fixture guarding it, which is the
+  thing this whole issue is about.
+
+  MixedCaseColumnNames_EachNameArrivesVerbatim closes it with one answer
+  spelling one column K1 and the other k2, so a mutation in either direction
+  has to break one of the two. Re-measured with that clause in place:
+  LowerCase now fails 1 - and that 1 is this clause, nothing else - while
+  UpperCase fails 8 instead of 7.
+
   THE PARSER DOES NOT CONSULT THE MAPPING, AND THAT IS MEASURED
 
   Insert reads the answer with System.JSON and never asks the explorer anything,
@@ -157,7 +179,22 @@ type
   ///  The session owns ResultParams and frees it, so the list cannot outlive
   ///  the session - the rendering happens while the session is still alive and
   ///  the STRING is what leaves. An empty list renders as '' and a single
-  ///  nameless param renders as '=', which keeps those two apart. </summary>
+  ///  nameless param renders as '=', which keeps those two apart.
+  ///
+  ///  WHAT THIS RENDERING CANNOT SEE, AND IT IS A BLIND SPOT THIS PROBE MADE.
+  ///  Render calls VarToStr on the value, so a param carrying the INTEGER 10
+  ///  and a param carrying the STRING '10' render identically and nothing in
+  ///  the suite can tell them apart. Measured at 3ba57dd: replacing the
+  ///  parser's `Value := ...JsonValue.Value` with
+  ///  `Value := VarToStr(...JsonValue.Value)` survives at 102/0/0.
+  ///
+  ///  That survivor is not the parser's - it is the price of comparing whole
+  ///  lists as ONE string, which is what buys every other clause here its
+  ///  precision about NAMES and ORDER. It is written down because the next
+  ///  probe that renders through VarToStr will inherit the same blind spot
+  ///  without noticing. Closing it needs an assertion on VarType, not another
+  ///  string comparison, and this issue does not need one: the one production
+  ///  consumer assigns LParam.Value straight into a TField. </summary>
   TParamsProbe<M: class, constructor> = class
   public
     class function Render(const AAnswer: String): String;
@@ -168,6 +205,8 @@ type
   public
     [Test]
     procedure CompositeKeyOfTwoIntegers_BothColumnsSurvive;
+    [Test]
+    procedure MixedCaseColumnNames_EachNameArrivesVerbatim;
     [Test]
     procedure CompositeKeyOfSevenMixedTypes_AllSevenSurviveInOrder;
     [Test]
@@ -248,6 +287,34 @@ begin
     'order the server wrote them - one param per PAIR, not one per OBJECT');
 end;
 
+procedure TTestRestResultParamsCompositeKey.MixedCaseColumnNames_EachNameArrivesVerbatim;
+var
+  LActual: String;
+begin
+  // THE CASE CLAUSE, AND IT IS DELIBERATELY MIXED. Every other answer in this
+  // fixture spells its columns in lower case - k1, k2, cmk1..cmk7, ck1, ck2,
+  // tag - so a corpus of lower-case names can only catch a mutation that
+  // RAISES the case. Measured at 3ba57dd: UpperCase on the name killed 7
+  // clauses, and LowerCase on the same line killed NONE, 102/0/0. The
+  // ignoreCase = False flags were doing half the job they claim.
+  //
+  // ONE pair of each case is what closes it. K1 comes back K1 and k2 comes
+  // back k2, so LowerCase breaks the first and UpperCase breaks the second,
+  // and neither can pass by being a no-op on this corpus.
+  //
+  // The two names differ by more than case on purpose. TParams.FindParam
+  // (Data.DB.pas:11311-11321) matches with AnsiSameText, so K1 and k1 would
+  // be one param wearing two slots - the aliasing pinned by
+  // DuplicateNamesAliasOntoTheFirst_AnRtlPropertyOfTParams, which would
+  // confound this clause instead of measuring it.
+  LActual := TParamsProbe<TKeyOnly>.Render(
+    Format(cINSERTANSWER, ['"K1":10,"k2":20']));
+  Assert.AreEqual('K1=10|k2=20', LActual, False,
+    'a column name arrives VERBATIM, in the case the server wrote it - and ' +
+    'that is a claim about BOTH directions, which is why one name is upper ' +
+    'and the other lower');
+end;
+
 procedure TTestRestResultParamsCompositeKey.CompositeKeyOfSevenMixedTypes_AllSevenSurviveInOrder;
 var
   LActual: String;
@@ -325,6 +392,11 @@ begin
   // TParams.Update (Data.DB.pas:11214-11215), which runs on every Add, walks
   // Items[i] - GetItem again - and clears FParamRef. TParam.SetAsVariant
   // (Data.DB.pas:12580-12581) writes THROUGH ParamRef as well.
+  //
+  // THOSE FIVE ARE CITED AS THE ROUTINES ON THE PATH, NOT AS A DERIVATION.
+  // Each was re-read in Studio 37 and says what is written above. Walking
+  // them by hand does NOT visibly produce the table below, and nothing here
+  // claims it does - what follows is a MEASURED RULE, and it is stated as one.
   //
   // WHAT IS MEASURED. This body was originally written into the clause above
   // expecting k1=10|k2=20|k1=30|k2=40, and it came back as
