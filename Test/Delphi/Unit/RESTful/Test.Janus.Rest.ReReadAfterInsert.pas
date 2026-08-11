@@ -116,6 +116,7 @@ type
     FPostAnswer: String;
     FPostAnswers: TStringList;
     FGetAnswer: String;
+    FGetAnswers: TStringList;
     function DoExecute(const ARequestMethod: TRESTRequestMethodType;
       const AParams: TProc): String;
   public
@@ -157,6 +158,8 @@ type
     ///  every time" - which is fine for one root and a LIE for two, because two
     ///  roots that come back on the SAME primary key are not two roots.
     procedure QueuePostAnswer(const AAnswer: String);
+    /// The same, per GET.
+    procedure QueueGetAnswer(const AAnswer: String);
     property PostAnswer: String read FPostAnswer write FPostAnswer;
     property GetAnswer: String read FGetAnswer write FGetAnswer;
   end;
@@ -427,12 +430,14 @@ begin
   FBodies := TStringList.Create;
   FQueries := TStringList.Create;
   FPostAnswers := TStringList.Create;
+  FGetAnswers := TStringList.Create;
   FPostAnswer := cPOSTANSWER;
   FGetAnswer := cGETANSWER;
 end;
 
 destructor TReplayRestConnection.Destroy;
 begin
+  FGetAnswers.Free;
   FPostAnswers.Free;
   FQueries.Free;
   FBodies.Free;
@@ -465,7 +470,10 @@ begin
     TRESTRequestMethodType.rtGET:
       begin
         Inc(FGetCount);
-        Result := FGetAnswer;
+        if FGetCount <= FGetAnswers.Count then
+          Result := FGetAnswers[FGetCount - 1]
+        else
+          Result := FGetAnswer;
       end;
     TRESTRequestMethodType.rtPUT:
       begin
@@ -499,6 +507,11 @@ end;
 procedure TReplayRestConnection.QueuePostAnswer(const AAnswer: String);
 begin
   FPostAnswers.Add(AAnswer);
+end;
+
+procedure TReplayRestConnection.QueueGetAnswer(const AAnswer: String);
+begin
+  FGetAnswers.Add(AAnswer);
 end;
 
 procedure TReplayRestConnection.AddBodyParam(AValue: String);
@@ -997,6 +1010,19 @@ end;
 procedure TTestRestReReadAfterInsert
   .MultiRoot_TwoRootsSavedTogetherAreLeftAloneAndKeepEveryRow;
 begin
+  // TWO ROOTS MEANS TWO KEYS. Answering both POSTs with the same primary key
+  // would make the two roots indistinguishable, and any row loss measured over
+  // that could be blamed on the double instead of on the code.
+  FRep.QueuePostAnswer('{"result":"ok","params":[{"root_id":777}]}');
+  FRep.QueuePostAnswer('{"result":"ok","params":[{"root_id":888}]}');
+  FRep.QueueGetAnswer(
+    '[{"root_id":777,"tag":"rootA","others":[],"mids":[' +
+      '{"mid_id":555,"root_id":777,"tag":"midA","leafs":[' +
+        '{"leaf_id":333,"mid_id":555,"root_id":777,"tag":"leafA"}]}]}]');
+  FRep.QueueGetAnswer(
+    '[{"root_id":888,"tag":"rootB","others":[],"mids":[' +
+      '{"mid_id":666,"root_id":888,"tag":"midB","leafs":[' +
+        '{"leaf_id":444,"mid_id":666,"root_id":888,"tag":"leafB"}]}]}]');
   BuildMemTree;
   SeedRoot(FRootMem, 'rootA');
   SeedMid(FMidMem, 'midA');

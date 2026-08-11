@@ -69,6 +69,22 @@ const
 type
   TRESTDataSetAdapter<M: class, constructor> = class(TDataSetBaseAdapter<M>)
   private
+    /// <summary> Ligado apenas enquanto a re-leitura AUTOMATICA da #297 esta em
+    ///  curso, para que RefreshRecordInternal aplique uma exigencia que NAO
+    ///  cabe ao refresh pedido pelo consumidor: a resposta tem de alcancar
+    ///  todos os niveis que o cliente ja segura.
+    ///  A DIFERENCA E REAL E NAO E ESTILO. Quando o consumidor pede um refresh,
+    ///  filho que sumiu no servidor DEVE sumir na tela - e para isso que ele
+    ///  pediu. Quando quem pede e o ApplyInserter, um instante depois de o
+    ///  servidor ter GRAVADO aqueles filhos, "a resposta nao os mencionou" nunca
+    ///  quer dizer "eles foram apagados"; quer dizer que o servidor nao os
+    ///  devolve - e o caso ordinario disso e a associacao Lazy, que
+    ///  TRESTObjectManager.FillAssociation pula por contrato.
+    ///  O MESMO FORMATO QUE TSessionRestFul<M>.RefreshRecord ja usa com
+    ///  FFindWhereRefreshUsed: uma flag ligada em volta de uma chamada, para
+    ///  mudar o comportamento de um metodo mais abaixo que nao recebe
+    ///  parametro para isso. </summary>
+    FReReadAfterInsert: Boolean;
     procedure _SetMasterDataSetStateEdit;
     procedure _ExecuteCheckNotNull;
     procedure _PopularDataSetChilds(const AObject: TObject);
@@ -76,6 +92,8 @@ type
     function _WhereAssociation(
       const AOwnerObject: TDataSetBaseAdapter<M>): String;
     function _FilterLiteral(const AField: TField): String;
+    function _RowKeyIsUngenerated(
+      const AAdapter: TDataSetBaseAdapter<M>): Boolean;
     function _OwnKeyIsUngenerated(
       const AAdapter: TDataSetBaseAdapter<M>): Boolean;
     function _GraphBelowIsStale(
@@ -83,6 +101,8 @@ type
     procedure _ReReadRootRow;
     procedure _ReReadStaleRoots(const AMarks: TList<TBookmark>);
     function _AnswerIsTheRowUnderTheCursor(const AObject: TObject): Boolean;
+    function _AnswerReachesEveryLoadedLevel(
+      const AAdapter: TDataSetBaseAdapter<M>; const AObject: TObject): Boolean;
   protected
     procedure PopularDataSetOneToOne(const AObject: TObject;
       const AAssociation: TAssociationMapping); virtual; abstract;
@@ -237,7 +257,15 @@ begin
                 // A pergunta e feita AQUI, com o cursor ainda parado sobre a
                 // linha, e a resposta e' guardada como bookmark: o Post logo
                 // abaixo tira a linha do filtro e leva o cursor embora.
-                if _GraphBelowIsStale(Self) then
+                // E SAO DUAS PERGUNTAS, nao uma. "Voltou resposta" NAO e "a
+                // chave chegou": o laco acima so escreve as colunas que o
+                // dataset tem, de modo que uma resposta bem formada que nomeie
+                // outra coluna deixa a raiz no placeholder - e o GET sairia
+                // como $filter=root_id=-1, que so pode responder a linha de
+                // outro ou coisa nenhuma. Medido por
+                // Cost_ParamsThatNameNoColumnOfThisRowBuyNoGet.
+                if _GraphBelowIsStale(Self) and
+                   not _RowKeyIsUngenerated(Self) then
                   LStale.Add(FOrmDataSet.GetBookmark);
               end;
             end;
@@ -804,12 +832,117 @@ begin
   end;
 end;
 
+/// <summary> A resposta alcanca TODO nivel que o cliente ja segura? - issue
+///  #297.
+///
+///  O QUE ELA IMPEDE. RefreshRecordInternal esvazia os datasets filhos INTEIROS
+///  antes de repopular, e esvaziar uma linha do meio dispara a CascadeDelete
+///  dela, que leva junto o dataset dos netos. Se a resposta nao trouxe aquele
+///  nivel, o esvaziamento apaga linha que o servidor ACABOU de gravar a partir
+///  do POST, e nada volta a por essas linhas no lugar.
+///
+///  E ISSO E O SERVIDOR SHIPADO, NAO UMA HIPOTESE. TRESTObjectManager
+///  .FillAssociation PULA associacao Lazy. Um agregado com um ramo
+///  CascadeAutoInc defasado e um ramo Lazy irmao dispara a re-leitura, e a
+///  resposta legitimamente nao menciona o ramo Lazy.
+///
+///  POR QUE A RESPOSTA E RECUSADA INTEIRA, e nao aplicada em parte: aplicar so
+///  os niveis que vieram deixa o cliente num terceiro estado - parte
+///  reconciliada, parte nao - que ninguem consegue descrever depois. Recusar
+///  devolve o cliente ao estado ANTERIOR a #297, que e o defeito, e defeito e
+///  melhor do que perda de linha.
+///
+///  O NIVEL VAZIO NAO E NIVEL FALTANDO. A exigencia so vale onde o CLIENTE tem
+///  linha: um agregado de dois niveis recebe uma resposta sem netos e ela
+///  concorda com ele. Sem essa metade, a recusa desligaria a correcao para todo
+///  agregado que nao tenha exatamente a profundidade da resposta. Medido por
+///  Shallow_AnAnswerIsNotRefusedForALevelTheClientDoesNotHold.
+///
+///  BASTA UM OBJETO DA LISTA alcancar o nivel de baixo. A resposta traz N
+///  objetos de meio e o cliente tem UM dataset de netos: exigir que todos os N
+///  tragam netos recusaria a resposta certa de um agregado onde so uma linha do
+///  meio tem filhos. </summary>
+function TRESTDataSetAdapter<M>._AnswerReachesEveryLoadedLevel(
+  const AAdapter: TDataSetBaseAdapter<M>; const AObject: TObject): Boolean;
+var
+  LAssociations: TAssociationMappingList;
+  LAssociation: TAssociationMapping;
+  LChild: TDataSetBaseAdapter<M>;
+  LList: TObjectList<TObject>;
+  LItem: TObject;
+  LValue: TObject;
+  LDeeper: Boolean;
+begin
+  Result := True;
+  if AAdapter = nil then
+    Exit;
+  if AObject = nil then
+    Exit;
+  if AAdapter.FCurrentInternal = nil then
+    Exit;
+  if AAdapter.FMasterObject = nil then
+    Exit;
+  if AAdapter.FMasterObject.Count = 0 then
+    Exit;
+  LAssociations := TMappingExplorer
+                     .GetMappingAssociation(AAdapter.FCurrentInternal.ClassType);
+  if LAssociations = nil then
+    Exit;
+  for LAssociation in LAssociations do
+  begin
+    if not AAdapter.FMasterObject.TryGetValue(LAssociation.ClassNameRef,
+                                              LChild) then
+      Continue;
+    if LChild = nil then
+      Continue;
+    if LChild.FOrmDataSet = nil then
+      Continue;
+    if not LChild.FOrmDataSet.Active then
+      Continue;
+    // O cliente nao segura nada neste ramo: nao ha o que perder e nao ha o que
+    // exigir da resposta.
+    if LChild.FOrmDataSet.IsEmpty then
+      Continue;
+    LValue := LAssociation.PropertyRtti.GetValue(AObject).AsObject;
+    if not LAssociation.PropertyRtti.IsList then
+    begin
+      if LValue = nil then
+        Exit(False);
+      if not _AnswerReachesEveryLoadedLevel(LChild, LValue) then
+        Exit(False);
+      Continue;
+    end;
+    LList := TObjectList<TObject>(LValue);
+    if LList = nil then
+      Exit(False);
+    if LList.Count = 0 then
+      Exit(False);
+    LDeeper := False;
+    for LItem in LList do
+    begin
+      if _AnswerReachesEveryLoadedLevel(LChild, LItem) then
+      begin
+        LDeeper := True;
+        Break;
+      end;
+    end;
+    if not LDeeper then
+      Exit(False);
+  end;
+end;
+
 procedure TRESTDataSetAdapter<M>.RefreshRecordInternal(const AObject: TObject);
 var
   LChildDataSet: TDataSetBaseAdapter<M>;
 begin
   inherited;
   if not _AnswerIsTheRowUnderTheCursor(AObject) then
+    Exit;
+  // SO NA RE-LEITURA AUTOMATICA - ver FReReadAfterInsert. Num refresh PEDIDO
+  // pelo consumidor, filho que sumiu no servidor deve sumir na tela; num
+  // refresh que o proprio ApplyInserter disparou um instante depois de o
+  // servidor gravar, "a resposta nao mencionou" nunca quer dizer "foi apagado".
+  if FReReadAfterInsert and not _AnswerReachesEveryLoadedLevel(Self, AObject) then
     Exit;
   FOrmDataSet.DisableControls;
   try
@@ -836,27 +969,26 @@ begin
   end;
 end;
 
-/// <summary> Alguma linha deste adapter carrega ainda o placeholder de AutoInc
-///  na sua PROPRIA chave primaria? - issue #297.
-///
-///  E A CHAVE PROPRIA, E NAO A ESTRANGEIRA, e a distincao e o conserto inteiro.
-///  A FK que o filho aponta para o master JA e reconciliada pelo carimbo de
-///  ApplyInserter mais SetAutoIncValueChilds; a chave propria do filho nunca e -
-///  nada na resposta do insert a nomeia. Perguntar pela FK responderia "esta
-///  tudo bem" exatamente no caso que esta issue existe para consertar.
+/// <summary> A LINHA CORRENTE deste adapter ainda carrega o placeholder de
+///  AutoInc na sua propria chave primaria? - issue #297. Uma linha so, sem mover
+///  cursor nenhum, para os dois leitores: o que pergunta pela raiz que acabou de
+///  ser inserida e o que percorre as linhas de um filho.
 ///
 ///  PERGUNTA POR VALOR, PELOS MESMOS MOTIVOS DE
 ///  TDataSetBaseAdapter<M>._AutoIncKeyIsGenerated: entidade sem chave mapeada,
-///  chave que nao e AutoInc - onde -1 pode ser uma chave legitima -, coluna
-///  ausente do dataset ou coluna nao inteira (ftGuid) nao tem placeholder como
-///  conceito, e nenhuma delas deve responder "defasado".
+///  ou chave que nao e AutoInc - onde -1 pode ser uma chave legitima - nao tem
+///  placeholder como conceito, e nenhuma das duas deve responder "defasado".
 ///
-///  A CAMINHADA DESLIGA OS EVENTOS DO FILHO, e nao e cosmetico: andar num
-///  dataset filho dispara o AfterScroll dele, que chama OpenDataSetChilds e
-///  RE-LE os netos do servidor - perguntar se o filho esta defasado destruiria
-///  os netos ainda nao gravados. Mesma armadilha e mesma tecnica de
-///  TDataSetBaseAdapter<M>._HasPendingRows e de SetAutoIncValueChilds. </summary>
-function TRESTDataSetAdapter<M>._OwnKeyIsUngenerated(
+///  A GUARDA DE cINTEGERKINDS SOBREVIVE A MUTACAO, e esta declarada em vez de
+///  escondida. Medido em afa52c8: removendo as duas linhas, 86/86 verdes, zero
+///  vermelhos. A razao e que nenhum modelo do repositorio declara chave
+///  primaria AutoInc que nao seja inteira, de modo que o ramo nao e alcancavel
+///  hoje por teste nenhum. Ela fica porque cAutoIncNotGenerated e o inteiro -1:
+///  sobre um ftGuid ou um ftString, AsInteger ou levanta ou responde 0, e as
+///  duas respostas seriam sobre uma pergunta que nao existe. E a mesma guarda,
+///  pela mesma razao, de _AutoIncKeyIsGenerated - onde ela e alcancavel, porque
+///  la o ftGuid entra pela lista de colunas da ASSOCIACAO. </summary>
+function TRESTDataSetAdapter<M>._RowKeyIsUngenerated(
   const AAdapter: TDataSetBaseAdapter<M>): Boolean;
 const
   cINTEGERKINDS = [ftInteger, ftSmallint, ftWord, ftLargeint, ftAutoInc,
@@ -865,7 +997,6 @@ var
   LPrimaryKey: TPrimaryKeyMapping;
   LDataSet: TDataSet;
   LField: TField;
-  LMark: TBookmark;
   LFor: Integer;
 begin
   Result := False;
@@ -886,6 +1017,53 @@ begin
     Exit;
   if not LPrimaryKey.AutoIncrement then
     Exit;
+  for LFor := 0 to LPrimaryKey.Columns.Count -1 do
+  begin
+    LField := LDataSet.FindField(LPrimaryKey.Columns.Items[LFor]);
+    if LField = nil then
+      Continue;
+    if not (LField.DataType in cINTEGERKINDS) then
+      Continue;
+    if LField.AsInteger = cAutoIncNotGenerated then
+      Exit(True);
+  end;
+end;
+
+/// <summary> ALGUMA linha deste adapter carrega o placeholder na chave propria?
+///  - issue #297.
+///
+///  E A CHAVE PROPRIA, E NAO A ESTRANGEIRA. A decisao e por SENSIBILIDADE, e o
+///  que segue e medido, nao raciocinado. Trocando a chave propria pela coluna da
+///  associacao - a FK - e re-rodando a suite em afa52c8, morre UMA clausula so:
+///  as outras dez continuam vermelhas, porque a FK do NETO para o meio tambem
+///  nunca e reconciliada e denuncia o mesmo grafo pelo nivel 3. Ou seja: as duas
+///  leituras enxergam o defeito de tres niveis; a da chave propria enxerga
+///  TAMBEM o agregado de dois niveis, onde a FK do filho JA foi reconciliada
+///  pelo carimbo mais SetAutoIncValueChilds e so a chave propria dele denuncia.
+///  A chave propria e estritamente mais sensivel, e e por isso que fica -
+///  nao porque a outra leitura seja cega.
+///
+///  A CAMINHADA DESLIGA OS EVENTOS DO FILHO, e nao e cosmetico: andar num
+///  dataset filho dispara o AfterScroll dele, que chama OpenDataSetChilds e
+///  RE-LE os netos do servidor - perguntar se o filho esta defasado destruiria
+///  os netos ainda nao gravados. Mesma armadilha e mesma tecnica de
+///  TDataSetBaseAdapter<M>._HasPendingRows e de SetAutoIncValueChilds. </summary>
+function TRESTDataSetAdapter<M>._OwnKeyIsUngenerated(
+  const AAdapter: TDataSetBaseAdapter<M>): Boolean;
+var
+  LDataSet: TDataSet;
+  LMark: TBookmark;
+begin
+  Result := False;
+  if AAdapter = nil then
+    Exit;
+  LDataSet := AAdapter.FOrmDataSet;
+  if LDataSet = nil then
+    Exit;
+  if not LDataSet.Active then
+    Exit;
+  if LDataSet.IsEmpty then
+    Exit;
   AAdapter.DisableDataSetEvents;
   LDataSet.DisableControls;
   LMark := LDataSet.GetBookmark;
@@ -893,16 +1071,8 @@ begin
     LDataSet.First;
     while not LDataSet.Eof do
     begin
-      for LFor := 0 to LPrimaryKey.Columns.Count -1 do
-      begin
-        LField := LDataSet.FindField(LPrimaryKey.Columns.Items[LFor]);
-        if LField = nil then
-          Continue;
-        if not (LField.DataType in cINTEGERKINDS) then
-          Continue;
-        if LField.AsInteger = cAutoIncNotGenerated then
-          Exit(True);
-      end;
+      if _RowKeyIsUngenerated(AAdapter) then
+        Exit(True);
       LDataSet.Next;
     end;
   finally
@@ -1001,7 +1171,13 @@ begin
         Exit;
       with LParams.Add as TParam do
       begin
-        Name := LField.FieldName;
+        // A GRAFIA DO MAPEAMENTO, e nao a do dataset. O irmao que monta os
+        // mesmos params - TDataSetBaseAdapter<M>.RefreshRecord - nomeia por
+        // LPrimaryKey.Columns, e o filtro que sai daqui viaja como nome de
+        // coluna ate o servidor. As duas grafias coincidem em todo modelo do
+        // repositorio, entao a divergencia NAO E MEDIDA; escrever a mesma das
+        // duas e o que impede que ela apareca.
+        Name := LPrimaryKey.Columns.Items[LFor];
         ParamType := ptInput;
         DataType := LField.DataType;
         Value := LField.Value;
@@ -1009,7 +1185,12 @@ begin
     end;
     if LParams.Count = 0 then
       Exit;
-    FSession.RefreshRecord(LParams);
+    FReReadAfterInsert := True;
+    try
+      FSession.RefreshRecord(LParams);
+    finally
+      FReReadAfterInsert := False;
+    end;
   finally
     LParams.Clear;
     LParams.Free;
