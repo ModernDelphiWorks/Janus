@@ -498,9 +498,31 @@
   still rejected. What gained a second input is the QUESTION: the answer True
   for an unrecorded row is now weighed against the number of master rows doing
   the asking, which TDataSetBaseAdapter<M>.FCascadeMasterRows carries. The hatch
-  survives where there is one master and closes where there is a real ambiguity,
-  and a row nobody claims stays PENDING carrying the key it came in with - which
-  is visible, whereas a row written by the wrong master is not.
+  survives where there is one master and closes where there is a real ambiguity.
+
+  AND WHAT BECOMES OF THE ROW NOBODY CLAIMS - measured, and NOT what an earlier
+  revision of this header asserted. That revision said the row "stays PENDING
+  carrying the key it came in with", which was reasoning, not a reading, and it
+  is only half true. The answer differs BY FAMILY and both halves are now
+  pinned:
+
+    * the LOCAL families INSERT it. ApplyInternal reaches the child adapter's
+      own ApplyInternal after the master loop ends, and that loop inserts every
+      pending row it finds without asking about parentage - so what the consumer
+      ends up with is a row IN THE DATABASE carrying an unresolved foreign key.
+      Measured on both: cInternalField comes back at cAPPLIED;
+    * the REST family leaves it PENDING. TRESTFDMemTableAdapter<M>.ApplyInternal
+      does not iterate FMasterObject, the child level is never applied in that
+      run, and the marker is still Integer(dsInsert) when the apply is over.
+
+  Neither is asserted as the desirable one, and this issue did not choose
+  between them - the difference predates it and belongs to how each family
+  cascades ApplyInternal. What the three clauses do is stop anyone writing "the
+  framework leaves it pending" again without a fixture contradicting them.
+  WHAT IS STILL BETTER THAN THE DEFECT, and this part is not weakened by the
+  above: an unresolved foreign key is a row a consumer can find by querying for
+  it, and it is the key the consumer put there. A row silently re-parented onto
+  another master's key is indistinguishable from correct data.
 
   THE FOUR FIXTURES, AND WHY FOUR
 
@@ -569,12 +591,27 @@
       marker, so the last master row sees 1, decides there is no ambiguity and
       claims the orphan - last-one-wins restored under a new name.
 
-  THE ONE MUTATION THAT SURVIVES, declared rather than left to be found:
-  deleting `AChildAdapter.FCascadeMasterRows := 1` from the no-pending-row
-  branch of _RecurseOverChildRows reddens NOTHING - 547 green. 0 and 1 give the
-  same answer to the only reader, and the field arrives at that branch holding 0
-  on every path this suite reaches. The line is kept because the two values do
-  not MEAN the same thing, and the comment at the site says so.
+  THE TWO MUTATIONS THAT SURVIVE, declared rather than left to be found, and
+  BOTH of them, because two survivors in one method with only one confessed
+  would be choosing which to admit to. Both are in _RecurseOverChildRows:
+
+    * deleting `AChildAdapter.FCascadeMasterRows := 1` from the no-pending-row
+      branch reddens NOTHING - 547 green at d01d4f3. 0 and 1 give the same
+      answer to the only reader, and the field arrives at that branch holding 0
+      on every path this suite reaches. Kept because the two values do not MEAN
+      the same thing;
+    * deleting the `finally` restore, `:= LOuterRows`, reddens NOTHING either -
+      547 green at 0c5de92. LOuterRows is 0 on every path the suite reaches, and
+      whatever runs next establishes its own number before reading. Kept because
+      the method writes into ANOTHER object's field and what is borrowed is put
+      back.
+
+  Neither justification is that a cycle in the adapter tree could carry a stale
+  count in. An earlier revision of the comment at the first site said so, and it
+  was WRONG in a way this repository had already measured: a cycle cannot be
+  built, because TManagerDataSet.AddAdapter<T, M> exits early in both
+  directions - the argument is written out in the header of _AnyDetailRowOpen.
+  It is recorded here rather than quietly deleted.
 
   WHAT THE #261 ASSERTIONS DO NOT CLAIM. The "and not the other master's key"
   clauses are arithmetic complements of the clause above them plus the premise
@@ -605,6 +642,25 @@
   round trip or a Close/Open against a real store is NOT established: nothing
   writes these columns to a database, but nothing here proves a real driver
   would leave them alone either.
+
+  NOT MEASURED, ADDED BY #261 AND LISTED RATHER THAN LEFT TO BE DISCOVERED:
+
+    * A MID ROW WITH NO TOKEN THAT HAS CHILDREN OF ITS OWN, under two pending
+      roots. No fixture builds it. The guard excludes that row from LMarks in
+      _RecurseOverChildRows, and LMarks is what the recursion rides - so it is
+      not one row that goes unwritten but the WHOLE SUBTREE under it that goes
+      unvisited. That is consistent with what the guard is for, and consistency
+      is not a measurement. The four fixtures all put the unrecorded row at the
+      BOTTOM of their tree, where it has nothing below it to skip;
+    * THE ObjectSet AND RESTObjectSet FAMILIES are outside this entirely. They
+      have no provenance column at all - TObjectSetBaseAdapter<M> and
+      TRESTObjectSet carry their own SetAutoIncValueChilds over object graphs,
+      not over datasets - so neither the token nor the count exists there.
+      Whether the same ambiguity is reachable through an object graph was not
+      looked into and is not claimed either way;
+    * A THIRD LEVEL DRIVEN THROUGH A REAL ApplyInternal, which the paragraph
+      near the top of this header already says of #261's predecessors and is
+      still true of the level 3 fixture added here: it goes through Propagate.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
@@ -933,6 +989,13 @@ const
   /// cRESTSTEP, 2*cRESTSTEP, ... - and NOT cPLACEHOLDER, because -1 is the one
   /// negative the framework itself writes and _AutoIncKeyIsGenerated reads.
   cUNCLAIMEDSEED = -31;
+  /// The value ApplyInserter and ApplyUpdater write back into cInternalField
+  /// once a row has reached the database - "not pending any more". It happens
+  /// to be the same number as cPLACEHOLDER and is a DIFFERENT concept: that one
+  /// is an autoinc primary KEY the generator has not answered for yet, this one
+  /// is a row STATE marker. Spelled separately so a reader of the clauses below
+  /// does not have to work out which of the two a -1 means.
+  cAPPLIED = -1;
   cEDITEDTAG  = 'EDITING';
   /// The two tags the UNTOUCHED-dsEdit fixture tells apart: what a grandchild
   /// row was COMMITTED with, and what a data-aware control writes into it
@@ -4107,6 +4170,20 @@ begin
         'nor the key of the FIRST - refusing the second claim while keeping ' +
         'the first would be first-one-wins, which is the same coin flip with ' +
         'the other face up - ' + DumpColumn(LChildTable, cKEY));
+      // AND WHAT BECOMES OF THE ROW, which is the question a consumer asks
+      // next and which no clause used to answer. In the LOCAL families it is
+      // INSERTED: ApplyInternal reaches the child adapter's own ApplyInternal
+      // after the master loop ends, and that loop does not ask about
+      // parentage - it inserts every pending row it finds, this one included,
+      // carrying the foreign key it came in with. The clause above already
+      // says which key that is; this one says the row did not merely sit
+      // there. The REST family answers DIFFERENTLY and its own fixture
+      // measures it.
+      Assert.AreEqual(cAPPLIED,
+        TokenOfTaggedRow(LChildTable, 'C0', cInternalField),
+        'the unclaimed row is not left pending in this family - the child ' +
+        'level applies it, so what the consumer ends up with is an INSERTED ' +
+        'row carrying an unresolved foreign key, not a row still waiting');
     finally
       LChild.Free;
       LMaster.Free;
@@ -4204,6 +4281,11 @@ begin
       Assert.AreEqual(0, CountWithColumn(LChildCds, cKEY, LKeyB),
         'and specifically NOT the key of the LAST pending master - ' +
         DumpColumn(LChildCds, cKEY));
+      Assert.AreEqual(cAPPLIED,
+        TokenOfTaggedRow(LChildCds, 'C0', cInternalField),
+        'and this family INSERTS it too, same as the FDMemTable twin - ' +
+        'measured here rather than inferred, because TClientDataSetAdapter<M> ' +
+        'carries its own ApplyInternal');
     finally
       LChild.Free;
       LMaster.Free;
@@ -4313,6 +4395,20 @@ begin
         'THE ROW C0 recorded nothing, and with two pending masters there is ' +
         'no answer to give it, so it keeps the key it came in with - ' +
         DumpColumn(LChildTable, cKEY));
+      // AND HERE THE ROW REALLY IS LEFT PENDING, which is where this family
+      // parts company with the local ones. TRESTFDMemTableAdapter<M>
+      // .ApplyInternal does not iterate FMasterObject, so the child level is
+      // never applied in this run and the unclaimed row is still sitting on
+      // the pending marker when the apply is over. The local twins measure
+      // cAPPLIED at this same point. Neither answer is asserted as the
+      // desirable one - what is asserted is that they DIFFER, so that a
+      // sentence claiming one of them for "the framework" cannot be written
+      // again without this fixture contradicting it.
+      Assert.AreEqual(Integer(dsInsert),
+        TokenOfTaggedRow(LChildTable, 'C0', cInternalField),
+        'the unclaimed row is still PENDING in the REST family - this level ' +
+        'never applies its own children, so nothing wrote it to the server ' +
+        'and nothing cleared its marker');
     finally
       LChild.Free;
       LMaster.Free;
