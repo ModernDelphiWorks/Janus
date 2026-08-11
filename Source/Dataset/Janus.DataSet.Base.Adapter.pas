@@ -634,8 +634,18 @@ begin
   // nil hazard of its own at a different line - LObjectList.MethodCall('Add',
   // ...) over a list property no constructor created - reached only for a
   // child row that survives the foreign-key filter, and it is not what issue
-  // #296 names. Measured, not assumed; recorded so the next reader does not
+  // #296 names. Measured, not assumed: on commit 221899a, with the guard below
+  // removed and a throwaway clause added over a TAsymTreeRoot whose `mids` was
+  // set to nil, ONE run raised both - the walk here at module offset 89F831 and
+  // the sibling at 7FB9B9. Two offsets in a single build, so they are two code
+  // sites and not one site seen twice. Recorded so the next reader does not
   // take this guard for cover it does not give.
+  //
+  // NO CLAUSE IN THE SUITE DRIVES THAT SIBLING HAZARD, measured from the other
+  // side on commit 219ebcd: adding the equivalent nil guard to
+  // _ExecuteOneToMany with everything else intact turned NOTHING red - 567
+  // found, 0 failures, 0 errors, exactly as without it. Every model the suite
+  // compiles builds its list in its own constructor.
   //
   // Measured by Test.Janus.OneToOne.NilAssociation.
   if LObject = nil then
