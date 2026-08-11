@@ -370,8 +370,11 @@
 
   HOW THE NEW SOURCE CLAUSES WERE SHOWN TO BIND - issue #265
 
-  Each was reverted on its own and the whole project re-run. EVERY clause in
-  _EnsureMasterRowToken binds, and the list is the whole method:
+  The figures below are all measured at 33bc77a; each clause was reverted on
+  its own and the whole project re-run. The suite has grown since; read the
+  figures below as the size of that run and re-run the mutation rather than
+  scaling them. EVERY clause in _EnsureMasterRowToken binds, and the list is
+  the whole method:
 
     * never minting -> the six tests that are red against origin/develop;
     * taking the value from AtomicIncrement(FRowTokenSeq) instead of the

@@ -132,7 +132,9 @@
 
   Green is not evidence that an assertion holds anything, so each was made to
   fail on purpose. All numbers below are from the run in which the fix landed,
-  over 480 tests in this project, and every mutation was reverted.
+  measured at 146d805, over 480 tests in this project, and every mutation was
+  reverted. The suite has grown since; read the figure as the size of that
+  run and re-run the mutation rather than scaling it.
 
   * Removing the parentage clause from _AutoIncToChildRows - leaving only
     _IsPendingInsertRow, which is what shipped before - reddens SEVEN: the two
@@ -1472,8 +1474,9 @@ begin
       Assert.AreEqual(0, CountWithKey(LChildTable, LKeyA),
         'not one child is left on the first master key');
       Assert.AreEqual(cGRANDS, CountWithKey(LChildTable, LKeyB),
-        'they all end up on the LAST pending master row - last writer wins, ' +
-        'measured through the shipped ApplyInserter');
+        'they all end up on the LAST pending master row - because R2 is ' +
+        'their PARENT, not because it wrote last, measured through the ' +
+        'shipped ApplyInserter');
     finally
       LChild.Free;
       LMaster.Free;
