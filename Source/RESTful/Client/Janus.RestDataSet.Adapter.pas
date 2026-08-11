@@ -82,6 +82,7 @@ type
       const AAdapter: TDataSetBaseAdapter<M>): Boolean;
     procedure _ReReadRootRow;
     procedure _ReReadStaleRoots(const AMarks: TList<TBookmark>);
+    function _AnswerIsTheRowUnderTheCursor(const AObject: TObject): Boolean;
   protected
     procedure PopularDataSetOneToOne(const AObject: TObject;
       const AAssociation: TAssociationMapping); virtual; abstract;
@@ -112,6 +113,7 @@ uses
   Janus.Objects.Helper,
   Janus.RTTI.Helper,
   MetaDbDiff.mapping.explorer,
+  MetaDbDiff.RTTI.Helper,
   MetaDbDiff.mapping.attributes;
 
 { TRESTDataSetAdapter<M> }
@@ -734,11 +736,81 @@ begin
   end;
 end;
 
+/// <summary> A linha que voltou do servidor E a linha sobre a qual o cursor
+///  esta? - issue #297.
+///
+///  POR QUE PRECISOU EXISTIR. O unico caminho de producao que chega em
+///  RefreshRecordInternal nesta familia e TSessionRestFul<M>.RefreshRecord, que
+///  monta o filtro a partir da CHAVE PRIMARIA da linha corrente
+///  (TDataSetBaseAdapter<M>.RefreshRecord) - TSessionRestFul nao sobrescreve
+///  RefreshRecordWhere, e a versao de TSessionAbstract tem corpo vazio. Ou seja:
+///  o que volta ou e aquela linha, ou nao e resposta a esta pergunta. Reescrever
+///  a linha do cliente com o que quer que tenha voltado transforma um servidor
+///  que respondeu outra coisa - ou um proxy, ou um duplo - em perda silenciosa
+///  de dado, e isso passou a importar porque a partir da #297 esta chamada
+///  acontece SOZINHA depois de todo insert com grafo defasado, e nao apenas
+///  quando o consumidor pede.
+///
+///  COMPARA POR VALOR DE VARIANTE, e nao por texto: chave de data, de moeda ou
+///  de GUID chegaria formatada diferente dos dois lados e seria recusada por
+///  engano. VarCompareValue trata Null contra Null como igual.
+///
+///  RESPONDE True QUANDO NAO HA PERGUNTA A FAZER - sem chave primaria mapeada,
+///  sem a coluna no dataset, sem a propriedade no objeto, ou com o dataset
+///  vazio. Em nenhum desses casos existe divergencia a detectar, e recusar por
+///  falta de resposta desligaria o refresh inteiro. </summary>
+function TRESTDataSetAdapter<M>._AnswerIsTheRowUnderTheCursor(
+  const AObject: TObject): Boolean;
+var
+  LPrimaryKey: TPrimaryKeyMapping;
+  LColumns: TColumnMappingList;
+  LColumn: TColumnMapping;
+  LField: TField;
+  LFor: Integer;
+begin
+  Result := True;
+  if AObject = nil then
+    Exit;
+  if FCurrentInternal = nil then
+    Exit;
+  if not FOrmDataSet.Active then
+    Exit;
+  if FOrmDataSet.IsEmpty then
+    Exit;
+  LPrimaryKey := TMappingExplorer
+                   .GetMappingPrimaryKey(FCurrentInternal.ClassType);
+  if LPrimaryKey = nil then
+    Exit;
+  LColumns := TMappingExplorer.GetMappingColumn(FCurrentInternal.ClassType);
+  if LColumns = nil then
+    Exit;
+  for LFor := 0 to LPrimaryKey.Columns.Count -1 do
+  begin
+    LField := FOrmDataSet.FindField(LPrimaryKey.Columns.Items[LFor]);
+    if LField = nil then
+      Continue;
+    for LColumn in LColumns do
+    begin
+      if not SameText(LColumn.ColumnName, LPrimaryKey.Columns.Items[LFor]) then
+        Continue;
+      if LColumn.ColumnProperty = nil then
+        Break;
+      if VarCompareValue(LField.Value,
+           LColumn.ColumnProperty.GetNullableValue(AObject)
+             .AsVariant) <> vrEqual then
+        Exit(False);
+      Break;
+    end;
+  end;
+end;
+
 procedure TRESTDataSetAdapter<M>.RefreshRecordInternal(const AObject: TObject);
 var
   LChildDataSet: TDataSetBaseAdapter<M>;
 begin
   inherited;
+  if not _AnswerIsTheRowUnderTheCursor(AObject) then
+    Exit;
   FOrmDataSet.DisableControls;
   try
     FOrmDataSet.Edit;
@@ -949,13 +1021,32 @@ end;
 ///
 ///  A LISTA VEM VAZIA NO CASO ORDINARIO: uma raiz sem filhos registrados, ou
 ///  cujos filhos ja carregam chave propria, nao entra nela, e o metodo sai sem
-///  tocar na rede. </summary>
+///  tocar na rede.
+///
+///  MAIS DE UMA RAIZ NA MESMA GRAVACAO NAO E RE-LIDA, E ISSO E MEDICAO E NAO
+///  PREFERENCIA. RefreshRecordInternal esvazia os datasets filhos INTEIROS -
+///  o laco de Delete nao pergunta de qual master a linha e -, e apagar uma
+///  linha do meio ainda dispara a CascadeDelete dela, que esvazia o dataset dos
+///  netos inteiro tambem. Com duas raizes salvas juntas, medido em 0a0161f
+///  sobre a arvore de tres niveis: entraram 2 linhas de meio e 2 de neto,
+///  sairam `roots=2 mids=1 leafs=1` - a re-leitura da segunda raiz levou os
+///  filhos ja reconciliados da primeira. Isso e PIOR do que o defeito que esta
+///  correcao conserta, entao neste caso o cliente fica exatamente como ficava
+///  antes dela: com as chaves proprias no placeholder, e sem perder linha
+///  nenhuma. Consertar tambem esse caso exige que o esvaziamento seja limitado
+///  as linhas DAQUELE master, nos dois niveis - inclusive dentro de
+///  DeleteDataSetChilds, que e o guarda da #235 e serve tambem o caminho de
+///  exclusao de verdade. Issue propria.
+///  MEDIDO POR MultiRoot_TwoRootsSavedTogetherAreLeftAloneAndKeepEveryRow.
+///  </summary>
 procedure TRESTDataSetAdapter<M>._ReReadStaleRoots(
   const AMarks: TList<TBookmark>);
 var
   LFor: Integer;
 begin
   if AMarks.Count = 0 then
+    Exit;
+  if AMarks.Count > 1 then
     Exit;
   for LFor := 0 to AMarks.Count -1 do
   begin

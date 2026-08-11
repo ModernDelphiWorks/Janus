@@ -74,6 +74,7 @@ uses
   Janus.Client.Methods,
   Janus.RestFactory.Interfaces,
   Janus.DataSet.Base.Adapter,
+  Janus.DataSet.Fields,
   Janus.RestDataSet.ClientDataSet,
   Janus.RestDataSet.FDMemTable,
   Test.Janus.Model.AutoIncTree;
@@ -99,6 +100,8 @@ type
     FPendingQuery: String;
     FPostCount: Integer;
     FGetCount: Integer;
+    FPutCount: Integer;
+    FDeleteCount: Integer;
     FPostAnswer: String;
     FGetAnswer: String;
     function DoExecute(const ARequestMethod: TRESTRequestMethodType;
@@ -136,6 +139,8 @@ type
     property Queries: TStringList read FQueries;
     property PostCount: Integer read FPostCount;
     property GetCount: Integer read FGetCount;
+    property PutCount: Integer read FPutCount;
+    property DeleteCount: Integer read FDeleteCount;
     property PostAnswer: String read FPostAnswer write FPostAnswer;
     property GetAnswer: String read FGetAnswer write FGetAnswer;
   end;
@@ -264,6 +269,43 @@ type
     // The design constraint the repair had to obey.
     // -----------------------------------------------------------------------
 
+    /// TWO roots saved in ONE ApplyUpdates are left alone, and that is a
+    /// measurement and not a preference. RefreshRecordInternal empties the
+    /// child datasets WHOLE, and deleting a middle row still fires its own
+    /// CascadeDelete, which empties the grandchild dataset whole as well. With
+    /// the re-read allowed to run over two roots, measured at 0a0161f over this
+    /// same tree: two middle rows and two leaves went in and
+    /// `roots=2 mids=1 leafs=1` came out - the second root's re-read took the
+    /// first root's already reconciled children with it. That is WORSE than the
+    /// defect, so in this case the client is left exactly as it was before this
+    /// fix: placeholders below the root, and not one row lost.
+    [Test]
+    procedure MultiRoot_TwoRootsSavedTogetherAreLeftAloneAndKeepEveryRow;
+    /// The server answers the re-read with NO row - the aggregate was deleted
+    /// by somebody else between the POST and the GET, or the resource does not
+    /// serve it. Before the guard this raised EArgumentOutOfRange out of
+    /// TSessionRestFul<M>.RefreshRecord and aborted the save AFTER the server
+    /// had already written.
+    [Test]
+    procedure Empty_AGetThatFindsNothingLeavesTheClientAsItWas;
+    /// The answer is a document that is NOT this row. Rewriting the client from
+    /// it would be silent data loss, and it stopped being hypothetical when the
+    /// re-read started firing on its own after every insert.
+    [Test]
+    procedure Foreign_AnAnswerThatIsNotThisRowIsDiscarded;
+
+    /// What a "shout at the end of ApplyInserter" would cost, measured instead
+    /// of assumed. ApplyInserter is the FIRST of the three phases
+    /// ApplyInternal runs inside one try, and ApplyUpdates clears
+    /// FSession.DeleteList in its own finally whatever happened. So an
+    /// exception raised at the end of the insert phase does not merely report -
+    /// it drops the update and the delete the operator asked for in the same
+    /// save, and the delete list is emptied on the way out, so nothing will
+    /// re-send them. This clause pins that all three phases really do run in
+    /// one call, which is the premise that makes the cost real.
+    [Test]
+    procedure Detector_AllThreePhasesRunInsideTheSameCall;
+
     /// TDataSetBaseAdapter<M>.RefreshRecord brackets its work with
     /// DisableDataSetEvents/EnableDataSetEvents, and that pair is a SWAP and
     /// not a counter: a second Disable finds the handlers already nil and
@@ -354,6 +396,16 @@ begin
       begin
         Inc(FGetCount);
         Result := FGetAnswer;
+      end;
+    TRESTRequestMethodType.rtPUT:
+      begin
+        Inc(FPutCount);
+        Result := '{}';
+      end;
+    TRESTRequestMethodType.rtDELETE:
+      begin
+        Inc(FDeleteCount);
+        Result := '{}';
       end;
   else
     // An empty JSON OBJECT and never '': TSessionRestFul<M> indexes the answer
@@ -728,6 +780,89 @@ begin
   Assert.AreEqual(0, FRep.GetCount,
     'with the root key unknown there is nothing to ask BY, so the re-read ' +
     'must not fire on a placeholder');
+end;
+
+procedure TTestRestReReadAfterInsert
+  .MultiRoot_TwoRootsSavedTogetherAreLeftAloneAndKeepEveryRow;
+begin
+  BuildMemTree;
+  SeedRoot(FRootMem, 'rootA');
+  SeedMid(FMidMem, 'midA');
+  SeedLeaf(FLeafMem, 'leafA');
+  SeedRoot(FRootMem, 'rootB');
+  SeedMid(FMidMem, 'midB');
+  SeedLeaf(FLeafMem, 'leafB');
+  TMemApply<TAitRoot>.Apply(FMemRoot);
+  Assert.AreEqual(2, FRep.PostCount,
+    'premise: both roots really were sent');
+  Assert.AreEqual(0, FRep.GetCount,
+    'no re-read fires when more than one root was saved in the same call - ' +
+    'the second one would empty the first one child datasets');
+  Assert.AreEqual(2, FMidMem.RecordCount,
+    'both middle rows must survive. Allowing the re-read here measured ' +
+    'mids=1 at 0a0161f: rows the operator typed simply disappeared');
+  Assert.AreEqual(2, FLeafMem.RecordCount,
+    'and both grandchild rows with them');
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Empty_AGetThatFindsNothingLeavesTheClientAsItWas;
+begin
+  FRep.GetAnswer := '[]';
+  RunMem;
+  Assert.AreEqual(1, FRep.GetCount, 'premise: the re-read really was issued');
+  Assert.AreEqual(cSRVROOT, KeyOf(FRootMem, cROOTKEY),
+    'the root keeps the key the POST answered');
+  Assert.AreEqual(1, FMidMem.RecordCount,
+    'and the child row the operator typed is still there - an answer with no ' +
+    'row must not cost the client its own data, and must not raise: the ' +
+    'server has already written by this point');
+end;
+
+procedure TTestRestReReadAfterInsert.Foreign_AnAnswerThatIsNotThisRowIsDiscarded;
+begin
+  // A well-formed aggregate, but for ANOTHER root.
+  FRep.GetAnswer :=
+    '[{"root_id":901,"tag":"someone else","others":[],"mids":[' +
+      '{"mid_id":902,"root_id":901,"tag":"theirs","leafs":[]}]}]';
+  RunMem;
+  Assert.AreEqual(1, FRep.GetCount, 'premise: the re-read really was issued');
+  Assert.AreEqual(cSRVROOT, KeyOf(FRootMem, cROOTKEY),
+    'the client keeps ITS row - 901 would mean the answer overwrote a row it ' +
+    'was never about');
+  Assert.AreEqual(cPLACEHOLDER, KeyOf(FMidMem, cMIDKEY),
+    'and its own child, still on the placeholder, rather than the stranger ' +
+    'row 902');
+end;
+
+procedure TTestRestReReadAfterInsert.Detector_AllThreePhasesRunInsideTheSameCall;
+begin
+  BuildMemTree;
+  // A row the operator DELETED. First, so that the cascade its removal fires
+  // cannot take the rows the clauses below need.
+  SeedRoot(FRootMem, 'gone');
+  FRootMem.Delete;
+  // A row the operator EDITED. Clearing the internal marker by hand is what
+  // turns a row that was typed into a row that was LOADED and then changed -
+  // DoBeforePost promotes -1 to dsEdit and leaves anything else alone.
+  SeedRoot(FRootMem, 'kept');
+  FRootMem.Edit;
+  FRootMem.FieldByName(cInternalField).AsInteger := -1;
+  FRootMem.FieldByName(cTAG).AsString := 'changed';
+  FRootMem.Post;
+  // And the row the operator INSERTED, with a child under it so that its graph
+  // is the stale one this issue is about.
+  SeedRoot(FRootMem, 'new');
+  SeedMid(FMidMem, 'mid');
+  TMemApply<TAitRoot>.Apply(FMemRoot);
+  Assert.AreEqual(1, FRep.PostCount, 'the insert phase ran');
+  Assert.AreEqual(1, FRep.PutCount,
+    'the UPDATE phase ran in the same call - it is the first thing an ' +
+    'exception raised at the end of the insert phase would take away');
+  Assert.AreEqual(1, FRep.DeleteCount,
+    'and so did the DELETE phase. Worse than skipped: ApplyUpdates clears ' +
+    'FSession.DeleteList in its own finally whatever happened, so a row ' +
+    'dropped here is gone from the client AND was never sent');
 end;
 
 procedure TTestRestReReadAfterInsert.Design_TheEventSwitchIsASwapAndNotACounter;
