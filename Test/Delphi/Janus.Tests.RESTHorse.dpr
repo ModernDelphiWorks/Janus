@@ -78,7 +78,11 @@ uses
   /// One owner carrying TWO lazy branches, to two different child classes
   Test.Janus.Model.LazyTwoBranch in 'Common\Test.Janus.Model.LazyTwoBranch.pas',
   /// The server side lazy load, whose only statement was commented out
-  Test.Janus.Server.RestObjectSet.LoadLazy in 'RESTHorse\Test.Janus.Server.RestObjectSet.LoadLazy.pas';
+  Test.Janus.Server.RestObjectSet.LoadLazy in 'RESTHorse\Test.Janus.Server.RestObjectSet.LoadLazy.pas',
+  /// One entity per PRIMARY KEY FIELD TYPE — issue #311
+  Test.Janus.Model.KeyTypes in 'Common\Test.Janus.Model.KeyTypes.pas',
+  /// Whether the insert response quotes the key it carries back — issue #311
+  Test.Janus.Server.Resource.KeyQuoting in 'RESTHorse\Test.Janus.Server.Resource.KeyQuoting.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

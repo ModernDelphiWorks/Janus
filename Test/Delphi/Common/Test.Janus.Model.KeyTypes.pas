@@ -1,0 +1,192 @@
+{
+  ------------------------------------------------------------------------------
+  Janus
+  Modern Object-Relational Mapping (ORM) framework for Delphi.
+
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2016-2026 Isaque Pinheiro
+
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
+}
+
+{ @abstract(Janus Framework - test fixture models: one entity per PRIMARY KEY
+  FIELD TYPE, issue #311.)
+
+  WHY THESE EXIST
+
+  The insert response the REST server emits names the primary key of the row it
+  just wrote. The whole tree of test models declares its primary key as
+  ftInteger, with a single exception - Test.Janus.Model.RestLazyKeys.TStrMaster,
+  whose `smkey` is ftString - and that entity is linked only into
+  Janus.Tests.RESTfulDriver and Janus.Tests.Units, neither of which compiles
+  Janus.Server.Resource. Measured, not assumed: a scan of every [PrimaryKey]
+  under Test\ resolved to its [Column] declaration returns 39 ftInteger and 1
+  ftString.
+
+  So the server side had no model at all whose key was not a bare integer, and
+  a response that only ever has to render an integer never has to answer the
+  question this issue is about.
+
+  ONE ENTITY PER TYPE, ON PURPOSE
+
+  A single entity carrying five columns of five types would exercise the
+  rendering of five values, but only ONE of them would be a primary key, and
+  the primary key is the only value the insert response emits. Each type
+  therefore needs its own entity.
+
+  EVERY KEY HERE IS SUPPLIED BY THE CALLER
+
+  TAutoIncType.NotInc and no [Sequence]: the key arrives in the request body
+  and the insert writes it as it stands. That is what a textual key IS - there
+  is no generator for it in this framework - and it keeps these fixtures out of
+  the sequence machinery entirely.
+
+  THE STORAGE IS SQLITE
+
+  SQLite has no static column typing, so a VARCHAR / NUMERIC / DATE declaration
+  is a hint rather than a constraint. That is deliberate here: the subject is
+  what the SERVER RENDERS out of the property, not what the database stores. }
+
+unit Test.Janus.Model.KeyTypes;
+
+interface
+
+uses
+  Classes,
+  DB,
+  SysUtils,
+  MetaDbDiff.mapping.attributes,
+  MetaDbDiff.Types.Mapping,
+  MetaDbDiff.Mapping.Register;
+
+type
+  /// A textual primary key. The headline of issue #311.
+  [Entity]
+  [Table('kttext', '')]
+  [PrimaryKey('ktcode', TAutoIncType.NotInc,
+                        TGeneratorType.NoneInc,
+                        TSortingOrder.NoSort,
+                        True, 'Textual primary key')]
+  TKeyTypeText = class
+  private
+    Fktcode: String;
+    Fkttag: String;
+  public
+    [Restrictions([TRestriction.NotNull])]
+    [Column('ktcode', ftString, 60)]
+    property ktcode: String read Fktcode write Fktcode;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
+  /// The control. An integer key must keep rendering as a JSON NUMBER - a fix
+  /// that quotes everything would turn {"ktid":10} into {"ktid":"10"} and no
+  /// assertion about textual keys would notice.
+  [Entity]
+  [Table('ktnum', '')]
+  [PrimaryKey('ktid', TAutoIncType.NotInc,
+                      TGeneratorType.NoneInc,
+                      TSortingOrder.NoSort,
+                      True, 'Integer primary key')]
+  TKeyTypeNum = class
+  private
+    Fktid: Integer;
+    Fkttag: String;
+  public
+    [Restrictions([TRestriction.NotNull])]
+    [Column('ktid', ftInteger)]
+    property ktid: Integer read Fktid write Fktid;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
+  /// A GUID key that the SERVER generates. This is the shape that matters most
+  /// to issue #311: the caller cannot know the key, so the insert response is
+  /// the ONLY way it ever learns what was written.
+  ///
+  /// It is declared ftString + TGeneratorType.Guid38Inc, not ftGuid, and that
+  /// is the framework's own documented contract rather than a preference:
+  /// Janus.DML.Generator raises a NAMED error for an ftGuid column mapped onto
+  /// a String property, and its message says verbatim that a GUID key stored
+  /// as TEXT must be declared ftString with Guid32Inc/Guid36Inc/Guid38Inc.
+  /// Guid38Inc writes the braced, hyphenated form - every one of those five
+  /// characters is illegal in a bare JSON token.
+  [Entity]
+  [Table('ktguid', '')]
+  [PrimaryKey('ktuid', TAutoIncType.AutoInc,
+                       TGeneratorType.Guid38Inc,
+                       TSortingOrder.NoSort,
+                       True, 'Server-generated GUID primary key')]
+  TKeyTypeGuid = class
+  private
+    Fktuid: String;
+    Fkttag: String;
+  public
+    [Restrictions([TRestriction.NotNull])]
+    [Column('ktuid', ftString, 38)]
+    property ktuid: String read Fktuid write Fktuid;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
+  /// A date key. The value renders through the AMBIENT FormatSettings, so it
+  /// carries separators - and on this machine it carries a slash.
+  [Entity]
+  [Table('ktdate', '')]
+  [PrimaryKey('ktday', TAutoIncType.NotInc,
+                       TGeneratorType.NoneInc,
+                       TSortingOrder.NoSort,
+                       True, 'Date primary key')]
+  TKeyTypeDate = class
+  private
+    Fktday: TDateTime;
+    Fkttag: String;
+  public
+    [Restrictions([TRestriction.NotNull])]
+    [Column('ktday', ftDate)]
+    property ktday: TDateTime read Fktday write Fktday;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
+  /// A fractional key. JSON only knows the DOT as a decimal separator; the
+  /// ambient FormatSettings of a pt-BR machine renders a comma.
+  [Entity]
+  [Table('ktfloat', '')]
+  [PrimaryKey('ktnum', TAutoIncType.NotInc,
+                       TGeneratorType.NoneInc,
+                       TSortingOrder.NoSort,
+                       True, 'Fractional primary key')]
+  TKeyTypeFloat = class
+  private
+    Fktnum: Double;
+    Fkttag: String;
+  public
+    [Restrictions([TRestriction.NotNull])]
+    [Column('ktnum', ftFloat, 18, 4)]
+    property ktnum: Double read Fktnum write Fktnum;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
+implementation
+
+initialization
+  /// Registered HERE, not in a [SetupFixture]. TMappingExplorer.GetRepositoryMapping
+  /// builds its repository ONCE, lazily, from whatever TRegisterClass holds at
+  /// the moment of the first lookup, and caches it forever - a registration in
+  /// a fixture setup can arrive after that snapshot is already sealed.
+  TRegisterClass.RegisterEntity(TKeyTypeText);
+  TRegisterClass.RegisterEntity(TKeyTypeNum);
+  TRegisterClass.RegisterEntity(TKeyTypeGuid);
+  TRegisterClass.RegisterEntity(TKeyTypeDate);
+  TRegisterClass.RegisterEntity(TKeyTypeFloat);
+
+end.
