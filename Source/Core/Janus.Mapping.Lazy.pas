@@ -267,9 +267,13 @@ begin
       // todo descendente morre duas linhas abaixo, em LPropertyType.AsInstance,
       // porque GetTypeValue devolve nil para nome que nao case com o strip
       // textual - coluna medida acima (upstream ModernDelphiWorks/MetaDbDiff
-      // #18). MEDIDO: matar o ramo e invocar sempre [] deixa a suite 501/501
-      // verde. Ele fica como defesa para o dia em que aquele upstream for
-      // consertado e o descendente virar caminho vivo.
+      // #18). MEDIDO em 6f67607: matar o ramo e invocar sempre [] deixa a
+      // suite 501/501 verde - uma execucao daquele commit, quando essa era
+      // toda a Janus.Tests.Units. A suite cresceu desde entao; leia o
+      // numero como o tamanho daquela execucao e nao como o baseline de
+      // hoje, e re-rode a mutacao em vez de escala-lo. Ele fica como defesa
+      // para o dia em que aquele upstream for consertado e o descendente
+      // virar caminho vivo.
       LListType := RttiSingleton.GetRttiType(
                      LProperty.PropertyType.AsInstance.MetaclassType);
       LListCtor := LListType.GetMethod('Create');
