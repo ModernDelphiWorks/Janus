@@ -282,7 +282,7 @@ type
     /// value is derived from the name Delphi really emits and compared with
     /// Source's own cBaseAdapterPrefix, not with a copy kept here. Shortening
     /// the constant to `TDataSetBase` still recognises every adapter and still
-    /// passes 505 of 505 without that comparison (measured at b173b7b; the
+    /// passes 505 of 505 without that comparison (measured at b5a664c; the
     /// suite has grown since - re-run the mutation rather than scaling the
     /// number); the trailing `<` is the only thing separating `an
     /// instantiation of this template` from `any class whose name starts
@@ -305,7 +305,7 @@ type
     /// the child from its current master BEFORE it would file it under the new
     /// one. A guard placed AFTER that block still refuses the bad value, still
     /// raises the same message, and still passes every other test in this
-    /// unit - measured at b173b7b, 505 of 505 green with the raise moved
+    /// unit - measured at b5a664c, 505 of 505 green with the raise moved
     /// down; the suite has grown since, so read the figure as the size of
     /// that run and re-run the mutation rather than scaling it - while
     /// leaving a call that FAILED having already unlinked the child: the
