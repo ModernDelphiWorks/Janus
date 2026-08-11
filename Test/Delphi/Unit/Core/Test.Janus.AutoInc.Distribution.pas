@@ -686,6 +686,9 @@ type
     [Test]
     procedure Recursion_WithNoPendingChildRow_StillReachesTheGrandchildren;
 
+    [Test]
+    procedure Recursion_UntokenisedLeaf_WithTwoPendingMidRows_IsClaimedByNeither;
+
     // --- issue #265: the master that came out of the store ------------------
     [Test]
     procedure ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow;
@@ -1738,6 +1741,125 @@ begin
         'the leaves must still receive the key of the mid row they belong ' +
         'to, even though that row had nothing to iterate - ' +
         DumpColumn(LLeafTable, cOWNKEY));
+    finally
+      LLeaf.Free;
+      LMid.Free;
+      LRoot.Free;
+    end;
+  finally
+    LLeafTable.Free;
+    LMidTable.Free;
+    LRootTable.Free;
+  end;
+end;
+
+procedure TTestAutoIncDistribution.Recursion_UntokenisedLeaf_WithTwoPendingMidRows_IsClaimedByNeither;
+var
+  LRootTable: TFDMemTable;
+  LMidTable: TFDMemTable;
+  LLeafTable: TFDMemTable;
+  LRoot: TFDMemTableAdapter<TAitRoot>;
+  LMid: TFDMemTableAdapter<TAitMid>;
+  LLeaf: TFDMemTableAdapter<TAitLeaf>;
+begin
+  // THE SAME AMBIGUITY ONE FLOOR DOWN, and the fixture that says the count is
+  // established in TWO kinds of place rather than one.
+  //
+  // At the top of a cascade the number of pending masters comes from
+  // ApplyInserter, which is where the loop lives. Below the top there is no
+  // ApplyInserter: _RecurseOverChildRows rides the mid rows itself, so IT is
+  // the only place where the number of masters the leaf level is about to face
+  // exists at all. Take that one assignment out and the top-level reads still
+  // stand, the three fixtures above stay green, and an unparented LEAF goes
+  // back to being written once per mid row and keeping the last.
+  //
+  // WHY Propagate AND NOT ApplyAll, which is the whole isolation. Driving this
+  // through ApplyInternal would set FCascadeMasterRows on the ROOT adapter from
+  // ApplyInserter, and later on the MID adapter from the mid level's own
+  // ApplyInserter, so a red could be either of those doing the work.
+  // TCascadeAccess.Propagate calls SetAutoIncValueChilds directly: no
+  // ApplyInserter runs anywhere in this test, every FCascadeMasterRows starts
+  // at zero, and the only thing that can set the mid level's is the recursion.
+  // The price is the same one Recursion_LeavesTypedUnderTheMiddleMidRow...
+  // pays and states: the master state is FORGED - Edit plus the new key, not
+  // yet posted - so what is pinned here is the walk, not the walk's caller.
+  //
+  // THE MID ROWS CARRY REAL KEYS ON PURPOSE. _AutoIncKeyIsGenerated - issue
+  // #262 - refuses to propagate from a row still sitting on the autoinc
+  // placeholder, and with the placeholder in place the recursion would write
+  // nothing at all and this test would pass without measuring anything.
+  LRootTable := TFDMemTable.Create(nil);
+  LMidTable := TFDMemTable.Create(nil);
+  LLeafTable := TFDMemTable.Create(nil);
+  try
+    LRoot := TFDMemTableAdapter<TAitRoot>.Create(FConn, LRootTable, -1, nil);
+    LMid := TFDMemTableAdapter<TAitMid>.Create(FConn, LMidTable, -1, LRoot);
+    LLeaf := TFDMemTableAdapter<TAitLeaf>.Create(FConn, LLeafTable, -1, LMid);
+    try
+      LRootTable.Append;
+      LRootTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LRootTable.FieldByName(cTAG).AsString := 'ROOT';
+      LRootTable.Post;
+      LMidTable.Append;
+      LMidTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LMidTable.FieldByName(cOWNKEY).AsInteger := cMIDFIRST;
+      LMidTable.FieldByName(cTAG).AsString := 'M0';
+      LMidTable.Post;
+      LMidTable.Append;
+      LMidTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LMidTable.FieldByName(cOWNKEY).AsInteger := cMIDLAST;
+      LMidTable.FieldByName(cTAG).AsString := 'M1';
+      LMidTable.Post;
+      // The leaf nobody recorded. Its own adapter is muted for the append, so
+      // DoNewRecord never runs on it and cOwnerTokenField stays at the zero a
+      // TField answers for NULL; the pending marker is written by hand because
+      // a muted append never reaches DoBeforePost.
+      TCascadeAccess<TAitLeaf>.Mute(LLeaf);
+      try
+        LLeafTable.Append;
+        LLeafTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+        LLeafTable.FieldByName(cOWNKEY).AsInteger := cUNCLAIMEDSEED;
+        LLeafTable.FieldByName(cTAG).AsString := 'L0';
+        LLeafTable.Post;
+        LLeafTable.Edit;
+        LLeafTable.FieldByName(cInternalField).AsInteger := Integer(dsInsert);
+        LLeafTable.Post;
+      finally
+        TCascadeAccess<TAitLeaf>.Unmute(LLeaf);
+      end;
+      Assert.AreEqual(2,
+        CountWithColumn(LMidTable, cInternalField, Integer(dsInsert)),
+        'PREMISE: TWO mid rows must be pending - they are the masters of the ' +
+        'leaf level and two of them is the ambiguity');
+      Assert.AreEqual(1, CountWithColumn(LLeafTable, cOWNERTOKEN, cNOTOKEN),
+        'PREMISE: the leaf must carry the NEVER RECORDED value - ' +
+        DumpColumn(LLeafTable, cOWNERTOKEN));
+      Assert.AreEqual(1,
+        CountWithColumn(LLeafTable, cInternalField, Integer(dsInsert)),
+        'PREMISE: and it must be PENDING, or nothing would look at it at all');
+
+      // The state ApplyInserter leaves the master in: dsEdit, carrying the key
+      // the database has just generated, not yet posted.
+      LRootTable.Edit;
+      LRootTable.FieldByName(cKEY).AsInteger := cROOTNEW;
+
+      TCascadeAccess<TAitRoot>.Propagate(LRoot);
+
+      Assert.AreEqual(2, CountWithColumn(LMidTable, cKEY, cROOTNEW),
+        'PREMISE: level 2 must still have been written in full - both mid ' +
+        'rows belong to the one root row. If this is 0 the recursion was ' +
+        'never reached and the leaf clauses below are vacuous - ' +
+        DumpColumn(LMidTable, cKEY));
+      Assert.AreEqual(cUNCLAIMEDSEED, TokenOfTaggedRow(LLeafTable, 'L0',
+                                                       cOWNKEY),
+        'THE ROW L0 recorded no parent, and there are TWO mid rows that could ' +
+        'claim it, so neither does - ' + DumpColumn(LLeafTable, cOWNKEY));
+      Assert.AreEqual(0, CountWithColumn(LLeafTable, cOWNKEY, cMIDLAST),
+        'and specifically NOT the LAST mid row, which is where a recursion ' +
+        'that waves every unparented leaf through leaves it - ' +
+        DumpColumn(LLeafTable, cOWNKEY));
+      Assert.AreEqual(0, CountWithColumn(LLeafTable, cOWNKEY, cMIDFIRST),
+        'nor the FIRST - ' + DumpColumn(LLeafTable, cOWNKEY));
     finally
       LLeaf.Free;
       LMid.Free;
