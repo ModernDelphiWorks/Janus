@@ -607,6 +607,39 @@ begin
   if not LValue.IsObject then
     Exit;
   LObject := LValue.AsObject;
+  // ISSUE #296 - AN UNFILLED ASSOCIATION IS "NO DATA", NOT A CRASH.
+  // The guard above does NOT cover this one and cannot: TValue.IsObject
+  // classifies the KIND of the value, and a nil class reference is still of
+  // object kind, so it answers True. What got through was a nil TObject, and
+  // it was handed on TWICE - to Bind.SetFieldToProperty, which opens with
+  // TMappingExplorer.GetMappingColumn(AObject.ClassType), and to the
+  // FillMastersClass recursion at the end, which opens the same way. The first
+  // of the two dereferenced address zero and a plain read of .Current raised
+  // EAccessViolation - not an exception a consumer's try..except can name, on
+  // a path ApplyInserter takes by itself.
+  //
+  // NOT A HYPOTHETICAL STATE: TAsymTreeOneRoot ships in this repository with
+  // its OneToOne property left nil on purpose and its model header says so. A
+  // consumer that declares a single-object association and does not construct
+  // it in the constructor - the Delphi default - is in exactly that state.
+  //
+  // LEAVING IN SILENCE IS THE DECISION, and the other two candidates were
+  // refused for named reasons. INSTANTIATING the object here changes
+  // OWNERSHIP: nothing in this walk would be responsible for freeing what it
+  // created. RAISING A NAMED EXCEPTION would break the shape the shipped model
+  // hands over deliberately. An association nobody filled in is "no data", and
+  // the consumer gets back the branch it had - nil.
+  //
+  // THE SIBLING IS _ExecuteOneToMany AND IT IS NOT REPAIRED BY THIS. It has a
+  // nil hazard of its own at a different line - LObjectList.MethodCall('Add',
+  // ...) over a list property no constructor created - reached only for a
+  // child row that survives the foreign-key filter, and it is not what issue
+  // #296 names. Measured, not assumed; recorded so the next reader does not
+  // take this guard for cover it does not give.
+  //
+  // Measured by Test.Janus.OneToOne.NilAssociation.
+  if LObject = nil then
+    Exit;
   LBookMark := ADatasetBase.FOrmDataSet.Bookmark;
   // ISSUE #276 - SAME DEFECT AS _ExecuteOneToMany, AND NOT THE SAME SIZE.
   // This walk moves the same child cursor for the same reason, so its First
