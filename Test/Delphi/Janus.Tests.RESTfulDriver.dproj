@@ -93,6 +93,7 @@
         <DCCReference Include="Common\Janus.Test.Runner.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AsymKey.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AutoIncTree.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.CompositeAutoInc.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.KeyOnly.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.RestLazyKeys.pas"/>
         <DCCReference Include="Common\Test.Janus.RestConnection.Double.pas"/>
@@ -105,6 +106,7 @@
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.Lazy.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.Lazy.Cds.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.ReReadAfterInsert.pas"/>
+        <DCCReference Include="Unit\RESTful\Test.Janus.Rest.CompositeKeyReReadGate.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.ResultParamsCompositeKey.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>

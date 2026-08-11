@@ -69,6 +69,9 @@ uses
   /// The canonical COMPOSITE PRIMARY KEY entity - both columns are the key.
   /// Issue #300.
   Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
+  /// A COMPOSITE AUTOINC key over a cascading child - the only shape in which
+  /// the #297 gate can be partially satisfied. Issue #300.
+  Test.Janus.Model.CompositeAutoInc in 'Common\Test.Janus.Model.CompositeAutoInc.pas',
   /// String key and composite key - the two association shapes the REST lazy
   /// filter had no model for. Issue #251.
   Test.Janus.Model.RestLazyKeys in 'Common\Test.Janus.Model.RestLazyKeys.pas',
@@ -96,7 +99,10 @@ uses
   /// A COMPOSITE primary key lost every column but the last on the way back
   /// from an insert, because the answer was parsed one param per OBJECT
   /// instead of one per PAIR - issue #300
-  Test.Janus.Rest.ResultParamsCompositeKey in 'Unit\RESTful\Test.Janus.Rest.ResultParamsCompositeKey.pas';
+  Test.Janus.Rest.ResultParamsCompositeKey in 'Unit\RESTful\Test.Janus.Rest.ResultParamsCompositeKey.pas',
+  /// What that repair does to the gate the #297 re-read stands behind - the
+  /// only place where more params changes WHEN a round trip is bought
+  Test.Janus.Rest.CompositeKeyReReadGate in 'Unit\RESTful\Test.Janus.Rest.CompositeKeyReReadGate.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
