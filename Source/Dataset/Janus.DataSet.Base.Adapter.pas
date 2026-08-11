@@ -630,31 +630,63 @@ begin
   // hands over deliberately. An association nobody filled in is "no data", and
   // the consumer gets back the branch it had - nil.
   //
-  // THE SIBLING IS _ExecuteOneToMany AND IT IS NOT REPAIRED BY THIS. It has a
-  // nil hazard of its own at a different line - LObjectList.MethodCall('Add',
-  // ...) over a list property no constructor created - reached only for a
-  // child row that survives the foreign-key filter, and it is not what issue
-  // #296 names. Measured, not assumed: on commit 221899a, with the guard below
-  // removed and a throwaway clause added over a TAsymTreeRoot whose `mids` was
-  // set to nil, ONE run raised both - the walk here at module offset 89F831 and
-  // the sibling at 7FB9B9. Two offsets in a single build, so they are two code
-  // sites and not one site seen twice. Recorded so the next reader does not
-  // take this guard for cover it does not give.
+  // THE SIBLING IS _ExecuteOneToMany AND IT IS REPAIRED SEPARATELY, BY ISSUE
+  // #307. It has a nil hazard of its own at a different line -
+  // LObjectList.MethodCall('Add', ...) over a list property no constructor
+  // created - reached only for a child row that survives the foreign-key
+  // filter, and it is not what issue #296 names. Measured, not assumed: on
+  // commit 221899a, with the guard below removed and a throwaway clause added
+  // over a TAsymTreeRoot whose `mids` was set to nil, ONE run raised both - the
+  // walk here at module offset 89F831 and the sibling at 7FB9B9. Two offsets in
+  // a single build, so they are two code sites and not one site seen twice.
+  // Measured AGAIN from the other direction on 865370e, where this guard was
+  // already in place and Test.Janus.OneToMany.NilList raised six times at
+  // 7FB9B9 and never at 89F831: this guard is no cover at all for that one.
   //
-  // NO CLAUSE IN THE SUITE DRIVES THAT SIBLING HAZARD, measured from the other
-  // side on commit 219ebcd: adding the equivalent nil guard to
-  // _ExecuteOneToMany with everything else intact turned NOTHING red - 567
-  // found, 0 failures, 0 errors, exactly as without it. Every model
-  // Janus.Tests.Units compiles builds its list in its own constructor.
+  // THOSE TWO FIGURES ARE NOT REPRODUCIBLE AND THE ARGUMENT DOES NOT REST ON
+  // THEM - see the paragraph in _ExecuteOneToMany that measures it. A module
+  // offset moves with the build environment on the same commit; two builds of
+  // 865370e printed 89F831/7FB9B9 and 89F819/7FB9A1. What repeats byte for byte
+  // is the DISTANCE between the two sites, 0xA3E78, and that is what makes
+  // "two sites and not one" a measurement.
   //
-  // THAT SENTENCE IS ABOUT ONE PROJECT AND IT DOES NOT GENERALISE TO THE
-  // REPOSITORY. TLazyBranchRoot has no constructor at all - both of its
-  // OneToMany properties are Lazy<TObjectList<...>> and the list is
-  // materialised on first read by Lazy<T>.GetValue through CreateDefaultValue,
-  // not by the owner. It is compiled ONLY by Janus.Tests.RESTHorse, so it is
-  // outside the run the numbers above come from, and the conclusion survives
-  // it either way: materialised is not nil, so that model's list is never nil
-  // when the walk reads it.
+  // NO CLAUSE IN THE SUITE DROVE THAT SIBLING HAZARD UNTIL #307 WROTE ONE,
+  // measured from the other side on commit 219ebcd: adding the equivalent nil
+  // guard to _ExecuteOneToMany with everything else intact turned NOTHING red -
+  // 567 found, 0 failures, 0 errors, exactly as without it.
+  //
+  // EVERY `567` IN THIS METHOD IS A MEASUREMENT TAKEN BEFORE ISSUE #307, and it
+  // is written down here once so the three of them do not read as today's
+  // number. #307 adds twelve clauses to Janus.Tests.Units, whose total is 579
+  // found, 0 failures, 0 errors on that issue's branch. The 567 those sentences
+  // rest on is still the right BASAL - re-measured on 865370e with a clean tree
+  // and unchanged - but each of the three MUTATIONS that produced a 567 was run
+  // on its own earlier commit and NONE of them was re-run here.
+  //
+  // AND THE REASON WAS NOT "A CONSTRUCTOR", WHICH IS WHAT AN EARLIER VERSION OF
+  // THIS COMMENT SAID. It read "Every model Janus.Tests.Units compiles builds
+  // its list in its own constructor", and that is FALSE as written - corrected
+  // by #307, which enumerated the models instead of sampling them.
+  // Examples\Delphi\Data\Object Lazy\Model.Procedimento is linked BY THIS
+  // PROJECT, its OneToMany property is Lazy<TObjectList<TSetor>>, and its
+  // constructor is EMPTY. What rescues it is the Lazy<> declaration, not a
+  // constructor: Lazy<T>.GetValue materialises an empty owning list through
+  // CreateDefaultValue on first read. TLazyBranchRoot in
+  // Test.Janus.Model.LazyTwoBranch is the same rescue in a project this one
+  // never runs - it has no constructor at all and is compiled ONLY by
+  // Janus.Tests.RESTHorse. The conclusion the number rested on survives both:
+  // materialised is not nil, so no model that existed WHEN THAT 567 WAS TAKEN
+  // ever handed the walk a nil list, which is exactly why nothing went red.
+  //
+  // THE PAST TENSE THERE IS LOAD-BEARING. One model in this repository DOES
+  // hand the walk a nil list today, and #307 is what added it -
+  // TAsymTreeNilListRoot, declared in Test.Janus.OneToMany.NilList and compiled
+  // by Janus.Tests.Units. The shorter version of the sentence, "no model of
+  // this repository ever hands the walk a nil list", was true when it was
+  // written and was falsified by the very commit that carries it. What holds
+  // with no date on it is the narrower claim _ExecuteOneToMany makes: no model
+  // this repository SHIPS delivers one. The one that does is a fixture built to
+  // drive the defect.
   //
   // OF THE SEVEN TEST PROJECTS, ONLY TWO COMPILE THIS FILE - Janus.Tests.Units
   // and Janus.Tests.RESTfulDriver - AND A SUITE NUMBER QUOTED ABOUT IT IS EMPTY
@@ -851,12 +883,165 @@ begin
             LDataSet.Next;
             Continue;
           end;
+          // ISSUE #307 - A LIST NOBODY CREATED IS "NO CHILDREN", NOT A CRASH.
+          // The read below used to sit one line further down, after the child
+          // object had been built and bound, and its answer went straight into
+          // MethodCall('Add', ...). Over a list property no constructor filled
+          // in that answer is a nil TObject, MethodCall reaches its ClassType,
+          // and a plain read of .Current raised EAccessViolation - not an
+          // exception a consumer's try..except can name.
+          //
+          // THE WRITE PATH IS READ, NOT RUN, AND IS LABELLED THAT WAY. An
+          // earlier version of the sentence above ended "on a path ApplyInserter
+          // takes by itself", which reads as a measurement and is not one.
+          // ApplyInserter reaches Current, Current calls FillMastersClass, and
+          // FillMastersClass routes here - that chain was verified BY READING,
+          // by two people, and NO CLAUSE EXERCISES IT. It is worth stating only
+          // because it arrives at this one site and no other, so the repair
+          // covers it without any new code being involved; it is not evidence,
+          // and a clause that drove a save over a nil-list owner would be.
+          //
+          // THIS IS THE SIBLING OF #296 AND IT WAS NOT REPAIRED BY IT.
+          // Measured, not argued: with the #296 guard in _ExecuteOneToOne on
+          // HEAD and only the fixture added, on commit 865370e, six clauses of
+          // Test.Janus.OneToMany.NilList raised
+          //   Access violation ... (offset 7FB9B9). Read of address 00000000
+          // which is the offset the sibling comment records for THIS site, not
+          // the 89F831 it records for its own. BOTH FIGURES ARE BUILD-LOCAL and
+          // the paragraph further down measures how far they move; what carries
+          // the argument is the distance between them, not either value.
+          //
+          // LEAVING IN SILENCE IS A DECISION THE OWNER TOOK, NOT WHAT WAS LEFT
+          // STANDING WHEN THE OTHERS FAILED. All three candidates were built and
+          // run; the other two WORK. This paragraph exists so that nobody six
+          // months from now reads a nil list here and "fixes" it by creating
+          // one - it was tried, it passes, and it is still wrong.
+          //
+          // WHAT CLOSED IT: the house already answers this exact question the
+          // same way ONE LAYER DOWN, and the precedent is wider than an earlier
+          // version of this comment credited. ENUMERATED on 865370e, not
+          // sampled: `if LObjectList = nil then Exit` appears FIVE times in
+          // Source\ - Janus.Bind.pas twice, Janus.Session.RESTful.pas twice and
+          // Janus.RestDataSet.Adapter.pas once - and they split in two:
+          // - TWO read a LIST PROPERTY OFF AN ENTITY through RTTI, which is this
+          //   question. TBind.SetFieldToPropertyClass is the identical one -
+          //   same GetNullableValue(...).AsObject, same MethodCall on what comes
+          //   back ('Clear' there, 'Add' here), same bare Exit. Its sibling in
+          //   the same unit walks the OPPOSITE direction, object to nested
+          //   dataset, off LProperty.GetValue, and answers the same way. BOTH
+          //   are already in 7a9e452, the first commit that carries the file.
+          // - THREE answer a different question with the same answer: a fetch
+          //   that came back with no list at all (NextPacketList, the two
+          //   _NextPacketMethod/FindWhere returns). Counted here so the
+          //   precedent is not overstated - they are not this question, they are
+          //   the house being consistent about a nil list generally.
+          // Deciding anything else here would put TWO answers to one question
+          // inside one framework. It is also symmetric with #296, this branch's
+          // sibling.
+          //
+          // INSTANTIATING THE LIST WAS REFUSED FOR A MEASURED REASON, not a
+          // stylistic one. It breaks nothing: with it in place Janus.Tests.Units
+          // reads 579 found, 0 failures, and only the four clauses that assert
+          // `<nil>` disagree, while RESTfulDriver stays at 87 and RESTHorse at
+          // 92. What it does is hand the consumer a FULL list -
+          // `P2([AM1/311{AL1/311;};])`, identical to a list the entity built
+          // itself - out of a property the entity never filled. And the list it
+          // builds is a TObjectList<T> with OwnsObjects=True - MEASURED, read
+          // back off the object the walk created - so it owns the child objects
+          // too, and NOTHING in this walk frees the list or its contents. That
+          // is a silent leak on every read, traded for an Access Violation that
+          // at least announces itself. It would also need AProperty.SetValue,
+          // which the Lazy<> shape - a read-only property over a getter - does
+          // not accept; NOT MEASURED, because no entity in the repository has a
+          // read-only list property that is ever nil.
+          //
+          // RAISING A NAMED EXCEPTION was refused for two: it needs a new
+          // exception class exported from a unit that SHIPS to the consumer,
+          // and it answers the opposite way from #296 for the same question -
+          // asymmetry with no gain. Measured all the same: 579 found, 6 errors,
+          // each carrying the owner class and property name.
+          //
+          // THE EXIT IS HERE AND NOT ONE LINE LOWER BECAUSE OF THE LEAK. The
+          // object below is created by this walk and the list is the only
+          // thing that would ever own it, so an exit taken after the Create
+          // and before the Add drops the only reference to it. And it is
+          // inside the walk, not above it, because which rows exist is only
+          // known once the #295 foreign-key filter has run - so `Exit` from
+          // here relies on the three enclosing `finally` blocks to put
+          // BlockReadSize back, restore and free the bookmark, lower the #276
+          // suppression and free the two TField lists. Both of those are
+          // pinned: TheNilRead_LeavesTheGrandchildRowsWhereTheyWere and
+          // TheNilRead_LeavesTheChildCursorWhereItWas.
+          //
+          // NO MODEL IN THIS REPOSITORY SHIPS A NIL LIST, which is why nothing
+          // went red when #296 tried the equivalent guard here. Enumerated:
+          // every entity that declares OneToMany or ManyToMany over a plain
+          // TObjectList<T> field builds it in its own constructor, and the two
+          // that do NOT have a constructor doing it - Model.Procedimento in
+          // Examples\Delphi\Data\Object Lazy, whose constructor is EMPTY, and
+          // TLazyBranchRoot in Test.Janus.Model.LazyTwoBranch, which has none
+          // at all - declare the property as Lazy<TObjectList<T>> and get an
+          // empty owning list from Lazy<T>.GetValue through CreateDefaultValue
+          // on first read. So Lazy<> already answers this in practice and a
+          // plain field does not. A CONSUMER writing the plain field and no
+          // constructor is the Delphi default.
+          //
+          // THREE MUTATIONS SURVIVE THIS SUITE AND ALL THREE ARE ABOUT HOW THE
+          // WALK LEAVES, not whether the guard is there. Declared rather than
+          // repaired, because pinning any of them would mean asserting on
+          // something no consumer can read back. The count is THREE and was
+          // TWO in an earlier version of this comment: an independent reviewer
+          // found the third, which is the honest reason to enumerate instead of
+          // listing what one happened to try.
+          // - the exit moved ONE LINE DOWN, below the Create and below
+          //   Bind.SetFieldToProperty, leaves Janus.Tests.Units at 579 found, 0
+          //   failures, 0 errors. That placement LEAKS the child object on
+          //   every read of a nil-list owner and nothing in the suite notices;
+          //   a leak is not a value any clause can assert on.
+          // - the whole guard HOISTED above the walk, before the bookmark, also
+          //   leaves 579/0/0 - and RESTHorse at its 92, which is the project
+          //   the Lazy<> models live in and therefore the one that would notice
+          //   a lazy list materialised earlier than it used to be. Where it
+          //   sits now is the placement that changes nothing about WHEN the
+          //   property is read, and that is its whole reason.
+          // - `LDataSet.Next; Continue` in place of the Exit - skip the row
+          //   rather than abandon the walk - also leaves 579/0/0. It cannot be
+          //   told apart from the Exit by any clause here, because the property
+          //   is read off the SAME owner on every pass, so a list that is nil
+          //   for the first admitted row is nil for all of them and both spellings
+          //   end with an untouched list. Exit is kept for being the cheaper of
+          //   two indistinguishable answers, not for being the measured one.
+          //
+          // WHAT DOES DIE: the guard deleted (579 found, 0 failures, 6 errors);
+          // the condition inverted to `<> nil` (579 found, 17 failures, 6
+          // errors); and the mutation that gives the guard to the SIBLING
+          // instead of to this branch. That last one is what _ExecuteOneToOne's
+          // guard already IS, and taking IT out while keeping this one turns
+          // exactly the five Test.Janus.OneToOne.NilAssociation clauses red -
+          // at the OTHER site's offset - and leaves all six of this issue's
+          // green. Neither guard covers the other, in either direction,
+          // measured both ways.
+          //
+          // THE MODULE OFFSETS IN THIS FILE ARE NOT REPRODUCIBLE AND MUST NOT BE
+          // READ AS IF THEY WERE. 7FB9B9 for this site and 89F831 for the
+          // sibling are what MY build of commit 865370e printed; an independent
+          // reviewer, on the same commit in his own worktree, measured 7FB9A1
+          // and 89F819 - each exactly 0x18 lower. A module offset moves with the
+          // build environment, not with the source, so no anchor can rescue it.
+          // WHAT IS STABLE IS THE DIFFERENCE: 0x89F831-0x7FB9B9 and
+          // 0x89F819-0x7FB9A1 are both 0xA3E78, byte for byte, in two
+          // independent builds. That is what carries the two-sites argument, and
+          // the absolute figures are kept only as the raw record of a run.
+          //
+          // Measured by Test.Janus.OneToMany.NilList.
+          LObjectList := AProperty.GetNullableValue(TObject(AObject)).AsObject;
+          if LObjectList = nil then
+            Exit;
           LObjectType := LPropertyType.AsInstance.MetaclassType.Create;
           LObjectType.MethodCall('Create', []);
           // Popula o objeto M e o adiciona na lista e objetos com o registro do DataSet.
           Bind.SetFieldToProperty(LDataSet, LObjectType);
 
-          LObjectList := AProperty.GetNullableValue(TObject(AObject)).AsObject;
           LObjectList.MethodCall('Add', [LObjectType]);
           // Populando em hierarquia de varios niveis
           for LDataSetChild in ADatasetBase.FMasterObject.Values do

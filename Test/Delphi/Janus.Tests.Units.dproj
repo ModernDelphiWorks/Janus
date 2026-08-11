@@ -210,6 +210,7 @@
         <DCCReference Include="Unit\Core\Test.Janus.Grandchild.Read.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.AutoInc.UngeneratedKey.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.OneToOne.NilAssociation.pas"/>
+        <DCCReference Include="Unit\Core\Test.Janus.OneToMany.NilList.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
