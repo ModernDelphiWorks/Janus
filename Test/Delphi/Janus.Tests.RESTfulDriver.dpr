@@ -69,6 +69,9 @@ uses
   /// String key and composite key - the two association shapes the REST lazy
   /// filter had no model for. Issue #251.
   Test.Janus.Model.RestLazyKeys in 'Common\Test.Janus.Model.RestLazyKeys.pas',
+  /// A key declared NotInc and with NO [Sequence] - the one entity family in
+  /// the test tree for which ExistSequence answers False. Issue #301.
+  Test.Janus.Model.NotIncKey in 'Common\Test.Janus.Model.NotIncKey.pas',
   /// Doubles
   Test.Janus.RestConnection.Double in 'Common\Test.Janus.RestConnection.Double.pas',
   /// Tests - the DRIVERRESTFUL branch
@@ -89,7 +92,10 @@ uses
   Test.Janus.Rest.Lazy.Cds in 'Unit\RESTful\Test.Janus.Rest.Lazy.Cds.pas',
   /// The client re-reads the aggregate it has just inserted, because the insert
   /// answer names the ROOT key and nothing below it - issue #297
-  Test.Janus.Rest.ReReadAfterInsert in 'Unit\RESTful\Test.Janus.Rest.ReReadAfterInsert.pas';
+  Test.Janus.Rest.ReReadAfterInsert in 'Unit\RESTful\Test.Janus.Rest.ReReadAfterInsert.pas',
+  /// The OBJECT half of the same family: the insert answer carries the key the
+  /// server generated, and TRESTObjectSetAdapter never read it - issue #301
+  Test.Janus.Rest.ObjectSetInsertKey in 'Unit\RESTful\Test.Janus.Rest.ObjectSetInsertKey.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
