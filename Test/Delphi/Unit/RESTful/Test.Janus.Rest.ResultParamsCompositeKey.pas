@@ -275,8 +275,12 @@ begin
   //
   // MEASURED, not reasoned: this body was originally written into the clause
   // above expecting k1=10|k2=20|k1=30|k2=40, and it came back as
-  // k1=10|k2=20|k1=10|k2=40 with the parser of fe1e40f in place. It is pinned
-  // here so the next reader does not mistake the aliasing for a parser defect.
+  // k1=10|k2=20|k1=10|k2=40. It is pinned here so the next reader does not
+  // mistake the aliasing for a parser defect.
+  // ANCHOR REMOVED - PENDING RE-MEASUREMENT. The commit this rendering was
+  // stamped with was orphaned by a rebase and is not reachable from this
+  // branch; its post-rebase twin carries a DIFFERENT tree and does not stand
+  // in for it. The figure is unanchored until measured again at this HEAD.
   //
   // It costs nothing today: the answer ParseInsert builds is ONE object whose
   // pairs are the columns of one primary key, and a key has no repeated column.

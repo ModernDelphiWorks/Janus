@@ -42,8 +42,11 @@
     parser before #300 : ck1 = -1, ck2 = 9, GetCount = 0
     parser after  #300 : ck1 =  7, ck2 = 9, GetCount = 1
 
-  Both measured at fe1e40f - the second on its tree, the first with the parser
-  hunk of that commit reverted in place and nothing else touched.
+  ANCHOR REMOVED - PENDING RE-MEASUREMENT. The commit these two numbers were
+  stamped with was orphaned by a rebase and is not reachable from this branch;
+  its post-rebase twin carries a DIFFERENT tree, so it does not stand in for a
+  measurement that was never taken on it. Both figures are unanchored until
+  they are measured again at this HEAD.
 
   That is not a regression of #297, it is #297 finally reaching a shape it could
   never reach: with the key incomplete there was nothing to ask BY, and the gate

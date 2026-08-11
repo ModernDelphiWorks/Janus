@@ -407,8 +407,11 @@ begin
     // a chave da linha COLUNA A COLUNA. Com a chave composta pela metade ele
     // recusava - e recusava certo, porque nao havia por que perguntar. Sobre o
     // mesmo modelo e a mesma resposta: antes deste conserto GetCount = 0, com
-    // ele GetCount = 1. Medido em fe1e40f, com este trecho revertido no lugar
-    // para o numero de antes.
+    // ele GetCount = 1.
+    // ANCORA REMOVIDA - PENDENTE DE REMEDICAO. O commit que estava citado aqui
+    // foi orfanado pelo rebase e nao e alcancavel a partir desta branch; o
+    // gemeo pos-rebase tem OUTRA arvore, logo nao substitui a medicao. Os dois
+    // numeros acima estao sem ancora ate serem medidos de novo neste HEAD.
     for LFor := 0 to LParamsArray.Count -1 do
     begin
       LValuesObject := LParamsArray.Items[LFor] as TJSONObject;

@@ -272,9 +272,12 @@ begin
                 // ResultParams criava um TParam por OBJETO e so a ULTIMA coluna
                 // da chave sobrevivia - logo este portao nunca abria para chave
                 // composta. Sobre o mesmo modelo e a mesma resposta: antes da
-                // #300 GetCount = 0, depois GetCount = 1. Medido em fe1e40f por
+                // #300 GetCount = 0, depois GetCount = 1, por
                 // Test.Janus.Rest.CompositeKeyReReadGate,
                 // CompositeKey_TheGateOpensAndExactlyOneGetIsIssued.
+                // ANCORA REMOVIDA - PENDENTE DE REMEDICAO. O commit citado aqui
+                // foi orfanado pelo rebase e nao e alcancavel desta branch; o
+                // gemeo pos-rebase tem OUTRA arvore e nao substitui a medicao.
                 if _GraphBelowIsStale(Self) and
                    not _RowKeyIsUngenerated(Self) then
                   LStale.Add(FOrmDataSet.GetBookmark);
