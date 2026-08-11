@@ -273,6 +273,13 @@ begin
   FOrmDataSet.Filtered := True;
   if not FOrmDataSet.IsEmpty then
     FOrmDataSet.First;
+  // QUANTAS LINHAS DE MASTER ESTA PASSAGEM VAI PERCORRER - issue #261. Lido
+  // AQUI, e nao la dentro, porque o laco abaixo CONSOME o filtro: cada linha
+  // perde o marcador de pendente ao terminar e sai da vista, de modo que o
+  // mesmo RecordCount lido de dentro da cascata cairia de P ate 1 e a ultima
+  // linha de master voltaria a ser a dona de tudo que nao tem dono. Ver
+  // TDataSetBaseAdapter<M>.FCascadeMasterRows e _IsOwnedByMasterRow.
+  FCascadeMasterRows := FOrmDataSet.RecordCount;
   try
     while FOrmDataSet.RecordCount > 0 do
     begin
@@ -303,6 +310,7 @@ begin
        end;
     end;
   finally
+    FCascadeMasterRows := 0;
     FOrmDataSet.Filtered := False;
     FOrmDataSet.Filter := '';
   end;

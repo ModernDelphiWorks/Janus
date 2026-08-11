@@ -138,6 +138,60 @@ type
     ///  the consumer's own AfterScroll. This suppresses ONE call and leaves
     ///  every other effect of the scroll exactly where it was. </summary>
     FChildReopenSuppressed: Integer;
+    /// <summary> How many master rows the cascade that is running RIGHT NOW is
+    ///  going to walk at THIS level, established by whoever starts the walk and
+    ///  read by _IsOwnedByMasterRow, which is its only reader - issue #261.
+    ///
+    ///  ZERO MEANS NOBODY ESTABLISHED IT, and zero reads as "no ambiguity", so
+    ///  every entry point that does not set it leaves the historical behaviour
+    ///  exactly where it was. That is deliberate: this field narrows a decision
+    ///  in one shape and must not silently change the others.
+    ///
+    ///  WHY IT IS CAPTURED AND NOT COUNTED ON DEMAND, which is the trap anyone
+    ///  reworking this will walk into first. The obvious reading of "how many
+    ///  masters are pending" is to count the master rows carrying
+    ///  Integer(dsInsert) at the moment the question is asked. It cannot be
+    ///  done there: ApplyInserter runs with the master dataset FILTERED to
+    ///  exactly those rows and clears each row's marker as it finishes with it,
+    ///  so the count DECAYS - the first master would see P and the last one
+    ///  would see 1. The last master would then be the one master that still
+    ///  claims the unparented row, which is precisely the last-one-wins the
+    ///  issue is about, restored under a new name. The number therefore has to
+    ///  be taken ONCE, before the loop starts consuming it.
+    ///
+    ///  SET BY TWO KINDS OF CALLER, and the two agree on the meaning:
+    ///  - the ApplyInserter of each family, from the filtered RecordCount, for
+    ///    the top of a cascade. THERE ARE THREE of those and each was measured
+    ///    on its own - see the mutation table in the header of
+    ///    Test.Janus.AutoInc.Distribution;
+    ///  - _RecurseOverChildRows, from the number of rows it is about to ride,
+    ///    for every level below the top, which is the ONLY place that number
+    ///    exists once the top-level loop is over.
+    ///
+    ///  ONE SIDE SAVES AND RESTORES AND THE OTHER RESETS TO ZERO, and the
+    ///  asymmetry is deliberate rather than an oversight. _RecurseOverChildRows
+    ///  writes into ANOTHER adapter's field and must therefore put back what it
+    ///  found; ApplyInserter writes into its own and is never reached from
+    ///  inside a cascade - SetAutoIncValueChilds does not call it - so there is
+    ///  nothing to put back and zero, "not established", is the honest value.
+    ///
+    ///  READ THROUGH A CAST THAT LIES, exactly like FOrmDataSet and
+    ///  FMasterObject a few lines away in _RecurseOverChildRows: the child
+    ///  adapter is held as TDataSetBaseAdapter<M of the master>. Field access
+    ///  resolves an OFFSET against the declared instantiation and executes
+    ///  against the real one, which works because both are generated from this
+    ///  declaration and lay out the same fields. That is the field-level twin
+    ///  of the VMT assumption the comment on FRowTokenSeq spells out.
+    ///
+    ///  DECLARED AT THE END OF THE FIELD BLOCK for the reason the comment on
+    ///  _MintRowToken gives for methods, weakened to what is actually true of
+    ///  data: a field inserted in the MIDDLE moves the offset of every field
+    ///  after it, and a descendant compiled earlier would read the wrong ones.
+    ///  Adding one at the end moves nothing that already exists here, and it
+    ///  moves no VMT slot at all - a field is not a virtual method. A
+    ///  descendant still has to be recompiled, as it does for any field
+    ///  addition. </summary>
+    FCascadeMasterRows: Integer;
     function _GetCurrentPKAsString: String;
     procedure DoBeforeScroll(DataSet: TDataSet); virtual;
     procedure DoBeforeScrollPendingChilds; virtual;
@@ -1467,9 +1521,17 @@ end;
 ///  armazenamento nao tem identidade: TSessionDataSet<M>._PopularDataSet anexa
 ///  com os eventos do adapter desligados, entao DoNewRecord nao roda, e
 ///  TBind.SetFieldToField pula as duas colunas de proveniencia pelo nome. Como
-///  a folga de _IsOwnedByMasterRow deixa passar todo filho sem proveniencia,
-///  os filhos digitados sob esse master eram reivindicaveis por qualquer outro
-///  master pendente - que e o #261 na forma que o cliente encontra.
+///  a folga de _IsOwnedByMasterRow, NAQUELE ESTADO DO CODIGO, deixava passar
+///  todo filho sem proveniencia para qualquer master que perguntasse, os filhos
+///  digitados sob esse master eram reivindicaveis por qualquer outro master
+///  pendente - que era o #261 na forma que o cliente encontra.
+///  O TEMPO VERBAL E O RECADO: a #261 esta fechada, e por DOIS consertos que
+///  nao se substituem. Este metodo tira o caso da origem, dando identidade a
+///  linha do master, de modo que o filho nomeia um pai concreto e nunca chega a
+///  folga; a folga em si ganhou uma fronteira, e nao passa mais um filho sem
+///  proveniencia quando ha mais de um master pendente. Tirar qualquer um dos
+///  dois reabre uma metade diferente - ver _IsOwnedByMasterRow e
+///  FCascadeMasterRows.
 ///  A alternativa medida foi carimbar no FILHO um valor dizendo "meu master
 ///  nao se identificava" e recusar quem se identifica. Ela ESTREITA o buraco
 ///  em vez de fechar: dois masters sem identidade continuam indistinguiveis
@@ -1599,8 +1661,16 @@ end;
 ///  aberta em qualquer nivel. ESTA E A ENUMERACAO MANTIDA - o comentario de
 ///  cOwnerTokenField em Janus.DataSet.Fields aponta para ca e nao repete a
 ///  lista, porque duas listas fechadas em duas unidades ja discordaram uma vez.
-///  Em todas o filho fica sem proveniencia e cai no comportamento historico -
-///  continua reivindicavel por qualquer master pendente, como antes do #265.
+///  Em todas o filho fica sem proveniencia e cai no comportamento historico.
+///  E O COMPORTAMENTO HISTORICO GANHOU UMA FRONTEIRA - issue #261, e a frase e
+///  atualizada AQUI porque esta lista e a MANTIDA e o comentario de
+///  cOwnerTokenField delega a ela: se as duas unidades voltarem a discordar, a
+///  delegacao deixa de valer alguma coisa. "Reivindicavel por qualquer master
+///  pendente" foi verdade ate o #261 e nao e mais. Hoje o filho sem
+///  proveniencia e escrito pelo master pendente quando ha UM, e por NENHUM
+///  quando ha mais de um - a folga passou a ser pesada contra a contagem de
+///  masters daquela passagem. Ver _IsOwnedByMasterRow e FCascadeMasterRows;
+///  nenhuma das SETE saidas mudou, e nenhuma delas ganhou ou perdeu um caso.
 ///  As QUATRO alcancaveis por um consumidor - dataset vazio, linha em dsEdit,
 ///  linha em dsInsert sob adapter mudo, e detalhe com linha aberta em qualquer
 ///  nivel - estao fixadas pelas fixtures nomeadas acima, e a quarta e mais
@@ -1654,8 +1724,15 @@ begin
   // POSTADO pela metade - com e sem DisableControls, porque o segundo caminho
   // passa pelos dois. Nao ha guarda que cale os dois lados e ainda deixe a
   // escrita acontecer, entao a escrita nao acontece: o filho que esta sendo
-  // digitado fica sem proveniencia e cai no comportamento historico, que e uma
-  // perda estreita ao lado de comitar a linha que o operador nao terminou.
+  // digitado fica sem proveniencia e cai no comportamento historico, que
+  // continua sendo a troca certa ao lado de comitar a linha que o operador nao
+  // terminou. O PRECO DESSA TROCA CRESCEU COM O #261 e a frase que estava aqui
+  // - "uma perda estreita" - descrevia o preco de antes. Com UM master pendente
+  // ele continua estreito: o filho e escrito como sempre foi. Com MAIS DE UM,
+  // ninguem escreve a linha, e o que o consumidor recebe depende da familia -
+  // medido nas tres por
+  // UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither e as duas irmas.
+  // Estreito ou nao, a alternativa continua sendo postar meia linha.
   // E RECURSIVO PORQUE A CASCATA E. Data.DB.pas, TDataSet.CheckBrowseMode,
   // EMITE o deCheckBrowseMode para as suas fontes de dados antes de olhar o
   // proprio estado - de modo que o nivel do meio estar em dsBrowse nao segura
@@ -1689,14 +1766,40 @@ end;
 ///  de master identificada por AMasterToken.
 ///  A FOLGA E DE UM LADO SO, e isso e uma decisao medida. Quando o FILHO nao
 ///  tem proveniencia registrada - linha acrescentada com os eventos do adapter
-///  filho desligados, ou lida de um armazenamento que nao tem a coluna - a
-///  resposta e True e a linha recebe a chave como sempre recebeu; tirar essa
-///  folga faria o filho deixar de ser escrito, que e regressao silenciosa.
-///  Medido por Test.Janus.AutoInc.Distribution
-///  .ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster e por
-///  UntokenisedRows_KeepTheHistoricalBehaviour.
+///  filho desligados, ou lida de um armazenamento que nao tem a coluna - e HA
+///  UM MASTER PENDENTE SO, que e a condicao do paragrafo seguinte e nao um
+///  detalhe dele, a resposta e True e a linha recebe a chave como sempre
+///  recebeu; tirar essa folga faria o filho deixar de ser escrito, que e
+///  regressao silenciosa. Medido por Test.Janus.AutoInc.Distribution
+///  .ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster.
 ///  Do lado do MASTER nao ha folga: um filho que sabe de quem e filho nao e
 ///  reapontado para uma linha de master que nao se identifica.
+///
+///  A FOLGA TEM UMA FRONTEIRA, E ELA E UMA CONTAGEM - issue #261. A frase
+///  acima descreve um master perguntando. Com MAIS DE UM master pendente na
+///  mesma passagem, todos eles perguntam, todos recebem True, e a linha sem
+///  proveniencia acaba com a chave do ULTIMO que passou - o item do Pedido #10
+///  recebendo a chave do Pedido #N, em silencio. A folga fica, portanto,
+///  condicionada a FCascadeMasterRows: enquanto ha um master so a resposta e a
+///  historica, e onde ha ambiguidade real ninguem escreve. Uma linha nao
+///  escrita e visivel - continua pendente, com a chave que tinha - enquanto
+///  uma linha escrita pelo master errado nao e.
+///  NAO E "RECUSAR O FILHO SEM PROVENIENCIA", e a diferenca e o conserto
+///  inteiro. Medido em d01d4f3, trocando a linha por Exit(False): UM vermelho
+///  em 547, e ele e
+///  ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster - o caso de UM
+///  master so, onde nunca houve ambiguidade e o filho sempre foi escrito.
+///  UM E NAO DOIS, e a conta importa:
+///  MutedMasterAppend_WithThePendingPlaceholder_ItsChildIsRepaired PARECE o
+///  mesmo caso e nao e - o filho dele foi digitado com os eventos LIGADOS,
+///  portanto tem proveniencia registrada e nunca passa por esta folga.
+///  Nas duas familias locais e na REST, medido por
+///  UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither,
+///  ClientDataSetUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither e
+///  RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither; um andar
+///  abaixo, por
+///  Recursion_UntokenisedLeaf_WithTwoPendingMidRows_IsClaimedByNeither.
+///
 ///  DUAS RESPOSTAS, E NAO TRES - issue #265. Houve a tentacao de acrescentar
 ///  aqui um terceiro estado, "registrado, e o meu master nao tinha
 ///  identidade", e ela foi medida e recusada: aquele estado so consegue
@@ -1705,7 +1808,9 @@ end;
 ///  continuava escrevendo nos filhos do segundo. O caso deixou de existir na
 ///  origem - _EnsureMasterRowToken da identidade a linha do master no instante
 ///  do carimbo - e por isso este metodo nao precisa saber nada sobre ele.
-///  O zero que ainda chega aqui e SO o do filho que ninguem registrou.
+///  O zero que ainda chega aqui e SO o do filho que ninguem registrou, e o
+///  #261 nao acrescentou estado nenhum ao TOKEN: quem ganhou um terceiro valor
+///  foi a PERGUNTA, que agora sabe quantos masters a estao fazendo.
 ///  </summary>
 function TDataSetBaseAdapter<M>._IsOwnedByMasterRow(const AChild: TDataSet;
   const AMasterToken: Integer): Boolean;
@@ -1717,7 +1822,7 @@ begin
   if LField = nil then
     Exit;
   if LField.AsInteger = cNoRowToken then
-    Exit;
+    Exit(FCascadeMasterRows <= 1);
   Result := LField.AsInteger = AMasterToken;
 end;
 
@@ -1793,6 +1898,7 @@ var
   LDataSet: TDataSet;
   LMarks: TList<TBookmark>;
   LMark: TBookmark;
+  LOuterRows: Integer;
   LFor: Integer;
 begin
   LDataSet := AChildAdapter.FOrmDataSet;
@@ -1803,6 +1909,7 @@ begin
   LMark := LDataSet.GetBookmark;
   LDataSet.DisableControls;
   LMarks := TList<TBookmark>.Create;
+  LOuterRows := AChildAdapter.FCascadeMasterRows;
   try
     LDataSet.First;
     while not LDataSet.Eof do
@@ -1812,15 +1919,53 @@ begin
         LMarks.Add(LDataSet.GetBookmark);
       LDataSet.Next;
     end;
+    // QUANTOS MASTERS O NIVEL DE BAIXO VAI TER - issue #261. Para os netos, os
+    // "masters pendentes" sao exatamente as linhas do meio que esta caminhada
+    // vai percorrer, e este e o unico ponto onde esse numero existe. Sem ele o
+    // nivel 3 herdaria o zero e um neto sem proveniencia voltaria a ser
+    // escrito por cada linha do meio, em ordem, ficando com a ultima - o mesmo
+    // defeito do nivel 2 um andar abaixo. Ver FCascadeMasterRows.
+    // O RAMO SEM LINHA PENDENTE VALE 1, e nao 0: ele recursa UMA vez, de onde
+    // o cursor estiver, portanto ha um master so e nada e ambiguo.
+    // ESTA ATRIBUICAO SOBREVIVE A MUTACAO, e esta declarada em vez de
+    // escondida. Medido em d01d4f3: apagando a linha, 547 verdes, zero
+    // vermelhos. A razao e que 0 e 1 dao a MESMA resposta ao unico leitor -
+    // _IsOwnedByMasterRow compara com <= 1 - e o campo do filho chega aqui em
+    // 0 em todo caminho que a suite alcanca. Ela fica porque as duas
+    // quantidades nao SIGNIFICAM a mesma coisa: 0 e "ninguem estabeleceu" e 1 e
+    // "eu estabeleci, e e um". E SO ISSO.
+    // UMA SEGUNDA JUSTIFICATIVA FOI ESCRITA AQUI E RETIRADA: "protege contra
+    // reentrada com valor herdado maior que 1 numa hierarquia com ciclo".
+    // Ciclo nao e construivel - TManagerDataSet.AddAdapter<T, M> sai cedo nos
+    // dois sentidos, e o argumento esta escrito no cabecalho de
+    // _AnyDetailRowOpen. Apoiar uma linha em algo que a casa ja mediu como
+    // impossivel e pior do que nao justificar.
     if LMarks.Count = 0 then
-      AChildAdapter.SetAutoIncValueChilds
+    begin
+      AChildAdapter.FCascadeMasterRows := 1;
+      AChildAdapter.SetAutoIncValueChilds;
+    end
     else
+    begin
+      AChildAdapter.FCascadeMasterRows := LMarks.Count;
       for LFor := 0 to LMarks.Count -1 do
       begin
         LDataSet.GotoBookmark(LMarks[LFor]);
         AChildAdapter.SetAutoIncValueChilds;
       end;
+    end;
   finally
+    // A SEGUNDA ATRIBUICAO QUE SOBREVIVE A MUTACAO, medida e declarada pelo
+    // mesmo padrao da de cima, porque duas linhas sobreviventes no mesmo metodo
+    // e uma so declarada seria escolher qual confessar. Medido em 0c5de92:
+    // apagando esta restauracao, 547 verdes, zero vermelhos. Sobrevive porque
+    // LOuterRows vale 0 em todo caminho que a suite alcanca - o campo do filho
+    // so e escrito aqui - e porque quem roda depois, o ApplyInserter do proprio
+    // nivel filho, estabelece o seu numero antes de ler. Ela fica pela regra
+    // que vale para escrita em campo de OUTRO objeto: quem emprestou devolve.
+    // Sem ela, o valor deste nivel vazaria para fora da caminhada e o proximo
+    // leitor herdaria uma contagem que nao e a dele.
+    AChildAdapter.FCascadeMasterRows := LOuterRows;
     if LDataSet.BookmarkValid(LMark) then
       LDataSet.GotoBookmark(LMark);
     LDataSet.FreeBookmark(LMark);

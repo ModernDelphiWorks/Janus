@@ -183,6 +183,12 @@ begin
   FOrmDataSet.Filter := cInternalField + '=' + IntToStr(Integer(dsInsert));
   FOrmDataSet.Filtered := True;
   FOrmDataSet.First;
+  // A TERCEIRA COPIA DESTE LACO, e a que mais precisa do numero: aqui os dois
+  // masters seguram os seus filhos AO MESMO TEMPO, porque
+  // TRESTDataSetAdapter<M>.OpenDataSetChilds tem corpo vazio e a rolagem do
+  // master nao descarta nada. Ver TDataSetBaseAdapter<M>.FCascadeMasterRows -
+  // issue #261.
+  FCascadeMasterRows := FOrmDataSet.RecordCount;
   try
     while not FOrmDataSet.Eof do
     begin
@@ -220,6 +226,7 @@ begin
       end;
     end;
   finally
+    FCascadeMasterRows := 0;
     FOrmDataSet.Filtered := False;
     FOrmDataSet.Filter := '';
   end;

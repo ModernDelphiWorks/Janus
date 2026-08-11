@@ -51,21 +51,35 @@
   section says why - and the two recursion fixtures build a three level tree
   under ONE root, so neither shape applies to them.
 
-  WHAT IS MUTED, AND WHERE - THREE EXCEPTIONS, NOT ONE
+  WHAT IS MUTED, AND WHERE
 
-  Most of the file runs the configuration Janus ships: no adapter muted in the
-  set-up, no marker written by hand, no handler installed. THREE tests are
-  exceptions, and each says why in its own body:
+  The distribution and recursion fixtures run the configuration Janus ships: no
+  adapter muted in the set-up, no marker written by hand, no handler installed.
+  These are the exceptions among them, and each says why in its own body:
 
-    * UntokenisedRows_KeepTheHistoricalBehaviour mutes BOTH adapters for the
-      whole set-up and writes the pending marker by hand - having no row
-      provenance at all is the very thing it measures;
+    * UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither and its
+      ClientDataSet twin mute BOTH adapters for the whole set-up and write the
+      pending markers by hand - having no row provenance at all is the very
+      thing they measure;
+    * RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither mutes the
+      CHILD adapter for ONE of its three child rows and writes that row's
+      pending marker by hand - the other two are typed live, which is what lets
+      it measure the unparented row beside two parented ones in one run;
+    * Recursion_UntokenisedLeaf_WithTwoPendingMidRows_IsClaimedByNeither mutes
+      the LEAF adapter for its one leaf row, same reason, one level down;
     * ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster mutes the
       CHILD adapter only, and writes that child's pending marker by hand, so
       that the master identifies itself and the child does not;
     * Recursion_WithNoPendingChildRow_StillReachesTheGrandchildren unhooks the
       mid table's BeforePost for one write, to set the ALREADY SAVED marker
       that the adapter's own BeforePost would otherwise flip straight back.
+
+  THAT LIST IS NOT A CENSUS OF THE FILE, and an earlier revision of this
+  paragraph carried a total - "THREE exceptions" - that had stopped being one.
+  The issue #265 fixtures further down mute the master adapter as a matter of
+  course, because a master with no recorded identity is what they are about, and
+  they say so in their own bodies and in their shared helpers. No number is
+  given here because nobody re-counted the file.
 
   Separately, and in every test, the MEASUREMENT helpers - RowCount,
   CountWithColumn, DumpColumn, KeyOfMasterRow - unhook BeforeScroll and
@@ -205,6 +219,13 @@
   change it. The two link fixtures are green there for the plain reason that
   nothing is minted on develop at all; they exist to catch the fix, not the
   defect, and the mutation table below is where they earn their place.
+
+  ONE NAME IN THAT LIST NO LONGER RESOLVES, and it is left standing rather than
+  rewritten because the list is a record of what #265 measured, not a
+  description of the file as it is now. UntokenisedRows_KeepTheHistoricalBehaviour
+  was RENAMED and its result INVERTED by issue #261 - see the section below -
+  and it is UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither today.
+  Everything else in the list still resolves and is still green.
 
   THREE TESTS MEASURE THE FIX AGAINST ITSELF, and they exist because two
   candidate designs were shipped-and-withdrawn before this one:
@@ -451,6 +472,162 @@
   which empties the children first. The REST family is where it is reachable,
   and the two REST tests earlier in this file are the ones that exercise it.
 
+  ISSUE #261, THE LAST ARM - THE CHILD ROW NOBODY RECORDED
+
+  #264 and #265 gave every row an identity and closed the two ways a child could
+  end up naming nobody. ONE way was left open on purpose, as the documented
+  escape hatch: a child row appended with its own adapter's events unhooked, or
+  read back from a store that has no such column, records nothing, and
+  _IsOwnedByMasterRow answers True for it to whoever asks. With ONE pending
+  master that is right, and it is why the hatch exists.
+
+  With TWO it was not a decision, it was an ordering. Both masters asked, both
+  were answered True, the row was written twice and kept what the SECOND one
+  wrote. RED FIRST, measured against 8e1a5c6: two of these four fixtures - the
+  local FDMemTable one and the REST one - were written and RUN before a line of
+  Source changed, one at each end of the two families. Total 545, TWO reds, the
+  unparented child on the second master's key in
+  both families: "Expected [-31] but got [201]" with the dump reading
+  [C0 root_id=201], and "Expected [-31] but got [600]" with the dump reading
+  [A0 root_id=300][B0 root_id=600][C0 root_id=600] - the orphan sitting on B0's
+  key, indistinguishable from a row that really was typed under R2. The same
+  tree with the fix in place is 545 and zero.
+
+  WHAT SHIPS ADDS NO STATE TO THE TOKEN. The column still carries exactly the
+  two values #264 gave it, and the third state #265 measured and rejected is
+  still rejected. What gained a second input is the QUESTION: the answer True
+  for an unrecorded row is now weighed against the number of master rows doing
+  the asking, which TDataSetBaseAdapter<M>.FCascadeMasterRows carries. The hatch
+  survives where there is one master and closes where there is a real ambiguity.
+
+  AND WHAT BECOMES OF THE ROW NOBODY CLAIMS - measured, and NOT what an earlier
+  revision of this header asserted. That revision said the row "stays PENDING
+  carrying the key it came in with", which was reasoning, not a reading, and it
+  is only half true. The answer differs BY FAMILY and both halves are now
+  pinned:
+
+    * the LOCAL families INSERT it. ApplyInternal reaches the child adapter's
+      own ApplyInternal after the master loop ends, and that loop inserts every
+      pending row it finds without asking about parentage - so what the consumer
+      ends up with is a row IN THE DATABASE carrying an unresolved foreign key.
+      Measured on both: cInternalField comes back at cAPPLIED;
+    * the REST family leaves it PENDING. TRESTFDMemTableAdapter<M>.ApplyInternal
+      does not iterate FMasterObject, the child level is never applied in that
+      run, and the marker is still Integer(dsInsert) when the apply is over.
+
+  Neither is asserted as the desirable one, and this issue did not choose
+  between them - the difference predates it and belongs to how each family
+  cascades ApplyInternal. What the three clauses do is stop anyone writing "the
+  framework leaves it pending" again without a fixture contradicting them.
+  WHAT IS STILL BETTER THAN THE DEFECT, and this part is not weakened by the
+  above: an unresolved foreign key is a row a consumer can find by querying for
+  it, and it is the key the consumer put there. A row silently re-parented onto
+  another master's key is indistinguishable from correct data.
+
+  THE FOUR FIXTURES, AND WHY FOUR
+
+  UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither is the rewrite of
+  UntokenisedRows_KeepTheHistoricalBehaviour. Its set-up is unchanged line for
+  line except for ONE value - the child's foreign key starts on cUNCLAIMEDSEED
+  instead of on cROOTOLD, because 0 is what an unwritten integer column reads as
+  anyway and a clause asserting 0 would pass on a run that populated nothing.
+  Its result is inverted, and two PREMISE clauses were added that state the
+  shape as numbers: two pending masters, one pending child. It was renamed
+  rather than deleted because it builds the only ambiguous shape in the file.
+
+  RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither is the other half
+  of the red, and it is not a translation of the local one: the REST family
+  discards nothing when the master scrolls, so it holds THREE child rows at once
+  - one under each master, plus the orphan - and reads all three back in a
+  single run.
+
+  THE OTHER TWO WERE WRITTEN AFTER THE FIX, and the order they were written in
+  is the reason they exist rather than a tidying-up. The count cannot be taken
+  from inside the cascade and is therefore read at the top of ApplyInserter, and
+  there are THREE ApplyInserter implementations, near enough identical to invite
+  the argument that measuring one measures the rest.
+  ClientDataSetUntokenisedRow_... covers the third of them, which no fixture
+  reached. Recursion_UntokenisedLeaf_WithTwoPendingMidRows_IsClaimedByNeither
+  covers the level BELOW the top, where there is no ApplyInserter at all and
+  _RecurseOverChildRows is the only thing that knows how many masters the next
+  level faces - and it was written because that mutation was RUN and SURVIVED:
+  at ff096e2, with the assignment deleted, 546 tests and zero reds. It goes
+  through
+  TCascadeAccess.Propagate for isolation, and pays the same price
+  Recursion_LeavesTypedUnderTheMiddleMidRow... pays: the master state is forged,
+  so it pins the walk and not the walk's caller.
+
+  HOW THE #261 CLAUSES WERE SHOWN TO BIND
+
+  Every figure below was measured at d01d4f3, full rebuild, Janus.Tests.Units,
+  where the untouched tree is 547 tests and zero failures. Each mutation was
+  applied ALONE and reverted before the next:
+
+    * restoring the unconditional slack - `Exit(FCascadeMasterRows <= 1)` back
+      to a bare `Exit` -> FOUR reds, and they are the four fixtures above and
+      nothing else;
+    * refusing every unparented child instead - `Exit(False)`, which is the
+      design that was proposed and rejected -> ONE red, and it is
+      ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster. That single
+      number is the whole argument for conditioning the slack rather than
+      removing it: refusing outright leaves that child on its old key with
+      nobody ever repairing it;
+    * deleting the count read from TFDMemTableAdapter<M>.ApplyInserter alone ->
+      ONE red, UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
+    * from TClientDataSetAdapter<M>.ApplyInserter alone -> ONE red, the
+      ClientDataSet twin;
+    * from TRESTDataSetAdapter<M>.ApplyInserter alone -> ONE red, the REST one.
+      Three mutations, three reds, three different fixtures: the three reads are
+      not each other's evidence;
+    * deleting `AChildAdapter.FCascadeMasterRows := LMarks.Count` from
+      _RecurseOverChildRows -> ONE red,
+      Recursion_UntokenisedLeaf_WithTwoPendingMidRows_IsClaimedByNeither, and
+      the three top-level fixtures stay green, which is what says the two kinds
+      of caller are measured separately;
+    * MOVING the read from before the ApplyInserter loop to inside it - that is,
+      counting the pending masters on demand instead of capturing the number
+      once -> ONE red, the local FDMemTable fixture. This is the mutation that
+      earns the design: the filtered RecordCount DECAYS as the loop clears each
+      marker, so the last master row sees 1, decides there is no ambiguity and
+      claims the orphan - last-one-wins restored under a new name.
+
+  THE TWO MUTATIONS THAT SURVIVE, declared rather than left to be found, and
+  BOTH of them, because two survivors in one method with only one confessed
+  would be choosing which to admit to. Both are in _RecurseOverChildRows:
+
+    * deleting `AChildAdapter.FCascadeMasterRows := 1` from the no-pending-row
+      branch reddens NOTHING - 547 green at d01d4f3. 0 and 1 give the same
+      answer to the only reader, and the field arrives at that branch holding 0
+      on every path this suite reaches. Kept because the two values do not MEAN
+      the same thing;
+    * deleting the `finally` restore, `:= LOuterRows`, reddens NOTHING either -
+      547 green at 0c5de92. LOuterRows is 0 on every path the suite reaches, and
+      whatever runs next establishes its own number before reading. Kept because
+      the method writes into ANOTHER object's field and what is borrowed is put
+      back.
+
+  Neither justification is that a cycle in the adapter tree could carry a stale
+  count in. An earlier revision of the comment at the first site said so, and it
+  was WRONG in a way this repository had already measured: a cycle cannot be
+  built, because TManagerDataSet.AddAdapter<T, M> exits early in both
+  directions - the argument is written out in the header of _AnyDetailRowOpen.
+  It is recorded here rather than quietly deleted.
+
+  WHAT THE #261 ASSERTIONS DO NOT CLAIM. The "and not the other master's key"
+  clauses are arithmetic complements of the clause above them plus the premise
+  that the two keys differ, because those fixtures have exactly ONE unparented
+  child row - exactly as the #265 paragraph further up says of its own. That
+  applies to the two LOCAL top-level fixtures and to the level 3 one; they were
+  not inverted one at a time, and they are there to make the failure message say
+  WHERE the row went. In all three, the clause that carries the measurement is
+  the one that reads the row back BY TAG.
+
+  THE REST FIXTURE IS THE EXCEPTION AND THAT IS ITS POINT. Its three child rows
+  are three different rows, so "A0 is on the first master's key", "B0 is on the
+  second's" and "C0 is on neither" are three independent readings taken in one
+  run. The first two are what say the count of pending masters does not touch a
+  row whose parentage IS recorded - a claim no complement clause can make.
+
   WHAT IS NOT MEASURED HERE
 
   No live database and no live REST server. NO REST FIXTURE FOR #265 EITHER:
@@ -465,6 +642,25 @@
   round trip or a Close/Open against a real store is NOT established: nothing
   writes these columns to a database, but nothing here proves a real driver
   would leave them alone either.
+
+  NOT MEASURED, ADDED BY #261 AND LISTED RATHER THAN LEFT TO BE DISCOVERED:
+
+    * A MID ROW WITH NO TOKEN THAT HAS CHILDREN OF ITS OWN, under two pending
+      roots. No fixture builds it. The guard excludes that row from LMarks in
+      _RecurseOverChildRows, and LMarks is what the recursion rides - so it is
+      not one row that goes unwritten but the WHOLE SUBTREE under it that goes
+      unvisited. That is consistent with what the guard is for, and consistency
+      is not a measurement. The four fixtures all put the unrecorded row at the
+      BOTTOM of their tree, where it has nothing below it to skip;
+    * THE ObjectSet AND RESTObjectSet FAMILIES are outside this entirely. They
+      have no provenance column at all - TObjectSetBaseAdapter<M> and
+      TRESTObjectSet carry their own SetAutoIncValueChilds over object graphs,
+      not over datasets - so neither the token nor the count exists there.
+      Whether the same ambiguity is reachable through an object graph was not
+      looked into and is not claimed either way;
+    * A THIRD LEVEL DRIVEN THROUGH A REAL ApplyInternal, which the paragraph
+      near the top of this header already says of #261's predecessors and is
+      still true of the level 3 fixture added here: it goes through Propagate.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
@@ -675,6 +871,9 @@ type
     [Test]
     procedure Recursion_WithNoPendingChildRow_StillReachesTheGrandchildren;
 
+    [Test]
+    procedure Recursion_UntokenisedLeaf_WithTwoPendingMidRows_IsClaimedByNeither;
+
     // --- issue #265: the master that came out of the store ------------------
     [Test]
     procedure ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow;
@@ -713,7 +912,11 @@ type
 
     // --- the boundary of the fix -------------------------------------------
     [Test]
-    procedure UntokenisedRows_KeepTheHistoricalBehaviour;
+    procedure UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
+    [Test]
+    procedure ClientDataSetUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
+    [Test]
+    procedure RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
     [Test]
     procedure ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster;
 
@@ -778,6 +981,21 @@ const
   /// declares it in the IMPLEMENTATION section of Janus.DataSet.Base.Adapter,
   /// so a test cannot import it and must not pretend to.
   cNOTOKEN = 0;
+  /// issue #261, the ambiguity arm. The foreign key an UNTOKENISED child row is
+  /// seeded with when the question is "was it written at all", so that "nobody
+  /// claimed it" can never be read as "somebody claimed it and happened to
+  /// write the same number". NEGATIVE, so no generated key can reach it -
+  /// TTreeConnection hands out cSTEP, 2*cSTEP, ... and TSeqRestConnection
+  /// cRESTSTEP, 2*cRESTSTEP, ... - and NOT cPLACEHOLDER, because -1 is the one
+  /// negative the framework itself writes and _AutoIncKeyIsGenerated reads.
+  cUNCLAIMEDSEED = -31;
+  /// The value ApplyInserter and ApplyUpdater write back into cInternalField
+  /// once a row has reached the database - "not pending any more". It happens
+  /// to be the same number as cPLACEHOLDER and is a DIFFERENT concept: that one
+  /// is an autoinc primary KEY the generator has not answered for yet, this one
+  /// is a row STATE marker. Spelled separately so a reader of the clauses below
+  /// does not have to work out which of the two a -1 means.
+  cAPPLIED = -1;
   cEDITEDTAG  = 'EDITING';
   /// The two tags the UNTOUCHED-dsEdit fixture tells apart: what a grandchild
   /// row was COMMITTED with, and what a data-aware control writes into it
@@ -1727,6 +1945,125 @@ begin
   end;
 end;
 
+procedure TTestAutoIncDistribution.Recursion_UntokenisedLeaf_WithTwoPendingMidRows_IsClaimedByNeither;
+var
+  LRootTable: TFDMemTable;
+  LMidTable: TFDMemTable;
+  LLeafTable: TFDMemTable;
+  LRoot: TFDMemTableAdapter<TAitRoot>;
+  LMid: TFDMemTableAdapter<TAitMid>;
+  LLeaf: TFDMemTableAdapter<TAitLeaf>;
+begin
+  // THE SAME AMBIGUITY ONE FLOOR DOWN, and the fixture that says the count is
+  // established in TWO kinds of place rather than one.
+  //
+  // At the top of a cascade the number of pending masters comes from
+  // ApplyInserter, which is where the loop lives. Below the top there is no
+  // ApplyInserter: _RecurseOverChildRows rides the mid rows itself, so IT is
+  // the only place where the number of masters the leaf level is about to face
+  // exists at all. Take that one assignment out and the top-level reads still
+  // stand, the three fixtures above stay green, and an unparented LEAF goes
+  // back to being written once per mid row and keeping the last.
+  //
+  // WHY Propagate AND NOT ApplyAll, which is the whole isolation. Driving this
+  // through ApplyInternal would set FCascadeMasterRows on the ROOT adapter from
+  // ApplyInserter, and later on the MID adapter from the mid level's own
+  // ApplyInserter, so a red could be either of those doing the work.
+  // TCascadeAccess.Propagate calls SetAutoIncValueChilds directly: no
+  // ApplyInserter runs anywhere in this test, every FCascadeMasterRows starts
+  // at zero, and the only thing that can set the mid level's is the recursion.
+  // The price is the same one Recursion_LeavesTypedUnderTheMiddleMidRow...
+  // pays and states: the master state is FORGED - Edit plus the new key, not
+  // yet posted - so what is pinned here is the walk, not the walk's caller.
+  //
+  // THE MID ROWS CARRY REAL KEYS ON PURPOSE. _AutoIncKeyIsGenerated - issue
+  // #262 - refuses to propagate from a row still sitting on the autoinc
+  // placeholder, and with the placeholder in place the recursion would write
+  // nothing at all and this test would pass without measuring anything.
+  LRootTable := TFDMemTable.Create(nil);
+  LMidTable := TFDMemTable.Create(nil);
+  LLeafTable := TFDMemTable.Create(nil);
+  try
+    LRoot := TFDMemTableAdapter<TAitRoot>.Create(FConn, LRootTable, -1, nil);
+    LMid := TFDMemTableAdapter<TAitMid>.Create(FConn, LMidTable, -1, LRoot);
+    LLeaf := TFDMemTableAdapter<TAitLeaf>.Create(FConn, LLeafTable, -1, LMid);
+    try
+      LRootTable.Append;
+      LRootTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LRootTable.FieldByName(cTAG).AsString := 'ROOT';
+      LRootTable.Post;
+      LMidTable.Append;
+      LMidTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LMidTable.FieldByName(cOWNKEY).AsInteger := cMIDFIRST;
+      LMidTable.FieldByName(cTAG).AsString := 'M0';
+      LMidTable.Post;
+      LMidTable.Append;
+      LMidTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LMidTable.FieldByName(cOWNKEY).AsInteger := cMIDLAST;
+      LMidTable.FieldByName(cTAG).AsString := 'M1';
+      LMidTable.Post;
+      // The leaf nobody recorded. Its own adapter is muted for the append, so
+      // DoNewRecord never runs on it and cOwnerTokenField stays at the zero a
+      // TField answers for NULL; the pending marker is written by hand because
+      // a muted append never reaches DoBeforePost.
+      TCascadeAccess<TAitLeaf>.Mute(LLeaf);
+      try
+        LLeafTable.Append;
+        LLeafTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+        LLeafTable.FieldByName(cOWNKEY).AsInteger := cUNCLAIMEDSEED;
+        LLeafTable.FieldByName(cTAG).AsString := 'L0';
+        LLeafTable.Post;
+        LLeafTable.Edit;
+        LLeafTable.FieldByName(cInternalField).AsInteger := Integer(dsInsert);
+        LLeafTable.Post;
+      finally
+        TCascadeAccess<TAitLeaf>.Unmute(LLeaf);
+      end;
+      Assert.AreEqual(2,
+        CountWithColumn(LMidTable, cInternalField, Integer(dsInsert)),
+        'PREMISE: TWO mid rows must be pending - they are the masters of the ' +
+        'leaf level and two of them is the ambiguity');
+      Assert.AreEqual(1, CountWithColumn(LLeafTable, cOWNERTOKEN, cNOTOKEN),
+        'PREMISE: the leaf must carry the NEVER RECORDED value - ' +
+        DumpColumn(LLeafTable, cOWNERTOKEN));
+      Assert.AreEqual(1,
+        CountWithColumn(LLeafTable, cInternalField, Integer(dsInsert)),
+        'PREMISE: and it must be PENDING, or nothing would look at it at all');
+
+      // The state ApplyInserter leaves the master in: dsEdit, carrying the key
+      // the database has just generated, not yet posted.
+      LRootTable.Edit;
+      LRootTable.FieldByName(cKEY).AsInteger := cROOTNEW;
+
+      TCascadeAccess<TAitRoot>.Propagate(LRoot);
+
+      Assert.AreEqual(2, CountWithColumn(LMidTable, cKEY, cROOTNEW),
+        'PREMISE: level 2 must still have been written in full - both mid ' +
+        'rows belong to the one root row. If this is 0 the recursion was ' +
+        'never reached and the leaf clauses below are vacuous - ' +
+        DumpColumn(LMidTable, cKEY));
+      Assert.AreEqual(cUNCLAIMEDSEED, TokenOfTaggedRow(LLeafTable, 'L0',
+                                                       cOWNKEY),
+        'THE ROW L0 recorded no parent, and there are TWO mid rows that could ' +
+        'claim it, so neither does - ' + DumpColumn(LLeafTable, cOWNKEY));
+      Assert.AreEqual(0, CountWithColumn(LLeafTable, cOWNKEY, cMIDLAST),
+        'and specifically NOT the LAST mid row, which is where a recursion ' +
+        'that waves every unparented leaf through leaves it - ' +
+        DumpColumn(LLeafTable, cOWNKEY));
+      Assert.AreEqual(0, CountWithColumn(LLeafTable, cOWNKEY, cMIDFIRST),
+        'nor the FIRST - ' + DumpColumn(LLeafTable, cOWNKEY));
+    finally
+      LLeaf.Free;
+      LMid.Free;
+      LRoot.Free;
+    end;
+  finally
+    LLeafTable.Free;
+    LMidTable.Free;
+    LRootTable.Free;
+  end;
+end;
+
 // ---------------------------------------------------------------------------
 // Issue #265 - the master that came out of the store
 // ---------------------------------------------------------------------------
@@ -2333,8 +2670,9 @@ begin
       'while the child records NO parentage: there was no identity to read ' +
       'and the row was in no state to receive one, so this falls back to the ' +
       'historical behaviour. THIS IS A DECLARED LIMIT, not a fix - a child ' +
-      'typed here is still claimable by any pending master, exactly as it was ' +
-      'before issue #265');
+      'typed here is still claimable by THE pending master when there is one, ' +
+      'as it was before issue #265, and by NONE when there is more than one, ' +
+      'which is the boundary issue #261 put on that fallback');
     if LRootTable.State in [dsInsert, dsEdit] then
       LRootTable.Cancel;
   finally
@@ -3151,7 +3489,8 @@ begin
     'levels down, which CheckBrowseMode would have Cancelled and not Posted ' +
     'had no control been attached - so the child being typed records no ' +
     'parentage and falls back to the behaviour that shipped before issue ' +
-    '#265, and stays claimable by any pending master. THIS IS A DECLARED ' +
+    '#265 - claimable by THE pending master where there is one, and by none ' +
+    'where there is more than one, since issue #261. THIS IS A DECLARED ' +
     'LIMIT, not a defect');
   Assert.IsTrue(LState = dsEdit,
     'and it must still be open. Measured state: ' +
@@ -3393,7 +3732,8 @@ begin
     Assert.AreEqual(cNOTOKEN, TokenOfTaggedRow(LMidTable, 'C0', cOWNERTOKEN),
       'AND THE PRICE OF THAT, STATED RATHER THAN HIDDEN: the child comes out ' +
       'naming NOBODY, and falls back to the pre-#265 behaviour of being ' +
-      'claimable by whichever pending master is passing. Writing the token ' +
+      'claimable by whichever pending master is passing - bounded since issue ' +
+      '#261 to the case where exactly ONE is passing. Writing the token ' +
       'into the open buffer instead would leave Modified=True on an edit the ' +
       'operator has not finished - which the local family would swallow but ' +
       'TRESTDataSetAdapter<M>.ApplyUpdater turns into a PUT, and which a ' +
@@ -3616,7 +3956,8 @@ begin
   // a second pending master would only re-ask B1.
   //
   // The pending marker is written BY HAND, with the adapter still muted, for
-  // the same reason UntokenisedRows_KeepTheHistoricalBehaviour writes it: the
+  // the same reason UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither
+  // writes it: the
   // muted append never reaches DoBeforePost. That is the one thing forged here,
   // and it is forged on the MASTER, never on the child.
   BuildTree(FConn, LRootTable, LMidTable, LLeafTable, LRoot, LMid, LLeaf);
@@ -3689,23 +4030,36 @@ end;
 // The boundary of the fix
 // ---------------------------------------------------------------------------
 
-procedure TTestAutoIncDistribution.UntokenisedRows_KeepTheHistoricalBehaviour;
+procedure TTestAutoIncDistribution.UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
 var
   LMasterTable: TFDMemTable;
   LChildTable: TFDMemTable;
   LMaster: TFDMemTableAdapter<TAitRoot>;
   LChild: TFDMemTableAdapter<TAitMid>;
   LInternal: TField;
+  LKeyA: Integer;
   LKeyB: Integer;
 begin
-  // WHAT THIS PINS AFTER #265 - rewritten, because that issue changed what the
-  // OTHER untokenised state even is.
+  // WHAT THIS PINS AFTER #261 - rewritten, and the NAME changed with it. Until
+  // this issue it was called UntokenisedRows_KeepTheHistoricalBehaviour and it
+  // asserted the opposite of the clause at the bottom: that the child ended on
+  // the key of the LAST pending master. That is the behaviour #261 is about, so
+  // the fixture that fixed it had to say something else; deleting it instead
+  // would have removed the only place in the suite where the ambiguous shape is
+  // built at all.
+  //
+  // THE HISTORICAL BEHAVIOUR DID NOT GO AWAY, IT GOT A BOUNDARY. An untokenised
+  // child under ONE pending master is still written by that master, unchanged
+  // and for the reason it always was - measured next door by
+  // ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster, which was green
+  // before this issue and is green after it, untouched. What changed is only
+  // the case where the answer was never a decision: with TWO pending masters
+  // the row was claimed by both, in order, and kept whatever the second one
+  // wrote. Two masters cannot both be right, so neither writes.
   //
   // This test mutes BOTH adapters, so the child row is appended without its own
   // adapter ever seeing it: DoNewRecord never runs on it, cOwnerTokenField is
-  // never written and reads back as the 0 a TField answers for NULL. Such a row
-  // is still written by whichever pending master is passing, last one wins,
-  // because refusing it would regress everything that shipped.
+  // never written and reads back as the 0 a TField answers for NULL.
   //
   // THE OTHER STATE NO LONGER EXISTS. Until #265, a child typed with its own
   // events LIVE under a master that had no identity - which every master read
@@ -3718,15 +4072,18 @@ begin
   // MutedMasterAppend_WithARealKey_ItsChildKeepsThatKey and
   // TwoUnidentifiedPendingMasters_ChildOfTheFirstIsNotClaimedByTheSecond.
   //
-  // WHAT DID NOT CHANGE. This test was GREEN before #265 and is green after,
-  // unedited in its set-up and in its result. That is not luck: minting is
-  // reached from the CHILD's DoBeforeInsert, and this set-up is exactly what
-  // stops the child adapter's events from running at all. The premise clause
-  // below is what says so out loud, so the day someone makes a muted append
-  // record something, this test reddens instead of quietly changing meaning
-  // again.
+  // WHAT DID NOT CHANGE IN THE SET-UP. Not one line of it moved for #261 except
+  // the foreign key the child is seeded with, which went from cROOTOLD to
+  // cUNCLAIMEDSEED: 0 is what an unwritten integer column reads as anyway, so
+  // asserting the child still carries 0 would pass on a run where the column
+  // was never populated at all. A number nothing else in the fixture can
+  // produce is what makes "nobody wrote it" a measurement.
   //
-  // TWO STATES STILL REACH 0 and both fall back here: this one, and a child
+  // The premise clause below still says out loud that the muted append recorded
+  // nothing, so the day someone makes a muted append record something, this
+  // test reddens instead of quietly changing meaning again.
+  //
+  // TWO STATES STILL REACH 0 and both arrive here: this one, and a child
   // typed while the master table has no row at all - measured by
   // ChildTypedUnderAnEmptyMaster_MintsNothingAndFabricatesNoRow - plus a child
   // typed while the master row is being edited, measured by
@@ -3762,7 +4119,7 @@ begin
         LMasterTable.Post;
         LChildTable.Append;
         LChildTable.FieldByName(cOWNKEY).AsInteger := 0;
-        LChildTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+        LChildTable.FieldByName(cKEY).AsInteger := cUNCLAIMEDSEED;
         LChildTable.FieldByName(cTAG).AsString := 'C0';
         LChildTable.Post;
         LChildTable.Edit;
@@ -3780,16 +4137,281 @@ begin
         'gives the master an identity and this row names it, which is a ' +
         'different boundary measured by five other tests in this file - ' +
         DumpColumn(LChildTable, cOWNERTOKEN));
+      Assert.AreEqual(2,
+        CountWithColumn(LMasterTable, cInternalField, Integer(dsInsert)),
+        'PREMISE - AND THE WHOLE REASON THIS FIXTURE DIFFERS FROM ' +
+        'ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster: TWO master ' +
+        'rows must be pending. One is not an ambiguity and is still written; ' +
+        'if this ever reads 1 the test stops measuring what it is named after');
+      Assert.AreEqual(1,
+        CountWithColumn(LChildTable, cInternalField, Integer(dsInsert)),
+        'PREMISE: and the child row must be PENDING, or _IsPendingInsertRow ' +
+        'refuses it before parentage is ever asked about and every clause ' +
+        'below passes for the wrong reason');
 
       TCascadeAccess<TAitRoot>.ApplyAll(LMaster);
 
+      LKeyA := KeyOfMasterRow(LMasterTable, False);
       LKeyB := KeyOfMasterRow(LMasterTable, True);
+      Assert.IsTrue(LKeyA > 0,
+        'PREMISE: the first master must have received a generated key');
       Assert.IsTrue(LKeyB > 0,
         'PREMISE: the second master must have received a generated key');
-      Assert.AreEqual(1, CountWithColumn(LChildTable, cKEY, LKeyB),
-        'a child row with no recorded parentage keeps the historical ' +
-        'behaviour and ends on the LAST pending master - ' +
+      Assert.AreNotEqual(LKeyA, LKeyB,
+        'PREMISE: the two masters must carry DIFFERENT keys, or "claimed by ' +
+        'neither" and "claimed by both" are the same number');
+      Assert.AreEqual(cUNCLAIMEDSEED, KeyOfTaggedRow(LChildTable, 'C0'),
+        'THE ROW C0 - by tag, not by count - must still carry the foreign key ' +
+        'it was seeded with. With TWO pending masters and no recorded ' +
+        'parentage there is no answer, and the framework writes no answer ' +
+        'rather than the last one asked - ' + DumpColumn(LChildTable, cKEY));
+      Assert.AreEqual(0, CountWithColumn(LChildTable, cKEY, LKeyB),
+        'and specifically NOT the key of the LAST pending master, which is ' +
+        'what a walk that waves every untokenised row through leaves behind - ' +
         DumpColumn(LChildTable, cKEY));
+      Assert.AreEqual(0, CountWithColumn(LChildTable, cKEY, LKeyA),
+        'nor the key of the FIRST - refusing the second claim while keeping ' +
+        'the first would be first-one-wins, which is the same coin flip with ' +
+        'the other face up - ' + DumpColumn(LChildTable, cKEY));
+      // AND WHAT BECOMES OF THE ROW, which is the question a consumer asks
+      // next and which no clause used to answer. In the LOCAL families it is
+      // INSERTED: ApplyInternal reaches the child adapter's own ApplyInternal
+      // after the master loop ends, and that loop does not ask about
+      // parentage - it inserts every pending row it finds, this one included,
+      // carrying the foreign key it came in with. The clause above already
+      // says which key that is; this one says the row did not merely sit
+      // there. The REST family answers DIFFERENTLY and its own fixture
+      // measures it.
+      Assert.AreEqual(cAPPLIED,
+        TokenOfTaggedRow(LChildTable, 'C0', cInternalField),
+        'the unclaimed row is not left pending in this family - the child ' +
+        'level applies it, so what the consumer ends up with is an INSERTED ' +
+        'row carrying an unresolved foreign key, not a row still waiting');
+    finally
+      LChild.Free;
+      LMaster.Free;
+    end;
+  finally
+    LChildTable.Free;
+    LMasterTable.Free;
+  end;
+end;
+
+procedure TTestAutoIncDistribution.ClientDataSetUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
+var
+  LMasterCds: TClientDataSet;
+  LChildCds: TClientDataSet;
+  LMaster: TClientDataSetAdapter<TAitRoot>;
+  LChild: TClientDataSetAdapter<TAitMid>;
+  LInternal: TField;
+  LKeyA: Integer;
+  LKeyB: Integer;
+begin
+  // THE SECOND LOCAL FAMILY, and it is here for a mutation rather than for
+  // symmetry. The number of pending masters cannot be taken from inside the
+  // cascade - see TDataSetBaseAdapter<M>.FCascadeMasterRows - so it is read at
+  // the top of each ApplyInserter, and there are THREE of those:
+  // TFDMemTableAdapter<M>, TClientDataSetAdapter<M> and TRESTDataSetAdapter<M>.
+  // The three reads are near enough identical to invite the argument that
+  // measuring one measures the others. It does not: delete the read from THIS
+  // family alone and only THIS fixture reddens, which is the whole reason it
+  // was written rather than inferred from the FDMemTable twin.
+  //
+  // Everything else - what is muted, why the pending markers are written by
+  // hand, why the child foreign key starts on cUNCLAIMEDSEED - is the same as
+  // in UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither and is explained
+  // there rather than repeated here.
+  LMasterCds := TClientDataSet.Create(nil);
+  LChildCds := TClientDataSet.Create(nil);
+  try
+    LMaster := TClientDataSetAdapter<TAitRoot>.Create(FConn, LMasterCds, -1,
+                 nil);
+    LChild := TClientDataSetAdapter<TAitMid>.Create(FConn, LChildCds, -1,
+                LMaster);
+    try
+      TCascadeAccess<TAitRoot>.Mute(LMaster);
+      TCascadeAccess<TAitMid>.Mute(LChild);
+      try
+        LMasterCds.Append;
+        LMasterCds.FieldByName(cKEY).AsInteger := cROOTOLD;
+        LMasterCds.FieldByName(cTAG).AsString := 'R1';
+        LMasterCds.Post;
+        LInternal := LMasterCds.FieldByName(cInternalField);
+        LMasterCds.Edit;
+        LInternal.AsInteger := Integer(dsInsert);
+        LMasterCds.Post;
+        LMasterCds.Append;
+        LMasterCds.FieldByName(cKEY).AsInteger := cROOTOLD;
+        LMasterCds.FieldByName(cTAG).AsString := 'R2';
+        LMasterCds.Post;
+        LMasterCds.Edit;
+        LInternal.AsInteger := Integer(dsInsert);
+        LMasterCds.Post;
+        LChildCds.Append;
+        LChildCds.FieldByName(cOWNKEY).AsInteger := 0;
+        LChildCds.FieldByName(cKEY).AsInteger := cUNCLAIMEDSEED;
+        LChildCds.FieldByName(cTAG).AsString := 'C0';
+        LChildCds.Post;
+        LChildCds.Edit;
+        LChildCds.FieldByName(cInternalField).AsInteger := Integer(dsInsert);
+        LChildCds.Post;
+      finally
+        TCascadeAccess<TAitMid>.Unmute(LChild);
+        TCascadeAccess<TAitRoot>.Unmute(LMaster);
+      end;
+      Assert.AreEqual(1, CountWithColumn(LChildCds, cOWNERTOKEN, cNOTOKEN),
+        'PREMISE: the child must carry the NEVER RECORDED value in this ' +
+        'family too - ' + DumpColumn(LChildCds, cOWNERTOKEN));
+      Assert.AreEqual(2,
+        CountWithColumn(LMasterCds, cInternalField, Integer(dsInsert)),
+        'PREMISE: TWO master rows must be pending - that is the ambiguity');
+      Assert.AreEqual(1,
+        CountWithColumn(LChildCds, cInternalField, Integer(dsInsert)),
+        'PREMISE: and the child row must be PENDING, or _IsPendingInsertRow ' +
+        'refuses it before parentage is ever asked about');
+
+      TCascadeAccess<TAitRoot>.ApplyAll(LMaster);
+
+      LKeyA := KeyOfMasterRow(LMasterCds, False);
+      LKeyB := KeyOfMasterRow(LMasterCds, True);
+      Assert.IsTrue(LKeyA > 0,
+        'PREMISE: the first master must have received a generated key');
+      Assert.AreNotEqual(LKeyA, LKeyB,
+        'PREMISE: the two masters must carry DIFFERENT keys');
+      Assert.AreEqual(cUNCLAIMEDSEED, KeyOfTaggedRow(LChildCds, 'C0'),
+        'THE ROW C0 must still carry the foreign key it was seeded with in ' +
+        'the ClientDataSet family as well - ' + DumpColumn(LChildCds, cKEY));
+      Assert.AreEqual(0, CountWithColumn(LChildCds, cKEY, LKeyB),
+        'and specifically NOT the key of the LAST pending master - ' +
+        DumpColumn(LChildCds, cKEY));
+      Assert.AreEqual(cAPPLIED,
+        TokenOfTaggedRow(LChildCds, 'C0', cInternalField),
+        'and this family INSERTS it too, same as the FDMemTable twin - ' +
+        'measured here rather than inferred, because TClientDataSetAdapter<M> ' +
+        'carries its own ApplyInternal');
+    finally
+      LChild.Free;
+      LMaster.Free;
+    end;
+  finally
+    LChildCds.Free;
+    LMasterCds.Free;
+  end;
+end;
+
+procedure TTestAutoIncDistribution.RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither;
+var
+  LMasterTable: TFDMemTable;
+  LChildTable: TFDMemTable;
+  LMaster: TRESTFDMemTableAdapter<TAitRoot>;
+  LChild: TRESTFDMemTableAdapter<TAitMid>;
+  LKeyA: Integer;
+  LKeyB: Integer;
+begin
+  // THE SAME AMBIGUITY IN THE OTHER FAMILY, and it is run rather than inferred.
+  // The two families share _IsOwnedByMasterRow, but they do NOT share the loop
+  // that establishes how many masters are pending: TRESTDataSetAdapter<M> has
+  // its own ApplyInserter, so a fix applied to one ApplyInserter and not the
+  // other would leave this red and the local twin green.
+  //
+  // THE SET-UP IS THE REST ONE, NOT A COPY OF THE LOCAL SET-UP.
+  // TRESTDataSetAdapter<M>.OpenDataSetChilds has an empty body, so a master
+  // scroll discards nothing and the master adapter needs no mute: both masters
+  // go in LIVE, each carrying its own recorded identity, and each keeps its own
+  // tokenised child. Only the child adapter is muted, and only for the one row
+  // that is supposed to have no parentage - so this fixture measures the
+  // untokenised row NEXT TO two properly parented ones, in one run, which the
+  // local shape cannot do.
+  LMasterTable := TFDMemTable.Create(nil);
+  LChildTable := TFDMemTable.Create(nil);
+  try
+    LMaster := TRESTFDMemTableAdapter<TAitRoot>.Create(FRest, LMasterTable, -1,
+                 nil);
+    LChild := TRESTFDMemTableAdapter<TAitMid>.Create(FRest, LChildTable, -1,
+                LMaster);
+    try
+      LMasterTable.Append;
+      LMasterTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LMasterTable.FieldByName(cTAG).AsString := 'R1';
+      LMasterTable.Post;
+      LChildTable.Append;
+      LChildTable.FieldByName(cOWNKEY).AsInteger := 0;
+      LChildTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LChildTable.FieldByName(cTAG).AsString := 'A0';
+      LChildTable.Post;
+      LMasterTable.Append;
+      LMasterTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LMasterTable.FieldByName(cTAG).AsString := 'R2';
+      LMasterTable.Post;
+      LChildTable.Append;
+      LChildTable.FieldByName(cOWNKEY).AsInteger := 0;
+      LChildTable.FieldByName(cKEY).AsInteger := cROOTOLD;
+      LChildTable.FieldByName(cTAG).AsString := 'B0';
+      LChildTable.Post;
+      // The one row nobody recorded. Muted for its own append only, and its
+      // pending marker written by hand for the reason the local twin does it:
+      // a muted append never reaches DoBeforePost.
+      TCascadeAccess<TAitMid>.Mute(LChild);
+      try
+        LChildTable.Append;
+        LChildTable.FieldByName(cOWNKEY).AsInteger := 0;
+        LChildTable.FieldByName(cKEY).AsInteger := cUNCLAIMEDSEED;
+        LChildTable.FieldByName(cTAG).AsString := 'C0';
+        LChildTable.Post;
+        LChildTable.Edit;
+        LChildTable.FieldByName(cInternalField).AsInteger := Integer(dsInsert);
+        LChildTable.Post;
+      finally
+        TCascadeAccess<TAitMid>.Unmute(LChild);
+      end;
+      Assert.AreEqual(3, RowCount(LChildTable),
+        'PREMISE: the REST family must hold all three child rows at once - ' +
+        'two parented and one orphaned - or this fixture is not the shape it ' +
+        'claims to be');
+      Assert.AreEqual(1, CountWithColumn(LChildTable, cOWNERTOKEN, cNOTOKEN),
+        'PREMISE: EXACTLY ONE of them must be the unrecorded one. Two would ' +
+        'mean the live appends recorded nothing either and the two clauses ' +
+        'about A0 and B0 below would be measuring the same escape hatch - ' +
+        DumpColumn(LChildTable, cOWNERTOKEN));
+      Assert.AreEqual(2,
+        CountWithColumn(LMasterTable, cInternalField, Integer(dsInsert)),
+        'PREMISE: TWO master rows must be pending - that is the ambiguity');
+
+      TCascadeAccess<TAitRoot>.ApplyAll(LMaster);
+
+      LKeyA := KeyOfMasterRow(LMasterTable, False);
+      LKeyB := KeyOfMasterRow(LMasterTable, True);
+      Assert.IsTrue(LKeyA > 0,
+        'PREMISE: the first master must have received a key from the server ' +
+        'answer, or ApplyInserter never reached SetAutoIncValueChilds');
+      Assert.AreNotEqual(LKeyA, LKeyB,
+        'PREMISE: the two masters must carry DIFFERENT keys');
+
+      Assert.AreEqual(LKeyA, KeyOfTaggedRow(LChildTable, 'A0'),
+        'THE ROW A0 recorded its parent and must still be written by it - the ' +
+        'count of pending masters may not touch a row that is not ambiguous - ' +
+        DumpColumn(LChildTable, cKEY));
+      Assert.AreEqual(LKeyB, KeyOfTaggedRow(LChildTable, 'B0'),
+        'and B0 likewise, on the OTHER master - ' +
+        DumpColumn(LChildTable, cKEY));
+      Assert.AreEqual(cUNCLAIMEDSEED, KeyOfTaggedRow(LChildTable, 'C0'),
+        'THE ROW C0 recorded nothing, and with two pending masters there is ' +
+        'no answer to give it, so it keeps the key it came in with - ' +
+        DumpColumn(LChildTable, cKEY));
+      // AND HERE THE ROW REALLY IS LEFT PENDING, which is where this family
+      // parts company with the local ones. TRESTFDMemTableAdapter<M>
+      // .ApplyInternal does not iterate FMasterObject, so the child level is
+      // never applied in this run and the unclaimed row is still sitting on
+      // the pending marker when the apply is over. The local twins measure
+      // cAPPLIED at this same point. Neither answer is asserted as the
+      // desirable one - what is asserted is that they DIFFER, so that a
+      // sentence claiming one of them for "the framework" cannot be written
+      // again without this fixture contradicting it.
+      Assert.AreEqual(Integer(dsInsert),
+        TokenOfTaggedRow(LChildTable, 'C0', cInternalField),
+        'the unclaimed row is still PENDING in the REST family - this level ' +
+        'never applies its own children, so nothing wrote it to the server ' +
+        'and nothing cleared its marker');
     finally
       LChild.Free;
       LMaster.Free;

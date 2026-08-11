@@ -141,9 +141,21 @@ const
   ///  THIS row's own adapter had its events unhooked carries, since
   ///  TDataSetBaseAdapter<M>.DoNewRecord is what writes it.
   ///  TDataSetBaseAdapter<M>._IsOwnedByMasterRow answers True for such a row
-  ///  against every master, which is exactly the behaviour that shipped before
-  ///  this column existed. Pinned by Test.Janus.AutoInc.Distribution
-  ///  .UntokenisedRows_KeepTheHistoricalBehaviour.
+  ///  against THE master that is passing, which is exactly the behaviour that
+  ///  shipped before this column existed. Pinned by
+  ///  Test.Janus.AutoInc.Distribution
+  ///  .ChildRowWithNoRecordedParentage_IsStillWrittenByItsMaster.
+  ///
+  ///  "AGAINST EVERY MASTER" IS WHAT IT USED TO SAY, AND THAT IS THE DEFECT -
+  ///  issue #261. With more than one master row pending in the same apply, all
+  ///  of them asked and all of them were answered True, so the row was written
+  ///  once per master and kept whatever the LAST one wrote. _IsOwnedByMasterRow
+  ///  now weighs that answer against the number of masters doing the asking -
+  ///  see FCascadeMasterRows there - so the benefit of the doubt survives where
+  ///  there is one master and stops where there is a real ambiguity. Pinned in
+  ///  both families by
+  ///  UntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither and
+  ///  RestUntokenisedRow_WithTwoPendingMasters_IsClaimedByNeither.
   ///
   ///  WHAT IT DOES *NOT* MEAN ANY MORE - issue #265. It used to be reached a
   ///  second way, and that way was the dominant one: EVERY master row read from
