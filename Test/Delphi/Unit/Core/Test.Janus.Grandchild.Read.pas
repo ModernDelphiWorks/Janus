@@ -879,10 +879,12 @@ begin
     AParams();
   // An empty JSON OBJECT and not an empty array. TSessionRestFul<M>.Insert
   // parses whatever comes back and reads `params` off it with an `as`, so an
-  // array answers EInvalidCast before the clause can assert anything - measured
-  // at 6e29b60, where this returned '[]' and the clause errored instead of
-  // failing. An object with no `params` key is the shape that says "nothing
-  // came back" without pretending to be a document.
+  // array answers EInvalidCast before the clause can assert anything: MEASURED
+  // while this fixture was being written, with '[]' here, and the writing-path
+  // clause came back Errored - 'Invalid class typecast' - instead of Failed.
+  // No commit is named because that state was never committed. An object with
+  // no `params` key is the shape that says "nothing came back" without
+  // pretending to be a document.
   Result := '{}';
 end;
 
@@ -893,10 +895,12 @@ begin
     AParams();
   // An empty JSON OBJECT and not an empty array. TSessionRestFul<M>.Insert
   // parses whatever comes back and reads `params` off it with an `as`, so an
-  // array answers EInvalidCast before the clause can assert anything - measured
-  // at 6e29b60, where this returned '[]' and the clause errored instead of
-  // failing. An object with no `params` key is the shape that says "nothing
-  // came back" without pretending to be a document.
+  // array answers EInvalidCast before the clause can assert anything: MEASURED
+  // while this fixture was being written, with '[]' here, and the writing-path
+  // clause came back Errored - 'Invalid class typecast' - instead of Failed.
+  // No commit is named because that state was never committed. An object with
+  // no `params` key is the shape that says "nothing came back" without
+  // pretending to be a document.
   Result := '{}';
 end;
 
