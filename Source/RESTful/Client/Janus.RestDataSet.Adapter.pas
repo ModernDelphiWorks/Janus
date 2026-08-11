@@ -1042,9 +1042,8 @@ end;
 ///  E A CHAVE PROPRIA, E NAO A ESTRANGEIRA. A decisao e por SENSIBILIDADE, e o
 ///  que segue e MEDIDO. Substituindo esta leitura por uma que percorre as
 ///  colunas da ASSOCIACAO no dataset filho - a chave estrangeira - e re-rodando
-///  a suite em f5bd30a: 86 total, DUAS clausulas morrem e as outras nove que
-///  medem o defeito continuam verdes. As duas que morrem dizem exatamente onde
-///  a leitura pela FK e cega:
+///  a suite em f5bd30a: 86 total, DUAS clausulas morrem - e sao estas duas, nao
+///  um numero estimado. As duas dizem exatamente onde a leitura pela FK e cega:
 ///    * o agregado de DOIS niveis - a FK do filho para a raiz JA foi
 ///      reconciliada pelo carimbo mais SetAutoIncValueChilds, entao pela FK nao
 ///      sobra nada para denunciar, e so a chave propria do filho denuncia
@@ -1231,13 +1230,13 @@ end;
 ///  linha do meio ainda dispara a CascadeDelete dela, que esvazia o dataset dos
 ///  netos inteiro tambem.
 ///  MEDIDO EM a022111, com esta guarda removida e com o resto da correcao ja no
-///  lugar: duas raizes com uma linha de meio e um neto cada, o dublê
+///  lugar: duas raizes com uma linha de meio e um neto cada, o duplo
 ///  respondendo CHAVES DIFERENTES por raiz - 777 e 888 no POST, e um grafo
 ///  proprio por raiz no GET. Resultado: `roots=2 mids=1 leafs=1 posts=2
 ///  gets=2`. A re-leitura da segunda raiz levou os filhos JA RECONCILIADOS da
 ///  primeira.
 ///  AS CHAVES DISTINTAS ESTAO DECLARADAS PORQUE A PRIMEIRA MEDICAO NAO AS TINHA:
-///  em 0a0161f o dublê devolvia 777 para as duas raizes, de modo que aquele
+///  em 0a0161f o duplo devolvia 777 para as duas raizes, de modo que aquele
 ///  mesmo `mids=1` podia ser artefato de duas raizes indistinguiveis. Nao era -
 ///  a perda se reproduz com as raizes separadas.
 ///  Isso e PIOR do que o defeito que esta correcao conserta, entao neste caso o

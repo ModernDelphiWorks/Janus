@@ -473,9 +473,11 @@ begin
       Assert.AreEqual(cRESTSTEP, FirstRowValue(LMidTable, cROOTKEY),
         'level 2 must have been stamped with the root new key: that write is ' +
         'legitimate and must not be lost with the one under test');
-      // PREMISE, and the reason nothing repairs the grandchild here:
+      // PREMISE, and HALF the reason nothing repairs the grandchild here:
       // TRESTFDMemTableAdapter<M>.ApplyInternal does not iterate FMasterObject,
-      // so the middle level is never applied on its own.
+      // so the middle level is never applied on its own. The other half is
+      // #297: ApplyInserter now re-reads, and what keeps that re-read from
+      // repairing this run is the answer, not the walk - see the note below.
       Assert.AreEqual(Integer(dsInsert),
         FirstRowValue(LMidTable, cInternalField),
         'the middle level must still be pending after the apply - if it were ' +
