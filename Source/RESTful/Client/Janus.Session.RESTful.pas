@@ -595,6 +595,16 @@ begin
     if LObjectList = nil then
       Exit;
     try
+      // NENHUMA LINHA E UMA RESPOSTA, e nao um erro - issue #297. Uma consulta
+      // por chave primaria pode nao casar nada: a linha foi apagada por outro,
+      // ou o servidor nao a devolve. First numa lista vazia levanta
+      // EArgumentOutOfRange, e ate a #297 este caminho so era alcancado por
+      // pedido EXPLICITO do consumidor; agora ele roda sozinho depois de todo
+      // insert cujo grafo ficou defasado, de modo que a excecao passaria a
+      // interromper a gravacao DEPOIS de o servidor ja ter escrito. Sem linha
+      // nao ha o que reescrever, e o cliente fica como estava.
+      if LObjectList.Count = 0 then
+        Exit;
       FOwner.RefreshRecordInternal(LObjectList.First);
     finally
       LObjectList.Clear;

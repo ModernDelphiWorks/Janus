@@ -42,6 +42,35 @@
        nothing repairs the grandchild. The whole aggregate goes out in one POST.
     4. Is it dead? No. It is alive and it writes an invalid foreign key.
 
+  ITEMS 1 AND 3 ARE THE MEASUREMENT OF #262, AND #297 MOVED HALF OF ITEM 3.
+  "and it stays" and "nothing repairs the grandchild" were exact when they were
+  written and are no longer exact in general: TRESTDataSetAdapter<M>
+  .ApplyInserter now RE-READS the aggregate it inserted, so a grandchild left on
+  the placeholder can be repaired by the answer afterwards. What did NOT move is
+  everything this file measures: the recursion must not COPY a key that does not
+  exist yet, whatever comes back later, and the write under test happens before
+  any answer could arrive.
+
+  WHY THE RE-READ DOES NOT REACH THE RUN BELOW, AND IT IS TWO GUARDS AND NOT
+  ONE. TSeqRestConnection answers EVERY verb with a `params` document, so the
+  GET that the re-read fires comes back as an object that is neither this row
+  nor as deep as the client's own graph, and each of TRESTDataSetAdapter<M>'s
+  two guards refuses it on its own:
+
+    _AnswerIsTheRowUnderTheCursor    - the answer carries no root_id at all, so
+                                       it is not the row under the cursor;
+    _AnswerReachesEveryLoadedLevel   - the answer carries no `mids` while the
+                                       client is holding a middle row.
+
+  NAMING ONLY ONE OF THEM IS A TRAP FOR WHOEVER MUTATES IT, and this paragraph
+  exists because that trap was live for one commit: whoever forced the identity
+  guard to answer True, expecting this file to redden, would have seen
+  Janus.Tests.Units stay green and concluded the guard was dead. Measured at
+  39bd01b: with the identity guard forced True, Units is 567/0 - the depth
+  guard alone still refuses the answer. Mutating either guard by itself proves
+  nothing here; only mutating both does. That is also why the clause below reads
+  the same number as it did before #297.
+
   THE LOCAL FAMILY CHANGED ITS ANSWER WHEN #276 LANDED, and that is why the
   order of attack was #276 -> #262. Before #276 the grandchild ROW was destroyed
   by the read of .Current on the grandparent before the cascade reached it, so
@@ -461,18 +490,29 @@ begin
       Assert.AreEqual(cRESTSTEP, FirstRowValue(LMidTable, cROOTKEY),
         'level 2 must have been stamped with the root new key: that write is ' +
         'legitimate and must not be lost with the one under test');
-      // PREMISE, and the reason nothing repairs the grandchild here:
+      // PREMISE, and HALF the reason nothing repairs the grandchild here:
       // TRESTFDMemTableAdapter<M>.ApplyInternal does not iterate FMasterObject,
-      // so the middle level is never applied on its own.
+      // so the middle level is never applied on its own. The other half is
+      // #297: ApplyInserter now re-reads, and what keeps that re-read from
+      // repairing this run is the answer, not the walk - see the note below.
       Assert.AreEqual(Integer(dsInsert),
         FirstRowValue(LMidTable, cInternalField),
         'the middle level must still be pending after the apply - if it were ' +
         'applied, the REST family would repair the grandchild and this test ' +
         'would be measuring the local family by accident');
 
+      // THE REST FAMILY DOES COME BACK NOW - issue #297 - and this clause is
+      // still about the write that must never happen. ApplyInserter re-reads
+      // the aggregate it inserted, so a grandchild left on the placeholder can
+      // be repaired afterwards; what may not happen is the placeholder being
+      // COPIED into the grandchild in the first place, which is what
+      // _AutoIncKeyIsGenerated refuses and what this fixture measures. The
+      // re-read does not reach this run: TSeqRestConnection answers every verb
+      // with a `params` document, and TRESTDataSetAdapter<M>
+      // ._AnswerIsTheRowUnderTheCursor discards an answer that is not this row.
       Assert.AreNotEqual(cPLACEHOLDER, FirstRowValue(LLeafTable, cMIDKEY),
         'the grandchild must not be left holding the middle level autoinc ' +
-        'placeholder: nothing in the REST family ever comes back to fix it');
+        'placeholder: the cascade must never write a key that does not exist');
       Assert.AreEqual(cLEAFSEED, FirstRowValue(LLeafTable, cMIDKEY),
         'with no key to propagate, the grandchild must come out exactly as ' +
         'it went in - which is also what the POST carried to the server');

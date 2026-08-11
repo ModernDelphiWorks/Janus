@@ -103,6 +103,7 @@
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.CascadeGuard.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.Lazy.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.Lazy.Cds.pas"/>
+        <DCCReference Include="Unit\RESTful\Test.Janus.Rest.ReReadAfterInsert.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
