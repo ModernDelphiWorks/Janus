@@ -385,6 +385,16 @@ type
     /// key and not about the first.
     [Test]
     procedure CompositeKey_EveryColumnOfTheKeyDecidesWhichRowsTheMasterCarries;
+    /// NULL DOES NOT MATCH NULL, and this is the only shape where that clause
+    /// decides anything. A null foreign key against a master that HAS a key is
+    /// already refused by the value comparison - '' is not '11' - so the
+    /// clause is only reached when the MASTER's own key column is null too,
+    /// and then it parts "two rows nobody can tell apart claim the same child"
+    /// from "neither does". The composite association is where this is
+    /// reachable at all: its columns are not the primary key and carry no
+    /// NotNull restriction.
+    [Test]
+    procedure TwoMastersWithNoKeyAtAll_ClaimNoChildRow;
     /// The guard that keeps the repair from swallowing the scroll contract.
     /// Once the read is over, an operator keypress on the middle grid must
     /// still re-open the leaf from the database and still discard - that is
@@ -1159,6 +1169,54 @@ begin
     'children to both masters. This is also the only place the value ' +
     'comparison meets ftGuid, ftCurrency, ftDate, ftDateTime and ftTime at ' +
     'all - everything else in this fixture is ftInteger');
+end;
+
+procedure TTestGrandchildRead.TwoMastersWithNoKeyAtAll_ClaimNoChildRow;
+var
+  LMaster: TCompMaster;
+  LChild: TCompChild;
+  LResult: String;
+  LMute: TScrollMute;
+begin
+  BuildCompositeKeyPair;
+  // Only the primary key is typed. The seven columns the association joins on
+  // are left NULL on BOTH master rows and on the child, which the composite
+  // model allows and no other association in the repository does - everywhere
+  // else the joined column is the primary key and carries NotNull.
+  FCompMasterTable.Append;
+  FCompMasterTable.FieldByName(cCOMPMASTERKEY).AsInteger := 1;
+  FCompMasterTable.Post;
+  FCompMasterTable.Append;
+  FCompMasterTable.FieldByName(cCOMPMASTERKEY).AsInteger := 2;
+  FCompMasterTable.Post;
+  FCompChildTable.Append;
+  FCompChildTable.FieldByName(cCOMPCHILDKEY).AsInteger := 1;
+  FCompChildTable.Post;
+
+  Assert.IsTrue(FCompMasterTable.FieldByName(cCOMPMASTERPFX + '1').IsNull,
+    'premise: the master row really names no key');
+  Assert.IsTrue(FCompChildTable.FieldByName(cCOMPCHILDPFX + '1').IsNull,
+    'premise: the child row really names no parent');
+
+  LMute := MuteScroll(FCompMasterTable);
+  try
+    FCompMasterTable.Last;
+  finally
+    UnmuteScroll(FCompMasterTable, LMute);
+  end;
+
+  LMaster := FCompMaster.Current;
+
+  Assert.AreEqual(2, LMaster.cmkey,
+    'premise: the read really bound the SECOND master row');
+  LResult := '';
+  for LChild in LMaster.childs do
+    LResult := LResult + IntToStr(LChild.cckey) + ';';
+  Assert.AreEqual('', LResult, False,
+    'two master rows that carry no key are not two candidates, they are ZERO ' +
+    'candidates: nothing about either of them says the child is theirs. ' +
+    'Reading a null as equal to a null makes them BOTH claim it, which is ' +
+    'this issue''s defect reproduced by the repair meant to close it');
 end;
 
 procedure TTestGrandchildRead.AfterTheRead_AnOperatorScrollStillDiscards;
