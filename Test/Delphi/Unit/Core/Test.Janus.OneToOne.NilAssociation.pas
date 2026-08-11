@@ -64,13 +64,16 @@
 
   MANYTOONE CARRIES ITS OWN LABEL HERE
 
-  Janus.DataSet.Events has claimed since issue #261 that "OneToOne and ManyToOne
-  both route there ... no test carries the ManyToOne label". FillMastersClass
-  really does test both in one `in [...]` set, so the claim is readable off the
-  source - but readable is not measured, and TAsymTreeManyRoot below is the
-  first entity in the suite to declare TMultiplicity.ManyToOne. It reuses atmid
-  and atleaf verbatim, the same way atpair does, so the only thing that differs
-  from the OneToOne clauses is the multiplicity token.
+  Janus.DataSet.Events said, over TPendingChildsAction, "OneToOne and ManyToOne
+  both route to that branch ... no test carries the ManyToOne label". The
+  sentence entered at commit 6741bbe, with issue #276, and this change is what
+  narrowed it - so the words above are the text AS IT STOOD, not what is there
+  now. FillMastersClass really does test both in one `in [...]` set, so the
+  claim was readable off the source - but readable is not measured, and
+  TAsymTreeManyRoot below is the first entity in the suite to declare
+  TMultiplicity.ManyToOne. It reuses atmid and atleaf verbatim, the same way
+  atpair does, so the only thing that differs from the OneToOne clauses is the
+  multiplicity token.
 
   WHAT WOULD KILL EACH CLAUSE - the mutations that were run are recorded in the
   commit that installs them, not here, so this header does not go stale when the
@@ -682,9 +685,9 @@ begin
 
   Assert.AreEqual(cROOT2 + '(' + cNILBRANCH + ')', ManyRootGraph(LRoot), False,
     'FillMastersClass routes ManyToOne to _ExecuteOneToOne in the same ' +
-    '`in [...]` set as OneToOne. Janus.DataSet.Events has claimed that since ' +
-    'issue #261 and no test carried the label until this one - a claim read ' +
-    'off the source is not a measurement of it');
+    '`in [...]` set as OneToOne. Janus.DataSet.Events said so from commit ' +
+    '6741bbe on, and said in the same breath that no test carried the label - ' +
+    'a claim read off the source is not a measurement of it');
 end;
 
 procedure TTestOneToOneNilAssociation.ManyToOne_WithTheAssociationAssigned_TheWalkStillBuildsTheWholeBranch;
