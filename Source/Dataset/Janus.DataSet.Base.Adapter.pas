@@ -644,8 +644,37 @@ begin
   // NO CLAUSE IN THE SUITE DRIVES THAT SIBLING HAZARD, measured from the other
   // side on commit 219ebcd: adding the equivalent nil guard to
   // _ExecuteOneToMany with everything else intact turned NOTHING red - 567
-  // found, 0 failures, 0 errors, exactly as without it. Every model the suite
-  // compiles builds its list in its own constructor.
+  // found, 0 failures, 0 errors, exactly as without it. Every model
+  // Janus.Tests.Units compiles builds its list in its own constructor.
+  //
+  // THAT SENTENCE IS ABOUT ONE PROJECT AND IT DOES NOT GENERALISE TO THE
+  // REPOSITORY. TLazyBranchRoot has no constructor at all - both of its
+  // OneToMany properties are Lazy<TObjectList<...>> and the list is
+  // materialised on first read by Lazy<T>.GetValue through CreateDefaultValue,
+  // not by the owner. It is compiled ONLY by Janus.Tests.RESTHorse, so it is
+  // outside the run the numbers above come from, and the conclusion survives
+  // it either way: that model's list is never nil when the walk reads it, and
+  // the same guard added to the sibling was run against Janus.Tests.RESTHorse
+  // as well - 92 found, 0 failures, 0 errors, that project's basal exactly.
+  //
+  // AND THE `IsObject` GUARD ABOVE IS ITSELF UNCOVERED. Deleting it outright
+  // leaves the project at 567 found, 0 failures, 0 errors - nothing in the
+  // suite holds it up. It is PRE-EXISTING and this change neither measures it
+  // nor claims it earns its place; what is measured is only that it cannot
+  // catch a nil, which is why the exit below had to be added rather than the
+  // guard above widened.
+  //
+  // THE POSITION OF THE EXIT IS NOT PINNED BY ANY CLAUSE EITHER, and the
+  // measurement is worse than that sentence sounds. Moved to just after the
+  // First - so past the bookmark, past the scroll, and skipping the restore
+  // and the FreeBookmark in the inner `finally` - the project still reads 567
+  // found, 0 failures, 0 errors. That placement LEAKS A BOOKMARK and leaves
+  // the child cursor parked on its first row, and nothing in the suite
+  // notices, because the #276 suppression makes the movement unobservable.
+  // Where it sits now is strictly better - it does no work it will throw away
+  // and takes no bookmark it will not give back - and nothing defends it.
+  // Declared as a surviving mutation rather than repaired with a clause:
+  // pinning it would mean asserting on cursor state no consumer can see.
   //
   // Measured by Test.Janus.OneToOne.NilAssociation.
   if LObject = nil then

@@ -30,6 +30,13 @@
   measures that instead of quoting it, because the whole defect rests on it and
   a reader who assumes the opposite would call the repair redundant.
 
+  WHAT THAT PREMISE DOES NOT SAY IS THAT THE OLD GUARD EARNS ITS PLACE. It
+  measures only that the guard CANNOT catch a nil. Whether it catches anything
+  else is not measured here and is not measured anywhere: deleting it outright
+  leaves this project at 567 found, 0 failures, 0 errors. It is pre-existing
+  and it is left alone, uncovered - said plainly so the premise below is not
+  read as a defence of it.
+
   A NIL THERE IS A STATE THE REPOSITORY ITSELF SHIPS. TAsymTreeOneRoot.mid is
   declared [Association(TMultiplicity.OneToOne, ...)] and no constructor fills
   it in - its own model header says "It starts nil on purpose". A consumer that
@@ -660,13 +667,13 @@ begin
     cROOTTAG);
 
   Assert.AreEqual(cLEAF1 + '/' + IntToStr(cMIDOWNKEY) + ';',
-    LeafRows(FMemLeafTable),
+    LeafRows(FMemLeafTable), False,
     'premise: the grandchild line is on screen before anything is read');
 
   FMemRoot.Current;
 
   Assert.AreEqual(cLEAF1 + '/' + IntToStr(cMIDOWNKEY) + ';',
-    LeafRows(FMemLeafTable),
+    LeafRows(FMemLeafTable), False,
     'the nil is handed on TWICE in that method and only the first hand-off ' +
     'raises: the second passes it to FillMastersClass one level down. ' +
     'Leaving the walk before either of them has to cost the grandchild rows ' +
