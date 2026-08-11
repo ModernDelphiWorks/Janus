@@ -841,19 +841,28 @@ end;
 ///  dataset master - issue #295. Sem par nenhum responde True: ver
 ///  _ForeignKeyFieldPairs, que e quem decide se ha pergunta.
 ///
-///  NULO DE QUALQUER DOS LADOS RESPONDE False, e isto so e alcancado quando ha
-///  DOIS OU MAIS masters, porque com um so nao ha par nenhum. Uma FK nula nao
-///  nomeia pai algum, e uma chave de master nula nao distingue um master do
-///  outro: nos dois casos entregar a linha a este pai seria entregar a linha ao
-///  pai errado com a mesma probabilidade de acertar. Nao entregar deixa a linha
-///  visivel onde ela esta; entregar ao errado nao.
+///  NULO DE QUALQUER DOS LADOS RESPONDE False, e o que essa clausula DECIDE
+///  sozinha e menos do que ela parece dizer - medido, e nao suposto. Nulo do
+///  lado do filho contra um master COM chave ja e recusado pela comparacao de
+///  valor logo abaixo, porque '' nao e '11', de modo que apagar a clausula nao
+///  muda nada ali. O unico caso que ela decide e NULO CONTRA NULO: duas linhas
+///  de master que nao carregam chave nenhuma nao sao dois candidatos, sao ZERO
+///  candidatos, e le-las como iguais faria as duas reivindicarem o mesmo filho
+///  - o defeito desta issue reproduzido pelo conserto dela. Medido por
+///  Test.Janus.Grandchild.Read.TwoMastersWithNoKeyAtAll_ClaimNoChildRow, que e
+///  o unico sitio onde a forma e construivel: so a associacao composta junta
+///  colunas que nao sao a chave primaria e portanto podem ser nulas.
+///  Nao entregar deixa a linha visivel onde ela esta; entregar ao pai errado
+///  nao. Nada disto e alcancado com UM master so, porque ai nao ha par nenhum.
 ///
-///  COMPARA POR AsString DE PROPOSITO. A comparacao tem de ser TOTAL - qualquer
-///  par de tipos, sem excecao - porque uma FK pode ser inteira, string ou GUID,
-///  e os dois lados podem ate ser declarados com tipos diferentes num modelo que
-///  o repositorio nao proibe. Variant comparado com Variant levanta em
-///  combinacoes que TField.AsString atravessa sem ruido, e as duas pontas leem
-///  o mesmo valor pela mesma rotina. </summary>
+///  COMPARA POR AsString DE PROPOSITO, para que a comparacao seja TOTAL: as
+///  duas pontas leem o valor pela MESMA rotina, nenhuma combinacao de tipos
+///  precisa de um ramo proprio, e nao ha conversao a falhar. O que esta MEDIDO
+///  e o par de mesmo tipo em ftInteger, ftString, ftGuid, ftDate, ftCurrency,
+///  ftDateTime e ftTime - CompositeKey_EveryColumnOfTheKeyDecidesWhichRows...
+///  compara os sete de uma vez. Par de tipos DIFERENTES nos dois lados da mesma
+///  associacao NAO ESTA MEDIDO - nao se procurou um modelo assim, e por isso
+///  aqui nao se afirma que nao existe. </summary>
 function TDataSetBaseAdapter<M>._ChildRowIsUnderTheCurrentMasterRow(
   const AMasterFields, AChildFields: TList<TField>): Boolean;
 var
