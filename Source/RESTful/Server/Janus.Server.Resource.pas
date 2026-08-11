@@ -124,17 +124,25 @@ uses
 ///  each needs its own clause - see BigIntegerKey_MustNotBeNarrowed and
 ///  UnsignedKeyAboveHighInt64_MustNotFlipSign.
 ///
-///  The one Variant state that has NO clause is varEmpty, and it is guarded
-///  above alongside Null. Enumerated rather than assumed: MetaDbDiff's
-///  TRttiPropertyHelper.GetNullableValue leaves an EMPTY TValue by exactly
-///  three routes - a nil instance, a Nullable-shaped record with no FHasValue
-///  field, and one with FHasValue set but no FValue field. The first cannot
-///  happen here, because the caller has just dereferenced that object. The
-///  other two need a record whose type NAME begins with 'Nullable<' - the
-///  check is by name - but whose layout is not Janus's, which no entity in
-///  this repository declares. The guard stays because removing it is NOT
-///  response-neutral: without it an empty Variant would leave as "" rather
-///  than null, and an empty string is something a client writes into a field.
+///  The guard above catches TWO Variant states, not one, and they are reached
+///  by different shapes. MetaDbDiff's TRttiPropertyHelper.GetNullableValue
+///  answers a Variant NULL for a Nullable whose FHasValue is clear, and leaves
+///  the Default(TValue) it started with - an EMPTY TValue - by three other
+///  routes: a nil instance, a Nullable-shaped record with no FHasValue field,
+///  and one with FHasValue set but no FValue field. TValue.AsVariant on an
+///  empty value does not raise and does not answer Null; AsTypeInternal takes
+///  the branch that zero-fills the result, and a zeroed Variant is varEmpty.
+///  So VarIsNull is False there and only VarIsEmpty catches it.
+///
+///  A nil instance cannot happen at this call site - the caller has just
+///  dereferenced that object - but the third route is reachable by a mapping
+///  the framework accepts, because IsNullable is a check BY NAME. Measured,
+///  not argued: Test.Janus.Model.KeyTypeDecoy declares such a record and
+///  NullableShapedKeyWithNoValueField_ComesBackAsJsonNull dies when the
+///  VarIsEmpty half of this guard is removed. Both halves are load-bearing,
+///  and removing either is not response-neutral: an empty Variant would leave
+///  as "" rather than null, and an empty string is something a client writes
+///  into a field as if it were the value.
 ///
 ///
 ///  Booleans are deliberately NOT mapped onto a JSON boolean: VarIsOrdinal is

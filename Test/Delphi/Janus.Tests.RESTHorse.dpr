@@ -81,6 +81,8 @@ uses
   Test.Janus.Server.RestObjectSet.LoadLazy in 'RESTHorse\Test.Janus.Server.RestObjectSet.LoadLazy.pas',
   /// One entity per PRIMARY KEY FIELD TYPE — issue #311
   Test.Janus.Model.KeyTypes in 'Common\Test.Janus.Model.KeyTypes.pas',
+  /// The one shape that reaches an EMPTY Variant — issue #311
+  Test.Janus.Model.KeyTypeDecoy in 'Common\Test.Janus.Model.KeyTypeDecoy.pas',
   /// Whether the insert response quotes the key it carries back — issue #311
   Test.Janus.Server.Resource.KeyQuoting in 'RESTHorse\Test.Janus.Server.Resource.KeyQuoting.pas';
 

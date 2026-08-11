@@ -82,7 +82,26 @@
   concatenating and let a TJSONObject serialise. They are indistinguishable on
   a well-behaved value. They part company on a key that CONTAINS a double quote
   or a backslash, where hand-quoting produces a document that is malformed
-  again in a new way. Those two clauses are the measurement that chose.
+  again in a new way. Those clauses are the measurement that chose.
+
+  THE FAILURE COUNTS FOR THAT MEASUREMENT NAME THEIR OWN POPULATION
+
+  Conditional quoting was first measured against the NINE-clause version of
+  this fixture - which is what existed at the time - and took it from 8
+  failures to 3. Against the fixture as it now stands, 110 clauses, the same
+  repair leaves 7. Neither figure is wrong and the two are not comparable: any
+  quotation of them has to name the fixture it means, because the population
+  changed and not the repair. What does not change with the fixture is the
+  finding, which is that conditional quoting never reaches zero - a double
+  quote, a backslash, an ambient decimal separator, a raw control character
+  and a value-less key each defeat it independently.
+
+  One result from the larger run is worth keeping in view, because it is an
+  argument the escape clauses alone do not make: under conditional quoting,
+  TextualKeyCarryingAControlCharacter PASSES. Delphi's parser accepts a raw
+  control character, so the round trip succeeds over a document RFC 8259
+  rejects. Only TheResponseCarriesNoRawControlCharacter, which reads the wire,
+  catches that one.
 
   WHAT THIS FIXTURE DELIBERATELY DOES NOT ASSERT
 
@@ -227,6 +246,13 @@ type
     [Test]
     procedure NullableKeyWithNoValue_ComesBackAsJsonNull;
 
+    /// The OTHER half of that guard. GetNullableValue answers a Variant NULL
+    /// for a Nullable with FHasValue clear, and an EMPTY TValue - varEmpty,
+    /// not varNull - when the record has no FValue field at all. The clause
+    /// above reaches the first; only TKeyTypeDecoy reaches the second.
+    [Test]
+    procedure NullableShapedKeyWithNoValueField_ComesBackAsJsonNull;
+
     /// The whole response, not just its params element, must stay a single
     /// well-formed document - the `result` message has to survive intact.
     [Test]
@@ -261,6 +287,8 @@ const
                '  ktbig BIGINT PRIMARY KEY, kttag VARCHAR(60))';
   cDDL_UNS   = 'CREATE TABLE IF NOT EXISTS ktunsigned (' +
                '  ktu BIGINT PRIMARY KEY, kttag VARCHAR(60))';
+  cDDL_DECOY = 'CREATE TABLE IF NOT EXISTS ktdecoy (' +
+               '  ktdec VARCHAR(60), kttag VARCHAR(60))';
   cDDL_COMP  = 'CREATE TABLE IF NOT EXISTS ktcomp ('  +
                '  ktca VARCHAR(60), ktcb VARCHAR(60), kttag VARCHAR(60),' +
                '  PRIMARY KEY (ktca, ktcb))';
@@ -291,6 +319,7 @@ begin
   FConnection.ExecuteDirect(cDDL_BIG);
   FConnection.ExecuteDirect(cDDL_UNS);
   FConnection.ExecuteDirect(cDDL_COMP);
+  FConnection.ExecuteDirect(cDDL_DECOY);
 end;
 
 procedure TTestServerResourceKeyQuoting.TearDownFixture;
@@ -318,6 +347,7 @@ begin
   FConnection.ExecuteDirect('DELETE FROM ktbig');
   FConnection.ExecuteDirect('DELETE FROM ktunsigned');
   FConnection.ExecuteDirect('DELETE FROM ktcomp');
+  FConnection.ExecuteDirect('DELETE FROM ktdecoy');
 end;
 
 function TTestServerResourceKeyQuoting.ScalarInt(const ASQL: String): Integer;
@@ -604,6 +634,20 @@ begin
   Assert.IsTrue(LPair.JsonValue is TJSONNull,
     'A key with no value must come back as JSON null, not as an empty string '
     + 'the client would take for the value. Got: '
+    + LPair.JsonValue.ClassName + ' / ' + LPair.JsonValue.ToJSON);
+end;
+
+procedure TTestServerResourceKeyQuoting.NullableShapedKeyWithNoValueField_ComesBackAsJsonNull;
+var
+  LPair: TJSONPair;
+begin
+  LPair := KeyPairOf('KeyTypeDecoy', '{"kttag":"decoy"}');
+  Assert.AreEqual('ktdec', LPair.JsonString.Value,
+    'The response no longer names the key column.');
+  Assert.IsTrue(LPair.JsonValue is TJSONNull,
+    'An EMPTY Variant must come back as JSON null. Dropping the VarIsEmpty '
+    + 'half of the guard sends it to the string branch, where it leaves as "" '
+    + '- a value the client would write into the field. Got: '
     + LPair.JsonValue.ClassName + ' / ' + LPair.JsonValue.ToJSON);
 end;
 
