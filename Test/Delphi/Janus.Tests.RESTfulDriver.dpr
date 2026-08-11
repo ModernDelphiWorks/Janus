@@ -66,6 +66,9 @@ uses
   MetaDbDiff.Mapping.Register,
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
   Test.Janus.Model.AutoIncTree in 'Common\Test.Janus.Model.AutoIncTree.pas',
+  /// The canonical COMPOSITE PRIMARY KEY entity - both columns are the key.
+  /// Issue #300.
+  Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
   /// String key and composite key - the two association shapes the REST lazy
   /// filter had no model for. Issue #251.
   Test.Janus.Model.RestLazyKeys in 'Common\Test.Janus.Model.RestLazyKeys.pas',
@@ -89,7 +92,11 @@ uses
   Test.Janus.Rest.Lazy.Cds in 'Unit\RESTful\Test.Janus.Rest.Lazy.Cds.pas',
   /// The client re-reads the aggregate it has just inserted, because the insert
   /// answer names the ROOT key and nothing below it - issue #297
-  Test.Janus.Rest.ReReadAfterInsert in 'Unit\RESTful\Test.Janus.Rest.ReReadAfterInsert.pas';
+  Test.Janus.Rest.ReReadAfterInsert in 'Unit\RESTful\Test.Janus.Rest.ReReadAfterInsert.pas',
+  /// A COMPOSITE primary key lost every column but the last on the way back
+  /// from an insert, because the answer was parsed one param per OBJECT
+  /// instead of one per PAIR - issue #300
+  Test.Janus.Rest.ResultParamsCompositeKey in 'Unit\RESTful\Test.Janus.Rest.ResultParamsCompositeKey.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
