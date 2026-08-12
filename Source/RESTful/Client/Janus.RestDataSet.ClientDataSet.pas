@@ -312,12 +312,20 @@ begin
     ///  its whole local area - so "the compiler happens to zero it" is not a
     ///  property of this compiler, it is a property of each frame.
     ///
-    ///  The `<> nil` guard is KEPT rather than dropped as unreachable. It is
-    ///  what the sibling of this family does with the same answer -
+    ///  THE `<> nil` GUARD IS KEPT, and mutating it to `if True` is a
+    ///  SURVIVOR that nothing in this tree can kill. That is a property of
+    ///  the WIRING, not of the contract, and the difference is the whole
+    ///  argument: FSession is declared TSessionAbstract<M>, whose
+    ///  Find(const AID: String) hands straight to FCommandExecutor.Find, and
+    ///  TSQLCommandExecutor<M>.Find answers `Result := nil` whenever the
+    ///  select does not bring back exactly one row. What cannot answer nil is
+    ///  only the session this class happens to install today -
+    ///  TSessionRestFul<M>, because TJsonBuilder.JsonToObject<T> raises
+    ///  instead. Deleting the guard would be discarding a clause of the
+    ///  ANCESTOR's contract on the strength of one concrete descendant. The
+    ///  sibling of this family keeps it too -
     ///  TRESTFDMemTableAdapter<M>.OpenIDInternal exits and leaves the dataset
-    ///  empty - and today nothing can reach it only because
-    ///  TJsonBuilder.JsonToObject<T> raises instead of answering nil. That is
-    ///  the serialiser's contract, not this adapter's.
+    ///  empty.
     ///
     ///  Driven by Test.Janus.Rest.OpenIdPopulates. </summary>
     LObject := FSession.Find(AID.ToString);

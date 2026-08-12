@@ -72,12 +72,16 @@
   the seven test projects actually compile against, `.modules\JsonFlow` at
   65a1e91, Source\Core\JsonFlow.Builders.pas, TJsonBuilder.JsonToObject<T>.
 
-  The repair therefore KEEPS the `<> nil` guard rather than dropping it as
-  dead: it is the same guard the sibling of the same family already carries -
-  TRESTFDMemTableAdapter<M>.OpenIDInternal answers nil with a bare `exit`,
-  leaving the dataset empty and raising nothing - and what it guards against
-  is a future session, not this one. A clause here would be measuring the
-  serialiser, not this adapter.
+  The repair therefore KEEPS the `<> nil` guard, and mutating it to `if True`
+  is a DECLARED SURVIVOR of this fixture. It survives on the wiring, not on
+  the contract: FSession is declared TSessionAbstract<M>, whose Find(const
+  AID: String) hands straight to FCommandExecutor.Find, and
+  TSQLCommandExecutor<M>.Find answers `Result := nil` whenever the select
+  does not bring back exactly one row. Only the session this class installs
+  today - TSessionRestFul<M> - cannot answer nil. The sibling of the same
+  family keeps the guard too: TRESTFDMemTableAdapter<M>.OpenIDInternal exits
+  on nil, leaving the dataset empty and raising nothing. A clause here would
+  be measuring the serialiser, not this adapter.
 
   HOW THE FIXTURE PINS THE SYMPTOM DOWN
 
