@@ -878,23 +878,44 @@ end;
 ///  ONLY tkInt64 CHANGES ROUTE, and the two labels that share this branch keep
 ///  theirs. tkInteger is a Longint already, and tkSet is not a number at all -
 ///  a set property is written from an ordinal whose meaning is its bit pattern,
-///  and widening the TValue that carries it changes which TValue.Cast the RTTI
-///  writer performs. Neither has anything to gain here and both have something
-///  to lose, so the guard names tkInt64 rather than excluding tkSet.
+///  and widening the TValue that carries it changes which cast the RTTI writer
+///  performs. Neither has anything to gain here and both have something to
+///  lose, so the guard names tkInt64 rather than excluding tkSet.
 ///
-///  UInt64 IS SPELLED OUT INSTEAD OF LEFT TO TValue.Cast. UInt64 is tkInt64 as
-///  well, and the value that reaches it above High(Int64) is NEGATIVE as an
-///  Int64 - this project compiles with $R+ and $Q+, and a cast that goes
-///  through a range check on the way to an unsigned property is a cast that can
-///  raise. TValue.From<UInt64> gives the writer a TValue whose type handle is
-///  already the property's, so no cast is performed. </summary>
+///  AND THAT NARROWNESS IS GROUPED BY ARGUMENT, NOT BY MEASUREMENT, WHICH HAS
+///  TO BE SAID RATHER THAN LEFT TO BE DISCOVERED. Making the guard ALWAYS TRUE
+///  - so that tkInteger and tkSet reach AsLargeInt as well - leaves every suite
+///  that compiles this unit green: measured, with a tripwire the compiler
+///  echoed, at RESTHorse 149/0/0, Units 592/0/0 and RESTfulDriver 130/0/0.
+///  Nothing anywhere under Test\ tells the two apart. The guard is kept because
+///  it is the conservative half of an untested pair and not because a clause
+///  defends it; the clause that would defend it needs a SET-typed column
+///  mapping, which no entity in this repository has and which is a piece of
+///  work of its own.
+///
+///  UInt64 IS tkInt64 TOO AND IT GETS NO BRANCH OF ITS OWN, WHICH IS A
+///  MEASUREMENT AND NOT A PREFERENCE. It had one for the length of one commit:
+///  an explicit `PropertyType.Handle = TypeInfo(UInt64)` arm passing
+///  TValue.From<UInt64>, argued for on the grounds that an Int64 above
+///  High(Int64) is negative and a cast to an unsigned property could trip a
+///  range check. Mutation knocked that down twice over. Disabling the arm's
+///  CONDITION - with a tripwire the compiler echoed - left the whole suite at
+///  149/0/0: the line below writes a UInt64 property from a negative Int64 and
+///  the value arrives with every bit intact. And the argument was wrong at the
+///  root as well, because that cast is performed inside System.Rtti, whose
+///  switches are not this project's to set.
+///
+///  Disabling the arm's BODY instead - AsLargeInt back to AsInteger inside it -
+///  killed exactly one clause, so the arm WAS reached; it simply had nothing
+///  the line below does not already do. What guards the unsigned case now is
+///  that clause,
+///  Test.Janus.Server.Resource.IntegerKeyWidth.UnsignedKeyAboveHighInt64_MustRoundTripThroughTheFramework,
+///  which dies with this line. </summary>
 procedure TBind._SetFieldToPropertyInteger(const LProperty: TRttiProperty;
   const AField: TField; const AObject: TObject);
 begin
   if TVarData(AField.Value).VType <= varNull then
     LProperty.SetValue(AObject, 0)
-  else if LProperty.PropertyType.Handle = TypeInfo(UInt64) then
-    LProperty.SetValue(AObject, TValue.From<UInt64>(UInt64(AField.AsLargeInt)))
   else if LProperty.PropertyType.TypeKind = tkInt64 then
     LProperty.SetValue(AObject, AField.AsLargeInt)
   else
