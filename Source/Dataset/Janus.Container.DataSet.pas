@@ -44,7 +44,8 @@ type
     destructor Destroy; override;
     procedure LoadLazy(AOwner: M);
     procedure Open; overload;
-    procedure Open(const AID: Integer); overload;
+    procedure Open(const AID: Int64); overload;
+    procedure Open(const AIDs: TArray<TValue>); overload;
     procedure Open(const AID: String); overload;
     procedure OpenWhere(const AWhere: String; const AOrderBy: String = '');
     procedure OpenSQL(const ASQL: String);
@@ -74,7 +75,8 @@ type
     function Current: M;
     // ObjectSet
     function Find: TObjectList<M>; overload;
-    function Find(const AID: Integer): M; overload;
+    function Find(const AID: Int64): M; overload;
+    function Find(const AIDs: TArray<TValue>): M; overload;
     function Find(const AID: String): M; overload;
     function FindWhere(const AWhere: String; const AOrderBy: String = ''): TObjectList<M>;
   end;
@@ -177,7 +179,12 @@ begin
   Result := FDataSetAdapter.Find;
 end;
 
-function TContainerDataSet<M>.Find(const AID: Integer): M;
+function TContainerDataSet<M>.Find(const AIDs: TArray<TValue>): M;
+begin
+  Result := FDataSetAdapter.Find(AIDs);
+end;
+
+function TContainerDataSet<M>.Find(const AID: Int64): M;
 begin
   Result := FDataSetAdapter.Find(AID);
 end;
@@ -243,7 +250,12 @@ begin
   FDataSetAdapter.OpenSQLInternal(ASQL);
 end;
 
-procedure TContainerDataSet<M>.Open(const AID: Integer);
+procedure TContainerDataSet<M>.Open(const AIDs: TArray<TValue>);
+begin
+  FDataSetAdapter.OpenIDInternal(TValue.From<TArray<TValue>>(AIDs));
+end;
+
+procedure TContainerDataSet<M>.Open(const AID: Int64);
 begin
   FDataSetAdapter.OpenIDInternal(AID);
 end;

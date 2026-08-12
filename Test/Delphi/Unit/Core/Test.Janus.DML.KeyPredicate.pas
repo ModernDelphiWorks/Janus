@@ -28,15 +28,32 @@
   to sit on that arm said fixing it "exige decidir qual formato uma PK de data
   deve ter por dialeto"; that decision was already taken and is FDateFormat.
 
-  THE ONE THAT IS NOT: THE COMPOSITE KEY. The loop over the primary key columns
-  carries `if LFor > 0 then Continue`, so from the second column on the key is
-  DISCARDED and the predicate names only the first column. What blocks the
-  repair is the CALLERS and not the signature - a TValue holds a TArray<TValue>
-  perfectly well, and TManagerObjectSet.Find<T> goes out of its way to collapse
-  whatever it is handed into an integer or a string before it gets here. The
-  clauses below MEASURE and deliberately do not change it; see the header of
-  GetGeneratorWhere for the full enumeration and for why each candidate repair
-  is a consumer-visible change.
+  THE ONE THAT WAS NOT, AND NOW IS: THE COMPOSITE KEY. The loop over the
+  primary key columns carried `if LFor > 0 then Continue`, so from the second
+  column on the key was DISCARDED and the predicate named only the first
+  column - and the loop body did not even contain the ' AND ' a second term
+  would need. It was functionality never finished, not a decision.
+
+  WHAT THE REPAIR COSTS, DECLARED RATHER THAN GLOSSED. The generator itself
+  needed no wider signature - the values ride inside the TValue it already
+  took. But reaching it from consumer code added a MEMBER TO TWO PUBLISHED
+  INTERFACES: Find(TArray<TValue>) on IContainerObjectSet<M>, and
+  Find(TArray<TValue>) plus Open(TArray<TValue>) on IContainerDataSet<M>. That
+  breaks a third-party implementer exactly as widening IDMLGeneratorCommand
+  would have - the objection that ruled out the old design applies here too,
+  one layer out. Inside this repository each interface has exactly ONE
+  implementer, both enumerated and both updated; outside it, NOT MEASURED.
+
+  IT IS REPAIRED, AND THE SHAPE OF THE REPAIR IS WHY NOTHING BELOW HAD TO DIE.
+  The mechanism is the one this header already named as possible: a TValue
+  holds a TArray<TValue> perfectly well. The predicate is now driven by how
+  many values the CALLER SUPPLIES rather than by how many columns the key has,
+  so a scalar aid still produces the single-column predicate it always did and
+  every existing consumer is untouched. That matters because where the first
+  key column happens to be UNIQUE the old behaviour was CORRECT - refusing a
+  composite key, or answering the zero-rows guard, would have broken code that
+  works today. The three original composite clauses therefore stay GREEN and
+  keep documenting the scalar path; the new ones hand one value per column.
 
   THE PREDICATE ITSELF IS PINNED, AND AN EARLIER VERSION OF THIS FIXTURE
   REFUSED TO PIN IT. That refusal was argued as "a test that has to die for a
@@ -147,6 +164,22 @@ type
     property dktag: String read Fdktag write Fdktag;
   end;
 
+  /// A PRIMARY KEY THAT MAPS NO COLUMNS. MetaDbDiff's PrimaryKey.Create wraps
+  /// the whole column-parsing block in `if Length(AColumns) > 0`, so an empty
+  /// string leaves FColumns empty and Columns.Count is 0 while the mapping
+  /// itself is NOT nil. Issue #326.
+  [Entity]
+  [Table('nokeycols', '')]
+  [PrimaryKey('', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'no columns at all')]
+  TNoKeyColsRow = class
+  private
+    Fnk_id: Integer;
+  public
+    [Column('nk_id', ftInteger)]
+    property nk_id: Integer read Fnk_id write Fnk_id;
+  end;
+
   [TestFixture]
   TTestDMLKeyPredicate = class
   private
@@ -156,6 +189,8 @@ type
     FShortDateSaved: String;
     function SelectIdSql(const ADriver: TDriverName;
       const AClass: TClass; const AID: TValue): String;
+    /// The WHERE clause TKeyOnly's composite key produces from N values.
+    function CompositeWhere(const AIDs: TArray<TValue>): String;
   public
     [Setup]
     procedure Setup;
@@ -235,6 +270,68 @@ type
     /// uma linha" - is literally what happens.
     [Test]
     procedure CompositeKey_OpenIdLoadsEveryMatchingRow;
+
+    // ---- the composite key: NOW REPAIRED, issue #326 --------------------
+    /// THE REPAIR. Hand one value per key column - a TValue carrying a
+    /// TArray<TValue>, which is what the header of GetGeneratorWhere said all
+    /// along was possible - and the predicate names EVERY column, joined with
+    /// the ' AND ' the old loop body did not even contain.
+    [Test]
+    procedure CompositeKey_OneValuePerColumn_NamesEveryColumnJoinedByAnd;
+    /// EACH TERM KEEPS ITS OWN LITERAL FORM. The values are rendered one by
+    /// one, so a composite key of mixed types spells each half the way a
+    /// scalar of that type has always been spelled: the ordinal bare, the
+    /// string quoted. A repair that stringified the whole array would pass
+    /// the clause above and fail this one.
+    [Test]
+    procedure CompositeKey_MixedTypes_EachTermKeepsItsOwnLiteralForm;
+    /// FEWER VALUES THAN COLUMNS NAMES ONLY WHAT IT WAS GIVEN, and this is
+    /// the clause that pins the design decision rather than an accident: the
+    /// loop is driven by the VALUES supplied, not by the columns the key has.
+    /// A one-element array must give exactly the one-column predicate the
+    /// scalar path gives - otherwise the repair would have to guess.
+    [Test]
+    procedure CompositeKey_FewerValuesThanColumns_NamesOnlyWhatItWasGiven;
+    /// AND THE CONSUMER'S OWN ENTRY POINT, not the generator through a
+    /// helper. The three clauses above ask TCommandSelecter directly; this
+    /// one goes through IContainerObjectSet<M>.Find, which is what a user
+    /// holds, and proves the array survives every layer between them -
+    /// TObjectSetAdapter, TSessionAbstract and TSQLCommandExecutor - without
+    /// any of them having needed a wider signature.
+    [Test]
+    procedure CompositeKey_ThroughTheContainerFind_ReachesTheFullPredicate;
+    /// The Open chain has its own entry point and its own consequence - the
+    /// one with no RecordCount guard - so it gets its own clause.
+    [Test]
+    procedure CompositeKey_ThroughTheContainerOpen_ReachesTheFullPredicate;
+    /// THE HOLE THE ENTRY POINT OPENED, AND IT IS THE WORST SHAPE IN THIS
+    /// ISSUE. An EMPTY array is an id that names nothing, and before the
+    /// guard the generator answered `SELECT keyonly.k1, keyonly.k2 FROM
+    /// keyonly` - no WHERE at all. Measured through the public entry point
+    /// this branch created.
+    [Test]
+    procedure EmptyValueArray_IsRefusedInsteadOfMatchingEveryRow;
+    /// AND THE SAME THING ON THE Open CHAIN, WHERE IT IS WORSE. Open has no
+    /// RecordCount guard to mask it, so `Open([])` did not answer nil - it
+    /// LOADED THE WHOLE TABLE into the consumer's dataset. Measured: two
+    /// rows seeded, two rows loaded, for a question about one id.
+    [Test]
+    procedure EmptyValueArray_OnTheOpenChain_IsRefusedNotAWholeTableRead;
+    /// MORE VALUES THAN THE KEY HAS COLUMNS. Three values against k1;k2
+    /// emitted `WHERE keyonly.k1 = 1 AND keyonly.k2 = 2` and dropped the
+    /// third in silence - which is the same class of defect as the
+    /// `if LFor > 0 then Continue` this issue removed, so it is refused.
+    [Test]
+    procedure MoreValuesThanColumns_IsRefusedInsteadOfDiscardingThem;
+    /// THE REGRESSION THIS BRANCH INTRODUCED, PAID BACK. A primary key that
+    /// maps NO columns is constructible - MetaDbDiff's PrimaryKey.Create
+    /// wraps its parsing in `if Length(AColumns) > 0` - and an earlier
+    /// version of this fixture declared the shape uncoverable. It is not.
+    /// Before the composite repair it produced a dangling ' WHERE ' that a
+    /// database rejects loudly; moving the keyword after the loop made it a
+    /// SILENT full-table read. Now it refuses.
+    [Test]
+    procedure PrimaryKeyWithNoColumns_IsRefusedNotAWholeTableRead;
   end;
 
 implementation
@@ -427,12 +524,16 @@ begin
   Assert.Contains(LWhere, 'keyonly.k1 = 1', True,
     'premise: the predicate names the FIRST key column: ' + LWhere);
   Assert.DoesNotContain(LWhere, 'keyonly.k2', True,
-    'ISSUE #326: TKeyOnly declares a COMPOSITE key, k1;k2, and the second ' +
-    'column never reaches the predicate - the loop in GetGeneratorWhere ' +
-    'carries `if LFor > 0 then Continue`. This clause is deliberately ' +
-    'DELETED-OR-INVERTED by whoever repairs it, and that is what it is for: ' +
-    'the same posture this fixture takes with the Firebird mask swap. ' +
-    'Emitted here: ' + LWhere);
+    'ISSUE #326 IS REPAIRED AND THIS CLAUSE IS STILL GREEN, WHICH IS THE ' +
+    'SHAPE OF THE REPAIR. An earlier version of it predicted it would be ' +
+    '"deliberately DELETED-OR-INVERTED by whoever repairs it"; that ' +
+    'prediction was WRONG. The predicate is driven by how many values the ' +
+    'caller SUPPLIES, not by how many columns the key has, so a scalar aid ' +
+    'still names the first column alone - byte for byte what it always did. ' +
+    'That is exactly what keeps the repair from breaking consumers whose ' +
+    'first key column IS unique, for whom the old behaviour was CORRECT. ' +
+    'The composite answer is measured by the clauses that hand one value ' +
+    'per column. Emitted here: ' + LWhere);
 end;
 
 procedure TTestDMLKeyPredicate.CompositeKey_OpenIdLoadsEveryMatchingRow;
@@ -522,7 +623,245 @@ begin
   end;
 end;
 
+function TTestDMLKeyPredicate.CompositeWhere(const AIDs: TArray<TValue>): String;
+var
+  LSQL: String;
+  LPos: Integer;
+begin
+  LSQL := SelectIdSql(dnSQLite, TKeyOnly, TValue.From<TArray<TValue>>(AIDs));
+  // Same reason the scalar clause cuts the tail out: the SELECT LIST names
+  // every mapped column, so k2 appears in the statement whatever the WHERE
+  // says. Asserting over the whole string measures the select list.
+  LPos := Pos(' WHERE ', UpperCase(LSQL));
+  Assert.IsTrue(LPos > 0, 'premise: the statement carries a WHERE: ' + LSQL);
+  Result := Copy(LSQL, LPos, Length(LSQL));
+end;
+
+procedure TTestDMLKeyPredicate.
+  CompositeKey_OneValuePerColumn_NamesEveryColumnJoinedByAnd;
+var
+  LWhere: String;
+begin
+  LWhere := CompositeWhere([TValue.From<Int64>(1), TValue.From<Int64>(2)]);
+  Assert.Contains(LWhere, 'keyonly.k1 = 1', True,
+    'the first key column must still be named exactly as before: ' + LWhere);
+  Assert.Contains(LWhere, 'keyonly.k2 = 2', True,
+    'ISSUE #326 REPAIRED: TKeyOnly declares a COMPOSITE key, k1;k2, and the ' +
+    'second column now reaches the predicate. The loop used to carry ' +
+    '`if LFor > 0 then Continue`: ' + LWhere);
+  Assert.Contains(LWhere, 'keyonly.k1 = 1 AND keyonly.k2 = 2', True,
+    'and the two terms must be joined by AND - the old loop body did not ' +
+    'even contain the string, which is what made it unfinished rather than ' +
+    'wrong: ' + LWhere);
+end;
+
+procedure TTestDMLKeyPredicate.
+  CompositeKey_MixedTypes_EachTermKeepsItsOwnLiteralForm;
+var
+  LWhere: String;
+begin
+  LWhere := CompositeWhere([TValue.From<Int64>(7), TValue.From<String>('A-1')]);
+  Assert.Contains(LWhere, 'keyonly.k1 = 7', True,
+    'the ordinal term stays bare: ' + LWhere);
+  Assert.Contains(LWhere, 'keyonly.k2 = ''A-1''', True,
+    'and the string term stays quoted - each value is rendered on its own, ' +
+    'so a composite key of mixed types spells each half the way a scalar of ' +
+    'that type always was: ' + LWhere);
+end;
+
+procedure TTestDMLKeyPredicate.
+  CompositeKey_FewerValuesThanColumns_NamesOnlyWhatItWasGiven;
+var
+  LWhere: String;
+begin
+  LWhere := CompositeWhere([TValue.From<Int64>(1)]);
+  Assert.Contains(LWhere, 'keyonly.k1 = 1', True,
+    'premise: the one value supplied names the first column: ' + LWhere);
+  Assert.DoesNotContain(LWhere, 'keyonly.k2', True,
+    'THE DESIGN DECISION, PINNED: the predicate is driven by the VALUES the ' +
+    'caller supplied and not by the columns the key happens to have. A ' +
+    'single value must give the single-column predicate this method has ' +
+    'always given - that is what makes the repair additive instead of a ' +
+    'change every existing consumer would feel: ' + LWhere);
+  Assert.DoesNotContain(LWhere, ' AND ', True,
+    'and with one term there is no join to emit: ' + LWhere);
+end;
+
+procedure TTestDMLKeyPredicate.
+  CompositeKey_ThroughTheContainerFind_ReachesTheFullPredicate;
+var
+  LRows: TRowsConnection;
+  LConn: IDBConnection;
+  LSet: IContainerObjectSet<TKeyOnly>;
+  LFound: TKeyOnly;
+begin
+  LRows := TRowsConnection.Create(dnSQLite, 1,
+    procedure(const ADataSet: TFDMemTable)
+    begin
+      ADataSet.FieldDefs.Add('k1', ftInteger);
+      ADataSet.FieldDefs.Add('k2', ftInteger);
+    end,
+    procedure(const ADataSet: TFDMemTable; const AIndex: Integer)
+    begin
+      ADataSet.FieldByName('k1').AsInteger := 1;
+      ADataSet.FieldByName('k2').AsInteger := 2;
+    end,
+    'keypredicate-container-find');
+  LConn := LRows;
+  LSet := TContainerObjectSet<TKeyOnly>.Create(LConn);
+  LFound := LSet.Find([TValue.From<Int64>(1), TValue.From<Int64>(2)]);
+  try
+    Assert.Contains(LRows.LastSQL, 'keyonly.k1 = 1 AND keyonly.k2 = 2', True,
+      'ISSUE #326 at the layer a consumer actually holds: the values reach ' +
+      'the predicate through TObjectSetAdapter, TSessionAbstract and ' +
+      'TSQLCommandExecutor, none of which needed a wider signature - the ' +
+      'array travels inside the TValue those already took. Emitted: ' +
+      LRows.LastSQL);
+  finally
+    LFound.Free;
+    LSet := nil;
+    LConn := nil;
+  end;
+end;
+
+procedure TTestDMLKeyPredicate.
+  CompositeKey_ThroughTheContainerOpen_ReachesTheFullPredicate;
+var
+  LRows: TRowsConnection;
+  LConn: IDBConnection;
+  LTable: TFDMemTable;
+  LContainer: IContainerDataSet<TKeyOnly>;
+begin
+  LRows := TRowsConnection.Create(dnSQLite, 1,
+    procedure(const ADataSet: TFDMemTable)
+    begin
+      ADataSet.FieldDefs.Add('k1', ftInteger);
+      ADataSet.FieldDefs.Add('k2', ftInteger);
+    end,
+    procedure(const ADataSet: TFDMemTable; const AIndex: Integer)
+    begin
+      ADataSet.FieldByName('k1').AsInteger := 1;
+      ADataSet.FieldByName('k2').AsInteger := 2;
+    end,
+    'keypredicate-container-open');
+  LConn := LRows;
+  LTable := TFDMemTable.Create(nil);
+  try
+    LContainer := TContainerFDMemTable<TKeyOnly>.Create(LConn, LTable);
+    LContainer.Open([TValue.From<Int64>(1), TValue.From<Int64>(2)]);
+    Assert.Contains(LRows.LastSQL, 'keyonly.k1 = 1 AND keyonly.k2 = 2', True,
+      'the OTHER chain - OpenIDInternal and TSessionDataSet<M>.OpenID - is ' +
+      'the one with no RecordCount guard, so it is the one that used to hand ' +
+      'the consumer EVERY row a one-column predicate matched. With one value ' +
+      'per column it asks the question the caller meant. Emitted: ' +
+      LRows.LastSQL);
+    LContainer := nil;
+  finally
+    LTable.Free;
+    LConn := nil;
+  end;
+end;
+
+procedure TTestDMLKeyPredicate.
+  EmptyValueArray_IsRefusedInsteadOfMatchingEveryRow;
+var
+  LEmpty: TArray<TValue>;
+begin
+  SetLength(LEmpty, 0);
+  Assert.WillRaise(
+    procedure
+    begin
+      SelectIdSql(dnSQLite, TKeyOnly, TValue.From<TArray<TValue>>(LEmpty));
+    end,
+    Exception,
+    'ISSUE #326: an empty value array is an id that names nothing. Before ' +
+    'this guard it emitted SELECT keyonly.k1, keyonly.k2 FROM keyonly - a ' +
+    'statement with NO WHERE, matching every row in the table, reached ' +
+    'through the public entry point this branch created.');
+end;
+
+procedure TTestDMLKeyPredicate.
+  EmptyValueArray_OnTheOpenChain_IsRefusedNotAWholeTableRead;
+var
+  LTable: TFDMemTable;
+  LRows: TRowsConnection;
+  LConn: IDBConnection;
+  LContainer: IContainerDataSet<TKeyOnly>;
+  LEmpty: TArray<TValue>;
+begin
+  SetLength(LEmpty, 0);
+  LRows := TRowsConnection.Create(dnSQLite, 2,
+    procedure(const ADataSet: TFDMemTable)
+    begin
+      ADataSet.FieldDefs.Add('k1', ftInteger);
+      ADataSet.FieldDefs.Add('k2', ftInteger);
+    end,
+    procedure(const ADataSet: TFDMemTable; const AIndex: Integer)
+    begin
+      ADataSet.FieldByName('k1').AsInteger := 1;
+      ADataSet.FieldByName('k2').AsInteger := AIndex;
+    end,
+    'keypredicate-empty-open');
+  LConn := LRows;
+  LTable := TFDMemTable.Create(nil);
+  try
+    LContainer := TContainerFDMemTable<TKeyOnly>.Create(LConn, LTable);
+    Assert.WillRaise(
+      procedure
+      begin
+        LContainer.Open(LEmpty);
+      end,
+      Exception,
+      'THE Open CHAIN HAS NO RecordCount GUARD TO MASK THIS. Measured ' +
+      'before the repair: two rows seeded, and Open([]) loaded BOTH into ' +
+      'the consumer dataset for a question about one id.');
+    Assert.AreEqual(0, LTable.RecordCount,
+      'and nothing may have been loaded on the way to the refusal');
+    LContainer := nil;
+  finally
+    LTable.Free;
+    LConn := nil;
+  end;
+end;
+
+procedure TTestDMLKeyPredicate.
+  MoreValuesThanColumns_IsRefusedInsteadOfDiscardingThem;
+begin
+  Assert.WillRaise(
+    procedure
+    begin
+      SelectIdSql(dnSQLite, TKeyOnly, TValue.From<TArray<TValue>>(
+        [TValue.From<Int64>(1), TValue.From<Int64>(2), TValue.From<Int64>(3)]));
+    end,
+    Exception,
+    'TKeyOnly has TWO key columns. Before this guard a third value emitted ' +
+    'WHERE keyonly.k1 = 1 AND keyonly.k2 = 2 and dropped the 3 in silence - ' +
+    'the same class of defect as the `if LFor > 0 then Continue` #326 ' +
+    'removed. FEWER values than columns stays allowed: that is the design.');
+end;
+
+procedure TTestDMLKeyPredicate.
+  PrimaryKeyWithNoColumns_IsRefusedNotAWholeTableRead;
+begin
+  Assert.WillRaise(
+    procedure
+    begin
+      SelectIdSql(dnSQLite, TNoKeyColsRow, TValue.From<Int64>(1));
+    end,
+    Exception,
+    'A REGRESSION THIS BRANCH INTRODUCED AND THEN PAID BACK. On the base ' +
+    'commit a zero-column key left a dangling '' WHERE '' - malformed SQL a ' +
+    'database rejects loudly. Appending the keyword after the loop turned ' +
+    'that into SELECT nokeycols.nk_id FROM nokeycols: a SILENT full-table ' +
+    'read, measured. An earlier version of this fixture called the shape ' +
+    'uncoverable; it is ten lines away. WHAT REFUSES IT IS THE ' +
+    'TOO-MANY-VALUES GUARD, not a guard of its own: one scalar value against ' +
+    'zero columns IS more values than columns. A dedicated Columns.Count = 0 ' +
+    'test was written and DELETED because removing it killed nothing.');
+end;
+
 initialization
+  TRegisterClass.RegisterEntity(TNoKeyColsRow);
   TRegisterClass.RegisterEntity(TDateKeyRow);
   TDUnitX.RegisterTestFixture(TTestDMLKeyPredicate);
 

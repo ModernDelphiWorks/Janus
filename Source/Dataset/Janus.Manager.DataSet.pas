@@ -173,7 +173,7 @@ type
                                                       const ALookupResultField: String;
                                                       const ADisplayLabel: String = ''): TManagerDataSet;
     procedure Open<T: class, constructor>; overload;
-    procedure Open<T: class, constructor>(const AID: Integer); overload;
+    procedure Open<T: class, constructor>(const AID: Int64); overload;
     procedure Open<T: class, constructor>(const AID: String); overload;
     procedure OpenWhere<T: class, constructor>(const AWhere: String; const AOrderBy: String = '');
     procedure Close<T: class, constructor>;
@@ -191,7 +191,28 @@ type
     function FindWhere<T: class, constructor>(const AWhere: String;
                                               const AOrderBy: String = ''): TObjectList<T>;
     function NestedList<T: class>: TObjectList<T>;
-    function AutoNextPacket<T: class, constructor>(const AValue: Boolean): TManagerDataSet;
+    /// <summary> ISSUE #332 - THIS WAS A `function ... : TManagerDataSet` AND
+    ///  ITS BODY NEVER ASSIGNED Result. dcc32 said so on every build that
+    ///  reached it (W1035). A probe clause touched the returned reference and
+    ///  the process died with `Access violation at address 00000000 ...
+    ///  Execution of address 00000000` - control transferred TO address zero,
+    ///  which is what a virtual call through a GARBAGE pointer does when the
+    ///  VMT is read out of an invalid place.
+    ///
+    ///  WHAT THE SLOT HELD IS NOT CLAIMED HERE, AND AN EARLIER VERSION OF THIS
+    ///  COMMENT CLAIMED IT WAS nil. That was an inference dressed as a
+    ///  measurement, and it was wrong twice over: the value is UNDEFINED BY
+    ///  CONSTRUCTION, so no particular value may be asserted for it at all;
+    ///  and a nil reference would have faulted READING a low address rather
+    ///  than by executing address zero. The access violation reproduces; no
+    ///  story about the contents does.
+    ///
+    ///  Anyone who chained off it was already broken at run time; as a
+    ///  procedure they are broken at COMPILE time instead, which is the point
+    ///  of the change. The methods around it in the
+    ///  implementation - ApplyUpdates and both Open overloads that take an id -
+    ///  have always been procedures with this same one-line shape. </summary>
+    procedure AutoNextPacket<T: class, constructor>(const AValue: Boolean);
     property OwnerNestedList: Boolean read FOwnerNestedList write FOwnerNestedList;
   end;
 
@@ -442,7 +463,7 @@ begin
   Resolver<T>.ApplyUpdates(MaxErros);
 end;
 
-function TManagerDataSet.AutoNextPacket<T>(const AValue: Boolean): TManagerDataSet;
+procedure TManagerDataSet.AutoNextPacket<T>(const AValue: Boolean);
 begin
   Resolver<T>.AutoNextPacket := AValue;
 end;
@@ -458,7 +479,7 @@ begin
   Resolver<T>.OpenWhereInternal(AWhere, AOrderBy);
 end;
 
-procedure TManagerDataSet.Open<T>(const AID: Integer);
+procedure TManagerDataSet.Open<T>(const AID: Int64);
 begin
   Resolver<T>.OpenIDInternal(AID);
 end;

@@ -35,6 +35,7 @@ type
     function ModifiedFields: TDictionary<String, TDictionary<String, String>>;
     function Find: TObjectList<M>; overload;
     function Find(const AID: Int64): M; overload;
+    function Find(const AIDs: TArray<TValue>): M; overload;
     function Find(const AID: String): M; overload;
     function FindWhere(const AWhere: String; const AOrderBy: String = ''): TObjectList<M>;
     procedure Insert(const AObject: M);
@@ -94,6 +95,11 @@ function TContainerObjectSet<M>.FindWhere(const AWhere, AOrderBy: String): TObje
 begin
   inherited;
   Result := FObjectSetAdapter.FindWhere(AWhere, AOrderBy);
+end;
+
+function TContainerObjectSet<M>.Find(const AIDs: TArray<TValue>): M;
+begin
+  Result := FObjectSetAdapter.Find(AIDs);
 end;
 
 function TContainerObjectSet<M>.Find(const AID: Int64): M;

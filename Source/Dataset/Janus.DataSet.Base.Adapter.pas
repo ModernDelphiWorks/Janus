@@ -265,7 +265,9 @@ type
     function Current: M;
     // ObjectSet
     function Find: TObjectList<M>; overload; virtual;
-    function Find(const AID: Integer): M; overload; virtual;
+    function Find(const AID: Int64): M; overload; virtual;
+    /// One value per key column - issue #326.
+    function Find(const AIDs: TArray<TValue>): M; overload; virtual;
     function Find(const AID: String): M; overload; virtual;
     function FindWhere(const AWhere: String; const AOrderBy: String = ''): TObjectList<M>; virtual;
     // Property
@@ -1322,7 +1324,12 @@ begin
   Result := FSession.Find;
 end;
 
-function TDataSetBaseAdapter<M>.Find(const AID: Integer): M;
+function TDataSetBaseAdapter<M>.Find(const AIDs: TArray<TValue>): M;
+begin
+  Result := FSession.Find(AIDs);
+end;
+
+function TDataSetBaseAdapter<M>.Find(const AID: Int64): M;
 begin
   Result := FSession.Find(AID);
 end;
@@ -2676,7 +2683,22 @@ end;
 ///  futuro, nao como uma resposta que alguem consegue provocar hoje - e por
 ///  isso remove-lo nao avermelha nada, o que esta declarado no log de mutacao
 ///  de Test.Janus.AutoInc.UngeneratedKey em vez de ficar parecendo cobertura.
-///  </summary>
+///
+///  ISSUE #333 - A COMPARACAO LE AsLargeInt, E ANTES LIA AsInteger. A lista
+///  cINTEGERKINDS admite ftLargeint, de modo que esta guarda ACEITA uma chave
+///  de 64 bits e a lia de volta com 32. TLargeintField.GetAsInteger devolve
+///  `Integer(L)` - truncamento duro que nada confere, medido no fonte da RTL
+///  sob a #324 e escrito sobre TBind._SetFieldToPropertyInteger - entao a
+///  chave perfeitamente comum 4294967295 ($FFFFFFFF) voltava como exatamente
+///  -1, e este metodo declarava NAO GERADA uma chave que existe, recusando em
+///  silencio o cascateamento dela para os filhos.
+///
+///  Isso agora tem clausula, e ela e a unica: Test.Janus.KeyWidth.ByIdApi
+///  .WideAutoIncKey_ThatTruncatesToThePlaceholder_IsStillPropagated. Reverter
+///  esta linha para AsInteger, com tripwire ecoado pelo compilador (W1054),
+///  matava ZERO clausulas antes dela existir e mata exatamente essa depois.
+///  O irmao TRESTDataSetAdapter<M>._RowKeyIsUngenerated tomou a mesma correcao
+///  e continua SOBREVIVENTE DECLARADO - ver o comentario de la. </summary>
 function TDataSetBaseAdapter<M>._AutoIncKeyIsGenerated(
   const AAssociation: TAssociationMapping): Boolean;
 const
@@ -2708,7 +2730,7 @@ begin
       Continue;
     if not (LField.DataType in cINTEGERKINDS) then
       Continue;
-    if LField.AsInteger = cAutoIncNotGenerated then
+    if LField.AsLargeInt = cAutoIncNotGenerated then
       Exit(False);
   end;
 end;

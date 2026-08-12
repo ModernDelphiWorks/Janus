@@ -63,7 +63,7 @@ type
     destructor Destroy; override;
     procedure Insert(const AObject: M); overload; override;
     procedure Update(const AObjectList: TObjectList<M>); overload; override;
-    procedure Delete(const AID: Integer); overload; override;
+    procedure Delete(const AID: Int64); overload; override;
     procedure Delete(const AObject: M); overload; override;
     procedure RefreshRecord(const AColumns: TParams); override;
     procedure NextPacketList(const AObjectList: TObjectList<M>); overload; override;
@@ -71,6 +71,17 @@ type
     function Find: TObjectList<M>; overload; override;
     function Find(const AID: Int64): M; overload; override;
     function Find(const AID: String): M; overload; override;
+    /// <summary> REFUSED, AND THE REFUSAL IS THE POINT. Issue #326 widened the
+    ///  LOCAL by-id entry point to carry one value per key column, because the
+    ///  SQL generator can spell a composite predicate. This client cannot: it
+    ///  builds `resource(ID)` or `$value=ID`, and neither has a defined
+    ///  spelling for N values. Inheriting the ancestor's SQL implementation
+    ///  would send a request that means nothing to the server, so this refuses
+    ///  loudly instead. NOTHING THAT COMPILES TODAY CALLS IT - the overload is
+    ///  new in this commit - so the refusal breaks no consumer, which is the
+    ///  distinction from refusing a composite key on the local path (that
+    ///  WOULD have broken code that works). </summary>
+    function Find(const AIDs: TArray<TValue>): M; overload; override;
     function FindWhere(const AWhere: String; const AOrderBy: String = ''): TObjectList<M>; override;
     function ExistSequence: Boolean; override;
     {$IFDEF DRIVERRESTFUL}
@@ -181,10 +192,10 @@ begin
     raise Exception.Create(cMESSAGEPKNOTFOUND);
 
   LColumn := LPrimaryKey.Columns.Items[0];
-  Delete(LColumn.ColumnProperty.GetValue(TObject(AObject)).AsInteger);
+  Delete(LColumn.ColumnProperty.GetValue(TObject(AObject)).AsInt64);
 end;
 
-procedure TSessionRestFul<M>.Delete(const AID: Integer);
+procedure TSessionRestFul<M>.Delete(const AID: Int64);
 var
   LSubResource: String;
   LURL: String;
@@ -279,6 +290,20 @@ begin
   FFindWhereUsed := False;
   FFetchingRecords := False;
   Result := Find(IntToStr(AID));
+end;
+
+function TSessionRestFul<M>.Find(const AIDs: TArray<TValue>): M;
+begin
+  Result := nil;
+  // ISSUE #326. The ancestor answers this from the SQL generator, which can
+  // spell `k1 = a AND k2 = b`. This client builds a URL and has no spelling
+  // for N values, so inheriting that answer would put a meaningless request
+  // on the wire. Refusing here is safe precisely because the overload did not
+  // exist before this commit.
+  raise Exception.Create('Find by a COMPOSITE key is not available over the ' +
+    'RESTful client: a URL built as resource(ID) or $value=ID has no defined ' +
+    'spelling for more than one key value. Use FindWhere with an explicit ' +
+    'predicate, or the local (non-REST) container.');
 end;
 
 function TSessionRestFul<M>.Find(const AID: String): M;

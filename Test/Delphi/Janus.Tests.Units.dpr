@@ -154,7 +154,11 @@ uses
   /// The #295 filter over the repository's own ftBCD association - issue #319
   Test.Janus.Association.BcdColumn in 'Unit\Core\Test.Janus.Association.BcdColumn.pas',
   /// The predicate GetGeneratorWhere builds from a single AID - issue #326
-  Test.Janus.DML.KeyPredicate in 'Unit\Core\Test.Janus.DML.KeyPredicate.pas';
+  Test.Janus.DML.KeyPredicate in 'Unit\Core\Test.Janus.DML.KeyPredicate.pas',
+  /// The fluent method that never assigned its Result - issue #332
+  Test.Janus.Manager.AutoNextPacket in 'Unit\Core\Test.Janus.Manager.AutoNextPacket.pas',
+  /// The width of the by-id API, and the guards that read it back - issue #333
+  Test.Janus.KeyWidth.ByIdApi in 'Unit\Core\Test.Janus.KeyWidth.ByIdApi.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
