@@ -122,9 +122,15 @@ type
     ///  ABSTRACT DE PROPOSITO, e essa e' a decisao de desenho da issue #284.
     ///  O defeito que este metodo conserta E' UM SILENCIO: ftGuid nao tinha
     ///  ramo em _GetPropertyValue, caia no `else`, virava '' e a guarda de
-    ///  GenerateSelectOneToOne (:265-266) e de GenerateSelectOneToOneMany
-    ///  (:328-329) emitia '1 = 0' - um master COM filhos no banco devolvendo
+    ///  FK nula de GenerateSelectOneToOne e a de GenerateSelectOneToOneMany -
+    ///  ANCORADAS POR METODO, cada uma com a sua propria copia do
+    ///  `if VarIsNull(LValue) or VarIsEmpty(LValue) or (VarToStr(LValue) = '')`
+    ///  - emitiam '1 = 0': um master COM filhos no banco devolvendo
     ///  NENHUM, sem excecao, sem log e sem SQL malformado.
+    ///  AS DUAS ANCORAS ERAM (:265-266) E (:328-329), E FOI ESTA UNIT QUE AS
+    ///  QUEBROU: a issue #326 inseriu 97 linhas acima delas e as guardas
+    ///  andaram para :289-290 e :352-353. Uma auto-citacao por linha e a mais
+    ///  fragil de todas, porque quem cresce o arquivo nao vai procurar por ela.
     ///
     ///  Por que nao um campo FGuidFormat no molde do FDateFormat/FTimeFormat:
     ///  esse molde e' DADO, nao comportamento, e um dialeto novo nasceria com
@@ -741,11 +747,17 @@ begin
        begin
          LGuid := _GetGuidValue(AObject, AProperty);
          // FK GUID nao preenchida: o TGUID chega zerado (ou Nullable sem
-         // valor, ver _GetGuidValue). Devolver '' faz a guarda de :265-266 e
-         // :328-329 emitir '1 = 0' - o mesmo contrato de FK nula que o irmao
-         // REST pratica em TRESTDataSetAdapter<M>._WhereAssociation (ancora
-         // por METODO: a de linha apodreceu duas vezes). Emitir o literal do
+         // valor, ver _GetGuidValue). Devolver '' faz a guarda de FK nula de
+         // GenerateSelectOneToOne e a de GenerateSelectOneToOneMany emitirem
+         // '1 = 0' - o mesmo contrato de FK nula que o irmao REST pratica em
+         // TRESTDataSetAdapter<M>._WhereAssociation. Emitir o literal do
          // GUID zerado casaria zero linhas, por acidente e nao por contrato.
+         // A ANCORA POR METODO AGORA VALE PARA AS TRES: este comentario ja
+         // dizia "ancora por METODO: a de linha apodreceu duas vezes" sobre a
+         // do irmao REST e mantinha :265-266 e :328-329 por LINHA para as duas
+         // guardas locais - que a issue #326 empurrou para :289-290 e :352-353
+         // ao inserir 97 linhas nesta unit. A licao estava escrita na mesma
+         // frase que a ignorava.
          if LGuid = TGUID.Empty then
            Result := ''
          else

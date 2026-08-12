@@ -14,8 +14,11 @@
 { @abstract(Janus Framework - test fixture.)
 
   An owner entity carrying one ftDateTime column and one ftTime column, so that
-  BOTH date-literal branches of TDMLGeneratorAbstract._GetPropertyValue
-  (Janus.DML.Generator.pas:624 and :628) can be exercised through real generated
+  BOTH date-literal branches of TDMLGeneratorAbstract._GetPropertyValue - the
+  `ftDateTime, ftDate` arm and the `ftTime, ftTimeStamp, ftOraTimeStamp` arm,
+  named by ARM rather than by line because the ":624 and :628" this sentence
+  used to carry stopped being true when issue #326 inserted 97 lines into
+  Janus.DML.Generator.pas - can be exercised through real generated
   SQL. Measured before adding it: no model linked into Janus.Tests.Units mapped
   any column as ftTime / ftTimeStamp / ftOraTimeStamp, so the time branch had no
   production-path coverage at all.

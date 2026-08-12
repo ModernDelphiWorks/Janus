@@ -349,7 +349,10 @@ const
   /// to a dot, DateTime through FDateFormat too and Time through FTimeFormat.
   /// MEASURED AND NOT FIXED HERE: the cck6 term is ftDateTime and comes out as
   /// '2026-08-10' - the TIME IS DROPPED, because the ftDateTime branch shares
-  /// FDateFormat with ftDate (Janus.DML.Generator.pas:623-626). That is a
+  /// FDateFormat with ftDate - they are ONE arm of
+  /// TDMLGeneratorAbstract._GetPropertyValue, `ftDateTime, ftDate`. BY ARM:
+  /// the ":623-626" this line used to carry rotted when issue #326 grew that
+  /// unit by 97 lines. That is a
   /// pre-existing defect of a different branch, it is pinned here instead of
   /// being hidden by a substring assertion, and it is not what #284 is about.
   cWHEREGUIDKEY =
@@ -1354,8 +1357,12 @@ begin
   // TWO GLOBALS ARE PINNED, AND FOR OPPOSITE REASONS.
   //   DecimalSeparator ',' - the Currency term goes through the global
   //     FormatSettings, and on a machine that already dots the number the
-  //     ReplaceStr in _GetPropertyValue (Janus.DML.Generator.pas:634)
-  //     does nothing, so deleting it would survive.
+  //     ReplaceStr on the `ftCurrency, ftBCD, ftFMTBcd` arm of
+  //     TDMLGeneratorAbstract._GetPropertyValue does nothing, so deleting it
+  //     would survive. BY ARM, and the arm has to be named rather than the
+  //     line: the neighbouring `ftFloat` arm carries a ReplaceStr that is
+  //     character-for-character identical, so ":634" identified the right code
+  //     only by accident even before issue #326 moved it.
   //   TimeSeparator ':'    - ':' inside a FormatDateTime pattern is the
   //     PLACEHOLDER for this setting, not a literal colon. Pinning it is what
   //     makes the expected string the same on every machine; it is NOT an
@@ -1419,22 +1426,26 @@ begin
 
   Assert.AreEqual(cSELECTCOMPCHILD + cWHERESQLITE, LSQL, False,
     'The ftGuid term is the whole issue: before #284 ftGuid had no branch in ' +
-    '_GetPropertyValue, fell into the else (Janus.DML.Generator.pas:660-661), ' +
-    'became '''' and the null-FK guard (:265-266) wrote ''1 = 0'' - a master ' +
-    'WITH children returning none, in silence.');
+    '_GetPropertyValue, fell into that function''s final else, ' +
+    'became '''' and the null-FK guard of GenerateSelectOneToOne wrote ' +
+    '''1 = 0'' - a master WITH children returning none, in silence.');
 
   Assert.IsFalse(ContainsText(LSQL, '1 = 0'),
     'Explicit negative anchor. A test that only counted rows would go green ' +
     'against ''1 = 0'' whenever the scenario has zero children for some other ' +
     'reason; the equality above already pins the WHERE, but this names the ' +
-    'defect - Janus.DML.Generator.pas:265-266 - so a future reader knows what ' +
-    'this fixture is holding down.');
+    'defect - the null-FK guard inside ' +
+    'TDMLGeneratorAbstract.GenerateSelectOneToOne - so a future reader knows ' +
+    'what this fixture is holding down.');
 end;
 
 /// <summary> THE TWIN METHOD, WHICH THE ISSUE DOES NOT EVEN MENTION.
-///  GenerateSelectOneToOneMany (Janus.DML.Generator.pas:292-354) is a DIFFERENT
-///  method with its OWN copy of the call (:304) and its OWN copy of the guard
-///  (:328-329). Covering only GenerateSelectOneToOne would leave half of the
+///  TDMLGeneratorAbstract.GenerateSelectOneToOneMany is a DIFFERENT
+///  method with its OWN call to _GetPropertyValue and its OWN copy of the
+///  null-FK guard. NAMED BY METHOD, because the three line anchors this
+///  paragraph used to carry (:292-354, :304, :328-329) all rotted at once when
+///  issue #326 inserted 97 lines above them.
+///  Covering only GenerateSelectOneToOne would leave half of the
 ///  defect with no test, and deleting the ftGuid branch would still be caught
 ///  - by the other test, not by this one. Hence a second full assertion rather
 ///  than a shared one. </summary>
@@ -1445,8 +1456,8 @@ begin
   LSQL := GuidSelect(dnSQLite, True);
 
   Assert.AreEqual(cSELECTCOMPCHILD + cWHERESQLITE, LSQL, False,
-    'GenerateSelectOneToOneMany carries its own copy of the guard (:328-329) ' +
-    'and its own call to _GetPropertyValue (:304). The issue names only the ' +
+    'GenerateSelectOneToOneMany carries its own copy of the null-FK guard ' +
+    'and its own call to _GetPropertyValue. The issue names only the ' +
     'OneToOne sibling; the defect was in both.');
 
   Assert.IsFalse(ContainsText(LSQL, '1 = 0'),
@@ -1504,7 +1515,8 @@ end;
 ///  '1 = 0' is not the defect - it is the correct answer for an association
 ///  whose foreign key is not set. The defect was reaching it with a key that
 ///  WAS set. An unset TGUID key is TGUID.Empty, and the ftGuid branch maps it
-///  back to '' on purpose so the existing guard (:265-266) keeps its meaning;
+///  back to '' on purpose so the existing null-FK guard inside
+///  TDMLGeneratorAbstract.GenerateSelectOneToOne keeps its meaning;
 ///  emitting the all-zeros literal would also match zero rows, but by accident
 ///  instead of by contract. Without this test, deleting the TGUID.Empty check
 ///  would survive every other assertion in this file. </summary>
