@@ -191,7 +191,16 @@ type
     function FindWhere<T: class, constructor>(const AWhere: String;
                                               const AOrderBy: String = ''): TObjectList<T>;
     function NestedList<T: class>: TObjectList<T>;
-    function AutoNextPacket<T: class, constructor>(const AValue: Boolean): TManagerDataSet;
+    /// <summary> ISSUE #332 - THIS WAS A `function ... : TManagerDataSet` AND
+    ///  ITS BODY NEVER ASSIGNED Result. dcc32 said so on every build that
+    ///  reached it (W1035), and a probe clause measured what a caller actually
+    ///  received: nil - `Access violation at address 00000000` the moment the
+    ///  returned reference was touched. Anyone who chained off it was already
+    ///  broken at run time; as a procedure they are broken at COMPILE time
+    ///  instead, which is the point of the change. The methods around it in the
+    ///  implementation - ApplyUpdates and both Open overloads that take an id -
+    ///  have always been procedures with this same one-line shape. </summary>
+    procedure AutoNextPacket<T: class, constructor>(const AValue: Boolean);
     property OwnerNestedList: Boolean read FOwnerNestedList write FOwnerNestedList;
   end;
 
@@ -442,7 +451,7 @@ begin
   Resolver<T>.ApplyUpdates(MaxErros);
 end;
 
-function TManagerDataSet.AutoNextPacket<T>(const AValue: Boolean): TManagerDataSet;
+procedure TManagerDataSet.AutoNextPacket<T>(const AValue: Boolean);
 begin
   Resolver<T>.AutoNextPacket := AValue;
 end;
