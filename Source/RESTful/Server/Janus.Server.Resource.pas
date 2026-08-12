@@ -288,6 +288,14 @@ end;
 ///  forced the question. A label that is in no list is not "grouped by
 ///  argument" - it is unexamined, and it fell through to the default.
 ///
+///  AND "GROUPED BY ARGUMENT" HAS A MEASURABLE CONSEQUENCE, SO HERE IT IS:
+///  deleting DB.ftExtended from the decimal branch leaves the whole suite
+///  green. Run, not predicted - the mutation was applied with a tripwire the
+///  compiler echoed, and 138 clauses stayed at 138/0/0. That is what a label
+///  with no entity of its own means, and it is the honest reading of the
+///  second list rather than a gap in it. The same is true of every other label
+///  named there.
+///
 ///  THE EMPTY RESULT IS A SIGNAL, NOT A LITERAL. A key the request left
 ///  undetermined - a Nullable the caller did not send - cannot identify a row,
 ///  and must not be allowed to identify an arbitrary one. It comes back as ''
