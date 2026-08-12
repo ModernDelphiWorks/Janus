@@ -175,6 +175,13 @@ begin
           Value := _GetParamValue(AObject,
                                  LColumn.ColumnProperty,
                                  LColumn.FieldType);
+          /// Issue #325. The reason is written out over
+          /// TDMLCommandAbstract._RefuseUnsignedValueTheColumnCannotCarry.
+          Self._RefuseUnsignedValueTheColumnCannotCarry(AObject,
+                                                        LColumn.ColumnName,
+                                                        LColumn.ColumnProperty,
+                                                        LColumn.FieldType,
+                                                        Value);
           if FConnection.GetDriver = TDriverName.dnPostgreSQL then
             Continue;
           if DataType in [ftBoolean] then

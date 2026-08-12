@@ -312,6 +312,12 @@ const
                '  ktbig BIGINT PRIMARY KEY, kttag VARCHAR(60))';
   cDDL_UNS   = 'CREATE TABLE IF NOT EXISTS ktunsigned (' +
                '  ktu BIGINT PRIMARY KEY, kttag VARCHAR(60))';
+  /// Issue #325. The entity whose key is an unsigned 64-bit PROPERTY stored as
+  /// TEXT - the only shape that still reaches this layer carrying a varUInt64
+  /// above High(Int64), now that the framework refuses to write one into a
+  /// signed column.
+  cDDL_UTX   = 'CREATE TABLE IF NOT EXISTS ktutext (' +
+               '  ktut VARCHAR(20) PRIMARY KEY, ktw BIGINT, kttag VARCHAR(60))';
   cDDL_DECOY = 'CREATE TABLE IF NOT EXISTS ktdecoy (' +
                '  ktdec VARCHAR(60), kttag VARCHAR(60))';
   cDDL_COMP  = 'CREATE TABLE IF NOT EXISTS ktcomp ('  +
@@ -344,6 +350,7 @@ begin
   FConnection.ExecuteDirect(cDDL_BIG);
   FConnection.ExecuteDirect(cDDL_UNS);
   FConnection.ExecuteDirect(cDDL_COMP);
+  FConnection.ExecuteDirect(cDDL_UTX);
   FConnection.ExecuteDirect(cDDL_DECOY);
 end;
 
@@ -372,6 +379,7 @@ begin
   FConnection.ExecuteDirect('DELETE FROM ktbig');
   FConnection.ExecuteDirect('DELETE FROM ktunsigned');
   FConnection.ExecuteDirect('DELETE FROM ktcomp');
+  FConnection.ExecuteDirect('DELETE FROM ktutext');
   FConnection.ExecuteDirect('DELETE FROM ktdecoy');
 end;
 
@@ -617,15 +625,24 @@ begin
     'The 64-bit key did not survive the round trip verbatim.');
 end;
 
+/// THE ENTITY MOVED IN ISSUE #325 AND THE SUBJECT DID NOT, which is the only
+/// reason the move is allowed. This clause is about the CONVERSION the ordinal
+/// branch of _PrimaryKeyValueToJson performs once it has been selected, and
+/// that branch is selected BY THE VARIANT: TKeyTypeUnsignedAsText carries the
+/// same UInt64 property and therefore the same varUInt64, and only its COLUMN
+/// differs. It used to ride on TKeyTypeUnsigned, whose ftLargeint column
+/// #325 now refuses for a value above High(Int64) - the insert this clause
+/// needs no longer happens there, and a clause that cannot run measures
+/// nothing.
 procedure TTestServerResourceKeyQuoting.UnsignedKeyAboveHighInt64_MustNotFlipSign;
 var
   LPair: TJSONPair;
 begin
   /// High(Int64) + 1. Read as a signed 64-bit integer this exact bit pattern
   /// is -9223372036854775808.
-  LPair := KeyPairOf('KeyTypeUnsigned',
-    '{"ktu":9223372036854775808,"kttag":"unsigned"}');
-  Assert.AreEqual('ktu', LPair.JsonString.Value,
+  LPair := KeyPairOf('KeyTypeUnsignedAsText',
+    '{"ktut":9223372036854775808,"kttag":"unsigned"}');
+  Assert.AreEqual('ktut', LPair.JsonString.Value,
     'The response no longer names the key column.');
   Assert.AreEqual('9223372036854775808', LPair.JsonValue.Value,
     'An unsigned key above High(Int64) came back reinterpreted as a signed '

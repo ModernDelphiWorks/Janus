@@ -147,7 +147,8 @@ type
     ///  nomeada em vez de devolver nil.
     ///
     ///  O CONTRATO DO VALOR E' TGUID, E NAO String. E' o que as tres familias
-    ///  de comando ja exigem: Janus.Command.Inserter.pas:213-217,
+    ///  de comando ja exigem: TCommandInserter._GetParamValue - POR SIMBOLO
+    ///  desde a #325, que inseriu linhas naquela unit -,
     ///  Janus.Command.Updater.pas:118-119 e Janus.Command.Deleter.pas:97-98
     ///  fazem AsType<TGUID>.ToString. Os geradores Guid32Inc/Guid36Inc/
     ///  Guid38Inc (Inserter:135-158) escrevem String via SetValue e pertencem
@@ -159,7 +160,7 @@ type
     ///
     ///  QuotedStr(TGUID.ToString) = '{8-4-4-4-12}': 38 caracteres, chaves,
     ///  hifens, hex MAIUSCULO. E' exatamente o texto que o INSERT desta casa
-    ///  grava (Janus.Command.Inserter.pas:213-217 -> TGUID.ToString) e que o
+    ///  grava (TCommandInserter._GetParamValue -> TGUID.ToString) e que o
     ///  UPDATE/DELETE usam no WHERE (Updater:118-119, Deleter:97-98).
     ///
     ///  E O DDL DESTA CASA PRETENDE GUARDAR ESSE TEXTO NUMA COLUNA DE TEXTO:

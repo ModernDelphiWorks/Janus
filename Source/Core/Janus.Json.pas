@@ -181,7 +181,8 @@ begin
           ///  belong to the ftString world, which is what dissolves the
           ///  apparent conflict between issues #284 and #311 - and the same
           ///  comment names the canonical form. FOUR sites already render it:
-          ///  Janus.Command.Inserter.pas:213-217, Updater:118-119,
+          ///  TCommandInserter._GetParamValue - by symbol since #325 -,
+          ///  Updater:118-119,
           ///  Deleter:97-98 and TDMLGeneratorAbstract.CanonicalGuidLiteral,
           ///  all TGUID.ToString.
           ///  BY SYMBOL, AND THE REASON IS A MEASUREMENT. This paragraph used

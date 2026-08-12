@@ -119,6 +119,13 @@ begin
           Value := LColumn.ColumnProperty.GetNullableValue(AObject).AsType<TGuid>.ToString
         else
           Value := LColumn.ColumnProperty.GetNullableValue(AObject).AsVariant;
+        /// ISSUE #325 DOES NOT GUARD HERE, AND THE ASYMMETRY IS THE POINT.
+        /// These parameters are the WHERE of the update - a lookup, not a
+        /// write - and the lookup is self-consistent: what Data.DB's
+        /// TParam.AsLargeInt reinterprets on the way down is exactly what the
+        /// read reinterpreted the other way on the way up. The loop below,
+        /// which writes VALUES, does carry the guard. Measured in
+        /// Test.Janus.Server.Resource.IntegerKeyWidth.
       end;
     end;
     FResultCommand := FGeneratorCommand.GeneratorUpdate(AObject, LParams, AModifiedFields);
@@ -143,6 +150,12 @@ begin
         DataType := LFieldType.FieldType;
         ParamType := ptInput;
         Value := _GetParamValue(AObject, LProperty, DataType);
+        /// Issue #325, on a WRITTEN column of the UPDATE.
+        Self._RefuseUnsignedValueTheColumnCannotCarry(AObject,
+                                                      LFieldType.ColumnName,
+                                                      LProperty,
+                                                      DataType,
+                                                      Value);
         if FConnection.GetDriver = TDriverName.dnPostgreSQL then
           Continue;
     	  // Tratamento para o tipo ftBoolean nativo, indo como Integer

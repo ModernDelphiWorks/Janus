@@ -133,7 +133,7 @@ type
 
   /// <summary> A ftGuid COLUMN OVER A String PROPERTY - WRONG ON PURPOSE.
   ///  The owner's ruling for #284 is that ftGuid means a TGUID property, and
-  ///  that is not a new rule: Janus.Command.Inserter.pas:213-217,
+  ///  that is not a new rule: TCommandInserter._GetParamValue (by symbol),
   ///  Janus.Command.Updater.pas:118-119 and Janus.Command.Deleter.pas:97-98
   ///  have always read it as AsType<TGUID>.ToString. This pair exists so the
   ///  ruling has a test instead of a paragraph: the SELECT side must say WHICH

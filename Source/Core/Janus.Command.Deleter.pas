@@ -98,6 +98,15 @@ begin
         Value := LColumn.ColumnProperty.GetNullableValue(AObject).AsType<TGuid>.ToString
       else
         Value := LColumn.ColumnProperty.GetNullableValue(AObject).AsVariant;
+      /// ISSUE #325 STOPS HERE, DELIBERATELY, AND THE MEASUREMENT IS IN
+      /// Test.Janus.Server.Resource.IntegerKeyWidth. The refusal introduced by
+      /// that issue covers the WRITE of a value the column cannot carry; this
+      /// is a LOOKUP, and the lookup is self-consistent: the key goes down as
+      /// a bound parameter, Data.DB's TParam.AsLargeInt reinterprets it, and
+      /// the row it reaches is the same row the READ reinterpreted the other
+      /// way when it filled this property. Refusing here would take away the
+      /// only way to remove a row that already carries such a key - which is
+      /// strictly worse than what happens today.
     end;
   end;
   FResultCommand := FGeneratorCommand.GeneratorDelete(AObject, FParams);

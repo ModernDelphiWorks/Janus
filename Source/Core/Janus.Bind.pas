@@ -938,8 +938,16 @@ end;
 ///  killed exactly one clause, so the arm WAS reached; it simply had nothing
 ///  the line below does not already do. What guards the unsigned case now is
 ///  that clause,
-///  Test.Janus.Server.Resource.IntegerKeyWidth.UnsignedKeyAboveHighInt64_MustRoundTripThroughTheFramework,
-///  which dies with this line. </summary>
+///  Test.Janus.Server.Resource.IntegerKeyWidth.UnsignedKeyAtTheSignedExtreme_MustReachItsUnsignedProperty,
+///  which dies with this line.
+///
+///  IT WAS CALLED UnsignedKeyAboveHighInt64_MustRoundTripThroughTheFramework
+///  UNTIL ISSUE #325, AND THE RENAME IS NOT COSMETIC. #325 turned the WRITE of
+///  an unsigned key above High(Int64) into a named refusal, so the clause can
+///  no longer ask the framework to write the row it then reads back: it writes
+///  the row by hand and goes on asking the only question this line answers. The
+///  READ is deliberately left alone by that refusal - Low(Int64) is a perfectly
+///  legal value of a BIGINT column, whoever put it there. </summary>
 procedure TBind._SetFieldToPropertyInteger(const LProperty: TRttiProperty;
   const AField: TField; const AObject: TObject);
 begin

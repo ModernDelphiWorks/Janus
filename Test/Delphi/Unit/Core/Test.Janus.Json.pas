@@ -421,7 +421,7 @@ end;
 // BY LINE - :115-120, :124-136 and :766-768 - and all three rotted at once when
 // issue #326 inserted lines into that unit; they are by symbol now.
 // FOUR sites render it, all TGUID.ToString:
-//   Janus.Command.Inserter.pas:213-217   (INSERT value)
+//   TCommandInserter._GetParamValue     (INSERT value, by symbol)
 //   Janus.Command.Updater.pas:118-119    (UPDATE parameter)
 //   Janus.Command.Deleter.pas:97-98      (DELETE WHERE)
 //   TDMLGeneratorAbstract.CanonicalGuidLiteral, Janus.DML.Generator.pas

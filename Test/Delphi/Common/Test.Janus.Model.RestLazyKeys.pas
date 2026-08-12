@@ -149,7 +149,7 @@ type
     property cck2: String read Fcck2 write Fcck2;
 
     /// TGUID, and not String, because THAT is what a ftGuid column means in
-    /// this framework - Janus.Command.Inserter.pas:213-217,
+    /// this framework - TCommandInserter._GetParamValue (by symbol),
     /// Janus.Command.Updater.pas:118-119 and Janus.Command.Deleter.pas:97-98
     /// all read it as AsType<TGUID>.ToString, and issue #284 made the SELECT
     /// side read it the same way. Declared as String this model compiled and

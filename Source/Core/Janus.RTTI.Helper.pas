@@ -67,7 +67,9 @@ begin
   ///  TValue.AsVariant, and AsVariant over a TGUID is exactly the cast that
   ///  raises 'Invalid class typecast'. So this arm renders the GUID itself,
   ///  and renders it as the SAME text the four rendering sites of this repo
-  ///  write - TGUID.ToString: Janus.Command.Inserter.pas:213-217,
+  ///  write - TGUID.ToString: TCommandInserter._GetParamValue, in
+  ///  Janus.Command.Inserter.pas - BY SYMBOL since issue #325 inserted lines
+  ///  into that unit -,
   ///  Janus.Command.Updater.pas:118-119, Janus.Command.Deleter.pas:97-98 and
   ///  TDMLGeneratorAbstract.CanonicalGuidLiteral, in Janus.DML.Generator.pas.
   ///  The doctrine behind them is written out in the doc comment over
