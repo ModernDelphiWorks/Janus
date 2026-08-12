@@ -183,6 +183,21 @@ type
     [Test]
     procedure FractionalKey_TheKeyLiteralMustCarryADecimalPoint;
 
+    /// THE SAME QUESTION ASKED OF A DIFFERENT LABEL, and the clause above
+    /// cannot ask it. ftFloat pins that the branch NORMALISES the separator;
+    /// this pins that ftSingle REACHES that branch. A binary-float label left
+    /// out of the branch list falls through to the default and reopens exactly
+    /// the defect this whole fixture is about, inside the function written to
+    /// close it - measured against the tree before this clause existed:
+    ///   SELECT ... FROM ktsingle WHERE (ktsingle.ktsng=10,5)
+    ///   [FireDAC][Phys][SQLite] ERROR: near ",": syntax error
+    /// ftExtended shares the branch with ftSingle and has no entity of its own;
+    /// it is grouped by argument and said so in _PrimaryKeyValueToSql's header.
+    [Test]
+    procedure SinglePrecisionKey_ThePutMustReachTheRowItNames;
+    [Test]
+    procedure SinglePrecisionKey_TheKeyLiteralMustCarryADecimalPoint;
+
     /// THESE TWO ASSERT THE LITERAL AND NOT THE ROW, AND THE REASON IS
     /// MEASURED RATHER THAN CHOSEN. Both keys are rendered CORRECTLY by the
     /// predicate at the base commit already, so neither clause is red-first;
@@ -298,6 +313,8 @@ const
                '  ktday DATE PRIMARY KEY, kttag VARCHAR(60))';
   cDDL_FLOAT = 'CREATE TABLE IF NOT EXISTS ktfloat (' +
                '  ktnum NUMERIC(18,4) PRIMARY KEY, kttag VARCHAR(60))';
+  cDDL_SNGL  = 'CREATE TABLE IF NOT EXISTS ktsingle (' +
+               '  ktsng NUMERIC(18,4) PRIMARY KEY, kttag VARCHAR(60))';
   cDDL_ALIAS = 'CREATE TABLE IF NOT EXISTS ktalias (' +
                '  kt_code VARCHAR(60) PRIMARY KEY, kttag VARCHAR(60))';
   cDDL_BOOL  = 'CREATE TABLE IF NOT EXISTS ktbool ('  +
@@ -363,6 +380,7 @@ begin
   FConnection.ExecuteDirect(cDDL_GUID);
   FConnection.ExecuteDirect(cDDL_DATE);
   FConnection.ExecuteDirect(cDDL_FLOAT);
+  FConnection.ExecuteDirect(cDDL_SNGL);
   FConnection.ExecuteDirect(cDDL_ALIAS);
   FConnection.ExecuteDirect(cDDL_BOOL);
   FConnection.ExecuteDirect(cDDL_NULL);
@@ -392,6 +410,7 @@ begin
   FConnection.ExecuteDirect('DELETE FROM ktguid');
   FConnection.ExecuteDirect('DELETE FROM ktdate');
   FConnection.ExecuteDirect('DELETE FROM ktfloat');
+  FConnection.ExecuteDirect('DELETE FROM ktsingle');
   FConnection.ExecuteDirect('DELETE FROM ktalias');
   FConnection.ExecuteDirect('DELETE FROM ktbool');
   FConnection.ExecuteDirect('DELETE FROM ktnull');
@@ -605,6 +624,31 @@ begin
     'The fractional key is not a numeric literal with a DOT. On a machine '
     + 'whose ambient DecimalSeparator is a comma, VarToStr renders 10,5 and '
     + 'the comma is read as an argument separator. Statement was: ' + LSQL);
+end;
+
+procedure TTestServerResourceUpdateWhere.SinglePrecisionKey_ThePutMustReachTheRowItNames;
+begin
+  InsertRaw('KeyTypeSingle', '{"ktsng":10.5,"kttag":"before"}');
+  Assert.AreEqual(1, ScalarInt('SELECT COUNT(*) FROM ktsingle'),
+    'The seed did not write the single-precision row.');
+  UpdateRaw('KeyTypeSingle', '{"ktsng":10.5,"kttag":"after"}');
+  Assert.AreEqual('after', ScalarStr('SELECT kttag FROM ktsingle'),
+    'The PUT did not reach the row an ftSingle key names.');
+end;
+
+procedure TTestServerResourceUpdateWhere.SinglePrecisionKey_TheKeyLiteralMustCarryADecimalPoint;
+var
+  LSQL: String;
+begin
+  InsertRaw('KeyTypeSingle', '{"ktsng":10.5,"kttag":"before"}');
+  FCommands.Clear;
+  UpdateRaw('KeyTypeSingle', '{"ktsng":10.5,"kttag":"after"}');
+  LSQL := LastSelect('ktsingle');
+  Assert.IsTrue(ContainsText(LSQL, '(ktsingle.ktsng=10.5)'),
+    'An ftSingle key did not reach the branch that normalises the decimal '
+    + 'separator. On this machine the ambient separator is a comma, so the '
+    + 'default branch emits 10,5 and the statement does not parse. Statement '
+    + 'was: ' + LSQL);
 end;
 
 procedure TTestServerResourceUpdateWhere.BigIntegerKey_TheKeyLiteralMustNotBeNarrowed;

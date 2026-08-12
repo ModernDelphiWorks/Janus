@@ -247,9 +247,13 @@ type
 
     /// The pair names the PROPERTY, not the column. The response emits KEY
     /// columns and nothing else, and every PRIMARY KEY column in the units
-    /// this project links spells the same as its property - 29 of them across
-    /// the 24 units Janus.Tests.RESTHorse.dpr names with a path, with exactly
-    /// one divergence, which is TKeyTypeAlias and exists for this clause. So
+    /// this project links spells the same as its property - 30 of them across
+    /// the 25 units Janus.Tests.RESTHorse.dpr names with a path, with exactly
+    /// one divergence, which is TKeyTypeAlias and exists for this clause.
+    /// (The figures read 29 and 24 until issue #320's branch added a unit to
+    /// that .dpr and a key column to Test.Janus.Model.KeyTypes; re-derived at
+    /// this commit, and 24/29 still re-derives at ea0208f. The divergence
+    /// count did not move.) So
     /// nothing could tell the two apart and trading one for the other was
     /// invisible. NON-key columns diverge freely - five in RestHorseTest.Models
     /// alone - which is why this says KEY and not "every entity".
