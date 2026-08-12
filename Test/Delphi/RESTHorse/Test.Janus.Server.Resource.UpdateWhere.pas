@@ -219,6 +219,17 @@ type
     [Test]
     procedure NullableKeyWithNoValue_MustNotReachAnyRow;
 
+    /// ...AND THE ROW-LEVEL CLAUSE ABOVE CANNOT SEE THE GUARD THAT MAKES IT
+    /// TRUE, which is why this one exists. Measured by mutation: deleting the
+    /// whole `VarIsNull or VarIsEmpty` test leaves the clause above green,
+    /// because the branch it then falls into renders the empty Variant as the
+    /// literal '' and no seeded row carries an empty key - and even a row that
+    /// did would not be UPDATED, since the update's own predicate binds the
+    /// same absent value and `col = NULL` matches nothing in SQL. Two layers
+    /// of accident, neither of them the guard. This clause reads the statement.
+    [Test]
+    procedure NullableKeyWithNoValue_ThePredicateMustBeUnsatisfiable;
+
     /// The OTHER half of that guard. MetaDbDiff's GetNullableValue answers a
     /// Variant NULL for a Nullable whose FHasValue is clear, and leaves the
     /// EMPTY TValue it started with - varEmpty, not varNull - for a
@@ -227,6 +238,11 @@ type
     /// TKeyTypeDecoy reaches that state.
     [Test]
     procedure NullableShapedKeyWithNoValueField_MustNotReachAnyRow;
+
+    /// The wire half of the same pair, and the ONLY clause in this fixture
+    /// that dies when the VarIsEmpty half alone is removed.
+    [Test]
+    procedure NullableShapedKeyWithNoValueField_ThePredicateMustBeUnsatisfiable;
 
     /// The guard against a repair whose predicate is always true.
     [Test]
@@ -661,6 +677,35 @@ begin
   UpdateRaw('KeyTypeNullable', '{"kttag":"pwned"}');
   Assert.AreEqual('keep', ScalarStr('SELECT kttag FROM ktnull'),
     'A PUT whose key carries no value reached a row anyway.');
+end;
+
+procedure TTestServerResourceUpdateWhere.NullableKeyWithNoValue_ThePredicateMustBeUnsatisfiable;
+var
+  LSQL: String;
+begin
+  InsertRaw('KeyTypeNullable', '{"ktopt":"K1","kttag":"keep"}');
+  FCommands.Clear;
+  UpdateRaw('KeyTypeNullable', '{"kttag":"pwned"}');
+  LSQL := LastSelect('ktnull');
+  Assert.IsTrue(ContainsText(LSQL, '(1 = 0)'),
+    'A key the request left undetermined has to produce the unsatisfiable '
+    + 'predicate. Rendering it as a literal instead makes the empty string a '
+    + 'KEY, and a row that carries one would be selected by a request that '
+    + 'named no key at all. Statement was: ' + LSQL);
+end;
+
+procedure TTestServerResourceUpdateWhere.NullableShapedKeyWithNoValueField_ThePredicateMustBeUnsatisfiable;
+var
+  LSQL: String;
+begin
+  InsertRaw('KeyTypeDecoy', '{"kttag":"keep"}');
+  FCommands.Clear;
+  UpdateRaw('KeyTypeDecoy', '{"kttag":"pwned"}');
+  LSQL := LastSelect('ktdecoy');
+  Assert.IsTrue(ContainsText(LSQL, '(1 = 0)'),
+    'An EMPTY Variant reached a branch that rendered it as a literal. '
+    + 'VarIsNull is False for varEmpty, so only the VarIsEmpty half of the '
+    + 'guard stands in front of this. Statement was: ' + LSQL);
 end;
 
 procedure TTestServerResourceUpdateWhere.NullableShapedKeyWithNoValueField_MustNotReachAnyRow;
