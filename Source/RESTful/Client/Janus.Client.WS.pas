@@ -329,10 +329,24 @@ begin
     // which discarded the result of Find; the sibling TRESTClientDataSnap.
     // Execute already assigned all four.
     //
-    // PUT stays a statement, and that is not an oversight: TRESTClientWS.DoPUT
-    // does not read the response and never assigns its own Result, so there is
-    // no payload there to lose - assigning it would pin nothing and would add
-    // the undefined-return warning that assigning an unassigned Result earns.
+    // PUT stays a statement because there is nothing to gain, NOT because
+    // assigning it would cost anything. TRESTClientWS.DoPUT does not read the
+    // response and never assigns its own Result, so it answers an empty string
+    // by construction and `Result := DoPUT(...)` is INERT here - a measured
+    // equivalent, not a preference.
+    //
+    // AN EARLIER VERSION OF THIS COMMENT GAVE A FALSE REASON, and it sat in
+    // Source holding up a design choice. It said assigning it "would add the
+    // undefined-return warning that assigning an unassigned Result earns".
+    // Measured on this tree: writing `Result := DoPUT(...)` here and building
+    // emits NO warning naming this unit at all. W1035 is a warning about a
+    // DEFINITION, not about a call site, and the only W1035 in the entire
+    // build is Janus.Manager.DataSet's AutoNextPacket. The counter-example was
+    // already in the tree - TRESTClientDataSnap.DoPUT likewise never assigns
+    // Result and IS assigned at two sites, silently.
+    //
+    // That a PUT answers nothing at all in EITHER family is a real question,
+    // and it is not this issue's: it belongs to #338, with the swapped verb.
     case ARequestMethod of
       TRESTRequestMethodType.rtPOST:
         begin
