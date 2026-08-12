@@ -43,6 +43,27 @@
   pinned instead is the OBSERVABLE consequence at the layer a consumer sees -
   Find over a result set that carries more than one row answers nil - which
   stays true whatever the repair turns out to be.
+
+  THE MUTATIONS THAT WERE RUN, AND WHAT DIED IN EACH. Applied to
+  Janus.DML.Generator.pas with a MESSAGE WARN directive dcc32 echoed as W1054
+  in the same build. The green state at this commit is 618/0/0.
+
+    d1  the whole date arm short-circuited with `False and`     -> 5 red
+    d2b FFormatSettings replaced by the GLOBAL FormatSettings   -> 1 red
+    d3  a TTime key given FDateFormat instead of FTimeFormat    -> 1 red
+    d4  the TDateTime term of the guard dropped                 -> 4 red
+    d5  FDateFormat replaced by a hard-coded 'yyyy-MM-dd'       -> 1 red
+    d6  the TDate term of the guard dropped                     -> 1 red
+
+  d6 is why TDateKey_UsesTheDialectDateMask exists: without it that term had
+  nothing to kill.
+
+  ONE SURVIVOR, DECLARED. Replacing FFormatSettings with
+  TFormatSettings.Create('en-US') leaves 618 green. It is not evidence that the
+  argument is dead code - d2b, which puts the GLOBAL settings there, kills a
+  clause - it is evidence that en-US happens to spell '/' and ':' the way the
+  dialect masks do. Killing it would need a clause that runs under a THIRD
+  named locale, which measures the RTL's locale table rather than this unit.
 }
 
 unit Test.Janus.DML.KeyPredicate;
@@ -144,6 +165,13 @@ type
     /// decision _GetPropertyValue already took.
     [Test]
     procedure TimeKey_UsesTheDialectTimeMask;
+    /// AND TDate, WHICH IS A TYPE OF ITS OWN. System declares TDate and TTime
+    /// as `type TDateTime`, so all three carry DISTINCT PTypeInfo and a guard
+    /// that names only TDateTime lets the other two through. This clause exists
+    /// because the mutation that drops the TDate term had to have something to
+    /// kill.
+    [Test]
+    procedure TDateKey_UsesTheDialectDateMask;
     /// The arm this repair must NOT disturb: a plain string key stays quoted
     /// and untouched, and an integer key stays bare.
     [Test]
@@ -305,6 +333,17 @@ begin
   Assert.Contains(LSQL, '''14:07:53''', True,
     'a time key must take FTimeFormat through FFormatSettings, so the ' +
     'ambient TimeSeparator cannot move it: ' + LSQL);
+end;
+
+procedure TTestDMLKeyPredicate.TDateKey_UsesTheDialectDateMask;
+var
+  LSQL: String;
+begin
+  FormatSettings.DateSeparator := '.';
+  LSQL := SelectIdSql(dnMSSQL, TDateKeyRow, TValue.From<TDate>(Stamp));
+  Assert.Contains(LSQL, '''15/03/2027''', True,
+    'a TDate AID is a distinct type info from TDateTime and must take the ' +
+    'same dialect mask: ' + LSQL);
 end;
 
 procedure TTestDMLKeyPredicate.StringKey_IsStillQuotedAndUnchanged;
