@@ -82,9 +82,16 @@
   THE SIBLING GUARD IS A DECLARED SURVIVOR. The same revert applied to
   TRESTDataSetAdapter<M>._RowKeyIsUngenerated, tripwire echoed as W1054, left
   Janus.Tests.RESTfulDriver at 134/0/0 - nothing dies. It is reachable only
-  from a REST adapter over a model with an autoinc ftLargeint PRIMARY KEY, and
-  a fixture for that has to be registered in Janus.Tests.RESTfulDriver.dpr,
-  which the #323 frontier is editing. Left alone deliberately, not overlooked.
+  from a REST adapter over a model with an autoinc ftLargeint PRIMARY KEY.
+
+  AND THE REASON GIVEN FOR LEAVING IT WAS WRONG. An earlier version of this
+  paragraph said a fixture for it "has to be registered in
+  Janus.Tests.RESTfulDriver.dpr, which the #323 frontier is editing". That is
+  not a blocker and was never checked: Janus.RestDataSet.Adapter is compiled
+  by Janus.Tests.Units as well - its .dcu is produced under that project's own
+  output directory - and this branch already edits Janus.Tests.Units.dpr
+  twice. The honest statement is smaller: whether the REST doubles can stand
+  up a TRESTDataSetAdapter<M> inside Janus.Tests.Units was NOT MEASURED.
 }
 
 unit Test.Janus.KeyWidth.ByIdApi;

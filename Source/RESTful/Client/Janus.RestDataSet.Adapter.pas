@@ -1066,10 +1066,19 @@ end;
 ///  that same mutation kills. Why the sibling could be covered and this one
 ///  could not is the reason this comment already gave: there the columns come
 ///  from the ASSOCIATION, so a cascade fixture reaches them, while here they
-///  come from the PRIMARY KEY of a row loaded through a REST adapter. A clause
-///  for it needs a new fixture in Janus.Tests.RESTfulDriver, whose .dpr the
-///  #323 frontier is editing, so it was left alone deliberately rather than
-///  raced. DECLARED SURVIVOR, not coverage. </summary>
+///  come from the PRIMARY KEY of a row loaded through a REST adapter, which
+///  needs the REST doubles to stand one up.
+///
+///  WHY IT WAS LEFT UNCOVERED IS `NOT MEASURED`, AND AN EARLIER VERSION OF
+///  THIS COMMENT GAVE A PROCESS REASON THAT DOES NOT HOLD. It said a clause
+///  would have to be registered in Janus.Tests.RESTfulDriver, whose .dpr the
+///  #323 frontier is editing. THIS UNIT IS COMPILED BY Janus.Tests.Units TOO
+///  - Janus.RestDataSet.Adapter.dcu is produced under that project's own
+///  output directory - and this branch already edits Janus.Tests.Units.dpr
+///  twice, so nothing was blocked by #323. What is actually true is narrower
+///  and less flattering: whether the REST doubles can stand up a
+///  TRESTDataSetAdapter<M> inside Janus.Tests.Units WAS NOT MEASURED.
+///  DECLARED SURVIVOR, and declared UNMEASURED - not blocked. </summary>
 function TRESTDataSetAdapter<M>._RowKeyIsUngenerated(
   const AAdapter: TDataSetBaseAdapter<M>): Boolean;
 const
