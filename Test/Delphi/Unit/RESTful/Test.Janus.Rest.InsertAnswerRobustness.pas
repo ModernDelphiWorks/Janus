@@ -11,13 +11,13 @@
   ------------------------------------------------------------------------------
 }
 
-{ @abstract(Janus Framework - TSessionRestFul<M>.Insert survives a FAILING
-  call. Issue #313.)
+{ @abstract(Janus Framework - TSessionRestFul<M>.Insert survives a FAILING call
+  and a MALFORMED answer. Issues #313 and #315.)
 
-  WHAT THE METHOD DOES WHEN THE HAPPY PATH DOES NOT HAPPEN. The sibling half of
-  that question - an answer whose `params` is valid JSON of the wrong shape -
-  is issue #315 and lands in this same fixture in the next commit, because it
-  lands in this same method.
+  TWO DEFECTS, ONE METHOD. Both live in TSessionRestFul<M>.Insert and both are
+  about what the method does when the happy path does not happen. They share a
+  fixture because they share a method: splitting them would put two fronts on
+  the same file.
 
   ============================================================================
   #313 - THE FINALLY FREED A POINTER THAT WAS NEVER ASSIGNED
@@ -103,6 +103,82 @@
   ExecuteRaises_TheNetworkErrorIsWhatReachesTheCaller is kept as the guard that
   goes red the day the prologue stops clearing the frame.
 
+  ============================================================================
+  #315 - TWO HARD CASTS, AND A NIL GUARD THAT ONLY COVERED ONE SHAPE
+  ============================================================================
+
+  `Values['params'] as TJSONArray` followed by `if ... = nil then Exit` reads
+  like a guarded cast and is not one. `nil as TJSONArray` is nil, so the guard
+  does catch the ABSENT key - and nothing else, because when the key is present
+  with the wrong type the `as` raises before the guard is ever evaluated. Same
+  for `Items[LFor] as TJSONObject` one loop down.
+
+  THE FORMS, MEASURED AT ea0208f BEFORE ANY REPAIR. The bodies are spelled in
+  words rather than in JSON because a curly brace inside a curly-brace comment
+  closes it early - which happened once while writing this file, and a build
+  that dies leaves the PREVIOUS exe on disk to report a false green.
+
+    params is an OBJECT             EInvalidCast escapes Insert
+    params is a STRING              EInvalidCast escapes Insert
+    params is a NUMBER              EInvalidCast escapes Insert
+    params is NULL                  EInvalidCast escapes Insert  <- not in #315
+    params is an ARRAY OF NUMBERS   EInvalidCast escapes Insert, from the
+                                    SECOND cast, one loop below the first
+
+  The null form is the one the issue missed, and it is the likeliest of the
+  five in the field: a server that has no key to report and says so explicitly
+  writes null, not an absent key. TJSONNull is a TJSONValue like any other, so
+  it reaches the cast and dies there.
+
+  EXIT OR A NAMED EXCEPTION - DECIDED BY WHAT THE HOUSE ALREADY ANSWERS
+
+  The issue leaves the choice open. It is not open: the same method answers the
+  same question twice already, and one method below it the answer is written
+  out with its reasoning.
+
+    :387-388  the body does not parse into an object -> silent Exit
+    :391-392  `params` is absent                     -> silent Exit
+    :636-645  RefreshRecord, issue #297: "NENHUMA LINHA E UMA RESPOSTA, e nao
+              um erro ... a excecao passaria a interromper a gravacao DEPOIS de
+              o servidor ja ter escrito"
+
+  That last one is decisive and it is about THIS moment in the lifecycle. By
+  the time the answer is parsed the server HAS ALREADY INSERTED THE ROW. An
+  exception here does not prevent anything; it aborts the client after the
+  write, exactly the outcome #297 refused. `params` is the server's echo of the
+  generated key: useful when present, and its absence is already a supported
+  answer. A malformed `params` carries no more information than an absent one,
+  so it gets the same answer - Exit, list left empty, consumer writes nothing.
+
+  Two different answers to one question inside one framework is a defect on its
+  own, so the repair does not invent a third.
+
+  WHY `Continue` AND NOT `Exit` ON THE ITEM CAST
+
+  The array is a list of independent objects - the parser already accepts one
+  object per column as well as one object with N pairs. A non-object element
+  says nothing about its siblings, so it is skipped and the well-formed ones
+  are still read. ParamsArrayMixesObjectsAndNonObjects_TheGoodOnesStillArrive
+  is what holds that apart from Exit, and the mutation figures that say whether
+  it earns its place are added in the commit that measures them - a table
+  written before the harness has run would be a claim, not a measurement.
+
+  WHAT THIS REPAIR DOES NOT COVER - REPORTED, NOT WIDENED
+
+  An answer that is not a JSON OBJECT at the top level never reaches line 390.
+  TJanusJson.JSONStringToJSONObject (Source/Core/Janus.Json.pas:250-252) is
+  itself `JSONStringToJSONValue(AJson) as TJSONObject`, so a body that is a
+  top-level ARRAY raises EInvalidCast one layer BELOW this method, inside the
+  parser. Measured at ea0208f. That file is the #314 front and is deliberately
+  untouched here; no clause in this fixture pins its behaviour, because pinning
+  it would make this fixture fail the day #314 repairs it.
+
+  The sibling hard casts on response JSON outside this method were enumerated
+  at ea0208f and are reported with the issue, not repaired here:
+  Janus.Client.DataSnap.pas:145,178,212 and Janus.Client.WS.pas:143,177,212,
+  all six of the form `(FRESTRequest.Response.JSONValue as TJSONArray).Items[0]`
+  - which, unlike this method, ALSO indexes Items[0] without checking Count.
+
   ANCHORS INTO THE SUITE ARE BY METHOD, NEVER BY `file:line`. Citations INTO
   SOURCE are by `file:line`, each re-read at the commit named beside it.
 }
@@ -122,7 +198,8 @@ uses
   Janus.RestFactory.Interfaces,
   Janus.Session.RESTful,
   Test.Janus.RestConnection.Double,
-  Test.Janus.Model.KeyOnly;
+  Test.Janus.Model.KeyOnly,
+  Test.Janus.Rest.ResultParamsCompositeKey;
 
 type
   /// <summary> Drives TSessionRestFul&lt;M&gt;.Insert against a connection that
@@ -160,6 +237,26 @@ type
     procedure ExecuteRaises_TheTranscriptStillProvesThePostWasAttempted;
     [Test]
     procedure ExecuteSucceeds_NothingAboutTheHappyPathChanged;
+    // ---- issue #315 -------------------------------------------------------
+    [Test]
+    procedure ParamsIsAnObject_IsReadAsNoParams;
+    [Test]
+    procedure ParamsIsAString_IsReadAsNoParams;
+    [Test]
+    procedure ParamsIsANumber_IsReadAsNoParams;
+    [Test]
+    procedure ParamsIsNull_IsReadAsNoParams;
+    [Test]
+    procedure ParamsIsAnArrayOfNumbers_IsReadAsNoParams;
+    [Test]
+    procedure ParamsArrayMixesObjectsAndNonObjects_TheGoodOnesStillArrive;
+    [Test]
+    procedure ParamsIsAnArrayOfArrays_IsReadAsNoParams;
+    // ---- the two answers the guard must NOT have changed -------------------
+    [Test]
+    procedure ParamsIsAbsent_StillYieldsNoParams;
+    [Test]
+    procedure ParamsIsWellFormed_StillYieldsEveryPair;
   end;
 
 implementation
@@ -303,6 +400,85 @@ begin
   LActual := TInsertFailureProbe.WhatEscapes('', cWELLFORMED, True);
   Assert.AreEqual('<nothing was raised>', LActual, False,
     'an insert whose connection answers normally must still raise nothing');
+end;
+
+procedure TTestRestInsertAnswerRobustness.ParamsIsAnObject_IsReadAsNoParams;
+begin
+  Assert.AreEqual('', TParamsProbe<TKeyOnly>.Render(
+    '{"result":"ok","params":{"k1":10}}'), False,
+    'a params of the wrong TYPE carries no more information than an absent ' +
+    'one and must be answered the same way - not with a raw EInvalidCast');
+end;
+
+procedure TTestRestInsertAnswerRobustness.ParamsIsAString_IsReadAsNoParams;
+begin
+  Assert.AreEqual('', TParamsProbe<TKeyOnly>.Render(
+    '{"result":"ok","params":"x"}'), False,
+    'a textual params must be read as no params');
+end;
+
+procedure TTestRestInsertAnswerRobustness.ParamsIsANumber_IsReadAsNoParams;
+begin
+  Assert.AreEqual('', TParamsProbe<TKeyOnly>.Render(
+    '{"result":"ok","params":7}'), False,
+    'a numeric params must be read as no params');
+end;
+
+procedure TTestRestInsertAnswerRobustness.ParamsIsNull_IsReadAsNoParams;
+begin
+  // THE FORM ISSUE #315 DID NOT LIST, and the likeliest of them all: a server
+  // with no key to report writes null rather than dropping the key. TJSONNull
+  // is a TJSONValue, so it reaches the cast and dies there.
+  Assert.AreEqual('', TParamsProbe<TKeyOnly>.Render(
+    '{"result":"ok","params":null}'), False,
+    'an explicit null params must be read as no params, exactly like an ' +
+    'absent one');
+end;
+
+procedure TTestRestInsertAnswerRobustness.ParamsIsAnArrayOfNumbers_IsReadAsNoParams;
+begin
+  Assert.AreEqual('', TParamsProbe<TKeyOnly>.Render(
+    '{"result":"ok","params":[10,20]}'), False,
+    'an array whose elements are not objects must yield no params - this is ' +
+    'the SECOND cast, one loop below the first');
+end;
+
+procedure TTestRestInsertAnswerRobustness.ParamsArrayMixesObjectsAndNonObjects_TheGoodOnesStillArrive;
+begin
+  // WHAT HOLDS `Continue` APART FROM `Exit` ON THE ITEM CAST. The elements are
+  // independent - the parser already accepts one object per column - so a bad
+  // element says nothing about its siblings. With Exit the answer would be
+  // '' and with Continue it is k1=7|k2=8, and the two good objects sit on
+  // BOTH SIDES of the bad ones so neither a leading nor a trailing skip can
+  // be mistaken for the whole rule.
+  Assert.AreEqual('k1=7|k2=8', TParamsProbe<TKeyOnly>.Render(
+    '{"result":"ok","params":[10,{"k1":7},"x",{"k2":8},null]}'), False,
+    'a malformed element must be skipped, not abort the whole answer - the ' +
+    'well-formed siblings still name real columns');
+end;
+
+procedure TTestRestInsertAnswerRobustness.ParamsIsAnArrayOfArrays_IsReadAsNoParams;
+begin
+  Assert.AreEqual('', TParamsProbe<TKeyOnly>.Render(
+    '{"result":"ok","params":[["k1",10]]}'), False,
+    'a nested ARRAY is not an object either, and TJSONArray is the one type ' +
+    'a sloppy guard is most likely to let through');
+end;
+
+procedure TTestRestInsertAnswerRobustness.ParamsIsAbsent_StillYieldsNoParams;
+begin
+  // THE ANSWER THE OLD GUARD DID COVER. It must keep behaving identically:
+  // the repair replaces the nil test, it does not narrow it.
+  Assert.AreEqual('', TParamsProbe<TKeyOnly>.Render('{"result":"ok"}'), False,
+    'an answer with no params element must still yield no params');
+end;
+
+procedure TTestRestInsertAnswerRobustness.ParamsIsWellFormed_StillYieldsEveryPair;
+begin
+  Assert.AreEqual('k1=10|k2=20', TParamsProbe<TKeyOnly>.Render(cWELLFORMED),
+    False,
+    'the happy path is unchanged - every pair of the one params object still ' +
+    'becomes its own param, in order');
 end;
 
 initialization

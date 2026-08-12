@@ -414,9 +414,35 @@ begin
     if LParamsObject = nil then
       Exit;
 
-    LParamsArray := LParamsObject.Values['params'] as TJSONArray;
-    if LParamsArray = nil then
+    // ISSUE #315 - O `as` LEVANTAVA ANTES DA GUARDA SER AVALIADA. Escrito
+    // `Values['params'] as TJSONArray` seguido de `if = nil then Exit`, isto
+    // parece um cast guardado e nao e: `nil as TJSONArray` de fato e nil, entao
+    // a guarda cobria a chave AUSENTE - e so ela. Com a chave PRESENTE e de
+    // tipo errado o `as` levanta EInvalidCast cru, com uma mensagem que nao
+    // menciona HTTP, nem servidor, nem resposta. Medido em ea0208f, cinco
+    // formas, todas escapando do Insert: params objeto, params string, params
+    // numero, params NULL e params array-de-nao-objetos (esta ultima no cast de
+    // baixo). A forma NULL nao estava na issue e e a mais provavel em campo:
+    // servidor sem chave a informar escreve null, nao omite a chave; TJSONNull
+    // e um TJSONValue como outro qualquer e chega ate aqui.
+    //
+    // POR QUE `Exit` E NAO EXCECAO NOMEADA. A casa ja responde esta pergunta
+    // duas vezes neste mesmo metodo - :387-388 quando o corpo nao vira objeto,
+    // e a propria guarda abaixo quando `params` nao existe - e uma vez logo
+    // adiante com o motivo escrito: RefreshRecord, issue #297, "NENHUMA LINHA E
+    // UMA RESPOSTA, e nao um erro ... a excecao passaria a interromper a
+    // gravacao DEPOIS de o servidor ja ter escrito". Vale identico aqui: quando
+    // esta resposta e lida a LINHA JA FOI INSERIDA. `params` e o eco da chave
+    // gerada - util quando vem, e a ausencia dele ja e resposta suportada. Um
+    // `params` malformado nao carrega mais informacao que um ausente, entao
+    // recebe a mesma resposta. Duas respostas para a mesma pergunta dentro de
+    // um framework e defeito por si so, e este conserto nao inventa a terceira.
+    //
+    // `nil is TJSONArray` e False, entao a chave ausente continua saindo por
+    // aqui exatamente como antes: a guarda foi TROCADA, nao estreitada.
+    if not (LParamsObject.Values['params'] is TJSONArray) then
       Exit;
+    LParamsArray := TJSONArray(LParamsObject.Values['params']);
 
     // ISSUE #300 - UM TParam POR PAR, NAO POR OBJETO. O servidor emite a chave
     // primaria INTEIRA num unico objeto: Janus.Server.Resource.pas:304-307
@@ -458,7 +484,14 @@ begin
     // mesma clausula devolve GetCount = 0.
     for LFor := 0 to LParamsArray.Count -1 do
     begin
-      LValuesObject := LParamsArray.Items[LFor] as TJSONObject;
+      // ISSUE #315, O SEGUNDO CAST. Aqui a resposta e `Continue` e nao `Exit`
+      // porque os elementos sao INDEPENDENTES: o laco de fora existe justamente
+      // porque a resposta pode trazer um objeto por coluna, e um elemento
+      // malformado nao diz nada sobre os irmaos dele. Pular o ruim e ler os
+      // bons entrega mais chave do que abortar a resposta inteira.
+      if not (LParamsArray.Items[LFor] is TJSONObject) then
+        Continue;
+      LValuesObject := TJSONObject(LParamsArray.Items[LFor]);
       for LPar := 0 to LValuesObject.Count -1 do
       begin
         with FResultParams.Add as TParam do
