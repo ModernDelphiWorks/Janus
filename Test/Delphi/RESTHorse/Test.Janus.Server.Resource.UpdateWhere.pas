@@ -25,6 +25,13 @@
   the Horse, WiRL, MARS, DMVC and DataSnap resources all reach it through
   TAppResourceBase.update and none of them assembles a predicate of its own.
 
+  AND THE LAST THREE CLAUSES ARE NOT ABOUT THAT LOOP AT ALL, WHICH FALSIFIES
+  THE PARAGRAPH ABOVE IF IT IS READ AS A DESCRIPTION OF THE FIXTURE RATHER THAN
+  OF ParseUpdate. They exercise ParseDelete and ResolverFindID, which locate
+  their row from the URI's ID instead of building a predicate, and they are
+  here because the issue named those two paths as unmeasured. They are green at
+  the base commit; see the comment on them.
+
   WHAT THE LOOP USED TO DO
 
   It concatenated text: table name, dot, column name, '=', and then the value
