@@ -41,6 +41,17 @@
   the .dproj does not produce a smaller green suite - it produces a build
   error.
 
+  AND ONE THING HERE IS NOT ABOUT THE DIRECTIVE AT ALL
+
+  Janus.Client.DataSnap and Janus.Client.WS are in the uses below, and NOT
+  because DRIVERRESTFUL selects them - they are unconditional. They are here
+  because a compile tripwire at 0546a51 showed that NO test project read either
+  of them, in either branch of any define: the two client families are reachable
+  from nothing but each other. The positive control - the same tripwire in
+  Janus.Client.Horse - failed this project and only this one, so the probe was
+  not blind. This project is where they were brought in, because it is already
+  the one that exists to compile a concrete client chain. Issue #323.
+
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
 
@@ -123,7 +134,17 @@ uses
   /// reach the dataset and the object it arrived in has to be released - the
   /// method discarded the result of Find and used a local it never assigned -
   /// issue #328
-  Test.Janus.Rest.OpenIdPopulates in 'Unit\RESTful\Test.Janus.Rest.OpenIdPopulates.pas';
+  Test.Janus.Rest.OpenIdPopulates in 'Unit\RESTful\Test.Janus.Rest.OpenIdPopulates.pas',
+  /// The DataSnap and WS client chains. Measured with a compile tripwire at
+  /// 0546a51: NO test project read either of them, and the positive control
+  /// - the same tripwire in Janus.Client.Horse - failed this project and only
+  /// this one. They are named here so the repair of issue #323 is compiled at
+  /// all, and the fixture below drives both of them over a live loan server.
+  Janus.Client.DataSnap,
+  Janus.Client.WS,
+  /// The shape of the answer the six sites read, and what Execute does with
+  /// it - the WS one dropped it on the floor - issue #323
+  Test.Janus.Client.ResponseShape in 'Unit\RESTful\Test.Janus.Client.ResponseShape.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

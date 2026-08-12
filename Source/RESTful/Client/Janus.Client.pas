@@ -19,6 +19,8 @@
   @abstract(Telagram : https://t.me/Janus)
 }
 
+{$INCLUDE ..\..\Janus.inc}
+
 unit Janus.Client;
 
 interface
@@ -28,8 +30,28 @@ uses
   SysUtils,
   StrUtils,
   Classes,
+  {$IFDEF DELPHI15_UP}
+  JSON,
+  {$ELSE}
+  DBXJSON,
+  {$ENDIF}
   Janus.Client.Methods,
+  Janus.Client.RestException,
   Janus.Client.Base;
+
+const
+  /// <summary>
+  ///   ISSUE #323 - the three malformed shapes ResponsePayload names. They are
+  ///   constants and not literals so that a clause can say WHICH of the three
+  ///   ran without repeating the sentence, and so that the three stay distinct
+  ///   from one another - telling them apart is the whole point of naming them.
+  /// </summary>
+  cRESTNOJSONVALUE = 'The response carried no JSON value: the body was empty, ' +
+                     'was not JSON, or the configured root element is absent ' +
+                     'from it.';
+  cRESTNOTANARRAY  = 'The response root element is not a JSON array, it is a ';
+  cRESTEMPTYARRAY  = 'The response root element is a JSON array with no ' +
+                     'element in it, so there is no payload to unwrap.';
 
 type
   TClientParam = array of String;
@@ -124,6 +146,40 @@ type
     procedure AddParam(AValue: String); virtual;
     procedure AddBodyParam(AValue: String); virtual;
     procedure AddQueryParam(AValue: String); virtual;
+    /// <summary>
+    ///   ISSUE #323 - READS THE PAYLOAD OUT OF A RESPONSE THAT MAY NOT HAVE ONE.
+    ///
+    ///   AValue is what TRESTResponse.JSONValue answered. AUnwrapEnvelope says
+    ///   whether the caller configured a ROOT ELEMENT: when it did, the value is
+    ///   an envelope - an array whose FIRST element is the payload - and when it
+    ///   did not, the value IS the payload. That rule is not invented here, it
+    ///   is the one TRESTClientWS.DoGET already carried alone.
+    ///
+    ///   Every other outcome is an error, and it is raised as one instead of
+    ///   escaping untyped. The three shapes and what they used to do:
+    ///
+    ///     nil                  `nil as TJSONArray` is nil in Delphi, so the
+    ///                          index that followed dereferenced nil - an ACCESS
+    ///                          VIOLATION, not a typed error
+    ///     not an array         EInvalidCast, whose message names neither HTTP
+    ///                          nor server nor response
+    ///     empty array          Items[0] on a TList - EArgumentOutOfRange
+    ///
+    ///   WHY ALL THREE STAY ERRORS. nil is the state TCustomRESTResponse.
+    ///   GetJSONValue answers for an empty body, a non-JSON body AND an absent
+    ///   root element (Studio 37.0, REST.Client.pas, GetJSONValue swallows the
+    ///   EJSONValueError that GetJSONResponse raises). For the DataSnap client
+    ///   the root element is 'result', and a DataSnap SERVER ERROR answers a
+    ///   body with no 'result' key at all - so nil is the ordinary shape of a
+    ///   failed call, and answering '' to it would swallow every server error
+    ///   this client can receive. An empty envelope is the same statement with
+    ///   less evidence. Whether an empty envelope should instead be read as "no
+    ///   data" and answered with '' is a CONTRACT VISIBLE TO THE CONSUMER; the
+    ///   house does not answer it unanimously at this seam, so it is reported
+    ///   and not decided here.
+    /// </summary>
+    class function ResponsePayload(const AValue: TJSONValue;
+      const AUnwrapEnvelope: Boolean): String;
     property MethodGET: String read GetMethodGET write SetMethodGET;
     property MethodPOST: String read GetMethodPOST write SetMethodPOST;
     property MethodPUT: String read GetMethodPUT write SetMethodPUT;
@@ -208,6 +264,30 @@ procedure TJanusClient.DoAfterCommand;
 begin
   if Assigned(FAfterCommand) then
     FAfterCommand(FStatusCode, FResponseString, FRequestMethod);
+end;
+
+class function TJanusClient.ResponsePayload(const AValue: TJSONValue;
+  const AUnwrapEnvelope: Boolean): String;
+var
+  LArray: TJSONArray;
+begin
+  if AValue = nil then
+    raise EJanusRESTResponseShape.Create(cRESTNOJSONVALUE);
+
+  if not AUnwrapEnvelope then
+  begin
+    Result := AValue.ToJSON;
+    Exit;
+  end;
+
+  if not (AValue is TJSONArray) then
+    raise EJanusRESTResponseShape.Create(cRESTNOTANARRAY + AValue.ClassName);
+
+  LArray := TJSONArray(AValue);
+  if LArray.Count = 0 then
+    raise EJanusRESTResponseShape.Create(cRESTEMPTYARRAY);
+
+  Result := LArray.Items[0].ToJSON;
 end;
 
 procedure TJanusClient.DoBeforeCommand;

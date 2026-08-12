@@ -142,7 +142,13 @@ begin
   // DELETE
   try
     FRESTRequest.Execute;
-    Result := (FRESTRequest.Response.JSONValue as TJSONArray).Items[0].ToJSON;
+    // ISSUE #323 - was (JSONValue as TJSONArray).Items[0], two unguarded steps
+    // whose three failing shapes escaped as three different untyped errors.
+    // TJanusClient.ResponsePayload carries the rule and the measurements; it
+    // raises INSIDE this try on purpose, so the handler below is what reports
+    // it, with the server body still attached.
+    Result := ResponsePayload(FRESTRequest.Response.JSONValue,
+                              Length(FRESTResponse.RootElement) > 0);
   except
     on E: Exception do
     begin
@@ -175,7 +181,13 @@ begin
   // DELETE
   try
     FRESTRequest.Execute;
-    Result := (FRESTRequest.Response.JSONValue as TJSONArray).Items[0].ToJSON
+    // ISSUE #323 - was (JSONValue as TJSONArray).Items[0], two unguarded steps
+    // whose three failing shapes escaped as three different untyped errors.
+    // TJanusClient.ResponsePayload carries the rule and the measurements; it
+    // raises INSIDE this try on purpose, so the handler below is what reports
+    // it, with the server body still attached.
+    Result := ResponsePayload(FRESTRequest.Response.JSONValue,
+                              Length(FRESTResponse.RootElement) > 0)
   except
     on E: Exception do
     begin
@@ -209,7 +221,13 @@ begin
   // POST
   try
     FRESTRequest.Execute;
-    Result := (FRESTRequest.Response.JSONValue as TJSONArray).Items[0].ToJSON;
+    // ISSUE #323 - was (JSONValue as TJSONArray).Items[0], two unguarded steps
+    // whose three failing shapes escaped as three different untyped errors.
+    // TJanusClient.ResponsePayload carries the rule and the measurements; it
+    // raises INSIDE this try on purpose, so the handler below is what reports
+    // it, with the server body still attached.
+    Result := ResponsePayload(FRESTRequest.Response.JSONValue,
+                              Length(FRESTResponse.RootElement) > 0);
   except
     on E: Exception do
     begin
