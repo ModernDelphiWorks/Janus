@@ -84,7 +84,9 @@ uses
   /// The one shape that reaches an EMPTY Variant — issue #311
   Test.Janus.Model.KeyTypeDecoy in 'Common\Test.Janus.Model.KeyTypeDecoy.pas',
   /// Whether the insert response quotes the key it carries back — issue #311
-  Test.Janus.Server.Resource.KeyQuoting in 'RESTHorse\Test.Janus.Server.Resource.KeyQuoting.pas';
+  Test.Janus.Server.Resource.KeyQuoting in 'RESTHorse\Test.Janus.Server.Resource.KeyQuoting.pas',
+  /// Whether a PUT can locate the row its key names — issue #320
+  Test.Janus.Server.Resource.UpdateWhere in 'RESTHorse\Test.Janus.Server.Resource.UpdateWhere.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

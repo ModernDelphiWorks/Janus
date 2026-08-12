@@ -87,6 +87,8 @@ implementation
 
 uses
   JSON,
+  DB,
+  StrUtils,
   MetaDbDiff.mapping.classes,
   MetaDbDiff.mapping.attributes,
   MetaDbDiff.rtti.helper,
@@ -203,6 +205,143 @@ begin
   if VarIsFloat(LValue) then
     Exit(TJSONNumber.Create(Double(VarAsType(LValue, varDouble))));
   Result := TJSONString.Create(VarToStr(LValue));
+end;
+
+/// <summary> The SQL LITERAL of one primary key column, RENDERED rather than
+///  pasted into a statement. Issue #320.
+///
+///  What it replaces emitted the value raw, straight out of VarToStr, next to
+///  a '='. In SQL a bare token in that position is a COLUMN REFERENCE, so the
+///  whole of PUT was broken for any entity whose key is not a bare number:
+///  measured through this very path against SQLite, a textual key produced
+///  `[FireDAC][Phys][SQLite] ERROR: no such column: ABC`, and a date key
+///  produced `(ktdate.ktday=17/03/2026)` - three integers divided, no error
+///  raised, no row found, the PUT silently doing nothing.
+///
+///  AND THE VALUE COMES OUT OF THE REQUEST BODY. Measured at the base commit,
+///  through the server's own monitor callback: a body whose key was
+///  `kttag) OR (kttext.ktcode='ABC'` produced
+///    SELECT ... FROM kttext WHERE (kttext.ktcode=kttag) OR (kttext.ktcode='ABC')
+///  which SQLite accepts, and the row named ABC did not survive the request.
+///  That is not a hypothesis about a hostile client; it is what concatenating
+///  request text into a statement means.
+///
+///  WHY THIS DISPATCHES ON TColumnMapping.FieldType AND ITS JSON SIBLING
+///  DISPATCHES ON THE VARIANT, AND WHY THAT IS NOT A CONTRADICTION.
+///  _PrimaryKeyValueToJson, above, argues at length for the Variant, and that
+///  argument is sound FOR JSON: JSON has four value kinds and the Variant has
+///  four reachable states, so the mapping is total and a wrong bucket is
+///  visible. SQL is not like that. The correct literal for a date depends on
+///  how the column STORES it, not on the fact that a TDateTime arrived, and
+///  varDate, varDouble and a string are three Variant states that need three
+///  different literal forms which the Variant alone cannot choose between.
+///  The house already answered this exact question on the other side of the
+///  same family: TRESTDataSetAdapter<M>._FilterLiteral in
+///  Janus.RestDataSet.Adapter builds the literal for a $filter predicate and
+///  dispatches on TField.DataType, with the same table of branches. This
+///  function is that table, taking a TColumnMapping and an instance instead of
+///  a TField, because that is what the server side has.
+///
+///  A FieldType table is a list of enum labels, and the honest thing to say
+///  about it is which labels are DEFENDED. The clauses in
+///  Test.Janus.Server.Resource.UpdateWhere reach ftString (plain, quote-bearing,
+///  GUID-shaped, aliased, composite and nullable), ftInteger, ftLargeint,
+///  ftFloat, ftDate and ftBoolean. ftWideString, ftMemo, ftWideMemo, ftFmtMemo,
+///  ftGuid, ftDateTime, ftTime, ftTimeStamp, ftOraTimeStamp, ftCurrency, ftBCD
+///  and ftFMTBcd share a branch with a defended label but have no primary key
+///  of their own anywhere under Test\, so they are grouped by argument and not
+///  by measurement.
+///
+///  THE EMPTY RESULT IS A SIGNAL, NOT A LITERAL. A key the request left
+///  undetermined - a Nullable the caller did not send - cannot identify a row,
+///  and must not be allowed to identify an arbitrary one. It comes back as ''
+///  and the caller emits `1 = 0`, the same idiom Janus.DML.Generator uses for
+///  an undetermined association value. The PUT then leaves through the
+///  `if LObjectOld = nil then Exit` that ParseUpdate already had for a row
+///  that is not there, so this is not a new exit - it is an existing one,
+///  reached honestly instead of by a SQL syntax error.
+///
+///  DATE AND TIME GO OUT IN ISO-8601 AND THE RESIDUE IS DECLARED. The
+///  dialect-correct mask lives in TDMLGeneratorAbstract.FDateFormat, which has
+///  four distinct values across the thirteen dialects and is unreachable from
+///  this layer - the resource holds an IDBConnection and a TRESTObjectSet, and
+///  nothing on that path exposes the generator. ISO-8601 is what the sibling
+///  _FilterLiteral already speaks, and it happens to be exactly the SQLite
+///  generator's own FDateFormat ('yyyy-MM-dd'), which is what the fixture
+///  measures. On a dialect whose FDateFormat differs, a date PRIMARY KEY is
+///  still not located - it is now a well-formed literal that finds nothing
+///  rather than a malformed statement, which is an improvement and not a
+///  repair. Fixing it properly means building the predicate inside the
+///  generator, which means a new method on IDMLGeneratorCommand: a contract
+///  change, and not this issue's to make.
+///
+///  THE COLONS ARE QUOTED INSIDE THE MASKS because ':' is FormatDateTime's
+///  placeholder for TimeSeparator and would come out swapped by the ambient
+///  locale. TFormatSettings.Invariant is passed as well, so neither separator
+///  nor the ambient calendar can move the text. That is one step stricter than
+///  _FilterLiteral, which passes no FormatSettings; the divergence is
+///  deliberate and is recorded rather than fixed here, because that unit
+///  belongs to the client side of this family.
+///
+///  ftBoolean IS NOT GIVEN A LITERAL OF ITS OWN, AND THAT IS MEASURED. The
+///  else branch renders VarToStr, which for a boolean is the bare token True.
+///  See BooleanKey_ThePutMustReachTheRowItNames for what that does and does
+///  not achieve. </summary>
+function _PrimaryKeyValueToSql(const AColumn: TColumnMapping;
+  const AObject: TObject): String;
+const
+  /// The colons are quoted: ':' is the TimeSeparator placeholder.
+  cISODATE     = 'yyyy-mm-dd';
+  cISODATETIME = 'yyyy-mm-dd"T"hh":"nn":"ss';
+  cISOTIME     = 'hh":"nn":"ss';
+var
+  LValue: Variant;
+begin
+  LValue := AColumn.ColumnProperty.GetNullableValue(AObject).AsVariant;
+  if VarIsNull(LValue) or VarIsEmpty(LValue) then
+    Exit('');
+  case AColumn.FieldType of
+    ftString, ftWideString, ftMemo, ftWideMemo, ftFmtMemo, ftGuid:
+      Result := QuotedStr(VarToStr(LValue));
+    ftDate:
+      Result := QuotedStr(FormatDateTime(cISODATE, VarToDateTime(LValue),
+                                         TFormatSettings.Invariant));
+    ftDateTime:
+      Result := QuotedStr(FormatDateTime(cISODATETIME, VarToDateTime(LValue),
+                                         TFormatSettings.Invariant));
+    ftTime, ftTimeStamp, ftOraTimeStamp:
+      Result := QuotedStr(FormatDateTime(cISOTIME, VarToDateTime(LValue),
+                                         TFormatSettings.Invariant));
+    /// A numeric literal, and the decimal separator has to be the SQL one and
+    /// not the machine's. VarToStr follows the ambient DecimalSeparator for
+    /// varDouble, varSingle and varCurrency, so the text is normalised here -
+    /// the same normalisation TDMLGeneratorAbstract._GetPropertyValue applies
+    /// to the very same field types.
+    ftCurrency, ftBCD, ftFMTBcd, ftFloat:
+      Result := ReplaceStr(VarToStr(LValue), ',', '.');
+    /// VarToStr renders a boolean as the bare token True, which is the very
+    /// shape this repair exists to stop emitting. What replaces it is 1 / 0,
+    /// and the reason is MEASURED rather than conventional: the row this
+    /// framework writes through its own bound-parameter INSERT lands in SQLite
+    /// with `typeof(ktflag)` = integer - read back through the fixture's own
+    /// connection - so an integer literal is what locates it.
+    ///
+    /// THE RESIDUE IS THE SAME ONE THE DATE BRANCH HAS, and it is declared
+    /// rather than papered over: on a dialect with a native BOOLEAN type that
+    /// refuses an integer comparison, this literal is well-formed SQL that
+    /// finds nothing. Only the generator knows the dialect, and reaching it
+    /// from here is a contract change - see the header. No mapping in this
+    /// repository outside the fixture has a boolean primary key.
+    ftBoolean:
+      Result := IfThen(Boolean(LValue), '1', '0');
+  else
+    /// Integer, 64-bit and unsigned 64-bit keys leave as bare digits. Measured
+    /// by the #311 author over varInteger, varInt64 and varUInt64 under four
+    /// FormatSettings: no ORDINAL type takes a separator under any of them,
+    /// and VarToStr of a varUInt64 above High(Int64) keeps its unsigned value
+    /// rather than the signed reinterpretation of the bit pattern.
+    Result := VarToStr(LValue);
+  end;
 end;
 
 { TAppResourceBase }
@@ -456,6 +595,7 @@ var
   LPrimaryKey: TPrimaryKeyColumnsMapping;
   LColumn: TColumnMapping;
   LWhere: string;
+  LLiteral: string;
   LAllowVerbs: TRESTAllowVerbCache;
 begin
   LClassType := TMappingExplorer.GetRepositoryMapping
@@ -488,11 +628,22 @@ begin
       if LPrimaryKey = nil then
         raise Exception.Create(cMESSAGEPKNOTFOUND);
 
+      /// The value is now rendered as a SQL LITERAL instead of being pasted in
+      /// raw - see _PrimaryKeyValueToSql. A key the request left undetermined
+      /// yields the unsatisfiable predicate rather than `col=`, which is the
+      /// same idiom Janus.DML.Generator already uses for an undetermined
+      /// association value (GenerateSelectOneToOne / GenerateSelectOneToOneMany,
+      /// anchored by METHOD).
       for LColumn in LPrimaryKey.Columns do
-        LWhere := LWhere + '(' + LObjectNew.GetTable.Name
-                         + '.' + LColumn.ColumnName
-                         + '=' + VarToStr(LColumn.ColumnProperty
-                                                 .GetNullableValue(LObjectNew).AsVariant) + ') AND ';
+      begin
+        LLiteral := _PrimaryKeyValueToSql(LColumn, LObjectNew);
+        if LLiteral = '' then
+          LWhere := LWhere + '(1 = 0) AND '
+        else
+          LWhere := LWhere + '(' + LObjectNew.GetTable.Name
+                           + '.' + LColumn.ColumnName
+                           + '=' + LLiteral + ') AND ';
+      end;
       LWhere := Copy(LWhere, 1, Length(LWhere) -5);
       LObjectOld := LObjectSet.FindOne(LWhere);
       if LObjectOld = nil then

@@ -160,6 +160,7 @@
         <DCCReference Include="Common\Test.Janus.Model.KeyTypes.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.KeyTypeDecoy.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.KeyQuoting.pas"/>
+        <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.UpdateWhere.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
