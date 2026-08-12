@@ -228,9 +228,11 @@ type
     /// 9223372036854775808 is High(Int64) + 1, and a signed 64-bit column has
     /// nowhere to put the sign. Measured with a hand-typed SQL literal, which
     /// passes through no TParam and no TField of ours: SQLite answers
-    /// typeof() = real; measured one layer higher in an RTL-only probe,
-    /// Data.DB's own TParam.AsLargeInt already answers
-    /// -9223372036854775808 before any driver is asked.
+    /// typeof() = real. WHERE the sign is dropped on the framework's own path
+    /// is NOT measured - an earlier version of this sentence named
+    /// TParam.AsLargeInt and that accessor is not on it; see the comment over
+    /// UnsignedKeyAboveHighInt64_TheStorageIsTheWallAndNotTheFramework in
+    /// Test.Janus.Server.Resource.IntegerKeyWidth.
     ///
     /// THE SENTENCE HERE USED TO SAY "the row the framework's own INSERT
     /// writes carries -9223372036854775808", AND ISSUE #325 FALSIFIED IT: the

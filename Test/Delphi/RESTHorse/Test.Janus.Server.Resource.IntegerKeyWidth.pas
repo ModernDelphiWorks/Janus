@@ -438,14 +438,21 @@ end;
 /// integer. So even a caller who bypasses this framework entirely cannot put
 /// 2^63 in that column as an integer.
 ///
-/// AND THE WALL IS ACTUALLY ONE STOREY LOWER THAN THIS COMMENT USED TO SAY.
-/// The framework never got as far as SQLite: measured in a standalone probe
-/// built with the same Studio 37.0 and using nothing but the RTL, a UInt64
-/// property arrives as a Variant of VType varUInt64 (21), a TParam declared
-/// ftLargeint KEEPS VType 21 when it is assigned, and TParam.AsLargeInt -
-/// Data.DB's own accessor - already answers -9223372036854775808. The sign was
-/// gone before any driver was asked. The reading that survives is the narrow
-/// one: nothing under Janus's control could have kept it.
+/// AND THE PARAMETER THAT LEAVES THIS FRAMEWORK IS STILL INTACT, which is the
+/// half that is measured. In a standalone probe built with the same Studio 37.0
+/// and using nothing but the RTL, a UInt64 property arrives as a Variant of
+/// VType varUInt64 (21) and a TParam declared ftLargeint KEEPS VType 21 when it
+/// is assigned. So the sign is not dropped by anything Janus does.
+///
+/// WHERE IT IS DROPPED IS NOT MEASURED, AND THIS COMMENT USED TO SAY IT WAS. It
+/// named Data.DB's TParam.AsLargeInt, "before any driver was asked". That
+/// accessor does answer -9223372036854775808 over this Variant, but it is not
+/// on the path: TFDParam.AssignDlpParam - read in the FireDAC source shipped
+/// with Studio 37.0, anchored by METHOD - copies the raw Variant for every
+/// label except the string and binary ones. The value crosses into FireDAC
+/// unsigned and whole. The reading that survives is the narrow one: nothing
+/// under Janus's control could have kept the sign, because ftLargeint is the
+/// SIGNED one of Data.DB's two 64-bit labels.
 ///
 /// So the choice was between storing the key as TEXT and refusing the mapping.
 /// THE REFUSAL IS THE ONE THAT WAS MADE, and the second half of this clause
@@ -521,9 +528,22 @@ begin
     'The refusal does not name the column: ' + LMessage);
   Assert.IsTrue(ContainsText(LMessage, '9223372036854775807'),
     'The refusal does not state the limit: ' + LMessage);
-  Assert.IsTrue(ContainsText(LMessage, 'ftString'),
-    'The refusal does not say what to do instead. A named error that stops at '
-    + '"no" is only a prettier raise: ' + LMessage);
+  /// The value the row WOULD have carried. It is the diagnosis, and it is what
+  /// a reader greps the database for when the damage is already done.
+  Assert.IsTrue(ContainsText(LMessage, 'as -9223372036854775808,'),
+    'The refusal does not say what the row would have carried: ' + LMessage);
+  /// THE WHOLE DECLARATION, NOT THE WORD ftString. This is the fragment the
+  /// reader COPIES AND PASTES, and it was the one thing in the message with no
+  /// clause in front of it: blanking the column name in the ADVICE slot left
+  /// the message telling the reader to write [Column('', ftString, 20)] and
+  /// killed nothing, because the earlier `column "ktu"` assertion is satisfied
+  /// by the OTHER slot and ftString is a fixed literal. Measured, by a
+  /// reviewer, against a comment of mine that claimed every survivor was
+  /// already declared.
+  Assert.IsTrue(ContainsText(LMessage, '[Column(''ktu'', ftString, 20)]'),
+    'The refusal does not hand the reader a declaration to copy. A named error '
+    + 'that stops at "no" is only a prettier raise, and advice with a hole in '
+    + 'it is worse than none: ' + LMessage);
 end;
 
 /// REFUSING IS ONLY BETTER THAN CORRUPTING IF NOTHING IS WRITTEN. A guard that
