@@ -95,8 +95,12 @@
   TRIPWIRE-n - written with the braces a directive needs, which cannot be
   reproduced inside this comment because a Delphi block comment does not nest -
   and dcc32 echoed it as W1054 in the same build, so "applied" is not a claim.
-  Totals are
-  Janus.Tests.Units, whose green state at this commit is 604/0/0.
+  Totals are of
+  Janus.Tests.Units, WHOSE TOTAL MOVED AFTERWARDS - the runs below were made
+  on commit e259b53, where the green state was 604/0/0. The count is the
+  record of a run and not a description of HEAD: two later commits on this
+  branch added clauses of their own, so anyone re-running these mutations will
+  see a larger total with the SAME clauses dying.
 
     n1  the whole literal put back to AColumns[LFor].AsString  -> 7 red
     n2  ftBoolean branch removed                               -> 1 red
@@ -112,7 +116,7 @@
   the undetermined-key clause is held up by the cNOROWSGUARD arm, which n1 does
   not touch - n6 is the mutation that kills that one.
 
-  n4 SURVIVED ON THE FIRST PASS - 604 green with the tripwire echoed - because
+  n4 SURVIVED ON THE FIRST PASS - 604 green at e259b53, tripwire echoed - because
   DB.ftExtended had no model of its own. That is the shape #320 could only
   declare; here TRefreshExtendedKey was written and the mutation now dies.
   n7 SURVIVED ON THE FIRST PASS for the same reason and got the same treatment:
@@ -120,7 +124,7 @@
   of the public RefreshRecord(TParams) reaches varEmpty.
 
   ONE SURVIVOR IS DECLARED AND KEPT. Removing TFormatSettings.Invariant from
-  the ftDate branch kills nothing (604 green, tripwire echoed). It is inert
+  the ftDate branch kills nothing (604 green at e259b53, tripwire echoed). It is inert
   against the CURRENT MASK and not against the contract: in a FormatDateTime
   mask only '/' and ':' are separator placeholders, cISODATE is 'yyyy-mm-dd'
   whose '-' is a literal, and the two other masks quote their colons. So no
@@ -234,7 +238,8 @@ type
   /// An EXTENDED primary key. THIS MODEL EXISTS BECAUSE OF A SURVIVING
   /// MUTATION and not from the start: with only TRefreshSingleKey in place,
   /// deleting DB.ftExtended from the decimal branch left the whole suite green
-  /// - 601/0/0, with the tripwire echoed by dcc32. That is exactly the shape
+  /// - 601/0/0 on the tree that carried the first half of this repair, with the
+  /// tripwire echoed by dcc32. That is exactly the shape
   /// the sibling repair #320 had to declare as "grouped by argument"; here the
   /// missing clause was cheap enough to write, so the label is MEASURED
   /// instead of argued.

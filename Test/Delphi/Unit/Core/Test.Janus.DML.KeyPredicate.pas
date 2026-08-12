@@ -46,7 +46,8 @@
 
   THE MUTATIONS THAT WERE RUN, AND WHAT DIED IN EACH. Applied to
   Janus.DML.Generator.pas with a MESSAGE WARN directive dcc32 echoed as W1054
-  in the same build. The green state at this commit is 618/0/0.
+  in the same build. The green state when they were run was 618/0/0, at commit
+  e477cea - a total is the record of a run, not a description of HEAD.
 
     d1  the whole date arm short-circuited with `False and`     -> 5 red
     d2b FFormatSettings replaced by the GLOBAL FormatSettings   -> 1 red

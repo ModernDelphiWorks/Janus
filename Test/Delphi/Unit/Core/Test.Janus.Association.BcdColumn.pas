@@ -64,12 +64,13 @@
   run with a MESSAGE WARN directive dcc32 echoed as W1054 in the same build:
 
     b1  the AsString bottom replaced by `Result := True`
-        -> 10 red of 608. Three of them are this fixture's; the other seven
+        -> 10 red of the 608 Janus.Tests.Units carried at eacbab1. Three of them
+           are this fixture's; the other seven
            belong to Test.Janus.Grandchild.Read, so b1 alone does NOT show that
            anything here is defended by these clauses and by nothing else.
     b2  the bottom given a SAME-FAMILY precondition -
         `(AMasterField.DataType = AChildField.DataType) and (...)`
-        -> 3 red of 608, and they are exactly
+        -> 3 red of the same 608, and they are exactly
            ABcdChildColumn_IsClaimedOnlyByItsOwnMaster,
            ..._ReversedRowOrder and ABcdChildColumnNoMasterNames_IsClaimedByNobody.
            Nothing else in any suite notices. That is the measurement that says
