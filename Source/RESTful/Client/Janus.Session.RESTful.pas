@@ -373,7 +373,8 @@ var
 begin
   // ISSUE #313 - O `finally` LIA ESTE LOCAL SEM ELE TER SIDO ATRIBUIDO.
   // TJSONObject e tipo NAO GERENCIADO, e Delphi nao zera local desses. A
-  // primeira atribuicao esta em :387, DENTRO do try aberto logo abaixo, e o
+  // primeira atribuicao esta DENTRO do try aberto logo abaixo - referida pela
+  // estrutura e nao por numero de linha, que este proprio comentario move - e o
   // FConnection.Execute que a antecede pode levantar - servidor fora, timeout,
   // 500 virando EJanusRESTException no cliente concreto. Nesse caminho o
   // `if LParamsObject <> nil` do finally le o que a pilha tinha, e libera lixo:
@@ -386,12 +387,13 @@ begin
   // Test.Janus.Rest.InsertAnswerRobustness suja 64KB de pilha com $CD na
   // MESMA profundidade que o frame de Insert vai ocupar, e o slot ainda le
   // 00000000 - com os enderecos batendo (slot em 012FF3E4, faixa raspada
-  // 012EF408..012FF407), ou seja o prologo do proprio Insert zera o frame,
-  // porque o metodo tem quatro locais String e o compilador limpa a area
-  // inteira. A rotina EQUIVALENTE escrita a mao fora de uma classe generica
-  // NAO e zerada e da EAccessViolation "Read of address CDCDCDCD" trocando o
-  // erro de rede - medido no mesmo commit. Ou seja: o defeito e real e a
-  // consequencia depende de codegen, que nao e contrato.
+  // 012EF408..012FF407), ou seja o prologo do proprio Insert zera o frame.
+  // POR QUE ele zera aqui NAO FOI DETERMINADO: tres formas escritas a mao com
+  // a MESMA lista de locais - rotina simples, rotina com metodo anonimo
+  // capturando locais, e metodo de classe generica instanciada - NAO sao
+  // zeradas e dao EAccessViolation "Read of address CDCDCDCD" trocando o erro
+  // de rede, todas medidas no mesmo commit e no mesmo compilador. Ou seja: o
+  // defeito e real, e a consequencia depende de codegen que ninguem controla.
   //
   // O QUE E CONTRATO E O PROPRIO COMPILADOR DIZER. dcc32 emite em ea0208f
   // "W1036 Variable 'LParamsObject' might not have been initialized" apontando

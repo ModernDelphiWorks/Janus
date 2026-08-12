@@ -76,18 +76,31 @@
 
   The address is inside the scribbled range, so the scribble is not missing it:
   something zeroes the slot BETWEEN the scribble returning and the first
-  statement of Insert, and the only thing that runs there is Insert's own
-  prologue. Insert declares four String locals, and the Win32 compiler clears
-  the whole local area of such a frame rather than the managed slots alone.
-  Widening the scribble from 2KB to 64KB changed nothing, which is what rules
-  out coverage as the explanation.
+  statement of Insert, and the only thing that runs in that window is Insert's
+  own prologue. Widening the scribble from 2KB to 64KB changed nothing, which
+  is the second thing ruling coverage out.
 
-  The class of defect is real all the same, and that was measured too rather
-  than argued: the SAME local list written by hand as a plain routine outside a
-  generic class is NOT cleared, and it dies with
-  "EAccessViolation ... Read of address CDCDCDCD" while an Exception carrying
-  'boom' was unwinding - the network error replaced by an access violation,
-  exactly the damage #313 describes. Same commit, same compiler.
+  WHY the prologue clears it here is NOT DETERMINED, and no explanation is
+  offered in its place. Three hand-written shapes carrying the SAME local list -
+  four Strings, three unmanaged object references, two Integers, the first
+  assignment inside the try - were compiled with the same dcc32 37.0 and NONE
+  of them is cleared:
+
+    a plain routine                                    slot = CDCDCDCD
+    a routine holding an anonymous method that
+      captures two of its own locals                   slot = CDCDCDCD
+    a method of a generic class, instantiated          slot = CDCDCDCD
+
+  All three die with "EAccessViolation ... Read of address CDCDCDCD" while an
+  Exception carrying 'boom' is unwinding - the network error replaced by an
+  access violation, exactly the damage #313 describes. So neither the local
+  list, nor the closure, nor the generic instantiation is what makes the real
+  Insert different, and guessing which of the remaining differences it is would
+  be the invention this fixture is written to avoid.
+
+  What that leaves is the only thing that matters for the decision: the class of
+  defect is real and demonstrable, and whether it fires in THIS method is
+  decided by codegen nobody controls.
 
   So the finally is one codegen decision away from the AV, and codegen is not a
   contract. What IS a contract is the compiler saying so out loud: dcc32 emits,
@@ -134,7 +147,8 @@
 
   The issue leaves the choice open. It is not open: the same method answers the
   same question twice already, and one method below it the answer is written
-  out with its reasoning.
+  out with its reasoning. Every line number below was re-read at ea0208f, the
+  tree this repair was written against:
 
     :387-388  the body does not parse into an object -> silent Exit
     :391-392  `params` is absent                     -> silent Exit
@@ -159,9 +173,9 @@
   object per column as well as one object with N pairs. A non-object element
   says nothing about its siblings, so it is skipped and the well-formed ones
   are still read. ParamsArrayMixesObjectsAndNonObjects_TheGoodOnesStillArrive
-  is what holds that apart from Exit, and the mutation figures that say whether
-  it earns its place are added in the commit that measures them - a table
-  written before the harness has run would be a claim, not a measurement.
+  is what holds that apart from Exit, and the mutation table below says it
+  earns its place: Continue -> Exit and Continue -> Break each kill it, and it
+  alone.
 
   WHAT THIS REPAIR DOES NOT COVER - REPORTED, NOT WIDENED
 
@@ -178,6 +192,74 @@
   Janus.Client.DataSnap.pas:145,178,212 and Janus.Client.WS.pas:143,177,212,
   all six of the form `(FRESTRequest.Response.JSONValue as TJSONArray).Items[0]`
   - which, unlike this method, ALSO indexes Items[0] without checking Count.
+
+  ============================================================================
+  MUTATION - EVERY FIGURE MEASURED, EVERY SURVIVOR DECLARED
+  ============================================================================
+
+  Measured on bfa1414, Janus.Tests.RESTfulDriver Debug/Win32, 130 clauses.
+  Every mutation carries a MESSAGE WARN 'S313MUT' directive on the line it
+  changes, and is listed only after dcc32 echoed that line number back. The
+  directive is spelled here WITHOUT its braces on purpose: it is a directive,
+  not a comment, and pasting it whole into a curly-brace comment closes the
+  comment at its own closing brace. That kills the build, and a build that dies
+  leaves the PREVIOUS exe on disk to report a green that was never run. The exe is deleted before each build for the same
+  reason.
+
+    what was mutated                              echoed at   killed
+
+    #313, the repair itself
+      LParamsObject := nil  ->  removed             :400       NONE  <- see below
+    #315, the params guard
+      guard reverted to `as TJSONArray` + nil test  :443       4
+      `is TJSONArray`  ->  `is TJSONValue`          :443       3
+      `if not (... is TJSONArray)` -> `if (...)`    :443       40
+    #315, the item guard
+      guard reverted to `as TJSONObject`            :492       3
+      `is TJSONObject` ->  `is TJSONValue`          :492       3
+      Continue  ->  Exit                            :493       1
+      Continue  ->  Break                           :493       1
+      `if not (... is TJSONObject)` -> `if (...)`   :492       36
+    both #315 guards reverted at once               :443,:493  7
+
+  Neither #315 guard is covered by the other: reverting the first kills four
+  and reverting the second kills three, disjointly, and reverting both kills
+  exactly those seven. That is what rules out the "it is identical to its
+  sibling" reading, which is what a single combined mutation would have left
+  open.
+
+  Both directions are covered on both guards - weakened (`is TJSONValue`) and
+  inverted (`if not` dropped) - and on the Continue, which dies to Exit and to
+  Break alike.
+
+  THE ONE SURVIVOR, AND IT IS NOT LEFT OPEN
+
+  Removing `LParamsObject := nil` - the whole of the #313 repair - leaves the
+  suite at 130/0/0. That is not a mutation that failed to apply: dcc32 echoed
+  the marker at :400. It is the same result the header explains at length -
+  Insert's prologue clears its own frame, so no runtime clause can see the
+  difference at this commit.
+
+  It is not left as an open survivor either, because the mutation IS killed,
+  one level up from the runtime. Measured at the same commit, same project:
+
+    with the repair       no W1036 for Janus.Session.RESTful.pas at all
+    repair removed        Janus.Session.RESTful.pas(506): warning W1036:
+                          Variable 'LParamsObject' might not have been
+                          initialized
+
+  506 is the finally. The compiler is the oracle for this one, and it answers
+  both ways.
+
+  WHICH CLAUSE CAUGHT WHICH, WHERE IT IS NOT OBVIOUS
+
+  ParamsIsAnObject_IsReadAsNoParams dies to the reverted guard but NOT to
+  `is TJSONValue`, and the reason is worth a line so nobody reads it as a hole:
+  under that mutation a params OBJECT passes the guard and is then cast
+  unchecked, and TJSONArray(aTJSONObject).Items[0] lands on the pair list, whose
+  elements are TJSONPair and therefore fail `is TJSONObject` one loop down. The
+  answer comes out empty by a second wrong turn rather than by the right rule.
+  The other three clauses of that group do kill it.
 
   ANCHORS INTO THE SUITE ARE BY METHOD, NEVER BY `file:line`. Citations INTO
   SOURCE are by `file:line`, each re-read at the commit named beside it.
