@@ -113,6 +113,82 @@
   from the response and never assigns its own Result, so there is no payload
   there to lose and assigning it would pin nothing.
 
+  ============================================================================
+  MUTATION - EVERY FIGURE MEASURED, EVERY SURVIVOR DECLARED
+  ============================================================================
+
+  Measured on the tree this fixture ships in, Janus.Tests.RESTfulDriver
+  Debug/Win32, 174 clauses, 174/0/0 unmutated. Every mutation carries a
+  MESSAGE WARN 'S323-MUT-Mnn' directive on the line it changes and is listed
+  only after dcc32 echoed it back as W1054 IN THE SAME BUILD. The directive is
+  spelled without its braces on purpose: it is a directive, not a comment, and
+  pasting it whole inside a curly-brace comment closes that comment at its own
+  brace - which kills the build and leaves the PREVIOUS exe on disk to report a
+  green that was never run.
+
+    what was mutated                                  clauses killed
+
+    TJanusClient.ResponseValue
+      M01/M18 nil guard never fires                          9
+      M23  ResponsePayload stops calling it                  5
+      M08  raises Exception instead of the named class       2
+    TJanusClient.ResponsePayload
+      M02  always unwrap  (flag ignored, False arm dead)     6
+      M03  never unwrap   (flag ignored, True arm dead)     19
+      M04  non-array accepted                                6
+      M05  empty envelope accepted                           4
+      M06  answers the LAST element, not the first           9
+      M07  empty envelope raises the not-an-array reason     4
+      M28  the no-envelope arm renders ToString              1
+      M29  the unwrapped element renders ToString            1
+    TRESTClientWS.Execute
+      M09  POST result discarded again                       2
+      M10  GET result discarded again                        2
+      M11  DELETE result discarded again                     2
+    the root-element flag, one site at a time
+      M12  WS DoDELETE always unwraps                        1
+      M13  WS DoGET never unwraps                            4
+      M14  WS DoPOST always unwraps                          1
+      M15  DataSnap DoDELETE never unwraps                   1
+      M16  DataSnap DoGET never unwraps                      3
+      M17  DataSnap DoPOST never unwraps                     1
+    TRESTClientHorse, one site at a time
+      M19  DoDELETE unguarded again                          1
+      M20  DoGET unguarded again                             1
+      M21  DoPOST unguarded again                            1
+      M22  DoPUT unguarded again                             1
+      M24  DoDELETE renders ToJSON like its siblings         1
+      M25  DoGET renders ToString                            1
+      M26  DoPOST renders ToString                           1
+      M27  DoPUT renders ToString                            1
+
+  29 mutations, NO SURVIVORS.
+
+  SIX OF THEM SURVIVED UNTIL THE CORPUS WAS FIXED, AND THAT IS THE LESSON HERE
+
+  M24 through M29 - every renderer swap - survived a fully green 168-clause run
+  before the above-127 clauses existed, because EVERY MARKER IN THIS FIXTURE
+  WAS PURE ASCII and ToJSON and ToString render pure ASCII identically. Three
+  of the six were found by an independent review, and re-measuring reproduced
+  those three AND three more of the same shape. A corpus that cannot express a
+  distinction cannot test it, however many clauses it has.
+
+  Worse than the count: M24 is exactly the asymmetry the repair had DECLARED
+  and deliberately not decided. A decision recorded only in prose is a decision
+  nothing defends.
+
+  THE ONE EQUIVALENT MUTATION, DECLARED
+
+  Flipping the root-element flag at the three DataSnap sites to a literal True
+  changes nothing that any clause can see, and it is a TRUE equivalent rather
+  than a gap: RootElement is a published property of TRESTClientWS only, and
+  TRESTClientDataSnap pins it to 'result' in its constructor with no way in
+  from outside. So the expression is constant-True for that class TODAY. The
+  expression is kept rather than replaced by the constant because the rule
+  belongs to the response object and not to this class's constructor - and the
+  OTHER direction of the same mutation is not equivalent at all: M15, M16 and
+  M17 force it False and all three die.
+
   ANCHORS ARE BY METHOD, NEVER BY file:line.
 }
 
@@ -188,6 +264,10 @@ type
     /// Same, for the Horse client - which has no root element and so never
     /// unwraps, and whose only reachable shape failure is the absent value.
     function CaptureHorse(const ARequestMethod: TRESTRequestMethodType;
+      const ABody: String): String;
+    /// The Horse HAPPY path, which is where the RENDERING of the answer is
+    /// decided and where an ASCII-only corpus sees nothing.
+    function RunHorse(const ARequestMethod: TRESTRequestMethodType;
       const ABody: String): String;
   public
     [Setup]
@@ -302,10 +382,14 @@ type
     /// The Horse client casts nothing, so it was outside the ten hard casts
     /// issue #323 enumerates - but it dereferences the same nil, at the same
     /// point, in all four of its verbs: JSONValue.ToJSON with no guard. Unlike
-    /// the other two families it IS compiled and driven by three test projects,
-    /// and it still answered "Access violation ... Read of address 00000000"
-    /// to a body that is not JSON. One clause per verb, because four
-    /// independent sites are four independent sites.
+    /// the other two families it IS compiled and driven - by ONE test project,
+    /// Janus.Tests.RESTfulDriver, which is exactly what the positive control
+    /// of the tripwire said ("failed Janus.Tests.RESTfulDriver and only that
+    /// one"). An earlier version of this comment said THREE, contradicting the
+    /// measurement quoted three paragraphs above it. It still answered
+    /// "Access violation ... Read of address 00000000" to a body that is not
+    /// JSON. One clause per verb, because four independent sites are four
+    /// independent sites.
     [Test]
     procedure Horse_GET_NonJsonBody_IsNamed;
     [Test]
@@ -314,6 +398,47 @@ type
     procedure Horse_PUT_NonJsonBody_IsNamed;
     [Test]
     procedure Horse_DELETE_NonJsonBody_IsNamed;
+
+    /// ---- ABOVE CHAR 127, WHERE ToJSON AND ToString STOP AGREEING ----
+    ///
+    /// Every marker above this point is pure ASCII, and ToJSON and ToString
+    /// render pure ASCII IDENTICALLY - so until these clauses existed, SIX
+    /// mutations swapping one renderer for the other survived a fully green
+    /// 168-clause run: the four Horse sites and the two inside
+    /// TJanusClient.ResponsePayload. All six measured surviving before these
+    /// were written, all six measured dying after.
+    ///
+    /// The distinction is not cosmetic. ToJSON is ToChars with EncodeBelow32
+    /// and EncodeAbove127; ToString is ToChars with neither (Studio 37.0,
+    /// System.JSON.pas, TJSONAncestor.ToJSON and TJSONAncestor.ToString), and
+    /// TJSONString.ToChars writes a backslash-u escape with FOUR UPPERCASE HEX
+    /// DIGITS for anything over 127. The two answers therefore differ for
+    /// every accented character - most of the interesting ones in this
+    /// framework's own examples.
+    ///
+    /// This is also what turns the asymmetry the repair DECLARED but did not
+    /// decide - DoDELETE renders ToString, its three siblings render ToJSON -
+    /// from a sentence into a clause. A declared decision that nothing
+    /// observes is a decision that evaporates.
+    ///
+    /// The wire stays pure ASCII: the body carries the escape and the parser
+    /// decodes it, so no transport charset can decide the outcome. The
+    /// expected raw form is written with a #$00E7-style literal, so this .pas
+    /// is pure ASCII as well.
+    [Test]
+    procedure Payload_NoEnvelope_Above127_IsEscaped;
+    [Test]
+    procedure Payload_Envelope_Above127_IsEscaped;
+    [Test]
+    procedure Horse_GET_Above127_IsEscaped;
+    [Test]
+    procedure Horse_POST_Above127_IsEscaped;
+    [Test]
+    procedure Horse_PUT_Above127_IsEscaped;
+    /// The odd one of the four. It answers ToString, so above 127 it answers
+    /// the RAW character where its three siblings answer the escape.
+    [Test]
+    procedure Horse_DELETE_Above127_IsRawAndNotEscaped;
   end;
 
 implementation
@@ -334,6 +459,25 @@ const
 
   cROOT             = 'result';
   cSERVERERROR_MK   = 's323-datasnap-server-error-marker';
+
+  /// ---- the above-127 pairs ----
+  /// Each is TWO renderings of ONE value: _WIRE is what the body carries AND
+  /// what ToJSON answers back (the parser decodes the escape, ToJSON re-writes
+  /// it), _RAW is what ToString answers. Six distinct characters, so no single
+  /// constant satisfies more than its own clause.
+  cACC_PLAIN_WIRE   = '{"s323":"acc-plain-\u00E7"}';
+  cACC_PLAIN_RAW    = '{"s323":"acc-plain-' + #$00E7 + '"}';
+  cACC_ENV_WIRE     = '[{"s323":"acc-env-\u00C3"},{"tail":"ignored"}]';
+  cACC_ENV_HEAD     = '{"s323":"acc-env-\u00C3"}';
+  cACC_ENV_HEAD_RAW = '{"s323":"acc-env-' + #$00C3 + '"}';
+  cACC_HGET_WIRE    = '{"s323":"acc-horse-get-\u00E1"}';
+  cACC_HGET_RAW     = '{"s323":"acc-horse-get-' + #$00E1 + '"}';
+  cACC_HPOST_WIRE   = '{"s323":"acc-horse-post-\u00E9"}';
+  cACC_HPOST_RAW    = '{"s323":"acc-horse-post-' + #$00E9 + '"}';
+  cACC_HPUT_WIRE    = '{"s323":"acc-horse-put-\u00ED"}';
+  cACC_HPUT_RAW     = '{"s323":"acc-horse-put-' + #$00ED + '"}';
+  cACC_HDEL_WIRE    = '{"s323":"acc-horse-delete-\u00F3"}';
+  cACC_HDEL_RAW     = '{"s323":"acc-horse-delete-' + #$00F3 + '"}';
 
   /// Two envelopes for the same rule, so no constant can satisfy both.
   cENVELOPE_A       = '[{"first":"a1"},{"second":"a2"}]';
@@ -360,9 +504,31 @@ begin
   /// <summary>
   ///   Hunts for a free port instead of fixing one: a port still in TIME_WAIT
   ///   from an earlier run would fail the bind and turn the suite red for a
-  ///   reason that has nothing to do with what is measured here. Same reasoning
-  ///   and a DIFFERENT range from the stub in
-  ///   Test.Janus.Client.RestExceptionFields, so the two never collide.
+  ///   reason that has nothing to do with what is measured here. THAT SCAN is
+  ///   the protection, and it is the only one there is.
+  ///
+  ///   An earlier version of this comment claimed the range was disjoint from
+  ///   its neighbour and concluded the two "never collide". It compared with
+  ///   ONE of six. Enumerated at HEAD, every listener in Test\Delphi:
+  ///
+  ///     9700..9799  RestHorseOracleTest.Base          RESTOracle
+  ///     9730..9789  Test.Janus.Driver.HorseExecuteOverload
+  ///                                                   RESTfulDriver
+  ///     9830..9889  Test.Janus.Driver.WiRLExecuteOverload
+  ///                                                   RESTWiRL
+  ///     9840..9879  Test.Janus.Client.RestExceptionFields
+  ///                                                   RESTMARS
+  ///     9890..9989  RestHorseTest.Base                RESTHorse
+  ///     9900..9939  THIS STUB                         RESTfulDriver
+  ///     9930..9989  Test.Janus.Driver.WiRLTokenAcquire
+  ///                                                   RESTWiRL
+  ///
+  ///   This range OVERLAPS two of them - RestHorseTest.Base entirely, and
+  ///   WiRLTokenAcquire from 9930 up. Neither runs in this process: the only
+  ///   other listener in Janus.Tests.RESTfulDriver is HorseExecuteOverload,
+  ///   which is disjoint. Across processes the suite runs one binary at a
+  ///   time, so a clash needs a listener left over from an earlier run - and
+  ///   that is precisely what the upward scan walks past.
   /// </summary>
   for LFor := 0 to 39 do
   begin
@@ -509,6 +675,18 @@ begin
   end;
   Assert.AreNotEqual('', Result,
     'The call should have raised EJanusRESTException.');
+end;
+
+function TTestClientResponseShape.RunHorse(
+  const ARequestMethod: TRESTRequestMethodType; const ABody: String): String;
+begin
+  FStub.ContentType := 'application/json';
+  FStub.Body := ABody;
+  Result := FHorse.Execute('s323', '', ARequestMethod,
+                           procedure
+                           begin
+                             FHorse.AddBodyParam('{"probe":1}');
+                           end);
 end;
 
 procedure TTestClientResponseShape.Markers_AreAllDistinct;
@@ -909,6 +1087,81 @@ begin
   LMessage := CaptureHorse(TRESTRequestMethodType.rtDELETE, 'this is not json');
   Assert.IsTrue(ContainsText(LMessage, cRESTNOJSONVALUE),
     'The absent value has to be named. Message was: ' + LMessage);
+end;
+
+procedure TTestClientResponseShape.Payload_NoEnvelope_Above127_IsEscaped;
+var
+  LValue: TJSONValue;
+  LResult: String;
+begin
+  LValue := Parsed(cACC_PLAIN_WIRE);
+  try
+    LResult := TJanusClient.ResponsePayload(LValue, False);
+    Assert.AreEqual(cACC_PLAIN_WIRE, LResult);
+    Assert.AreNotEqual(cACC_PLAIN_RAW, LResult,
+      'ResponsePayload renders with ToJSON, which escapes above 127.');
+  finally
+    LValue.Free;
+  end;
+end;
+
+procedure TTestClientResponseShape.Payload_Envelope_Above127_IsEscaped;
+var
+  LValue: TJSONValue;
+  LResult: String;
+begin
+  LValue := Parsed(cACC_ENV_WIRE);
+  try
+    LResult := TJanusClient.ResponsePayload(LValue, True);
+    Assert.AreEqual(cACC_ENV_HEAD, LResult);
+    Assert.AreNotEqual(cACC_ENV_HEAD_RAW, LResult,
+      'The unwrapped element is rendered with ToJSON too.');
+  finally
+    LValue.Free;
+  end;
+end;
+
+procedure TTestClientResponseShape.Horse_GET_Above127_IsEscaped;
+var
+  LResult: String;
+begin
+  LResult := RunHorse(TRESTRequestMethodType.rtGET, cACC_HGET_WIRE);
+  Assert.AreEqual(cACC_HGET_WIRE, LResult);
+  Assert.AreNotEqual(cACC_HGET_RAW, LResult,
+    'TRESTClientHorse.DoGET answers ToJSON.');
+end;
+
+procedure TTestClientResponseShape.Horse_POST_Above127_IsEscaped;
+var
+  LResult: String;
+begin
+  LResult := RunHorse(TRESTRequestMethodType.rtPOST, cACC_HPOST_WIRE);
+  Assert.AreEqual(cACC_HPOST_WIRE, LResult);
+  Assert.AreNotEqual(cACC_HPOST_RAW, LResult,
+    'TRESTClientHorse.DoPOST answers ToJSON.');
+end;
+
+procedure TTestClientResponseShape.Horse_PUT_Above127_IsEscaped;
+var
+  LResult: String;
+begin
+  LResult := RunHorse(TRESTRequestMethodType.rtPUT, cACC_HPUT_WIRE);
+  Assert.AreEqual(cACC_HPUT_WIRE, LResult);
+  Assert.AreNotEqual(cACC_HPUT_RAW, LResult,
+    'TRESTClientHorse.DoPUT answers ToJSON.');
+end;
+
+procedure TTestClientResponseShape.Horse_DELETE_Above127_IsRawAndNotEscaped;
+var
+  LResult: String;
+begin
+  /// The asymmetry, PINNED rather than merely reported. If someone decides to
+  /// make the four agree - in either direction - this clause and its three
+  /// siblings say so out loud instead of letting the answer change in silence.
+  LResult := RunHorse(TRESTRequestMethodType.rtDELETE, cACC_HDEL_WIRE);
+  Assert.AreEqual(cACC_HDEL_RAW, LResult);
+  Assert.AreNotEqual(cACC_HDEL_WIRE, LResult,
+    'TRESTClientHorse.DoDELETE answers ToString, alone among the four.');
 end;
 
 initialization
