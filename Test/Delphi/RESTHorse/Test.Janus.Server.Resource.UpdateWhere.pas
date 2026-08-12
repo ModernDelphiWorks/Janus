@@ -93,7 +93,8 @@ uses
   FireDAC.Comp.Client,
   DataEngine.FactoryInterfaces,
   Janus.Server.Resource,
-  Test.Janus.Model.KeyTypes;
+  Test.Janus.Model.KeyTypes,
+  Test.Janus.Model.KeyTypeDecoy;
 
 type
   [TestFixture]
@@ -170,14 +171,32 @@ type
     [Test]
     procedure FractionalKey_TheKeyLiteralMustCarryADecimalPoint;
 
+    /// THESE TWO ASSERT THE LITERAL AND NOT THE ROW, AND THE REASON IS
+    /// MEASURED RATHER THAN CHOSEN. Both keys are rendered CORRECTLY by the
+    /// predicate at the base commit already, so neither clause is red-first;
+    /// they are regression guards over the numeric branch. Neither can be
+    /// written as a row-level clause, because a PUT on either entity does not
+    /// reach its row for reasons that are NOT this issue's - both measured at
+    /// the base commit through the command monitor and reported separately:
+    ///
+    ///  - 64-BIT: the predicate is exactly (ktbig.ktbig=9007199254740993), it
+    ///    matches the row - COUNT(*) over that same text answers 1 - and the
+    ///    PUT then emits no UPDATE at all. What it emits is
+    ///    `DELETE FROM ktbig WHERE ktbig = :ktbig` with the parameter bound to
+    ///    1, which is TRESTObjectSet.Update's master-detail sweep firing over
+    ///    a state object whose key is not the one Modify snapshotted.
+    ///  - UNSIGNED: the row the framework's own INSERT writes carries
+    ///    -9223372036854775808 - the signed reinterpretation of the key the
+    ///    caller sent, written by the INSERT path, before any of this runs.
+    ///
     /// Width. Nothing about selecting the numeric branch depends on it.
     [Test]
-    procedure BigIntegerKey_ThePutMustReachTheRowItNames;
+    procedure BigIntegerKey_TheKeyLiteralMustNotBeNarrowed;
     /// An unsigned key above High(Int64): read back through a signed cast the
     /// bit pattern is negative, which is a perfectly valid SQL literal that
     /// locates nothing.
     [Test]
-    procedure UnsignedKeyAboveHighInt64_ThePutMustReachTheRowItNames;
+    procedure UnsignedKeyAboveHighInt64_TheKeyLiteralMustNotFlipSign;
 
     /// A boolean key. VarIsOrdinal answers True for varBoolean, so a repair
     /// that keys off the Variant alone swallows it into the numeric branch.
@@ -199,6 +218,15 @@ type
     /// allowed to identify an arbitrary one.
     [Test]
     procedure NullableKeyWithNoValue_MustNotReachAnyRow;
+
+    /// The OTHER half of that guard. MetaDbDiff's GetNullableValue answers a
+    /// Variant NULL for a Nullable whose FHasValue is clear, and leaves the
+    /// EMPTY TValue it started with - varEmpty, not varNull - for a
+    /// Nullable-SHAPED record that has no FValue field at all, which the
+    /// framework accepts because IsNullable is a check BY NAME. Only
+    /// TKeyTypeDecoy reaches that state.
+    [Test]
+    procedure NullableShapedKeyWithNoValueField_MustNotReachAnyRow;
 
     /// The guard against a repair whose predicate is always true.
     [Test]
@@ -237,6 +265,8 @@ const
                '  ktbig BIGINT PRIMARY KEY, kttag VARCHAR(60))';
   cDDL_UNS   = 'CREATE TABLE IF NOT EXISTS ktunsigned (' +
                '  ktu BIGINT PRIMARY KEY, kttag VARCHAR(60))';
+  cDDL_DECOY = 'CREATE TABLE IF NOT EXISTS ktdecoy (' +
+               '  ktdec VARCHAR(60), kttag VARCHAR(60))';
   cDDL_COMP  = 'CREATE TABLE IF NOT EXISTS ktcomp ('  +
                '  ktca VARCHAR(60), ktcb VARCHAR(60), kttag VARCHAR(60),' +
                '  PRIMARY KEY (ktca, ktcb))';
@@ -296,6 +326,7 @@ begin
   FConnection.ExecuteDirect(cDDL_BIG);
   FConnection.ExecuteDirect(cDDL_UNS);
   FConnection.ExecuteDirect(cDDL_COMP);
+  FConnection.ExecuteDirect(cDDL_DECOY);
 end;
 
 procedure TTestServerResourceUpdateWhere.TearDownFixture;
@@ -324,6 +355,7 @@ begin
   FConnection.ExecuteDirect('DELETE FROM ktbig');
   FConnection.ExecuteDirect('DELETE FROM ktunsigned');
   FConnection.ExecuteDirect('DELETE FROM ktcomp');
+  FConnection.ExecuteDirect('DELETE FROM ktdecoy');
   FCommands.Clear;
 end;
 
@@ -532,7 +564,7 @@ begin
     + 'the comma is read as an argument separator. Statement was: ' + LSQL);
 end;
 
-procedure TTestServerResourceUpdateWhere.BigIntegerKey_ThePutMustReachTheRowItNames;
+procedure TTestServerResourceUpdateWhere.BigIntegerKey_TheKeyLiteralMustNotBeNarrowed;
 begin
   InsertRaw('KeyTypeBig', '{"ktbig":9007199254740993,"kttag":"before"}');
   Assert.AreEqual('9007199254740993', ScalarStr('SELECT ktbig FROM ktbig'),
@@ -547,7 +579,7 @@ begin
     + 'Statement was: ' + LastSelect('ktbig'));
 end;
 
-procedure TTestServerResourceUpdateWhere.UnsignedKeyAboveHighInt64_ThePutMustReachTheRowItNames;
+procedure TTestServerResourceUpdateWhere.UnsignedKeyAboveHighInt64_TheKeyLiteralMustNotFlipSign;
 begin
   /// High(Int64) + 1. Reinterpreted as signed, this exact bit pattern is
   /// -9223372036854775808 - a valid SQL literal that names no row.
@@ -629,6 +661,18 @@ begin
   UpdateRaw('KeyTypeNullable', '{"kttag":"pwned"}');
   Assert.AreEqual('keep', ScalarStr('SELECT kttag FROM ktnull'),
     'A PUT whose key carries no value reached a row anyway.');
+end;
+
+procedure TTestServerResourceUpdateWhere.NullableShapedKeyWithNoValueField_MustNotReachAnyRow;
+begin
+  InsertRaw('KeyTypeDecoy', '{"kttag":"keep"}');
+  Assert.AreEqual(1, ScalarInt('SELECT COUNT(*) FROM ktdecoy'),
+    'The seed did not write the decoy row.');
+  UpdateRaw('KeyTypeDecoy', '{"kttag":"pwned"}');
+  Assert.AreEqual('keep', ScalarStr('SELECT kttag FROM ktdecoy'),
+    'A PUT whose key is an EMPTY Variant reached a row anyway. Dropping the '
+    + 'VarIsEmpty half of the guard sends it to a branch that renders it as a '
+    + 'literal, and an empty literal is something a row can match.');
 end;
 
 procedure TTestServerResourceUpdateWhere.AKeyThatMatchesNothing_LeavesEveryRowAlone;
