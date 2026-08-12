@@ -173,7 +173,7 @@ type
                                                       const ALookupResultField: String;
                                                       const ADisplayLabel: String = ''): TManagerDataSet;
     procedure Open<T: class, constructor>; overload;
-    procedure Open<T: class, constructor>(const AID: Integer); overload;
+    procedure Open<T: class, constructor>(const AID: Int64); overload;
     procedure Open<T: class, constructor>(const AID: String); overload;
     procedure OpenWhere<T: class, constructor>(const AWhere: String; const AOrderBy: String = '');
     procedure Close<T: class, constructor>;
@@ -467,7 +467,7 @@ begin
   Resolver<T>.OpenWhereInternal(AWhere, AOrderBy);
 end;
 
-procedure TManagerDataSet.Open<T>(const AID: Integer);
+procedure TManagerDataSet.Open<T>(const AID: Int64);
 begin
   Resolver<T>.OpenIDInternal(AID);
 end;

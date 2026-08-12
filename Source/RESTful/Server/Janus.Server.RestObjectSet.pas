@@ -68,7 +68,7 @@ type
     function ExistSequence: Boolean;
     function ModifiedFields: TDictionary<String, TDictionary<String, String>>; virtual;
     function Find: TObjectList<TObject>; overload; virtual;
-    function Find(const AID: Integer): TObject; overload; virtual;
+    function Find(const AID: Int64): TObject; overload; virtual;
     function Find(const AID: String): TObject; overload; virtual;
     function FindOne(const AWhere: String): TObject; virtual;
     function FindWhere(const AWhere: String; const AOrderBy: String = ''): TObjectList<TObject>; overload; virtual;
@@ -263,7 +263,7 @@ begin
   end;
 end;
 
-function TRESTObjectSet.Find(const AID: Integer): TObject;
+function TRESTObjectSet.Find(const AID: Int64): TObject;
 var
   LIsConnected: Boolean;
 begin

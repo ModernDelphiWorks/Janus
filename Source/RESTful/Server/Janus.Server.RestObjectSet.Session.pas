@@ -65,7 +65,7 @@ type
     procedure Update(const AObject: TObject; const AKey: String); overload; virtual;
     procedure Update(const AObjectList: TObjectList<TObject>); overload; virtual; abstract;
     procedure Delete(const AObject: TObject); overload; virtual;
-    procedure Delete(const AID: Integer); overload; virtual; abstract;
+    procedure Delete(const AID: Int64); overload; virtual; abstract;
     procedure LoadLazy(const AOwner, AObject: TObject); virtual;
     procedure NextPacketList(const AObjectList: TObjectList<TObject>); overload; virtual;
     function NextPacketList: TObjectList<TObject>; overload; virtual;
@@ -76,7 +76,7 @@ type
     procedure ModifyFieldsCompare(const AKey: String; const AObjectSource,
       AObjectUpdate: TObject); virtual;
     function Find: TObjectList<TObject>; overload; virtual;
-    function Find(const AID: Integer): TObject; overload; virtual;
+    function Find(const AID: Int64): TObject; overload; virtual;
     function Find(const AID: String): TObject; overload; virtual;
     function FindWhere(const AWhere: String; const AOrderBy: String): TObjectList<TObject>; virtual;
     function FindOne(const AWhere: String): TObject;
@@ -160,7 +160,7 @@ begin
   Result := FManager.FindWhere(FWhere, FOrderBy);
 end;
 
-function TRESTObjectSetSession.Find(const AID: Integer): TObject;
+function TRESTObjectSetSession.Find(const AID: Int64): TObject;
 begin
   FFindWhereUsed := False;
   Result := FManager.Find(AID);

@@ -73,7 +73,7 @@ type
     procedure Update(const AObject: M; const AKey: String); overload; virtual;
     procedure Update(const AObjectList: TObjectList<M>); overload; virtual; abstract;
     procedure Delete(const AObject: M); overload; virtual;
-    procedure Delete(const AID: Integer); overload; virtual; abstract;
+    procedure Delete(const AID: Int64); overload; virtual; abstract;
     procedure LoadLazy(const AOwner, AObject: TObject); virtual;
     procedure InjectLazyProxies(const AObject: TObject); virtual;
     procedure NextPacketList(const AObjectList: TObjectList<M>); overload; virtual;

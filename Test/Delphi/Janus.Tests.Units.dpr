@@ -156,7 +156,9 @@ uses
   /// The predicate GetGeneratorWhere builds from a single AID - issue #326
   Test.Janus.DML.KeyPredicate in 'Unit\Core\Test.Janus.DML.KeyPredicate.pas',
   /// The fluent method that never assigned its Result - issue #332
-  Test.Janus.Manager.AutoNextPacket in 'Unit\Core\Test.Janus.Manager.AutoNextPacket.pas';
+  Test.Janus.Manager.AutoNextPacket in 'Unit\Core\Test.Janus.Manager.AutoNextPacket.pas',
+  /// The width of the by-id API, and the guards that read it back - issue #333
+  Test.Janus.KeyWidth.ByIdApi in 'Unit\Core\Test.Janus.KeyWidth.ByIdApi.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

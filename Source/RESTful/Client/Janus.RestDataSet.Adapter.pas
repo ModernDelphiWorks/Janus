@@ -1044,10 +1044,32 @@ end;
 ///  e que nenhum modelo do repositorio declara chave primaria AutoInc que nao
 ///  seja inteira, de modo que o ramo nao e alcancavel por teste nenhum hoje.
 ///  Ela fica porque cAutoIncNotGenerated e o inteiro -1: sobre um ftGuid ou um
-///  ftString, AsInteger ou levanta ou responde 0, e as duas respostas seriam
+///  ftString, AsLargeInt ou levanta ou responde 0, e as duas respostas seriam
 ///  sobre uma pergunta que nao existe. E a mesma guarda, pela mesma razao, de
 ///  _AutoIncKeyIsGenerated - onde ela E alcancavel, porque la as colunas vem da
-///  ASSOCIACAO e nao da chave primaria. </summary>
+///  ASSOCIACAO e nao da chave primaria.
+///
+///  ISSUE #333 - THE COMPARISON READS AsLargeInt AND USED TO READ AsInteger.
+///  cINTEGERKINDS admits ftLargeint, so this guard ACCEPTS a 64-bit key and
+///  then read it back 32 bits wide. TLargeintField.GetAsInteger returns
+///  `Integer(L)` - a hard truncation that nothing checks, measured from the
+///  RTL source under #324 and written up over TBind._SetFieldToPropertyInteger
+///  - so the ordinary key 4294967295 ($FFFFFFFF) came back as exactly -1 and
+///  this method declared a row that HAS a key to be carrying the placeholder.
+///
+///  AND THE MUTATION ON THAT LINE STILL SURVIVES HERE, DECLARED AND NOT
+///  HIDDEN. Reverting AsLargeInt to AsInteger with a tripwire the compiler
+///  echoed (W1054) left Janus.Tests.RESTfulDriver at 134/0/0 - nothing dies.
+///  The sibling in TDataSetBaseAdapter<M>._AutoIncKeyIsGenerated IS now held
+///  down, by Test.Janus.KeyWidth.ByIdApi
+///  .WideAutoIncKey_ThatTruncatesToThePlaceholder_IsStillPropagated, which
+///  that same mutation kills. Why the sibling could be covered and this one
+///  could not is the reason this comment already gave: there the columns come
+///  from the ASSOCIATION, so a cascade fixture reaches them, while here they
+///  come from the PRIMARY KEY of a row loaded through a REST adapter. A clause
+///  for it needs a new fixture in Janus.Tests.RESTfulDriver, whose .dpr the
+///  #323 frontier is editing, so it was left alone deliberately rather than
+///  raced. DECLARED SURVIVOR, not coverage. </summary>
 function TRESTDataSetAdapter<M>._RowKeyIsUngenerated(
   const AAdapter: TDataSetBaseAdapter<M>): Boolean;
 const
@@ -1084,7 +1106,7 @@ begin
       Continue;
     if not (LField.DataType in cINTEGERKINDS) then
       Continue;
-    if LField.AsInteger = cAutoIncNotGenerated then
+    if LField.AsLargeInt = cAutoIncNotGenerated then
       Exit(True);
   end;
 end;

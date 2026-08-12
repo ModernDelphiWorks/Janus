@@ -37,7 +37,7 @@ type
   {$ENDREGION}
     procedure LoadLazy(AOwner: M);
     procedure Open; overload;
-    procedure Open(const AID: Integer); overload;
+    procedure Open(const AID: Int64); overload;
     procedure Open(const AID: String); overload;
     procedure OpenWhere(const AWhere: String; const AOrderBy: String = '');
     procedure Insert;
@@ -66,7 +66,7 @@ type
     function Current: M;
     /// ObjectSet
     function Find: TObjectList<M>; overload;
-    function Find(const AID: Integer): M; overload;
+    function Find(const AID: Int64): M; overload;
     function Find(const AID: String): M; overload;
     function FindWhere(const AWhere: String; const AOrderBy: String = ''): TObjectList<M>;
     /// DataSet

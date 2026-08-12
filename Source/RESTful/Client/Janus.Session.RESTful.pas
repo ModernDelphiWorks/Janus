@@ -63,7 +63,7 @@ type
     destructor Destroy; override;
     procedure Insert(const AObject: M); overload; override;
     procedure Update(const AObjectList: TObjectList<M>); overload; override;
-    procedure Delete(const AID: Integer); overload; override;
+    procedure Delete(const AID: Int64); overload; override;
     procedure Delete(const AObject: M); overload; override;
     procedure RefreshRecord(const AColumns: TParams); override;
     procedure NextPacketList(const AObjectList: TObjectList<M>); overload; override;
@@ -181,10 +181,10 @@ begin
     raise Exception.Create(cMESSAGEPKNOTFOUND);
 
   LColumn := LPrimaryKey.Columns.Items[0];
-  Delete(LColumn.ColumnProperty.GetValue(TObject(AObject)).AsInteger);
+  Delete(LColumn.ColumnProperty.GetValue(TObject(AObject)).AsInt64);
 end;
 
-procedure TSessionRestFul<M>.Delete(const AID: Integer);
+procedure TSessionRestFul<M>.Delete(const AID: Int64);
 var
   LSubResource: String;
   LURL: String;
