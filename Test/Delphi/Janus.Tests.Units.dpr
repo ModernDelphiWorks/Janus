@@ -150,7 +150,9 @@ uses
   /// And the SIBLING branch: a LIST association left nil - issue #307
   Test.Janus.OneToMany.NilList in 'Unit\Core\Test.Janus.OneToMany.NilList.pas',
   /// The WHERE RefreshRecord builds for the row under the cursor - issue #327
-  Test.Janus.RefreshRecord.KeyLiteral in 'Unit\Core\Test.Janus.RefreshRecord.KeyLiteral.pas';
+  Test.Janus.RefreshRecord.KeyLiteral in 'Unit\Core\Test.Janus.RefreshRecord.KeyLiteral.pas',
+  /// The #295 filter over the repository's own ftBCD association - issue #319
+  Test.Janus.Association.BcdColumn in 'Unit\Core\Test.Janus.Association.BcdColumn.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
