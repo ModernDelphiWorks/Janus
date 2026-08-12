@@ -152,7 +152,9 @@ uses
   /// The WHERE RefreshRecord builds for the row under the cursor - issue #327
   Test.Janus.RefreshRecord.KeyLiteral in 'Unit\Core\Test.Janus.RefreshRecord.KeyLiteral.pas',
   /// The #295 filter over the repository's own ftBCD association - issue #319
-  Test.Janus.Association.BcdColumn in 'Unit\Core\Test.Janus.Association.BcdColumn.pas';
+  Test.Janus.Association.BcdColumn in 'Unit\Core\Test.Janus.Association.BcdColumn.pas',
+  /// The predicate GetGeneratorWhere builds from a single AID - issue #326
+  Test.Janus.DML.KeyPredicate in 'Unit\Core\Test.Janus.DML.KeyPredicate.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
