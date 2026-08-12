@@ -38,6 +38,8 @@ type
     procedure LoadLazy(AOwner: M);
     procedure Open; overload;
     procedure Open(const AID: Int64); overload;
+    /// One value per key column - issue #326.
+    procedure Open(const AIDs: TArray<TValue>); overload;
     procedure Open(const AID: String); overload;
     procedure OpenWhere(const AWhere: String; const AOrderBy: String = '');
     procedure Insert;
@@ -67,6 +69,8 @@ type
     /// ObjectSet
     function Find: TObjectList<M>; overload;
     function Find(const AID: Int64): M; overload;
+    /// One value per key column - issue #326.
+    function Find(const AIDs: TArray<TValue>): M; overload;
     function Find(const AID: String): M; overload;
     function FindWhere(const AWhere: String; const AOrderBy: String = ''): TObjectList<M>;
     /// DataSet

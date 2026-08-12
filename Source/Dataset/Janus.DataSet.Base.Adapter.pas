@@ -266,6 +266,8 @@ type
     // ObjectSet
     function Find: TObjectList<M>; overload; virtual;
     function Find(const AID: Int64): M; overload; virtual;
+    /// One value per key column - issue #326.
+    function Find(const AIDs: TArray<TValue>): M; overload; virtual;
     function Find(const AID: String): M; overload; virtual;
     function FindWhere(const AWhere: String; const AOrderBy: String = ''): TObjectList<M>; virtual;
     // Property
@@ -1320,6 +1322,11 @@ end;
 function TDataSetBaseAdapter<M>.Find: TObjectList<M>;
 begin
   Result := FSession.Find;
+end;
+
+function TDataSetBaseAdapter<M>.Find(const AIDs: TArray<TValue>): M;
+begin
+  Result := FSession.Find(AIDs);
 end;
 
 function TDataSetBaseAdapter<M>.Find(const AID: Int64): M;

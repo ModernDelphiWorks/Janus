@@ -32,6 +32,8 @@ type
     function ModifiedFields: TDictionary<String, TDictionary<String, String>>;
     function Find: TObjectList<M>; overload;
     function Find(const AID: Int64): M; overload;
+    /// One value per key column - issue #326.
+    function Find(const AIDs: TArray<TValue>): M; overload;
     function Find(const AID: String): M; overload;
     function FindWhere(const AWhere: String; const AOrderBy: String = ''): TObjectList<M>;
     procedure Insert(const AObject: M);

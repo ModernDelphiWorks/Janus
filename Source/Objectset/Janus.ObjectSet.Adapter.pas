@@ -46,6 +46,9 @@ type
     destructor Destroy; override;
     function Find: TObjectList<M>; overload; override;
     function Find(const AID: Int64): M; overload; override;
+    /// One value per key column - issue #326. Not on TObjectSetAbstract, so
+    /// the REST object-set adapter is not forced to answer it.
+    function Find(const AIDs: TArray<TValue>): M; overload;
     function Find(const AID: String): M; overload; override;
     function FindWhere(const AWhere: String;
       const AOrderBy: String = ''): TObjectList<M>; overload; override;
@@ -123,6 +126,21 @@ begin
     FConnection.Connect;
   try
     Result := FSession.FindWhere(AWhere, AOrderBy);
+  finally
+    if not LIsConnected then
+      FConnection.Disconnect;
+  end;
+end;
+
+function TObjectSetAdapter<M>.Find(const AIDs: TArray<TValue>): M;
+var
+  LIsConnected: Boolean;
+begin
+  LIsConnected := FConnection.IsConnected;
+  if not LIsConnected then
+    FConnection.Connect;
+  try
+    Result := FSession.Find(AIDs);
   finally
     if not LIsConnected then
       FConnection.Disconnect;

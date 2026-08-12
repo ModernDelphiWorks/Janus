@@ -76,6 +76,23 @@ type
     ///  spellings of one date inside one generator. </summary>
     function _DialectDateTimeLiteral(const AID: TValue;
       out ALiteral: String): Boolean;
+    /// <summary> THE VALUES AN AID CARRIES - one, or as many as the caller
+    ///  supplied. Issue #326.
+    ///
+    ///  A TValue holds a TArray&lt;TValue&gt; perfectly well, and that is the whole
+    ///  mechanism: a caller with a COMPOSITE key hands one value per key
+    ///  column and the predicate names them all. A caller that hands a scalar
+    ///  gets a one-element array and therefore the exact single-column
+    ///  predicate it has always got - which is the point. Refusing a composite
+    ///  key, or answering zero rows for one, would break consumers whose first
+    ///  key column IS unique and whose code is correct today. </summary>
+    function _KeyValues(const AID: TValue): TArray<TValue>;
+    /// <summary> ONE key value rendered as this dialect's literal. Lifted out
+    ///  of GetGeneratorWhere unchanged so that every term of a composite
+    ///  predicate is spelled the same way the single term always was - the
+    ///  ordinal arm bare, a date/time arm through the dialect mask, everything
+    ///  else quoted. Issue #326. </summary>
+    function _KeyLiteral(const AID: TValue): String;
     function _GetGuidValue(AObject: TObject; AProperty: TRttiProperty): TGUID;
     function _StoreGUIDAsOctet: Boolean;
     procedure _GuardStoreGUIDAsOctet(AProperty: TRttiProperty);
@@ -546,27 +563,25 @@ end;
 
 /// <summary> THE PREDICATE THAT LOCATES ONE ROW BY ITS KEY.
 ///
-///  THE COMPOSITE KEY IS TRUNCATED HERE AND THIS COMMIT DOES NOT REPAIR IT -
-///  issue #326, and the reason is a CONTRACT and not an oversight. The loop
-///  below walks every column of the primary key and carries `if LFor > 0 then
-///  Continue`, so from the second column on the key is DISCARDED and the
-///  predicate names only the first column. The loop
-///  body does not even carry the ' AND ' that a second term would need, which
-///  is the honest reading of the Continue - it short-circuits a feature that
-///  was never finished rather than optimising anything.
+///  THE COMPOSITE KEY WAS TRUNCATED HERE AND IS NOW REPAIRED - issue #326.
+///  The loop below used to walk every column of the primary key carrying
+///  `if LFor > 0 then Continue`, so from the second column on the key was
+///  DISCARDED and the predicate named only the first column. The loop body did
+///  not even carry the ' AND ' that a second term would need, which is the
+///  honest reading of that Continue - it short-circuited a feature that was
+///  never finished rather than optimising anything.
 ///
-///  WHAT BLOCKS THE REPAIR IS THE CALLERS, NOT THIS SIGNATURE. An earlier
-///  version of this paragraph said "AID is ONE TValue and a composite key needs
-///  N values", and that overstates it: a TValue carries a TArray&lt;TValue&gt; per-
-///  fectly well, so the parameter could hold N without changing its type. What
-///  actually blocks it is that NOTHING UPSTREAM EVER BUILDS ONE, and one caller
-///  goes out of its way not to: TManagerObjectSet.Find&lt;T&gt;(const AID: TValue)
-///  collapses whatever it is given into `AID.AsType&lt;integer&gt;` or `AID.ToString`
-///  before the value gets anywhere near here. Widening the contract therefore
-///  means changing the CALLERS, up to and including the two public
-///  Find(Int64)/Find(String) overloads that a consumer actually holds - which
-///  is a consumer-visible change, and the conclusion below survives the
-///  correction even though the sentence did not.
+///  WHAT WAS SAID TO BLOCK THE REPAIR WAS THE CALLERS, AND THAT HELD UNTIL THE
+///  CALLERS WERE WRITTEN. An earlier version of this paragraph first said "AID
+///  is ONE TValue and a composite key needs N values" and then corrected
+///  itself: a TValue carries a TArray&lt;TValue&gt; perfectly well, so the parameter
+///  could hold N without changing its type. What was left blocking it was that
+///  NOTHING UPSTREAM EVER BUILT ONE. Something does now -
+///  TSessionAbstract&lt;M&gt;.Find(TArray&lt;TValue&gt;) wraps the array into the TValue
+///  that FCommandExecutor.Find already took - and the observation that
+///  TManagerObjectSet.Find&lt;T&gt; collapses whatever it is handed into
+///  `AID.AsType&lt;integer&gt;` or `AID.ToString` remains true of THAT method, which
+///  is simply not on the new path.
 ///
 ///  WHO IS AFFECTED, ENUMERATED AND NOT SAMPLED - and the previous version of
 ///  this list was neither, so here it is again, counted.
@@ -616,14 +631,34 @@ end;
 ///  CompositeKey_FindOverMoreThanOneMatchingRow_AnswersNil (the Find chain) and
 ///  CompositeKey_OpenIdLoadsEveryMatchingRow (the OpenID chain).
 ///
-///  AND IF THE FIRST COLUMN HAPPENS TO BE UNIQUE, TODAY'S CODE IS CORRECT. That
-///  is what makes every candidate repair a consumer-visible change rather than
-///  a fix: refusing a composite key with a named exception would break code
+///  AND IF THE FIRST COLUMN HAPPENS TO BE UNIQUE, TODAY'S CODE IS CORRECT.
+///  That is what ruled out every candidate repair that CHANGES the scalar
+///  answer: refusing a composite key with a named exception would break code
 ///  that works right now, and answering the zero-rows guard would turn a
-///  working read into an empty one. Emitting the full predicate needs the other
-///  N-1 values, which means a wider signature - a change to
-///  IDMLGeneratorCommand, which third parties implement. The decision belongs
-///  to the owner and is NOT taken here.
+///  working read into an empty one.
+///
+///  THE REPAIR TAKEN, AND IT COSTS NO SIGNATURE. Emitting the full predicate
+///  needs the other N-1 values, and an earlier version of this paragraph said
+///  that meant a wider signature and therefore a change to
+///  IDMLGeneratorCommand `which third parties implement`. IT DID NOT. The
+///  values travel inside the TValue this method ALREADY takes, as a
+///  TArray<TValue> - the possibility this same comment named four paragraphs
+///  above. IDMLGeneratorCommand is untouched, and so is every layer between a
+///  consumer and here: TSQLCommandExecutor<M>.Find already took a TValue.
+///
+///  WHAT DECIDES THE PREDICATE IS HOW MANY VALUES ARRIVE, NOT HOW MANY COLUMNS
+///  THE KEY HAS. A scalar aid yields a one-element array and therefore the
+///  exact single-column predicate this method has always built, so no existing
+///  consumer changes behaviour - the three original composite clauses in
+///  Test.Janus.DML.KeyPredicate are still GREEN and now document the scalar
+///  path deliberately. A caller that hands one value per key column gets every
+///  column named, joined with ' AND '. The new entry point is
+///  TSessionAbstract<M>.Find(TArray<TValue>), reached from
+///  IContainerObjectSet<M>.Find and IContainerDataSet<M>.Find/Open.
+///
+///  REST DOES NOT INHERIT IT: TSessionRestFul<M> overrides that overload and
+///  refuses, because `resource(ID)` and `$value=ID` have no spelling for N
+///  values. Refusing there breaks nothing, because the overload is new.
 ///
 ///  ONE THING THAT WAS FIXED: THE DATE LITERAL. See
 ///  _DialectDateTimeLiteral. </summary>
@@ -631,10 +666,10 @@ function TDMLGeneratorAbstract.GetGeneratorWhere(const AClass: TClass;
   const ATableName: String; const AID: TValue): String;
 var
   LPrimaryKey: TPrimaryKeyMapping;
-  LColumnName: String;
   LFor: Integer;
   LScopeWhere: String;
-  LLiteral: String;
+  LValues: TArray<TValue>;
+  LTerms: String;
 begin
   Result := '';
   LScopeWhere := GetGeneratorQueryScopeWhere(AClass);
@@ -645,37 +680,75 @@ begin
   LPrimaryKey := TMappingExplorer.GetMappingPrimaryKey(AClass);
   if LPrimaryKey <> nil then
   begin
-    Result := Result + IfThen(LScopeWhere = '', ' WHERE ', ' AND ');
-    for LFor := 0 to LPrimaryKey.Columns.Count -1 do
+    // ISSUE #326 - ONE TERM PER VALUE THE CALLER SUPPLIED, AND NO MORE.
+    // This loop used to carry `if LFor > 0 then Continue`, so from the second
+    // key column on the key was DISCARDED and the predicate named only the
+    // first column - and the body did not even carry the ' AND ' a second
+    // term would have needed. It was functionality never finished.
+    //
+    // THE REPAIR IS DRIVEN BY HOW MANY VALUES ARRIVE, NOT BY HOW MANY COLUMNS
+    // THE KEY HAS, and that is what keeps it from breaking anyone. A caller
+    // that hands a scalar gets a one-element array, so the loop emits exactly
+    // one term and stops: byte for byte the predicate this method has always
+    // built. A caller that hands a TArray<TValue> gets one term per value,
+    // joined with ' AND '. Nothing refuses a composite key and nothing turns
+    // a working read into an empty one - which matters, because where the
+    // first key column happens to be UNIQUE the old behaviour was CORRECT.
+    LValues := _KeyValues(AID);
+    LTerms := '';
+    for LFor := 0 to LPrimaryKey.Columns.Count - 1 do
     begin
-      if LFor > 0 then
-       Continue;
-      LColumnName := ATableName + '.' + LPrimaryKey.Columns[LFor];
-      if (AID.IsType<Integer>) or (AID.IsType<Int64>) or (AID.IsType<UInt64>) then
-        Result := Result + LColumnName + ' = ' + AID.ToString
-      else
-      if _DialectDateTimeLiteral(AID, LLiteral) then
-        // ISSUE #326 - A DATE KEY USED TO LEAVE IN THE MACHINE'S LOCALE.
-        // The arm below spells every remaining AID as QuotedStr(AID.ToString),
-        // and for a TValue holding a TDateTime that goes through DateTimeToStr,
-        // which reads the GLOBAL FormatSettings. Measured on b66b04b:
-        // TValue.From<TDateTime>(15/03/2027 14:07:53) came out as
-        // '15/03/2027 14:07:53' on the default locale and as
-        // '15.03.2027 14-07-53' with DateSeparator '.' / TimeSeparator '-',
-        // and a TValue.From<TTime> of the same instant came out as '14-07-53'.
-        // Neither was ever the DIALECT's date literal.
-        //
-        // A PREVIOUS VERSION OF THIS COMMENT SAID THE REPAIR NEEDED A DECISION
-        // - "consertar aqui exige decidir qual formato uma PK de data deve ter
-        // por dialeto" - AND THAT WAS FALSE. The decision was already taken and
-        // is FDateFormat / FTimeFormat, the very fields _GetPropertyValue uses
-        // for an ftDate / ftDateTime / ftTime COLUMN. This arm just stops
-        // answering differently from its neighbour.
-        Result := Result + LColumnName + ' = ' + LLiteral
-      else
-        Result := Result + LColumnName + ' = ' + QuotedStr(AID.ToString);
+      if LFor > High(LValues) then
+        Break;
+      if LTerms <> '' then
+        LTerms := LTerms + ' AND ';
+      LTerms := LTerms + ATableName + '.' + LPrimaryKey.Columns[LFor] +
+                ' = ' + _KeyLiteral(LValues[LFor]);
     end;
+    // The WHERE keyword is appended only when there is a term to hang off it.
+    // Today's code appended it FIRST and could therefore leave a dangling
+    // ' WHERE ' when the key mapped no columns at all; no clause covers that
+    // degenerate shape, and the change is noted rather than claimed as a fix.
+    if LTerms <> '' then
+      Result := Result + IfThen(LScopeWhere = '', ' WHERE ', ' AND ') + LTerms;
   end;
+end;
+
+function TDMLGeneratorAbstract._KeyValues(const AID: TValue): TArray<TValue>;
+begin
+  if AID.IsType<TArray<TValue>> then
+    Result := AID.AsType<TArray<TValue>>
+  else
+    Result := [AID];
+end;
+
+function TDMLGeneratorAbstract._KeyLiteral(const AID: TValue): String;
+var
+  LLiteral: String;
+begin
+  if (AID.IsType<Integer>) or (AID.IsType<Int64>) or (AID.IsType<UInt64>) then
+    Result := AID.ToString
+  else
+  if _DialectDateTimeLiteral(AID, LLiteral) then
+    // ISSUE #326 - A DATE KEY USED TO LEAVE IN THE MACHINE'S LOCALE.
+    // The arm below spells every remaining AID as QuotedStr(AID.ToString),
+    // and for a TValue holding a TDateTime that goes through DateTimeToStr,
+    // which reads the GLOBAL FormatSettings. Measured on b66b04b:
+    // TValue.From<TDateTime>(15/03/2027 14:07:53) came out as
+    // '15/03/2027 14:07:53' on the default locale and as
+    // '15.03.2027 14-07-53' with DateSeparator '.' / TimeSeparator '-',
+    // and a TValue.From<TTime> of the same instant came out as '14-07-53'.
+    // Neither was ever the DIALECT's date literal.
+    //
+    // A PREVIOUS VERSION OF THIS COMMENT SAID THE REPAIR NEEDED A DECISION
+    // - "consertar aqui exige decidir qual formato uma PK de data deve ter
+    // por dialeto" - AND THAT WAS FALSE. The decision was already taken and
+    // is FDateFormat / FTimeFormat, the very fields _GetPropertyValue uses
+    // for an ftDate / ftDateTime / ftTime COLUMN. This arm just stops
+    // answering differently from its neighbour.
+    Result := LLiteral
+  else
+    Result := QuotedStr(AID.ToString);
 end;
 
 function TDMLGeneratorAbstract._DialectDateTimeLiteral(const AID: TValue;
