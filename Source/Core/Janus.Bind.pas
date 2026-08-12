@@ -853,11 +853,50 @@ begin
   end;
 end;
 
+/// <summary> The ORDINAL branch of the field-to-property bind. Issue #324.
+///
+///  TField.AsInteger IS A Longint, AND THE DISPATCHER ABOVE ROUTES tkInt64
+///  HERE. TLargeintField.GetAsInteger returns GetAsLargeInt through an implicit
+///  Int64 -> Longint conversion, so a 64-bit key wider than 32 bits arrives in
+///  its own property TRUNCATED to its low 32 bits, silently. Measured through
+///  the REST server's own INSERT and its own FindOne: a row written with
+///  9007199254740993 read back as 1 - and 9007199254740993 mod 2^32 IS 1.
+///
+///  THE DAMAGE IS NOT THE READ. TAppResourceBase.ParseUpdate hands the row it
+///  read to TRESTObjectSet.Modify, which files it in FObjectState under
+///  GenerateKey's rendering of its primary key. TRESTObjectSet.Update then
+///  looks the EDITED object up under ITS key, and the two keys no longer spell
+///  the same thing - so the entry is never found, no UPDATE is emitted, and the
+///  master-detail sweep at the end of that method reads whatever is LEFT in
+///  FObjectState as a detail row the caller removed and DELETES it. Measured at
+///  the base commit, through the connection's own monitor:
+///    SELECT ktbig.ktbig, ktbig.kttag FROM ktbig WHERE (ktbig.ktbig=9007199254740993)
+///    DELETE FROM ktbig WHERE ktbig = :ktbig [ktbig=1]
+///  and no UPDATE anywhere. A PUT answering 200 while deleting the row whose
+///  key is the truncation of the one it was given.
+///
+///  ONLY tkInt64 CHANGES ROUTE, and the two labels that share this branch keep
+///  theirs. tkInteger is a Longint already, and tkSet is not a number at all -
+///  a set property is written from an ordinal whose meaning is its bit pattern,
+///  and widening the TValue that carries it changes which TValue.Cast the RTTI
+///  writer performs. Neither has anything to gain here and both have something
+///  to lose, so the guard names tkInt64 rather than excluding tkSet.
+///
+///  UInt64 IS SPELLED OUT INSTEAD OF LEFT TO TValue.Cast. UInt64 is tkInt64 as
+///  well, and the value that reaches it above High(Int64) is NEGATIVE as an
+///  Int64 - this project compiles with $R+ and $Q+, and a cast that goes
+///  through a range check on the way to an unsigned property is a cast that can
+///  raise. TValue.From<UInt64> gives the writer a TValue whose type handle is
+///  already the property's, so no cast is performed. </summary>
 procedure TBind._SetFieldToPropertyInteger(const LProperty: TRttiProperty;
   const AField: TField; const AObject: TObject);
 begin
   if TVarData(AField.Value).VType <= varNull then
     LProperty.SetValue(AObject, 0)
+  else if LProperty.PropertyType.Handle = TypeInfo(UInt64) then
+    LProperty.SetValue(AObject, TValue.From<UInt64>(UInt64(AField.AsLargeInt)))
+  else if LProperty.PropertyType.TypeKind = tkInt64 then
+    LProperty.SetValue(AObject, AField.AsLargeInt)
   else
     LProperty.SetValue(AObject, AField.AsInteger);
 end;
