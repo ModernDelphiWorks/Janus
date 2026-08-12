@@ -457,16 +457,41 @@ begin
     // arquivo apodrece sozinha, porque o comentario que a carrega e o que
     // empurra a linha citada. Foi o que aconteceu com a versao anterior desta
     // frase - dizia `:387-388`, certo em ea0208f e errado assim que este
-    // comentario entrou. Citacao para OUTRO arquivo continua por `file:linha`,
-    // com o commit em que foi lida.
+    // comentario entrou.
+    //
+    // E A FORMA AFIADA DISSO, que pegou tres vezes nesta branch e uma delas
+    // dentro do proprio commit que consertava as outras duas: numero medido
+    // ANTES da edicao que viaja junto com ele e numero de uma arvore que nunca
+    // existiu. So vale medir depois de escrever a ultima linha.
+    //
+    // Citacao para OUTRO arquivo continua por `file:linha`, com o commit em
+    // que foi lida - e ainda assim so sobrevive se aquele arquivo estiver
+    // parado.
     if not (LParamsObject.Values['params'] is TJSONArray) then
       Exit;
     LParamsArray := TJSONArray(LParamsObject.Values['params']);
 
     // ISSUE #300 - UM TParam POR PAR, NAO POR OBJETO. O servidor emite a chave
-    // primaria INTEIRA num unico objeto: Janus.Server.Resource.pas:304-307
-    // acrescenta um `"nome":valor,` por coluna da chave dentro do unico objeto
-    // que cRESOURCEINSERT (:57) reserva. Com o `with FResultParams.Add` do lado
+    // primaria INTEIRA num unico objeto: TAppResourceBase.ParseInsert percorre
+    // `LPrimaryKey.Columns` e poe uma entrada por coluna da chave dentro do
+    // unico objeto que a constante cRESOURCEINSERT reserva.
+    //
+    // ESTAS TRES CITACOES ERAM POR LINHA E JA CHEGARAM PODRES NESTA BRANCH.
+    // Diziam `Janus.Server.Resource.pas:304-307` (duas vezes) e `(:57)`, certas
+    // em c608bad e erradas em ea0208f, que e a base daqui: a #311/#322
+    // reescreveu aquele arquivo e cRESOURCEINSERT foi para :60 e o laco das
+    // colunas para :423. Nao foi este conserto que as moveu, e por isso estao
+    // agora por SIMBOLO - aquele arquivo e a frente da #320 e esta mudando
+    // agora, entao qualquer numero novo apodrece de novo.
+    //
+    // E A FRASE ACIMA TAMBEM ENVELHECEU NO MECANISMO, nao so na linha: em
+    // c608bad a constante era `"params":[{%s}]` e o servidor CONCATENAVA
+    // `"nome":valor,` em texto; em ea0208f ela e `"params":[%s]` e o `%s` ja
+    // chega como objeto JSON serializado inteiro - o assunto da #311. O que o
+    // cliente le na resposta nao mudou, e por isso a analise abaixo continua
+    // valendo; o COMO o servidor a produz mudou.
+    //
+    // Com o `with FResultParams.Add` do lado
     // de FORA deste laco interno, Name e Value eram sobrescritos a cada par e
     // so o ULTIMO sobrevivia - uma entidade REST de chave composta voltava do
     // insert com uma coluna da chave preenchida e as demais no placeholder, sem
@@ -476,7 +501,8 @@ begin
     // ISTO ALARGA O QUE UMA RESPOSTA PODE ESCREVER NA LINHA, e o alargamento
     // esta declarado aqui porque nao esta escrito em nenhum outro lugar. O
     // consumidor (TRESTDataSetAdapter<M>.ApplyInserter,
-    // Janus.RestDataSet.Adapter.pas:241-246) percorre 0..Count-1 e escreve
+    // Janus.RestDataSet.Adapter.pas:241-246, relido em ea0208f) percorre
+    // 0..Count-1 e escreve
     // TODA coluna que o dataset tenha e a resposta nomeie - nao so as da chave.
     // Antes deste conserto o objeto rendia UM param, logo no maximo UMA coluna
     // por objeto podia ser escrita; agora sao todas. Medido em 0f13601 com uma
@@ -487,8 +513,8 @@ begin
     //   com este trecho revertido: GetCount 0, tag=root       ck1=-1 ck2=9
     // Ou seja: de UMA escrita (o ultimo par) para TRES, uma delas numa coluna
     // que NAO e da chave. Hoje isso e limitado porque o servidor so percorre
-    // colunas de PK (Janus.Server.Resource.pas:304-307) - o limite mora no
-    // SERVIDOR, e o cliente nao o impoe.
+    // colunas de PK (o `for LColumn in LPrimaryKey.Columns` de ParseInsert) -
+    // o limite mora no SERVIDOR, e o cliente nao o impoe.
     //
     // ISSO MUDA QUANDO O RE-LER DA #297 DISPARA, e o numero esta medido em
     // Test.Janus.Rest.CompositeKeyReReadGate: o portao de
