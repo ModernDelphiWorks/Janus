@@ -76,9 +76,13 @@ type
     ///  same varUInt64 renders all twenty digits - measured in the same probe.
     ///  Guarding every integer label would refuse the escape hatch this very
     ///  message recommends. Data.DB does declare ftLargeUint for the unsigned
-    ///  64-bit case; a scan of Source\ here, of MetaDbDiff\Source and of
-    ///  DataEngine\Source returns ZERO mentions of it, so no column in this
-    ///  framework can be declared unsigned 64-bit.
+    ///  64-bit case, complete with a TLargeUintField; a scan for that label
+    ///  over every tree this repository's test projects put on the unit search
+    ///  path - Source\ here, MetaDbDiff\Source, DataEngine\Source,
+    ///  FluentSQL\Source, JsonFlow\Source, Horse\src and ModernSyntax\Source -
+    ///  finds nothing but the two mentions in THIS comment and in the message
+    ///  below. No column in this framework can be declared unsigned 64-bit,
+    ///  which is why the value has nowhere legal to go.
     ///
     ///  IT READS THE PARAMETER BACK RATHER THAN THE PROPERTY, ON PURPOSE. What
     ///  the driver binds is TParam.Value, so that is what is inspected; an
