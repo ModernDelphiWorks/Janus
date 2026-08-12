@@ -110,6 +110,7 @@
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.CompositeKeyReReadGate.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.ResultParamsCompositeKey.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.ObjectSetInsertKey.pas"/>
+        <DCCReference Include="Unit\RESTful\Test.Janus.Rest.InsertAnswerRobustness.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

@@ -108,7 +108,13 @@ uses
   Test.Janus.Rest.CompositeKeyReReadGate in 'Unit\RESTful\Test.Janus.Rest.CompositeKeyReReadGate.pas',
   /// The OBJECT half of the same family: the insert answer carries the key the
   /// server generated, and TRESTObjectSetAdapter never read it - issue #301
-  Test.Janus.Rest.ObjectSetInsertKey in 'Unit\RESTful\Test.Janus.Rest.ObjectSetInsertKey.pas';
+  Test.Janus.Rest.ObjectSetInsertKey in 'Unit\RESTful\Test.Janus.Rest.ObjectSetInsertKey.pas',
+  /// What Insert does when the happy path does NOT happen: a connection that
+  /// raises instead of answering, whose finally then freed a local that was
+  /// never assigned - issue #313; and an answer whose `params` is valid JSON of
+  /// the wrong shape, which the two hard casts turned into a raw EInvalidCast -
+  /// issue #315
+  Test.Janus.Rest.InsertAnswerRobustness in 'Unit\RESTful\Test.Janus.Rest.InsertAnswerRobustness.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

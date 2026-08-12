@@ -54,6 +54,15 @@ uses
   Janus.RestFactory.Interfaces;
 
 type
+  /// <summary> What the double raises when it is told to fail instead of
+  ///  answering. It stands for EVERY way a real Execute can raise before it
+  ///  ever produces a body: the server is down, the socket times out, the
+  ///  status is 500 and the concrete client turns that into
+  ///  EJanusRESTException. What the caller under test must see is THIS class
+  ///  and THIS message - anything else means the failure was swallowed or
+  ///  replaced on the way out. Issue #313. </summary>
+  ERestConnectionFailure = class(Exception);
+
   /// <summary> One recorded call to IRESTConnection.Execute. </summary>
   TRestCallRecord = record
     Resource: string;
@@ -74,6 +83,7 @@ type
     FPendingQuery: string;
     FPendingParams: string;
     FServerUse: Boolean;
+    FExecuteError: string;
     function DoExecute(const AResource, ASubResource: string;
       const ARequestMethod: TRESTRequestMethodType;
       const AParams: TProc): string;
@@ -113,6 +123,15 @@ type
     property CallCount: Integer read GetCallCount;
     property LastCall: TRestCallRecord read GetLastCall;
     property Response: string read FResponse write FResponse;
+    /// <summary> Set it and Execute RAISES ERestConnectionFailure with this
+    ///  text instead of returning a body - AFTER the call has been recorded,
+    ///  so the transcript still proves the path reached the connection. Left
+    ///  empty (the default) the double behaves exactly as before.
+    ///
+    ///  This is the only way a test can drive the failure branch of a caller
+    ///  that has a try/finally around Execute: no canned BODY can do it,
+    ///  because a body means Execute returned. Issue #313. </summary>
+    property ExecuteError: string read FExecuteError write FExecuteError;
   end;
 
 implementation
@@ -169,6 +188,10 @@ begin
   LRecord.QueryParams := FPendingQuery;
   LRecord.Params := FPendingParams;
   FCalls.Add(LRecord);
+  // RECORD FIRST, THEN FAIL. A failing Execute that left no trace would be
+  // indistinguishable from a caller that never called it at all.
+  if Length(FExecuteError) > 0 then
+    raise ERestConnectionFailure.Create(FExecuteError);
   Result := FResponse;
 end;
 
