@@ -64,6 +64,13 @@
   Those three are the strings a run of 0546a51 WITH THIS FIXTURE IN IT printed
   under 'Error : ' - not a reading of which exception class the RTL raises.
 
+  A NOTE ON WHAT THE COMMITS OF THIS BRANCH SAY, AND WHERE THEY ARE WRONG
+
+  The Horse commit's own message repeats the "three test projects" figure this
+  header used to carry, and a commit message cannot be corrected in place. It
+  is ONE - Janus.Tests.RESTfulDriver - and the measurement that says so is in
+  the commit right before it. Where the two disagree, the tripwire wins.
+
   None of the three names HTTP, server or response. All three are now
   EJanusRESTResponseShape raised INSIDE the try that was already there, so the
   handler already written reports it - through FErrorCommand when one is
