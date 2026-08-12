@@ -230,7 +230,7 @@ begin
   /// <summary> A BARE TGUID, and why this arm is not Nullable-shaped like
   ///  every other one in this method - issue #314.
   ///
-  ///  Janus.Bind.pas:909 - the else of _SetFieldToPropertyRecord, the arm for
+  ///  The FINAL else of TBind._SetFieldToPropertyRecord - the arm for
   ///  a record property that is neither a Nullable nor a TBlob - calls this
   ///  method with the property's OWN handle. For a TGUID property that handle
   ///  is TypeInfo(TGUID), which matched nothing, so the method fell off its

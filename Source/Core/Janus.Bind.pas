@@ -887,13 +887,40 @@ end;
 ///  AND THAT NARROWNESS IS GROUPED BY ARGUMENT, NOT BY MEASUREMENT, WHICH HAS
 ///  TO BE SAID RATHER THAN LEFT TO BE DISCOVERED. Making the guard ALWAYS TRUE
 ///  - so that tkInteger and tkSet reach AsLargeInt as well - leaves every suite
-///  that compiles this unit green: measured, with a tripwire the compiler
-///  echoed, at RESTHorse 149/0/0, Units 592/0/0 and RESTfulDriver 130/0/0.
-///  Nothing anywhere under Test\ tells the two apart. The guard is kept because
-///  it is the conservative half of an untested pair and not because a clause
-///  defends it; the clause that would defend it needs a SET-typed column
-///  mapping, which no entity in this repository has and which is a piece of
-///  work of its own.
+///  that compiles this unit green.
+///
+///  "EVERY SUITE" IS A POPULATION AND IT WAS ENUMERATED, because an earlier
+///  version of this sentence said "every" and then listed THREE. FIVE of the
+///  seven test projects compile this unit and two do not, measured the same way
+///  the mutation was - by whether dcc32 echoes a {$MESSAGE WARN} planted in
+///  this routine: it echoes for Units, RESTHorse, RESTfulDriver, RESTMARS and
+///  RESTOracle, and does not echo for LiveBindings or RESTWiRL.
+///
+///  Of those five, FOUR can carry a verdict: RESTHorse 149/0/0, Units 592/0/0,
+///  RESTfulDriver 130/0/0 and RESTMARS 33/0/0, each with the tripwire echoed.
+///  RESTOracle compiles the unit and cannot answer - its twelve clauses are
+///  already errored at the base commit, so nothing there can die.
+///
+///  Nothing under Test\ tells the two apart. The guard is kept because it is
+///  the conservative half of an untested pair and not because a clause defends
+///  it; the clause that would defend it needs a SET-typed column mapping, which
+///  no entity in this repository has and which is a piece of work of its own.
+///
+///  ONE MORE SURVIVOR, DECLARED AND JUDGED BENIGN. Inverting the ORDER of the
+///  chain below - testing tkInt64 BEFORE the NULL test, so a NULL 64-bit field
+///  reaches AsLargeInt instead of the zero arm - survives in all four suites
+///  that can answer: 149/0/0, 592/0/0, 130/0/0 and 33/0/0, tripwire echoed each
+///  time. It survives because the two paths agree:
+///  TLargeintField.GetAsLargeint - read in the RTL source shipped with Studio
+///  37.0, anchored by METHOD - is `if not GetValue(Result) then Result := 0`,
+///  which is the same zero the arm it skipped would have written. So the order
+///  carries no behaviour for tkInt64 and the survivor is the measurement
+///  saying so, not a hole. The order is kept for shape: of the four sibling
+///  _SetFieldToProperty* routines, the TWO that have a NULL arm at all -
+///  _SetFieldToPropertyString and _SetFieldToPropertyDouble - both lead with
+///  the same `VType <= varNull` test, and _SetFieldToPropertyRecord and
+///  _SetFieldToPropertyEnumeration have no such arm to lead with. Two out of
+///  two, not four out of four, and the sentence says which.
 ///
 ///  UInt64 IS tkInt64 TOO AND IT GETS NO BRANCH OF ITS OWN, WHICH IS A
 ///  MEASUREMENT AND NOT A PREFERENCE. It had one for the length of one commit:

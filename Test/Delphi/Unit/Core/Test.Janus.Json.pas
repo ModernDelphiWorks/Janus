@@ -541,10 +541,17 @@ end;
 // THE LOCAL PATH, WHICH ISSUE #314 LEFT UNMEASURED.
 //
 // Reading a ftGuid column back out of a dataset never goes through JSON: it
-// goes through TBind._SetFieldToPropertyRecord, which for a record property
-// that is neither Nullable nor TBlob calls SetValueNullable with the
-// property's OWN handle (Janus.Bind.pas:892 for the Nullable arm, :909 for the
-// bare one). The two tests below make exactly those two calls.
+// goes through TBind._SetFieldToPropertyRecord, which calls SetValueNullable
+// from TWO of its arms - the IsNullable arm, which passes the RTTI type's
+// handle, and the FINAL else, the arm for a record property that is neither a
+// Nullable nor a TBlob, which passes the property's OWN handle. The two tests
+// below make exactly those two calls.
+//
+// ANCHORED BY METHOD AND BY ARM, AND THAT IS A REPAIR AND NOT A STYLE CHOICE.
+// This paragraph used to name two line numbers in Janus.Bind.pas. Issue #324's
+// repair inserted a comment ABOVE them and both citations silently retargeted -
+// one of them onto a sentence about tkSet. A citation a later insertion moves
+// is worse than no citation, because it still reads as verified.
 //
 // Measured against the tree BEFORE this fix: both left the property untouched
 // and raised nothing - the bare TGUID stayed all-zeroes and the Nullable
