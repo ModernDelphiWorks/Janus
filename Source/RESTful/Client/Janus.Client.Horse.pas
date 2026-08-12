@@ -147,7 +147,14 @@ begin
   // DELETE
   try
     FRESTRequest.Execute;
-    Result := FRESTRequest.Response.JSONValue.ToString;
+    // ISSUE #323 - the value can be absent, and this line dereferenced it.
+    // TRESTResponse answers nil for an empty body, a non-JSON body or an
+    // absent root element; measured over a live server, all four verbs here
+    // answered "Access violation ... Read of address 00000000". ResponseValue
+    // raises a named reason INSIDE this try, so the handler below reports it
+    // with the server body attached. The RENDERING is untouched on purpose -
+    // see the doc of ResponseValue for why DoDELETE keeps ToString.
+    Result := ResponseValue(FRESTRequest.Response.JSONValue).ToString;
   except
     on E: Exception do
     begin
@@ -180,7 +187,14 @@ begin
   // GET
   try
     FRESTRequest.Execute;
-    Result := FRESTRequest.Response.JSONValue.ToJSON;
+    // ISSUE #323 - the value can be absent, and this line dereferenced it.
+    // TRESTResponse answers nil for an empty body, a non-JSON body or an
+    // absent root element; measured over a live server, all four verbs here
+    // answered "Access violation ... Read of address 00000000". ResponseValue
+    // raises a named reason INSIDE this try, so the handler below reports it
+    // with the server body attached. The RENDERING is untouched on purpose -
+    // see the doc of ResponseValue for why DoDELETE keeps ToString.
+    Result := ResponseValue(FRESTRequest.Response.JSONValue).ToJSON;
   except
     on E: Exception do
     begin
@@ -214,7 +228,14 @@ begin
   // POST
   try
     FRESTRequest.Execute;
-    Result := FRESTRequest.Response.JSONValue.ToJSON;
+    // ISSUE #323 - the value can be absent, and this line dereferenced it.
+    // TRESTResponse answers nil for an empty body, a non-JSON body or an
+    // absent root element; measured over a live server, all four verbs here
+    // answered "Access violation ... Read of address 00000000". ResponseValue
+    // raises a named reason INSIDE this try, so the handler below reports it
+    // with the server body attached. The RENDERING is untouched on purpose -
+    // see the doc of ResponseValue for why DoDELETE keeps ToString.
+    Result := ResponseValue(FRESTRequest.Response.JSONValue).ToJSON;
   except
     on E: Exception do
     begin
@@ -248,7 +269,14 @@ begin
   // PUT
   try
     FRESTRequest.Execute;
-    Result := FRESTRequest.Response.JSONValue.ToJSON;
+    // ISSUE #323 - the value can be absent, and this line dereferenced it.
+    // TRESTResponse answers nil for an empty body, a non-JSON body or an
+    // absent root element; measured over a live server, all four verbs here
+    // answered "Access violation ... Read of address 00000000". ResponseValue
+    // raises a named reason INSIDE this try, so the handler below reports it
+    // with the server body attached. The RENDERING is untouched on purpose -
+    // see the doc of ResponseValue for why DoDELETE keeps ToString.
+    Result := ResponseValue(FRESTRequest.Response.JSONValue).ToJSON;
   except
     on E: Exception do
     begin

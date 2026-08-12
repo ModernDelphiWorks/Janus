@@ -140,7 +140,13 @@ begin
   // DELETE
   try
     FRESTRequest.Execute;
-    Result := (FRESTRequest.Response.JSONValue as TJSONArray).Items[0].ToJSON;
+    // ISSUE #323 - was (JSONValue as TJSONArray).Items[0], two unguarded steps
+    // whose three failing shapes escaped as three different untyped errors.
+    // TJanusClient.ResponsePayload carries the rule and the measurements; it
+    // raises INSIDE this try on purpose, so the handler below is what reports
+    // it, with the server body still attached.
+    Result := ResponsePayload(FRESTRequest.Response.JSONValue,
+                              Length(FRESTResponse.RootElement) > 0);
   except
     on E: Exception do
     begin
@@ -173,10 +179,17 @@ begin
   // GET
   try
     FRESTRequest.Execute;
-    if Length(FRESTResponse.RootElement) > 0 then
-      Result := (FRESTRequest.Response.JSONValue as TJSONArray).Items[0].ToJSON
-    else
-      Result := FRESTRequest.Response.JSONValue.ToJSON
+    // ISSUE #323 - THE BRANCH THAT ONLY THIS ONE OF THE SIX SITES HAD.
+    // "Unwrap only when a root element was configured" was written here and
+    // nowhere else, so DoPOST and DoDELETE unwrapped unconditionally - and the
+    // constructor leaves RootElement EMPTY, which made unwrapping wrong by
+    // default in the two of them. The rule was not invented for this repair; it
+    // was taken FROM HERE into ResponsePayload, and the other five sites now
+    // ask the same question this one already asked. The else arm went with it:
+    // JSONValue is nil for an empty or non-JSON body, and ToJSON on nil is an
+    // access violation.
+    Result := ResponsePayload(FRESTRequest.Response.JSONValue,
+                              Length(FRESTResponse.RootElement) > 0)
   except
     on E: Exception do
     begin
@@ -209,7 +222,13 @@ begin
   // POST
   try
     FRESTRequest.Execute;
-    Result := (FRESTRequest.Response.JSONValue as TJSONArray).Items[0].ToJSON;
+    // ISSUE #323 - was (JSONValue as TJSONArray).Items[0], two unguarded steps
+    // whose three failing shapes escaped as three different untyped errors.
+    // TJanusClient.ResponsePayload carries the rule and the measurements; it
+    // raises INSIDE this try on purpose, so the handler below is what reports
+    // it, with the server body still attached.
+    Result := ResponsePayload(FRESTRequest.Response.JSONValue,
+                              Length(FRESTResponse.RootElement) > 0);
   except
     on E: Exception do
     begin
@@ -299,10 +318,39 @@ begin
     // DoBeforeCommand
     DoBeforeCommand;
 
+    // ISSUE #323 - THE ANSWER WAS READ AND THEN DROPPED ONE FRAME ABOVE IT.
+    // These four were called as STATEMENTS. Result was set to '' at the top of
+    // this method and never assigned again, so `FResponseString := Result`
+    // below stored '' and this function ANSWERED '' TO EVERY REQUEST EVER MADE
+    // THROUGH IT - the payload the Do* methods work to produce never reached
+    // TRESTDriverWS.Execute, which does return what it is given. Nothing warns:
+    // discarding a function result is legal Pascal, and Result IS assigned, so
+    // there is no W1035 either. Same defect as issue #328's OpenIDInternal,
+    // which discarded the result of Find; the sibling TRESTClientDataSnap.
+    // Execute already assigned all four.
+    //
+    // PUT stays a statement because there is nothing to gain, NOT because
+    // assigning it would cost anything. TRESTClientWS.DoPUT does not read the
+    // response and never assigns its own Result, so it answers an empty string
+    // by construction and `Result := DoPUT(...)` is INERT here - a measured
+    // equivalent, not a preference.
+    //
+    // AN EARLIER VERSION OF THIS COMMENT GAVE A FALSE REASON, and it sat in
+    // Source holding up a design choice. It said assigning it "would add the
+    // undefined-return warning that assigning an unassigned Result earns".
+    // Measured on this tree: writing `Result := DoPUT(...)` here and building
+    // emits NO warning naming this unit at all. W1035 is a warning about a
+    // DEFINITION, not about a call site, and the only W1035 in the entire
+    // build is Janus.Manager.DataSet's AutoNextPacket. The counter-example was
+    // already in the tree - TRESTClientDataSnap.DoPUT likewise never assigns
+    // Result and IS assigned at two sites, silently.
+    //
+    // That a PUT answers nothing at all in EITHER family is a real question,
+    // and it is not this issue's: it belongs to #338, with the swapped verb.
     case ARequestMethod of
       TRESTRequestMethodType.rtPOST:
         begin
-          DoPOST(AResource, ASubResource);
+          Result := DoPOST(AResource, ASubResource);
         end;
       TRESTRequestMethodType.rtPUT:
         begin
@@ -310,11 +358,11 @@ begin
         end;
       TRESTRequestMethodType.rtGET:
         begin
-          DoGET(AResource, ASubResource);
+          Result := DoGET(AResource, ASubResource);
         end;
       TRESTRequestMethodType.rtDELETE:
         begin
-          DoDELETE(AResource, ASubResource);
+          Result := DoDELETE(AResource, ASubResource);
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
