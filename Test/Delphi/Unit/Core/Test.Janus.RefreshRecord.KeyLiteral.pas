@@ -82,10 +82,52 @@
   outlier rather than three-way disagreement.
 
   NOTHING ANYWHERE COMPARES THE TABLES TO EACH OTHER, and this fixture does not
-  either. It cannot: neither of the other two is reachable from a test unit,
-  for the very reasons measured above. What is written down here is the reading
-  of both at this commit; a clause that would go red when they drift apart
-  would have to live inside one of those two units.
+  either. It cannot: neither of the OTHER TWO is reachable from a test unit,
+  for the very reasons measured above. The new one IS - KeyLiteralToSql had to
+  go in the interface section to satisfy E2506, and two clauses here call it
+  directly - so a future unification has one end already open. What is written
+  down here about the other two is a READING at this commit, and a reading goes
+  stale: a clause that would go red when they drift apart would have to live
+  inside one of those two units.
+
+  THE MUTATIONS THAT WERE RUN, AND WHAT DIED IN EACH. Every one was applied to
+  Janus.Session.DataSet.pas together with a MESSAGE WARN directive naming
+  TRIPWIRE-n - written with the braces a directive needs, which cannot be
+  reproduced inside this comment because a Delphi block comment does not nest -
+  and dcc32 echoed it as W1054 in the same build, so "applied" is not a claim.
+  Totals are
+  Janus.Tests.Units, whose green state at this commit is 604/0/0.
+
+    n1  the whole literal put back to AColumns[LFor].AsString  -> 7 red
+    n2  ftBoolean branch removed                               -> 1 red
+    n3  DB.ftSingle deleted from the decimal branch            -> 1 red
+    n4  DB.ftExtended deleted from the decimal branch          -> 1 red
+    n6  the cNOROWSGUARD arm and its Break removed             -> 1 red
+    n7  VarIsEmpty half of the null guard removed              -> 1 red
+    n8  QuotedStr replaced by bare concatenation               -> 3 red
+    n9  VarIsNull half of the null guard removed               -> 2 red
+
+  n1 kills SEVEN and not nine, and that is the honest arithmetic rather than a
+  hole: the integer clause is a NO-CHANGE guard and stays green by design, and
+  the undetermined-key clause is held up by the cNOROWSGUARD arm, which n1 does
+  not touch - n6 is the mutation that kills that one.
+
+  n4 SURVIVED ON THE FIRST PASS - 604 green with the tripwire echoed - because
+  DB.ftExtended had no model of its own. That is the shape #320 could only
+  declare; here TRefreshExtendedKey was written and the mutation now dies.
+  n7 SURVIVED ON THE FIRST PASS for the same reason and got the same treatment:
+  every TParam the framework builds carries an assigned value, so only a caller
+  of the public RefreshRecord(TParams) reaches varEmpty.
+
+  ONE SURVIVOR IS DECLARED AND KEPT. Removing TFormatSettings.Invariant from
+  the ftDate branch kills nothing (604 green, tripwire echoed). It is inert
+  against the CURRENT MASK and not against the contract: in a FormatDateTime
+  mask only '/' and ':' are separator placeholders, cISODATE is 'yyyy-mm-dd'
+  whose '-' is a literal, and the two other masks quote their colons. So no
+  ambient setting can move that text WHILE THE MASKS STAY AS THEY ARE - and a
+  mask is one edit away from carrying a '/'. The clause that would catch it
+  cannot be written against these masks, which is the same reading the sibling
+  _PrimaryKeyValueToSql records for the same argument.
 }
 
 unit Test.Janus.RefreshRecord.KeyLiteral;
@@ -114,6 +156,7 @@ uses
   MetaDbDiff.Types.Mapping,
   Janus.Container.FDMemTable,
   Janus.Container.DataSet.Interfaces,
+  Janus.Session.DataSet,
   Janus.DML.Generator.SQLite,
   Test.Janus.Cursor.Double;
 
@@ -172,8 +215,7 @@ type
   /// that ESCAPED the first round of the sibling repair (#320) and had to be
   /// added after a measured SQLite syntax error. Janus.DataSet.Fields builds a
   /// TSingleField for this column, so DB.ftSingle is what reaches the TParam.
-  /// DB.ftExtended shares this branch and has no entity of its own here - it
-  /// is grouped by argument and NOT measured.
+  /// DB.ftExtended has a model of its own below - see the note there.
   [Entity]
   [Table('rrsingle', '')]
   [PrimaryKey('rskey', TAutoIncType.NotInc, TGeneratorType.NoneInc,
@@ -187,6 +229,28 @@ type
     property rskey: Single read Frskey write Frskey;
     [Column('rstag', ftString, 20)]
     property rstag: String read Frstag write Frstag;
+  end;
+
+  /// An EXTENDED primary key. THIS MODEL EXISTS BECAUSE OF A SURVIVING
+  /// MUTATION and not from the start: with only TRefreshSingleKey in place,
+  /// deleting DB.ftExtended from the decimal branch left the whole suite green
+  /// - 601/0/0, with the tripwire echoed by dcc32. That is exactly the shape
+  /// the sibling repair #320 had to declare as "grouped by argument"; here the
+  /// missing clause was cheap enough to write, so the label is MEASURED
+  /// instead of argued.
+  [Entity]
+  [Table('rrext', '')]
+  [PrimaryKey('rekey', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'Extended primary key')]
+  TRefreshExtendedKey = class
+  private
+    Frekey: Extended;
+    Fretag: String;
+  public
+    [Column('rekey', ftExtended)]
+    property rekey: Extended read Frekey write Frekey;
+    [Column('retag', ftString, 20)]
+    property retag: String read Fretag write Fretag;
   end;
 
   /// A BOOLEAN primary key - VarToStr renders it as the bare token True.
@@ -251,6 +315,7 @@ type
     function RefreshSqlOfDate(const AKey: TDateTime): String;
     function RefreshSqlOfFloat(const AKey: Double): String;
     function RefreshSqlOfSingle(const AKey: Single): String;
+    function RefreshSqlOfExtended(const AKey: Extended): String;
     function RefreshSqlOfBool(const AKey: Boolean): String;
     function RefreshSqlOfInt(const AKey: Integer): String;
     function RefreshSqlOfComposite(const AK1: Integer;
@@ -285,9 +350,27 @@ type
     /// repair missed on its first pass.
     [Test]
     procedure SingleKey_CarriesTheSqlDecimalSeparator;
+    /// And for DB.ftExtended, the OTHER label of that pair. This clause was
+    /// added after the mutation that deletes DB.ftExtended from the decimal
+    /// branch SURVIVED - see the note on TRefreshExtendedKey.
+    [Test]
+    procedure ExtendedKey_CarriesTheSqlDecimalSeparator;
     /// A boolean key must leave as 1 / 0 and not as the bare token True.
     [Test]
     procedure BooleanKey_LeavesAsOneOrZero;
+    /// THE TWO HALVES OF THE NULL GUARD, REACHED DIRECTLY. KeyLiteralToSql is
+    /// exported - it had to be, see its header - so unlike the two sibling
+    /// tables it can be called from a test with a TParam built by hand. These
+    /// two exist because deleting the VarIsEmpty half left the whole suite
+    /// green: every param the FRAMEWORK builds carries an assigned value, so
+    /// only a caller of the PUBLIC RefreshRecord(TParams) can produce the
+    /// other shape. Measured on a freshly added TParam that nothing assigned:
+    /// VarIsEmpty True, VarIsNull False, VarType 0, Bound False. The two
+    /// halves therefore catch DIFFERENT shapes and neither covers the other.
+    [Test]
+    procedure AnUnboundParam_HasNoLiteral;
+    [Test]
+    procedure AParamHoldingNull_HasNoLiteral;
     /// The label the raw form got right must STILL be bare digits: a repair
     /// that quotes everything breaks the case that worked.
     [Test]
@@ -490,6 +573,44 @@ begin
   end;
 end;
 
+function TTestRefreshRecordKeyLiteral.RefreshSqlOfExtended(
+  const AKey: Extended): String;
+var
+  LConn: TRowsConnection;
+  LConnRef: IDBConnection;
+  LTable: TFDMemTable;
+  LContainer: IContainerDataSet<TRefreshExtendedKey>;
+begin
+  LConn := TRowsConnection.Create(dnSQLite, cROW,
+    procedure(const ADataSet: TFDMemTable)
+    begin
+      ADataSet.FieldDefs.Add('rekey', ftExtended);
+      ADataSet.FieldDefs.Add('retag', ftString, 20);
+    end,
+    procedure(const ADataSet: TFDMemTable; const AIndex: Integer)
+    begin
+      ADataSet.FieldByName('rekey').AsExtended := 0;
+      ADataSet.FieldByName('retag').AsString := 'seed';
+    end,
+    'refresh-extended');
+  LConnRef := LConn;
+  LTable := TFDMemTable.Create(nil);
+  try
+    LContainer := TContainerFDMemTable<TRefreshExtendedKey>.Create(LConnRef,
+                    LTable);
+    LContainer.Open;
+    LTable.First;
+    LTable.Edit;
+    LTable.FieldByName('rekey').AsExtended := AKey;
+    LTable.Post;
+    LContainer.RefreshRecord;
+    Result := LConn.LastSQL;
+    LContainer := nil;
+  finally
+    LTable.Free;
+  end;
+end;
+
 function TTestRefreshRecordKeyLiteral.RefreshSqlOfBool(
   const AKey: Boolean): String;
 var
@@ -676,6 +797,65 @@ begin
     'sibling repair missed on its first pass: ' + LSQL);
 end;
 
+procedure TTestRefreshRecordKeyLiteral.ExtendedKey_CarriesTheSqlDecimalSeparator;
+var
+  LSQL: String;
+begin
+  LSQL := RefreshSqlOfExtended(10.5);
+  Assert.Contains(LSQL, 'rekey=10.5', True,
+    'DB.ftExtended shares the decimal branch, and this clause exists because ' +
+    'deleting that label from it left the whole suite green: ' + LSQL);
+end;
+
+procedure TTestRefreshRecordKeyLiteral.AnUnboundParam_HasNoLiteral;
+var
+  LParams: TParams;
+  LParam: TParam;
+begin
+  LParams := TParams.Create(nil);
+  try
+    LParam := LParams.Add as TParam;
+    LParam.Name := 'p';
+    LParam.DataType := ftString;
+    // The premise, measured rather than assumed: an unbound TParam answers a
+    // varEmpty and NOT a varNull, so VarIsNull alone would let it through.
+    Assert.IsTrue(VarIsEmpty(LParam.Value),
+      'premise: an unbound TParam answers a varEmpty');
+    Assert.IsFalse(VarIsNull(LParam.Value),
+      'premise: and it is NOT a varNull, so the two halves are not the same ' +
+      'guard written twice');
+    Assert.AreEqual('', KeyLiteralToSql(LParam),
+      'a param nobody bound cannot identify a row and has no literal');
+  finally
+    LParams.Free;
+  end;
+end;
+
+procedure TTestRefreshRecordKeyLiteral.AParamHoldingNull_HasNoLiteral;
+var
+  LParams: TParams;
+  LParam: TParam;
+begin
+  LParams := TParams.Create(nil);
+  try
+    LParam := LParams.Add as TParam;
+    LParam.Name := 'p';
+    // THE ORDER OF THESE TWO LINES IS THE MEASUREMENT, not a style choice, and
+    // it is the order TDataSetBaseAdapter<M>.RefreshRecord itself uses. With
+    // Value assigned BEFORE DataType the param answers a varEmpty and this
+    // premise goes red; with DataType first it answers a varNull. TParam.Clear
+    // does not reach varNull either.
+    LParam.DataType := ftString;
+    LParam.Value := Null;
+    Assert.IsTrue(VarIsNull(LParam.Value),
+      'premise: a TParam assigned Null answers a varNull');
+    Assert.AreEqual('', KeyLiteralToSql(LParam),
+      'a key column the row left NULL cannot identify a row either');
+  finally
+    LParams.Free;
+  end;
+end;
+
 procedure TTestRefreshRecordKeyLiteral.BooleanKey_LeavesAsOneOrZero;
 var
   LSQL: String;
@@ -729,6 +909,7 @@ initialization
   TRegisterClass.RegisterEntity(TRefreshDateKey);
   TRegisterClass.RegisterEntity(TRefreshFloatKey);
   TRegisterClass.RegisterEntity(TRefreshSingleKey);
+  TRegisterClass.RegisterEntity(TRefreshExtendedKey);
   TRegisterClass.RegisterEntity(TRefreshBoolKey);
   TRegisterClass.RegisterEntity(TRefreshIntKey);
   TRegisterClass.RegisterEntity(TRefreshCompositeKey);
