@@ -222,10 +222,17 @@
   needed for.
 
   The sibling hard casts on response JSON outside this method were enumerated
-  at ea0208f and are reported with the issue, not repaired here:
-  Janus.Client.DataSnap.pas:145,178,212 and Janus.Client.WS.pas:143,177,212,
-  all six of the form `(FRESTRequest.Response.JSONValue as TJSONArray).Items[0]`
-  - which, unlike this method, ALSO indexes Items[0] without checking Count.
+  at ea0208f and reported with the issue rather than repaired here: DoGET,
+  DoPOST and DoDELETE of TRESTClientDataSnap and the same three of
+  TRESTClientWS, all six of the form
+  `(FRESTRequest.Response.JSONValue as TJSONArray).Items[0]` - which, unlike
+  this method, ALSO indexes Items[0] without checking Count.
+
+  ISSUE #323 HAS SINCE REPAIRED THOSE SIX, and this paragraph is re-anchored
+  BY SYMBOL for it. It used to read `Janus.Client.DataSnap.pas:145,178,212 and
+  Janus.Client.WS.pas:143,177,212`, and every one of those six numbers is now
+  wrong - #323 inserted comment lines above each site, which is exactly how the
+  citation two paragraphs up rotted. The method names do not move.
 
   ============================================================================
   MUTATION - EVERY FIGURE MEASURED, EVERY SURVIVOR DECLARED
