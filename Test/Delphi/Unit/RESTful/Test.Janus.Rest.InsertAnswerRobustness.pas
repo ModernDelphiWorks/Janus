@@ -204,12 +204,22 @@
   WHAT THIS REPAIR DOES NOT COVER - REPORTED, NOT WIDENED
 
   An answer that is not a JSON OBJECT at the top level never reaches line 390.
-  TJanusJson.JSONStringToJSONObject (Source/Core/Janus.Json.pas:250-252) is
-  itself `JSONStringToJSONValue(AJson) as TJSONObject`, so a body that is a
-  top-level ARRAY raises EInvalidCast one layer BELOW this method, inside the
-  parser. Measured at ea0208f. That file is the #314 front and is deliberately
-  untouched here; no clause in this fixture pins its behaviour, because pinning
-  it would make this fixture fail the day #314 repairs it.
+  TJanusJson.JSONStringToJSONObject - in Source\Core\Janus.Json.pas, anchored by
+  METHOD - is itself `JSONStringToJSONValue(AJson) as TJSONObject`, so a body
+  that is a top-level ARRAY raises EInvalidCast one layer BELOW this method,
+  inside the parser. Measured at ea0208f. That file is the #314 front and is
+  deliberately untouched here; no clause in this fixture pins its behaviour,
+  because pinning it would make this fixture fail the day #314 repairs it.
+
+  THIS PARAGRAPH USED TO CITE "Janus.Json.pas:250-252" AND THAT CITATION WAS
+  ALREADY FALSE BEFORE ISSUE #324's BRANCH EXISTED. Re-read at b66b04b, the
+  commit that branch starts from, those three lines are a SetValueNullable call
+  in the JSON reader's Nullable arm; JSONStringToJSONObject is a hundred lines
+  further down. The #314 front moved the file after "Measured at ea0208f" was
+  written and the number stayed behind. It is re-anchored rather than renumbered
+  because the BODY quoted above is still exactly what that method contains -
+  which is the part the argument rests on, and the part a line number was never
+  needed for.
 
   The sibling hard casts on response JSON outside this method were enumerated
   at ea0208f and are reported with the issue, not repaired here:
