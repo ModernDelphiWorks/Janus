@@ -856,11 +856,13 @@ end;
 /// <summary> The ORDINAL branch of the field-to-property bind. Issue #324.
 ///
 ///  TField.AsInteger IS A Longint, AND THE DISPATCHER ABOVE ROUTES tkInt64
-///  HERE. TLargeintField.GetAsInteger returns GetAsLargeInt through an implicit
-///  Int64 -> Longint conversion, so a 64-bit key wider than 32 bits arrives in
-///  its own property TRUNCATED to its low 32 bits, silently. Measured through
-///  the REST server's own INSERT and its own FindOne: a row written with
-///  9007199254740993 read back as 1 - and 9007199254740993 mod 2^32 IS 1.
+///  HERE. TLargeintField.GetAsInteger - read in the RTL source shipped with
+///  Studio 37.0, and anchored by METHOD - fetches the value into a LargeInt
+///  local and returns `Integer(L)`, a hard 32-bit truncation and not a
+///  conversion that anything checks. So a 64-bit key wider than 32 bits arrives
+///  in its own property truncated to its low 32 bits, silently. Measured
+///  through the REST server's own INSERT and its own FindOne: a row written
+///  with 9007199254740993 read back as 1 - and 9007199254740993 mod 2^32 IS 1.
 ///
 ///  THE DAMAGE IS NOT THE READ. TAppResourceBase.ParseUpdate hands the row it
 ///  read to TRESTObjectSet.Modify, which files it in FObjectState under
