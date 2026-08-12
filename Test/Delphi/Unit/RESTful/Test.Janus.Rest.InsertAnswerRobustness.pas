@@ -80,8 +80,10 @@
   own prologue. Widening the scribble from 2KB to 64KB changed nothing, which
   is the second thing ruling coverage out.
 
-  WHY the prologue clears it here is NOT DETERMINED, and no explanation is
-  offered in its place. Three hand-written shapes carrying the SAME local list -
+  WHY the prologue clears it here was not determined by the measurements below;
+  it was determined afterwards, in the binary, by the independent review, and
+  both halves are kept because the second only means something on top of the
+  first. Three hand-written shapes carrying the SAME local list -
   four Strings, three unmanaged object references, two Integers, the first
   assignment inside the try - were compiled with the same dcc32 37.0 and NONE
   of them is cleared:
@@ -95,12 +97,34 @@
   Exception carrying 'boom' is unwinding - the network error replaced by an
   access violation, exactly the damage #313 describes. So neither the local
   list, nor the closure, nor the generic instantiation is what makes the real
-  Insert different, and guessing which of the remaining differences it is would
-  be the invention this fixture is written to avoid.
+  Insert different.
 
-  What that leaves is the only thing that matters for the decision: the class of
-  defect is real and demonstrable, and whether it fires in THIS method is
-  decided by codegen nobody controls.
+  WHAT IT ACTUALLY IS - READ OFF THE BINARY, NOT BY ME
+
+  The independent review of this branch generated the .map, read the bytes of
+  the .exe and found the prologue the real Insert is given:
+
+    push ebp / mov ebp,esp / mov ecx,$11 / push 0 ; push 0 / dec ecx ; jnz
+
+  A loop that pushes 34 dwords of zero - the frame is cleared because the
+  compiler chose to ALLOCATE it with `push 0` in a loop instead of with a
+  single `add esp,-N`. All FOURTEEN instantiations of Insert in that binary
+  carry the same prologue. The trigger is the frame-allocation strategy, not
+  the local list - which is exactly why the three shapes above, all of which
+  got `add esp,-N`, keep their garbage.
+
+  That review also knocked down its own first guess on the way, and it is worth
+  recording next to the answer: it supposed the trigger was frame SIZE, padded
+  a hand-written shape until it matched Insert's 136 bytes, and still got
+  CDCDCDCD; it then rebuilt Insert faithfully - generic class, anonymous method
+  passed as an argument capturing a local, the same casts, the same try/finally
+  - and still got CDCDCDCD.
+
+  So the guard on this method today is a compiler allocation decision that
+  neither of us could pin down to a rule, and that no `.dproj` in this
+  repository asks for. The class of defect is real and demonstrable; whether it
+  fires in THIS method is decided by codegen nobody controls, and that is the
+  whole argument for spending one line on it.
 
   So the finally is one codegen decision away from the AV, and codegen is not a
   contract. What IS a contract is the compiler saying so out loud: dcc32 emits,
@@ -250,6 +274,13 @@
 
   506 is the finally. The compiler is the oracle for this one, and it answers
   both ways.
+
+  ORACLE, AND NOT A GATE - the distinction is the review's and it is fair.
+  `WarningsAsErrors` appears in exactly ZERO of the 67 .dproj files in this
+  repository - counted at this commit, and the only hit for that string
+  anywhere in the tree is the sentence in Janus.Session.RESTful.pas that says
+  so. Nothing makes W1036 break a build, so the warning is evidence that the
+  repair is needed, never a mechanism that keeps it.
 
   WHICH CLAUSE CAUGHT WHICH, WHERE IT IS NOT OBVIOUS
 

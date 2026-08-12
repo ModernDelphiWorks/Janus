@@ -388,17 +388,25 @@ begin
   // MESMA profundidade que o frame de Insert vai ocupar, e o slot ainda le
   // 00000000 - com os enderecos batendo (slot em 012FF3E4, faixa raspada
   // 012EF408..012FF407), ou seja o prologo do proprio Insert zera o frame.
-  // POR QUE ele zera aqui NAO FOI DETERMINADO: tres formas escritas a mao com
-  // a MESMA lista de locais - rotina simples, rotina com metodo anonimo
-  // capturando locais, e metodo de classe generica instanciada - NAO sao
-  // zeradas e dao EAccessViolation "Read of address CDCDCDCD" trocando o erro
-  // de rede, todas medidas no mesmo commit e no mesmo compilador. Ou seja: o
-  // defeito e real, e a consequencia depende de codegen que ninguem controla.
+  // Tres formas escritas a mao com a MESMA lista de locais - rotina simples,
+  // rotina com metodo anonimo capturando locais, e metodo de classe generica
+  // instanciada - NAO sao zeradas e dao EAccessViolation "Read of address
+  // CDCDCDCD" trocando o erro de rede, todas medidas no mesmo commit e no
+  // mesmo compilador. POR QUE o Insert real e zerado e a revisao independente
+  // desta branch quem leu, nos bytes do .exe: o prologo dele e
+  // `mov ecx,$11 / push 0 ; push 0 / dec ecx ; jnz` - um laco que zera 34
+  // dwords, porque o compilador escolheu ALOCAR o frame com `push 0` em laco
+  // em vez de um `add esp,-N`. As catorze instanciacoes de Insert no binario
+  // tem o mesmo prologo. Ou seja: o defeito e real, e o unico anteparo hoje e
+  // uma escolha de alocacao de frame que ninguem controla nem pede.
   //
   // O QUE E CONTRATO E O PROPRIO COMPILADOR DIZER. dcc32 emite em ea0208f
   // "W1036 Variable 'LParamsObject' might not have been initialized" apontando
-  // Janus.Session.RESTful.pas:446 - a linha do finally. Esta atribuicao e o
-  // que faz esse aviso sumir, e o aviso e a medida de que ela e necessaria.
+  // a linha do `finally` deste metodo - `:446` na numeracao de ea0208f, que e
+  // do proprio compilador e nao minha. Esta atribuicao e o que faz esse aviso
+  // sumir, e o aviso e a medida de que ela e necessaria. Ele e ORACULO, nao
+  // portao: nao ha `DCC_WarningsAsErrors` em .dproj nenhum deste repositorio,
+  // entao nada impede que o aviso volte sem quebrar o build.
   LParamsObject := nil;
   LSubResource := ifThen(Length(FConnection.MethodPOST) > 0, FConnection.MethodPOST, FSubResource);
   LJSON := TJanusJson.ObjectToJsonString(AObject);
@@ -429,9 +437,10 @@ begin
     // e um TJSONValue como outro qualquer e chega ate aqui.
     //
     // POR QUE `Exit` E NAO EXCECAO NOMEADA. A casa ja responde esta pergunta
-    // duas vezes neste mesmo metodo - :387-388 quando o corpo nao vira objeto,
-    // e a propria guarda abaixo quando `params` nao existe - e uma vez logo
-    // adiante com o motivo escrito: RefreshRecord, issue #297, "NENHUMA LINHA E
+    // duas vezes neste mesmo metodo - no `if LParamsObject = nil then Exit`
+    // logo acima, quando o corpo nao vira objeto, e na propria guarda abaixo,
+    // quando `params` nao existe - e uma vez logo adiante com o motivo
+    // escrito: RefreshRecord, issue #297, "NENHUMA LINHA E
     // UMA RESPOSTA, e nao um erro ... a excecao passaria a interromper a
     // gravacao DEPOIS de o servidor ja ter escrito". Vale identico aqui: quando
     // esta resposta e lida a LINHA JA FOI INSERIDA. `params` e o eco da chave
@@ -442,6 +451,14 @@ begin
     //
     // `nil is TJSONArray` e False, entao a chave ausente continua saindo por
     // aqui exatamente como antes: a guarda foi TROCADA, nao estreitada.
+    //
+    // As duas guardas vizinhas citadas acima sao referidas pelo CODIGO delas e
+    // nao por numero de linha, de proposito: citacao para dentro do proprio
+    // arquivo apodrece sozinha, porque o comentario que a carrega e o que
+    // empurra a linha citada. Foi o que aconteceu com a versao anterior desta
+    // frase - dizia `:387-388`, certo em ea0208f e errado assim que este
+    // comentario entrou. Citacao para OUTRO arquivo continua por `file:linha`,
+    // com o commit em que foi lida.
     if not (LParamsObject.Values['params'] is TJSONArray) then
       Exit;
     LParamsArray := TJSONArray(LParamsObject.Values['params']);
