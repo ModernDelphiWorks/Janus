@@ -283,10 +283,12 @@ end;
 ///  deliberate and is recorded rather than fixed here, because that unit
 ///  belongs to the client side of this family.
 ///
-///  ftBoolean IS NOT GIVEN A LITERAL OF ITS OWN, AND THAT IS MEASURED. The
-///  else branch renders VarToStr, which for a boolean is the bare token True.
-///  See BooleanKey_ThePutMustReachTheRowItNames for what that does and does
-///  not achieve. </summary>
+///  ftBoolean HAS A BRANCH OF ITS OWN, AND AN EARLIER DRAFT OF THIS VERY
+///  COMMENT SAID IT DID NOT. It was written while the boolean still fell
+///  through to the default branch, and the measurement that followed - the row
+///  the framework's own INSERT leaves behind carries typeof() = integer under
+///  SQLite - moved it. The branch, and the residue it does not remove, are
+///  described where the branch is. </summary>
 function _PrimaryKeyValueToSql(const AColumn: TColumnMapping;
   const AObject: TObject): String;
 const
