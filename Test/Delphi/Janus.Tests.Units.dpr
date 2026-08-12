@@ -148,7 +148,9 @@ uses
   /// A single-object association left nil must stay nil, not raise - #296
   Test.Janus.OneToOne.NilAssociation in 'Unit\Core\Test.Janus.OneToOne.NilAssociation.pas',
   /// And the SIBLING branch: a LIST association left nil - issue #307
-  Test.Janus.OneToMany.NilList in 'Unit\Core\Test.Janus.OneToMany.NilList.pas';
+  Test.Janus.OneToMany.NilList in 'Unit\Core\Test.Janus.OneToMany.NilList.pas',
+  /// The WHERE RefreshRecord builds for the row under the cursor - issue #327
+  Test.Janus.RefreshRecord.KeyLiteral in 'Unit\Core\Test.Janus.RefreshRecord.KeyLiteral.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
