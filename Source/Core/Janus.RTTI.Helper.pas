@@ -69,8 +69,11 @@ begin
   ///  and renders it as the SAME text the four rendering sites of this repo
   ///  write - TGUID.ToString: Janus.Command.Inserter.pas:213-217,
   ///  Janus.Command.Updater.pas:118-119, Janus.Command.Deleter.pas:97-98 and
-  ///  CanonicalGuidLiteral at Janus.DML.Generator.pas:766-768. The doctrine
-  ///  behind them is written out at Janus.DML.Generator.pas:115-136.
+  ///  TDMLGeneratorAbstract.CanonicalGuidLiteral, in Janus.DML.Generator.pas.
+  ///  The doctrine behind them is written out in the doc comment over
+  ///  TDMLGeneratorAbstract.GuidLiteral, in the same unit.
+  ///  BOTH ANCHORS ARE BY SYMBOL BECAUSE THE LINE FORM ROTTED: they read
+  ///  :766-768 and :115-136 until issue #326 inserted lines into that unit.
   ///
   ///  MISSING IS NOT HARMLESS HERE. Without an arm the function falls off the
   ///  end with Result = Default(TValue), and the caller

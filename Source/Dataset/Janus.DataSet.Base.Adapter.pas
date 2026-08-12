@@ -1190,15 +1190,45 @@ end;
 ///  esquecimento: para BCD o TEXTO E a representacao exata - TFMTBCDField
 ///  responde por BcdToStr - enquanto qualquer conversao para ponto flutuante
 ///  perderia digitos que o BCD guarda. Aqui o ramo tipado seria o buraco.
-///  NAO MEDIDO tambem: nenhum modelo do repositorio declara essa associacao.
+///
+///  THE SENTENCE THAT USED TO CLOSE THE PARAGRAPH ABOVE WAS FALSE, AND IT WAS
+///  THE STATED REASON FOR THERE BEING NO TEST - which is worse than a wrong
+///  fact, because it TOLD THE NEXT READER NOT TO LOOK. It read "NAO MEDIDO
+///  tambem: nenhum modelo do repositorio declara essa associacao". The
+///  repository ships one: Examples\Delphi\Data\Object Lazy\Model.Procedimento
+///  declares [Association(TMultiplicity.OneToMany,'SETOR','SETORES','SETOR',
+///  True)] and the child end, Model.Setor, is [Column('SETOR', ftBCD, 8, 0)].
+///  Both units were ALREADY listed in Janus.Tests.Units.dpr when the sentence
+///  was written. Issue #319.
 ///
 ///  AsString CONTINUA SENDO O FUNDO, e continua sendo total: qualquer par que
 ///  nao caia num ramo - inteiro, string, GUID, booleano, memo - le pela MESMA
 ///  rotina dos dois lados e nao tem conversao a falhar.
 ///
 ///  O RAMO SO VALE COM OS DOIS LADOS NA MESMA FAMILIA. Par de tipos DIFERENTES
-///  cai no fundo, o que e a resposta conservadora e NAO ESTA MEDIDO - nao se
-///  procurou um modelo assim, e por isso aqui nao se afirma que nao existe.
+///  cai no fundo, o que e a resposta conservadora.
+///
+///  AND THE SAME ASSOCIATION FALSIFIES THE SECOND HALF OF THAT SENTENCE TOO,
+///  WHICH USED TO READ "NAO ESTA MEDIDO - nao se procurou um modelo assim, e
+///  por isso aqui nao se afirma que nao existe". The MASTER end of
+///  TProcedimento.SetoresList is [Column('SETOR', ftInteger)] and the child end
+///  is ftBCD, so that association is precisely a pair of DIFFERENT families,
+///  and the mixed-pair route now has a clause rather than a paragraph saying
+///  nobody looked: Test.Janus.Association.BcdColumn.
+///
+///  IT DOES NOT GIVE THE BCD BRANCH A MEASUREMENT, AND THE DIFFERENCE MATTERS.
+///  A ftBCD-against-ftBCD pair still does not exist in this repository, so what
+///  the new clause drives is the AsString bottom through the mixed route -
+///  which is what the paragraph above says the conservative answer is. Building
+///  an entity for a both-ends-BCD association purely to pin a branch that is
+///  deliberately NOT written would be the very alarm this comment raises about
+///  the binary floating point one.
+///
+///  THE BINARY FLOATING POINT SENTENCE ABOVE WAS RE-READ WHEN THESE TWO WERE
+///  CORRECTED AND IT STILL HOLDS. Neither end of TProcedimento.SetoresList is
+///  ftFloat, DB.ftSingle or DB.ftExtended - they are ftInteger and ftBCD - so
+///  the model that falsified the other two says nothing about that one, and it
+///  is left exactly as it was.
 ///
 ///  BRANCOS A DIREITA SAO SIGNIFICATIVOS, e isto e uma DIFERENCA DE SEMANTICA
 ///  em relacao a um JOIN de banco, declarada aqui porque ninguem a escolheu.

@@ -53,8 +53,10 @@ type
   ///  is a TGUID.
   ///
   ///  It is not an exotic shape - it is the one this framework PRESCRIBES.
-  ///  Janus.DML.Generator.pas:702-709 refuses a ftGuid column declared over a
-  ///  String property and names TGUID (or Nullable<TGUID>) as the contract;
+  ///  TDMLGeneratorAbstract._GetGuidValue refuses a ftGuid column declared
+  ///  over a String property and names TGUID (or Nullable&lt;TGUID&gt;) as the
+  ///  contract - BY SYMBOL, because the ":702-709" this line used to carry
+  ///  rotted when issue #326 grew Janus.DML.Generator.pas;
   ///  Test.Janus.Model.RestLazyKeys.pas:155-160 says the same in prose and
   ///  declares cck3 that way.
   ///
@@ -411,15 +413,18 @@ end;
 // chose it too - the probe would be blind to exactly the thing under test.
 //
 // WHY BRACES. This is a contract visible to the consumer, and it was not
-// decided here - the repo had already written it down. Janus.DML.Generator.pas
-// :115-120 states that a ftGuid column MEANS TGUID and that the Guid32Inc/36/38
-// generators belong to the ftString world (which is what dissolves the apparent
-// conflict between issues #284 and #311), and :124-136 names the canonical form.
+// decided here - the repo had already written it down. The doc comment over
+// TDMLGeneratorAbstract.GuidLiteral states that a ftGuid column MEANS TGUID and
+// that the Guid32Inc/36/38 generators belong to the ftString world (which is
+// what dissolves the apparent conflict between issues #284 and #311), and the
+// same comment names the canonical form. THREE ANCHORS IN THIS PARAGRAPH WERE
+// BY LINE - :115-120, :124-136 and :766-768 - and all three rotted at once when
+// issue #326 inserted lines into that unit; they are by symbol now.
 // FOUR sites render it, all TGUID.ToString:
 //   Janus.Command.Inserter.pas:213-217   (INSERT value)
 //   Janus.Command.Updater.pas:118-119    (UPDATE parameter)
 //   Janus.Command.Deleter.pas:97-98      (DELETE WHERE)
-//   Janus.DML.Generator.pas:766-768      (CanonicalGuidLiteral)
+//   TDMLGeneratorAbstract.CanonicalGuidLiteral, Janus.DML.Generator.pas
 // StrToGUID agrees on the shape and only on the shape:
 // System.SysUtils.pas:6025-6028 rejects any length but 38 and any misplaced
 // brace or hyphen.

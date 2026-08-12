@@ -175,14 +175,20 @@ begin
           ///  loud failure.
           ///
           ///  THE TEXT IS NOT A FREE CHOICE, and the choice was not made here.
-          ///  Janus.DML.Generator.pas:115-120 already writes the doctrine down
-          ///  - a ftGuid column means TGUID, and the Guid32Inc/36/38 generators
+          ///  The doc comment over TDMLGeneratorAbstract.GuidLiteral, in
+          ///  Janus.DML.Generator.pas, already writes the doctrine down - a
+          ///  ftGuid column means TGUID, and the Guid32Inc/36/38 generators
           ///  belong to the ftString world, which is what dissolves the
-          ///  apparent conflict between issues #284 and #311 - and :124-136
-          ///  names the canonical form. FOUR sites already render it:
+          ///  apparent conflict between issues #284 and #311 - and the same
+          ///  comment names the canonical form. FOUR sites already render it:
           ///  Janus.Command.Inserter.pas:213-217, Updater:118-119,
-          ///  Deleter:97-98 and CanonicalGuidLiteral at
-          ///  Janus.DML.Generator.pas:766-768, all TGUID.ToString.
+          ///  Deleter:97-98 and TDMLGeneratorAbstract.CanonicalGuidLiteral,
+          ///  all TGUID.ToString.
+          ///  BY SYMBOL, AND THE REASON IS A MEASUREMENT. This paragraph used
+          ///  to anchor those two places as :115-120, :124-136 and :766-768.
+          ///  They were right until issue #326 inserted lines into that
+          ///  unit, after which all three pointed at other code. A symbol
+          ///  survives an insertion above it; a line number does not.
           ///  StrToGUID then demands exactly that shape back:
           ///  System.SysUtils.pas:6025-6028 rejects anything whose length is
           ///  not 38 or whose braces and hyphens are not in place. It does NOT

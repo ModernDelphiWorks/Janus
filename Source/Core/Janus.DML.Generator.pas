@@ -57,6 +57,25 @@ type
       procedure _GenerateJoinColumn(AClass: TClass; ATable: TTableMapping;
         const ASQL: IFluentSQL);
     function _IsType(const AID: TValue): Boolean;
+    /// <summary> THE LITERAL OF A DATE, TIME OR TIMESTAMP AID, IN THIS
+    ///  DIALECT'S OWN MASK. False when AID is not one of those three, so the
+    ///  caller falls through to the arm it always had. Issue #326.
+    ///
+    ///  IT DISPATCHES ON THE TYPE OF THE VALUE AND NOT ON THE COLUMN'S
+    ///  FieldType, and that is what makes the repair additive: only a TValue
+    ///  that really holds a TDateTime / TDate / TTime takes this path, so a
+    ///  String or an ordinal AID reaches the same code it reached before, byte
+    ///  for byte. TDate and TTime are DISTINCT type infos - System declares
+    ///  them as `type TDateTime` - so the three have to be named.
+    ///
+    ///  THE MASK IS FDateFormat / FTimeFormat AND THE SETTINGS ARE
+    ///  FFormatSettings, which is not a new decision: _GetPropertyValue has
+    ///  formatted every ftDate / ftDateTime column that way since the dialect
+    ///  masks existed, and a ftDateTime column takes FDateFormat there too -
+    ///  the date only, no time part. Answering differently HERE would put two
+    ///  spellings of one date inside one generator. </summary>
+    function _DialectDateTimeLiteral(const AID: TValue;
+      out ALiteral: String): Boolean;
     function _GetGuidValue(AObject: TObject; AProperty: TRttiProperty): TGUID;
     function _StoreGUIDAsOctet: Boolean;
     procedure _GuardStoreGUIDAsOctet(AProperty: TRttiProperty);
@@ -72,10 +91,15 @@ type
     // e TimeSeparator '-': 'dd/MM/yyyy' -> '15.03.2027', 'HH:MM:SS' ->
     // '14-07-53'. Este record e passado explicitamente nas duas chamadas de
     // _GetPropertyValue para que a literal nao dependa do locale do cliente.
-    // Sao as unicas duas chamadas de FormatDateTime da cadeia de geracao de
-    // DML, mas NAO sao os unicos pontos com este defeito: ver o achado
-    // registrado em GetGeneratorWhere (AID.ToString numa PK de data). A
-    // varredura que produziu este conserto foi por TOKEN, nao pelo defeito.
+    //
+    // THE SENTENCE THAT USED TO END THIS PARAGRAPH IS NOW OUT OF DATE AND IS
+    // REPLACED RATHER THAN DELETED. It said these were "as unicas duas chamadas
+    // de FormatDateTime da cadeia de geracao de DML" and pointed at the finding
+    // registered in GetGeneratorWhere as a site with the same defect that a
+    // TOKEN sweep could not reach. There is now a THIRD call - see
+    // _DialectDateTimeLiteral - and that finding is CLOSED (issue #326). Both
+    // halves of the old sentence were true when written; the count was the half
+    // that rotted, which is why a count is a bad thing to write down.
     FFormatSettings: TFormatSettings;
       FFluentSQLDriver: TFluentSQLDriver;
       class function ResolveFluentSQLDriver(
@@ -98,9 +122,19 @@ type
     ///  ABSTRACT DE PROPOSITO, e essa e' a decisao de desenho da issue #284.
     ///  O defeito que este metodo conserta E' UM SILENCIO: ftGuid nao tinha
     ///  ramo em _GetPropertyValue, caia no `else`, virava '' e a guarda de
-    ///  GenerateSelectOneToOne (:265-266) e de GenerateSelectOneToOneMany
-    ///  (:328-329) emitia '1 = 0' - um master COM filhos no banco devolvendo
+    ///  FK nula de GenerateSelectOneToOne e a de GenerateSelectOneToOneMany -
+    ///  ANCORADAS POR METODO, cada uma com a sua propria copia do
+    ///  `if VarIsNull(LValue) or VarIsEmpty(LValue) or (VarToStr(LValue) = '')`
+    ///  - emitiam '1 = 0': um master COM filhos no banco devolvendo
     ///  NENHUM, sem excecao, sem log e sem SQL malformado.
+    ///  AS DUAS ANCORAS ERAM (:265-266) E (:328-329), E FOI ESTA UNIT QUE AS
+    ///  QUEBROU: a issue #326 inseriu linhas acima delas e as guardas andaram.
+    ///  NENHUM NUMERO NOVO E ESCRITO AQUI DE PROPOSITO. Uma versao intermediaria
+    ///  desta frase dizia "andaram para :289-290 e :352-353", e o proprio commit
+    ///  seguinte - que crescia este comentario - moveu as duas OUTRA VEZ. Uma
+    ///  auto-citacao por linha e a mais fragil de todas, porque quem cresce o
+    ///  arquivo nao vai procurar por ela; substitui-la por uma auto-citacao por
+    ///  linha MAIS NOVA e repetir o defeito com numeros melhores.
     ///
     ///  Por que nao um campo FGuidFormat no molde do FDateFormat/FTimeFormat:
     ///  esse molde e' DADO, nao comportamento, e um dialeto novo nasceria com
@@ -510,6 +544,89 @@ begin
   Result := '';
 end;
 
+/// <summary> THE PREDICATE THAT LOCATES ONE ROW BY ITS KEY.
+///
+///  THE COMPOSITE KEY IS TRUNCATED HERE AND THIS COMMIT DOES NOT REPAIR IT -
+///  issue #326, and the reason is a CONTRACT and not an oversight. The loop
+///  below walks every column of the primary key and carries `if LFor > 0 then
+///  Continue`, so from the second column on the key is DISCARDED and the
+///  predicate names only the first column. The loop
+///  body does not even carry the ' AND ' that a second term would need, which
+///  is the honest reading of the Continue - it short-circuits a feature that
+///  was never finished rather than optimising anything.
+///
+///  WHAT BLOCKS THE REPAIR IS THE CALLERS, NOT THIS SIGNATURE. An earlier
+///  version of this paragraph said "AID is ONE TValue and a composite key needs
+///  N values", and that overstates it: a TValue carries a TArray&lt;TValue&gt; per-
+///  fectly well, so the parameter could hold N without changing its type. What
+///  actually blocks it is that NOTHING UPSTREAM EVER BUILDS ONE, and one caller
+///  goes out of its way not to: TManagerObjectSet.Find&lt;T&gt;(const AID: TValue)
+///  collapses whatever it is given into `AID.AsType&lt;integer&gt;` or `AID.ToString`
+///  before the value gets anywhere near here. Widening the contract therefore
+///  means changing the CALLERS, up to and including the two public
+///  Find(Int64)/Find(String) overloads that a consumer actually holds - which
+///  is a consumer-visible change, and the conclusion below survives the
+///  correction even though the sentence did not.
+///
+///  WHO IS AFFECTED, ENUMERATED AND NOT SAMPLED - and the previous version of
+///  this list was neither, so here it is again, counted.
+///
+///  TWELVE OF THE THIRTEEN DIALECT GENERATORS REACH IT, NOT ALL THIRTEEN. Ten
+///  declare a GeneratorSelectAll that calls GetGeneratorWhere (ADS, AbsoluteDB,
+///  ElevateDB, Firebird, MSSQL, MySQL, NexusDB, Oracle, PostgreSQL, SQLite) and
+///  two more inherit Firebird's (Firebird3, InterBase). The thirteenth,
+///  MongoDB, does NOT: TDMLGeneratorMongoDB descends from TDMLGeneratorNoSQL,
+///  whose GeneratorSelectAll answers GetCriteriaSelectNoSQL and never builds a
+///  WHERE at all.
+///
+///  THE CONSUMER ENTRY POINTS, ALL OF THEM. Local object side:
+///  TContainerObjectSet&lt;M&gt;.Find(Int64) and Find(String) - the pair a consumer
+///  actually holds - over TObjectSetAdapter&lt;M&gt;.Find(Int64)/Find(String), plus
+///  TManagerObjectSet.Find&lt;T&gt;(TValue); they all land on
+///  TSQLCommandExecutor&lt;M&gt;.Find(AID). Local DataSet side:
+///  TContainerDataSet&lt;M&gt;.Find(Integer)/Find(String) over
+///  TDataSetBaseAdapter&lt;M&gt;.Find(Integer)/Find(String), and separately
+///  TContainerDataSet&lt;M&gt;.Open(Integer)/Open(String) over
+///  TDataSetBaseAdapter&lt;M&gt;.OpenIDInternal - which is the OTHER chain, through
+///  TSessionDataSet&lt;M&gt;.OpenID. REST server side: TRESTObjectManager.Find(AID),
+///  reached from TAppResourceBase.ResolverFindID and from ParseDelete's
+///  IDExecuteFind.
+///
+///  WHAT THE CONSUMER SEES TODAY, AND IT IS NOT ONE ANSWER BUT TWO. THE Find
+///  CHAIN gives a FALSE NEGATIVE: both Find implementations demand
+///  `LResultSet.RecordCount = 1` and answer nil otherwise, so on an entity
+///  whose first key column is NOT unique the predicate matches several rows and
+///  Find answers NIL - the row is in the store and the caller is told it is
+///  not. ParseDelete turns that nil into "No records found to delete, with the
+///  filter entered!".
+///
+///  THE OpenID CHAIN HAS NO SUCH GUARD, AND THERE THE ISSUE'S ORIGINAL WORDING
+///  IS LITERALLY WHAT HAPPENS. TSessionDataSet&lt;M&gt;._PopularDataSet walks the
+///  result set to Eof and Appends EVERY row it finds; nothing anywhere on that
+///  path counts them. So Open(AID) over a composite key whose first column
+///  repeats loads MORE THAN ONE ROW into the consumer's dataset, which is
+///  exactly "localiza por PARTE da chave e casa mais de uma linha". An earlier
+///  version of this comment said "the failure is a false NEGATIVE, not the
+///  wrong row" without qualification, and the OpenID chain - which the same
+///  comment enumerated two paragraphs above - falsifies it. The absolute
+///  sentence is gone; the carve-out is the measurement.
+///
+///  Both halves are pinned in Test.Janus.DML.KeyPredicate:
+///  CompositeKey_TheWhereNamesOnlyTheFirstColumn (the predicate itself),
+///  CompositeKey_FindOverMoreThanOneMatchingRow_AnswersNil (the Find chain) and
+///  CompositeKey_OpenIdLoadsEveryMatchingRow (the OpenID chain).
+///
+///  AND IF THE FIRST COLUMN HAPPENS TO BE UNIQUE, TODAY'S CODE IS CORRECT. That
+///  is what makes every candidate repair a consumer-visible change rather than
+///  a fix: refusing a composite key with a named exception would break code
+///  that works right now, and answering the zero-rows guard would turn a
+///  working read into an empty one. Emitting the full predicate needs the other
+///  N-1 values, which means a wider signature - a change to
+///  IDMLGeneratorCommand, which third parties implement. The decision belongs
+///  to the owner and is NOT taken here.
+///
+///  ONE THING THAT WAS FIXED: THE DATE LITERAL. See
+///  _DialectDateTimeLiteral. </summary>
 function TDMLGeneratorAbstract.GetGeneratorWhere(const AClass: TClass;
   const ATableName: String; const AID: TValue): String;
 var
@@ -517,6 +634,7 @@ var
   LColumnName: String;
   LFor: Integer;
   LScopeWhere: String;
+  LLiteral: String;
 begin
   Result := '';
   LScopeWhere := GetGeneratorQueryScopeWhere(AClass);
@@ -536,19 +654,50 @@ begin
       if (AID.IsType<Integer>) or (AID.IsType<Int64>) or (AID.IsType<UInt64>) then
         Result := Result + LColumnName + ' = ' + AID.ToString
       else
-        // ACHADO REGISTRADO, NAO CONSERTADO: para uma PK de data este
-        // AID.ToString cai no DateTimeToStr, que le o FormatSettings GLOBAL --
-        // a mesma classe de defeito que o FFormatSettings resolve em
-        // _GetPropertyValue, so que por outro caminho, sem passar por
-        // FormatDateTime (por isso uma varredura por token nao o encontra).
-        // Medido: TValue.From<TDateTime>(15/03/2027 14:07:53).ToString entrega
-        // '15/03/2027 14:07:53' no locale padrao e '15.03.2027 14-07-53' com
-        // DateSeparator '.' / TimeSeparator '-'. Consertar aqui exige decidir
-        // qual formato uma PK de data deve ter por dialeto, que e outra
-        // discussao.
+      if _DialectDateTimeLiteral(AID, LLiteral) then
+        // ISSUE #326 - A DATE KEY USED TO LEAVE IN THE MACHINE'S LOCALE.
+        // The arm below spells every remaining AID as QuotedStr(AID.ToString),
+        // and for a TValue holding a TDateTime that goes through DateTimeToStr,
+        // which reads the GLOBAL FormatSettings. Measured on b66b04b:
+        // TValue.From<TDateTime>(15/03/2027 14:07:53) came out as
+        // '15/03/2027 14:07:53' on the default locale and as
+        // '15.03.2027 14-07-53' with DateSeparator '.' / TimeSeparator '-',
+        // and a TValue.From<TTime> of the same instant came out as '14-07-53'.
+        // Neither was ever the DIALECT's date literal.
+        //
+        // A PREVIOUS VERSION OF THIS COMMENT SAID THE REPAIR NEEDED A DECISION
+        // - "consertar aqui exige decidir qual formato uma PK de data deve ter
+        // por dialeto" - AND THAT WAS FALSE. The decision was already taken and
+        // is FDateFormat / FTimeFormat, the very fields _GetPropertyValue uses
+        // for an ftDate / ftDateTime / ftTime COLUMN. This arm just stops
+        // answering differently from its neighbour.
+        Result := Result + LColumnName + ' = ' + LLiteral
+      else
         Result := Result + LColumnName + ' = ' + QuotedStr(AID.ToString);
     end;
   end;
+end;
+
+function TDMLGeneratorAbstract._DialectDateTimeLiteral(const AID: TValue;
+  out ALiteral: String): Boolean;
+var
+  LMask: String;
+begin
+  Result := False;
+  ALiteral := '';
+  if AID.TypeInfo = nil then
+    Exit;
+  if (AID.TypeInfo = System.TypeInfo(TDateTime)) or
+     (AID.TypeInfo = System.TypeInfo(TDate)) then
+    LMask := FDateFormat
+  else
+  if AID.TypeInfo = System.TypeInfo(TTime) then
+    LMask := FTimeFormat
+  else
+    Exit;
+  ALiteral := QuotedStr(FormatDateTime(LMask, TDateTime(AID.AsExtended),
+                                       FFormatSettings));
+  Result := True;
 end;
 
 function TDMLGeneratorAbstract._IsType(const AID: TValue): Boolean;
@@ -644,11 +793,18 @@ begin
        begin
          LGuid := _GetGuidValue(AObject, AProperty);
          // FK GUID nao preenchida: o TGUID chega zerado (ou Nullable sem
-         // valor, ver _GetGuidValue). Devolver '' faz a guarda de :265-266 e
-         // :328-329 emitir '1 = 0' - o mesmo contrato de FK nula que o irmao
-         // REST pratica em TRESTDataSetAdapter<M>._WhereAssociation (ancora
-         // por METODO: a de linha apodreceu duas vezes). Emitir o literal do
+         // valor, ver _GetGuidValue). Devolver '' faz a guarda de FK nula de
+         // GenerateSelectOneToOne e a de GenerateSelectOneToOneMany emitirem
+         // '1 = 0' - o mesmo contrato de FK nula que o irmao REST pratica em
+         // TRESTDataSetAdapter<M>._WhereAssociation. Emitir o literal do
          // GUID zerado casaria zero linhas, por acidente e nao por contrato.
+         // A ANCORA POR METODO AGORA VALE PARA AS TRES: este comentario ja
+         // dizia "ancora por METODO: a de linha apodreceu duas vezes" sobre a
+         // do irmao REST e mantinha :265-266 e :328-329 por LINHA para as duas
+         // guardas locais, que a issue #326 empurrou para baixo ao crescer esta
+         // unit. A licao estava escrita na mesma frase que a ignorava, e o
+         // numero NOVO tambem nao e escrito aqui: ele ja teria apodrecido uma
+         // vez dentro desta mesma frente.
          if LGuid = TGUID.Empty then
            Result := ''
          else
