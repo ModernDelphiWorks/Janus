@@ -19,21 +19,38 @@
 
   TRESTClientDataSetAdapter<M>.OpenIDInternal declared a local M, called
   FSession.Find and DISCARDED the returned reference, then tested, used and
-  freed the local that had never been assigned. Three consequences, and the
-  clauses below are one per consequence:
+  freed the local that had never been assigned. Three consequences:
 
     1. the row never reaches the dataset - "open by id" empties the dataset,
        buys a round trip, and leaves nothing behind;
     2. the object the session built is never freed - it leaks, once per call;
-    3. the `<> nil` test and the `Free` run on whatever the previous call left
-       on the stack at that address.
+    3. the `<> nil` test, the argument handed to PopularDataSet, and the `Free`
+       all run on whatever the previous call left on the stack at that address.
 
-  WHY (3) IS NOT ASSERTED HERE, AND WHERE IT IS MEASURED INSTEAD
+  Two clauses below carry (1) and (2), one each. A third guards the repair
+  against populating without emptying, and it is not a consequence of the
+  defect. (3) is measured, but not by an assertion - see below.
 
-  Consequence (3) is a property of the CODE GENERATED for this method, not of
-  any state a test can set up, and a test that drove it would have to free a
-  pointer it does not own. It was measured by reading the binary, which is the
-  same instrument that closed the equivalent question in issue #313.
+  HOW (3) IS MEASURED, AND WHY NO CLAUSE ASSERTS IT
+
+  Twice, and the second time in execution.
+
+  By reading the binary, which is the instrument that closed the equivalent
+  question in issue #313; the frame is transcribed below.
+
+  And by running it. With the repair reverted AND the scrub of ScrubbedOpenID
+  removed - each change carrying its own MESSAGE WARN proof of application in
+  the same dcc32 output (that directive is spelled without its braces here on
+  purpose: the closing brace would end THIS comment) - the suite reads 134
+  total, 0 failures, 4 ERRORS, every one of them `Access violation at address
+  0057CDA2 ... Read of address 00000004`. All four clauses, the premise
+  included. So the stale read is not an inference from a map file: it faults.
+
+  No clause ASSERTS the fault, because the value at that address is chosen by
+  the caller's history, not by this fixture. A clause on the fault would be a
+  clause on a stack leftover - it would pass or change shape for reasons that
+  have nothing to do with this method. What the fixture DOES control is the
+  scrub, which turns the fault into the defect's most forgiving case.
 
   Measured on b66b04b, Janus.Tests.Units.exe built Debug/Win32 with
   DCC_MapFile=3, over ALL FIVE instantiations of
@@ -49,8 +66,11 @@
     mov [ebp-10h],edx                  <- AID
     mov [ebp-4],eax                    <- Self
     ...
-    mov [ebp-0Ch],eax                  <- where the DISCARDED Find result went
+    mov [ebp-0Ch],eax                  <- where the DISCARDED Find result went,
+                                          and it is never read again: the leak
     cmp [ebp-8],0                      <- LObject: never written by this method
+    mov edx,[ebp-8] / call PopularDataSet   <- and the same stale dword is what
+                                               is HANDED to it as AObject
     ...
     mov eax,[ebp-8] / call TObject.Free
 
@@ -91,8 +111,10 @@
   stack region the callee is about to build its frame in, immediately before
   the call, so the broken method behaves as its most forgiving case - a silent
   no-op - every time. That makes the failure DETERMINISTIC and understates
-  rather than overstates the defect. With the repair in place the scrub is
-  inert: the local is assigned before it is read.
+  rather than overstates the defect: measured, 3 clean FAILURES with the scrub
+  against 4 ERRORS of access violation without it, on the same reverted source.
+  With the repair in place the scrub is inert: the local is assigned before it
+  is read.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
@@ -142,8 +164,9 @@ type
     [TearDown]
     procedure TearDown;
 
-    /// PREMISE. Without this the two clauses below could both be green over a
-    /// path that never went anywhere.
+    /// PREMISE. Without this the three clauses below could all be green over a
+    /// path that never went anywhere. It opens TWO different ids, on purpose -
+    /// see the note in the body.
     [Test]
     procedure Premise_OpenByIdReallyAsksTheServerForThatId;
     /// LOAD-BEARING. Consequence 1: the answered row has to land in the
@@ -237,13 +260,32 @@ begin
   TOpenIdCdsCrack.ScrubbedOpenID(FAdapter, TValue.From<Integer>(7));
 
   Assert.AreEqual(1, FServer.CallCount,
-    'exactly one round trip - if this is 0 the two clauses below would be ' +
+    'exactly one round trip - if this is 0 the three clauses below would be ' +
     'measuring a method that never left the process');
   Assert.AreEqual('openidrow', FServer.LastCall.Resource,
     'and it asked the resource this entity maps to');
   Assert.AreEqual('$value=7', FServer.LastCall.QueryParams,
-    'carrying the id it was opened by - anything else and the row that came ' +
-    'back would be someone else''s');
+    'carrying the id it was opened by');
+
+  /// <summary> A SECOND OPEN, WITH A DIFFERENT ID, AND THAT IS THE WHOLE
+  ///  REASON IT IS HERE. With one id this clause could not tell "the id the
+  ///  caller passed travels" from "this particular constant travels": replace
+  ///  the body's `AID.ToString` with the literal '7' and a single-id premise
+  ///  stays green, because the mutant's constant and the fixture's constant
+  ///  are the same number. Measured - that mutation left RESTfulDriver at
+  ///  134/0 and Units at 592/0 before this leg existed. The sentence on the
+  ///  assertion above used to claim id fidelity in general while measuring
+  ///  one constant; it now claims only what it sees, and this leg claims the
+  ///  rest. </summary>
+  TOpenIdCdsCrack.ScrubbedOpenID(FAdapter, TValue.From<Integer>(9));
+
+  Assert.AreEqual(2, FServer.CallCount,
+    'the second open buys its own round trip');
+  Assert.AreEqual('$value=9', FServer.LastCall.QueryParams,
+    'AND IT CARRIES THE SECOND ID. `$value=7` here means the id the caller ' +
+    'passed is not what reaches the wire - whatever row came back would be ' +
+    'someone else''s, and the dataset clauses below would never notice, ' +
+    'because this double answers the same body to every GET');
 end;
 
 procedure TTestRestOpenIdPopulates.OpenId_TheRowTheServerAnsweredLandsInTheDataSet;
