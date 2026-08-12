@@ -46,11 +46,15 @@
   Janus.Client.DataSnap and Janus.Client.WS are in the uses below, and NOT
   because DRIVERRESTFUL selects them - they are unconditional. They are here
   because a compile tripwire at 0546a51 showed that NO test project read either
-  of them, in either branch of any define: the two client families are reachable
-  from nothing but each other. The positive control - the same tripwire in
-  Janus.Client.Horse - failed this project and only this one, so the probe was
-  not blind. This project is where they were brought in, because it is already
-  the one that exists to compile a concrete client chain. Issue #323.
+  of them, in either branch of any define: inside Source the two client families
+  are reachable from nothing but each other. The positive control - the same
+  tripwire in Janus.Client.Horse - failed this project and only this one, so the
+  probe was not blind. Three shipped Examples DO name them - JanusFireDAC.dpr
+  under Examples\Delphi\Datasnap\Client, and the two forms under
+  Examples\Delphi\RESTful\RESTFul via Driver - but those are standalone
+  programs the suite never builds. This project is where they were brought in,
+  because it is already the one that exists to compile a concrete client chain.
+  Issue #323.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }

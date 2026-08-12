@@ -25,15 +25,25 @@
 
   NO PROJECT COMPILED EITHER CLIENT UNTIL THIS FIXTURE
 
-  Measured at 0546a51 with a compile tripwire, not with grep: a
-  a $MESSAGE ERROR directive placed in the interface of Janus.Client.DataSnap and of
+  Measured at 0546a51 with a compile tripwire, not with grep: a $MESSAGE ERROR
+  directive placed in the interface of Janus.Client.DataSnap and of
   Janus.Client.WS was echoed by NONE of the seven test projects, while the same
   tripwire in Janus.Client.Horse - the positive control, without which the probe
   would only have proved itself blind - failed Janus.Tests.RESTfulDriver and
-  only that one. Both units are reachable from nothing but each other: the
-  client is used by its own RestDriver, the RestDriver by its own Factory, and
-  the Factory by the client. Nothing outside that cycle names them, in Source,
-  in Test or in Examples.
+  only that one. Inside Source both are reachable from nothing but each other:
+  the client is used by its own RestDriver, the RestDriver by its own Factory,
+  and the Factory by the client.
+
+  THREE SHIPPED EXAMPLES DO NAME THEM, AND THAT IS THE POINT, NOT AN EXCEPTION
+
+  Examples\Delphi\Datasnap\Client\JanusFireDAC.dpr carries
+  Janus.Client.DataSnap in its own uses clause; uMainFormORM.pas under
+  Examples\Delphi\RESTful\RESTFul via Driver\Datasnap\Client builds a
+  TRESTClientDataSnap; uPrincipal.pas under ...\WebService builds a
+  TRESTClientWS and points it at a public address web service. Those are
+  standalone VCL programs that the suite never builds. So the two families are
+  demonstrated to users and were covered by nothing - which is a worse state
+  than dead code, not a better one.
 
   That is why the two of them are now in the uses of Janus.Tests.RESTfulDriver:
   a repair to a unit no compiler reads is not a repair.
@@ -94,8 +104,12 @@
   TRESTClientWS.Execute called DoPOST, DoPUT, DoGET and DoDELETE as STATEMENTS
   and never assigned Result, so it answered '' to every request ever made
   through it - the payload the six sites work to produce was read and dropped
-  one frame above them. WS_Execute_* are red against 0546a51 for that reason
-  alone. The PUT arm is left as a statement: TRESTClientWS.DoPUT reads nothing
+  one frame above them. That is why every WS_Execute_* clause is red against
+  0546a51 - though not all of them for that reason ALONE: the two that send no
+  root element also had DoPOST and DoDELETE unwrapping unconditionally, and
+  WS_Execute_DELETE_NoRootElement_AnswersTheWholeBody is the one that came out
+  as an ERROR rather than a failure, because that unwrap raised EInvalidCast
+  and the handler turned it into an EJanusRESTException. The PUT arm is left as a statement: TRESTClientWS.DoPUT reads nothing
   from the response and never assigns its own Result, so there is no payload
   there to lose and assigning it would pin nothing.
 
