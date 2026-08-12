@@ -194,11 +194,21 @@ begin
   ///  the RTL offers and it REQUIRES the braced 38-character form - which is
   ///  what GetValueNullable emits, so the round trip closes.
   ///
-  ///  NULL AND EMPTY TEXT ARE THE SAME ANSWER. A JSON null arrives as varNull
-  ///  and an absent column can arrive as an empty string; neither is a GUID,
-  ///  and StringToGUID raises on both. Both leave the Nullable cleared. </summary>
+  ///  NULL AND BLANK TEXT ARE THE SAME ANSWER, AND ONE TEST COVERS BOTH.
+  ///  A JSON null arrives as varNull; a GUID column that was never written
+  ///  arrives as text, and a CHAR(38) one arrives as text made of SPACES.
+  ///  None of the three is a GUID and StringToGUID raises on all three, so
+  ///  all three leave the Nullable cleared.
+  ///
+  ///  THE GUARD IS ONE TERM AND NOT TWO, which is a measurement and not a
+  ///  preference. Written as the sibling arms are - a varNull test OR a text
+  ///  test - the varNull half could be deleted with no test moving, even
+  ///  with a test that feeds it a JSON null: VarToStr of Null is already the
+  ///  empty string, so the trim answers that case too. Deleting the TRIM,
+  ///  by contrast, is caught. A term whose removal moves no answer is dead
+  ///  weight, so only the term that carries the answer stayed. </summary>
   if ATypeInfo = TypeInfo(Nullable<TGUID>) then
-    if (TVarData(AValue).VType <= varNull) or (VarToStr(AValue) = '') then
+    if Trim(VarToStr(AValue)) = '' then
       Self.SetValue(AInstance, TValue.From(Nullable<TGUID>.Create(Null)))
     else
       Self.SetValue(AInstance, TValue.From(Nullable<TGUID>
@@ -219,9 +229,14 @@ begin
   ///  It is also the single place the GUID text is parsed: TJanusJson's read
   ///  side routes its bare-TGUID case here instead of repeating the parse.
   ///  StringToGUID accepts only the braced 38-character form, which is what
-  ///  the write side emits. </summary>
+  ///  the write side emits.
+  ///
+  ///  A BARE TGUID CANNOT BE ABSENT, so a null has to land somewhere: it lands
+  ///  on TGUID.Empty, the value a freshly constructed object already carries.
+  ///  The one-term guard is the same measurement as the arm above.
+  ///  </summary>
   if ATypeInfo = TypeInfo(TGUID) then
-    if (TVarData(AValue).VType <= varNull) or (VarToStr(AValue) = '') then
+    if Trim(VarToStr(AValue)) = '' then
       Self.SetValue(AInstance, TValue.From<TGUID>(TGUID.Empty))
     else
       Self.SetValue(AInstance, TValue.From<TGUID>(StringToGUID(VarToStr(AValue))));

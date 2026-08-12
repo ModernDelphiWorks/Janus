@@ -135,9 +135,15 @@ type
     [Test]
     procedure TestJsonToObject_RestoresNullableGuidFromJsonNull;
     [Test]
+    procedure TestJsonToObject_TreatsJsonNullAsEmptyGuid;
+    [Test]
     procedure TestSetValueNullable_FillsBareGuidTheWayBindCallsIt;
     [Test]
     procedure TestSetValueNullable_FillsNullableGuidTheWayBindCallsIt;
+    [Test]
+    procedure TestSetValueNullable_TreatsBlankTextAsEmptyGuid;
+    [Test]
+    procedure TestSetValueNullable_TreatsBlankTextAsClearedNullableGuid;
   end;
 
 implementation
@@ -408,6 +414,13 @@ end;
 // and Janus.DML.Generator.pas:707 tells the user a GUID key is stored as text
 // 38 characters wide. The read-back agrees by construction: StringToGUID, the
 // only parse the RTL offers, REQUIRES the braces.
+//
+// AND THE ignoreCase ARGUMENT IS SPELLED OUT, because Assert.Contains defaults
+// it to TRUE (DUnitX.Assert.pas:1349-1352 forwards fIgnoreCaseDefault). It was
+// not spelled out at first, and it cost a survivor: wrapping the emitted text
+// in LowerCase changed what every consumer reads and no test moved. The case
+// is part of the contract - TGUID.ToString is upper-case hex, and that is the
+// text already sitting in the database column - so the probe has to see it.
 
 const
   cGuidKeyText = '{2A1B0C3D-4E5F-6071-8293-A4B5C6D7E8F9}';
@@ -435,7 +448,7 @@ begin
   LEntity := CreateGuidEntity;
   try
     LJson := TJanusJson.ObjectToJsonString(LEntity);
-    Assert.Contains(LJson, '"gjkey":"' + cGuidKeyText + '"');
+    Assert.Contains(LJson, '"gjkey":"' + cGuidKeyText + '"', False);
   finally
     LEntity.Free;
   end;
@@ -462,7 +475,7 @@ begin
   LEntity := CreateNullableGuidEntity;
   try
     LJson := TJanusJson.ObjectToJsonString(LEntity);
-    Assert.Contains(LJson, '"ngopt":"' + cGuidOptText + '"');
+    Assert.Contains(LJson, '"ngopt":"' + cGuidOptText + '"', False);
   finally
     LEntity.Free;
   end;
@@ -477,7 +490,7 @@ begin
   try
     LEntity.ngopt := nil;
     LJson := TJanusJson.ObjectToJsonString(LEntity);
-    Assert.Contains(LJson, '"ngopt":null');
+    Assert.Contains(LJson, '"ngopt":null', False);
   finally
     LEntity.Free;
   end;
@@ -522,6 +535,24 @@ end;
 // and raised nothing - the bare TGUID stayed all-zeroes and the Nullable
 // stayed empty. So the local path did suffer, in its own way: not the REST
 // path's loud refusal but a silent loss, which is the harder one to notice.
+// A bare TGUID is not nullable, so a JSON null has to land SOMEWHERE. It lands
+// on TGUID.Empty - the value a freshly constructed object already carries -
+// and it must not raise, because StringToGUID would. This is also the test that
+// tells the varNull half of the guard in SetValueNullable apart from the trim:
+// with only the trim, it still passes, which is the measurement that decided
+// whether that half was a guard or dead weight.
+procedure TTestJanusJson.TestJsonToObject_TreatsJsonNullAsEmptyGuid;
+var
+  LEntity: TGuidJsonEntity;
+begin
+  LEntity := TJanusJson.JsonToObject<TGuidJsonEntity>('{"gjid":3,"gjkey":null}');
+  try
+    Assert.AreEqual(GUIDToString(TGUID.Empty), GUIDToString(LEntity.gjkey));
+  finally
+    LEntity.Free;
+  end;
+end;
+
 procedure TTestJanusJson.TestSetValueNullable_FillsBareGuidTheWayBindCallsIt;
 var
   LEntity: TGuidJsonEntity;
@@ -552,6 +583,49 @@ begin
                                cGuidOptText, False);
     Assert.IsTrue(LEntity.ngopt.HasValue);
     Assert.AreEqual(cGuidOptText, GUIDToString(LEntity.ngopt.Value));
+  finally
+    LEntity.Free;
+  end;
+end;
+
+// A GUID COLUMN THAT WAS NEVER WRITTEN.
+//
+// The house stores a GUID key as text 38 characters wide - MetaDbDiff picks
+// CHAR(38) for Firebird, PostgreSQL, InterBase and MySQL - so a row whose key
+// was never filled hands Bind a string of SPACES, not a null, and StringToGUID
+// raises on it. These two tests are why the guard in SetValueNullable trims
+// instead of comparing to the empty string: without them, dropping the text
+// half of that guard changed nothing any test could see, while the change it
+// makes in the field is turning today's silent loss into an EConvertError.
+procedure TTestJanusJson.TestSetValueNullable_TreatsBlankTextAsEmptyGuid;
+var
+  LEntity: TGuidJsonEntity;
+  LContext: TRttiContext;
+  LProperty: TRttiProperty;
+begin
+  LEntity := CreateGuidEntity;
+  try
+    LProperty := LContext.GetType(LEntity.ClassType).GetProperty('gjkey');
+    LProperty.SetValueNullable(LEntity, LProperty.PropertyType.Handle,
+                               StringOfChar(' ', 38), False);
+    Assert.AreEqual(GUIDToString(TGUID.Empty), GUIDToString(LEntity.gjkey));
+  finally
+    LEntity.Free;
+  end;
+end;
+
+procedure TTestJanusJson.TestSetValueNullable_TreatsBlankTextAsClearedNullableGuid;
+var
+  LEntity: TNullableGuidJsonEntity;
+  LContext: TRttiContext;
+  LProperty: TRttiProperty;
+begin
+  LEntity := CreateNullableGuidEntity;
+  try
+    LProperty := LContext.GetType(LEntity.ClassType).GetProperty('ngopt');
+    LProperty.SetValueNullable(LEntity, LProperty.PropertyType.Handle,
+                               StringOfChar(' ', 38), False);
+    Assert.IsFalse(LEntity.ngopt.HasValue);
   finally
     LEntity.Free;
   end;

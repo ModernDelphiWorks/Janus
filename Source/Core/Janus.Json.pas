@@ -154,12 +154,16 @@ begin
           ///  issue #314 reports, and in the REST client it escapes
           ///  TSessionRestFul.Insert before any request is sent.
           ///
-          ///  WHY NOT A GENERIC tkRecord FALLBACK. The population that reaches
-          ///  this case is closed and was enumerated over Source\, Test\ and
-          ///  Examples\: TBlob, Nullable&lt;T&gt; and TGUID are the only record
-          ///  types declared on a mapped property. Lazy&lt;T&gt; is a record
-          ///  too but is never one: it is always a FIELD behind a read-only
-          ///  property, and the JSON writer skips properties that are not
+          ///  WHY NOT A GENERIC tkRecord FALLBACK. The population was
+          ///  enumerated, not guessed: every property declaration under
+          ///  Source\, Test\ and Examples\ was listed and its type collected.
+          ///  Of the record types among them, TBlob and Nullable&lt;T&gt; have
+          ///  the two arms above, TGUID has this one, and the only two others
+          ///  cannot arrive - TFormatSettings is declared on this very class
+          ///  and on a SQLite wrapper, neither of which is an entity, and
+          ///  TFileName is an alias of String, so tkUString. Lazy&lt;T&gt; is a
+          ///  record too but never a property: it is always a FIELD behind a
+          ///  read-only property, and the writer skips properties that are not
           ///  writable (JsonFlow.Builders.pas:915-916). A generic arm would
           ///  therefore buy no case that exists today while giving every
           ///  future record a silent, wrong rendering instead of a loud
