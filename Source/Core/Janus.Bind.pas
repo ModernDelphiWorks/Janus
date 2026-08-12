@@ -853,11 +853,100 @@ begin
   end;
 end;
 
+/// <summary> The ORDINAL branch of the field-to-property bind. Issue #324.
+///
+///  TField.AsInteger IS A Longint, AND THE DISPATCHER ABOVE ROUTES tkInt64
+///  HERE. TLargeintField.GetAsInteger - read in the RTL source shipped with
+///  Studio 37.0, and anchored by METHOD - fetches the value into a LargeInt
+///  local and returns `Integer(L)`, a hard 32-bit truncation and not a
+///  conversion that anything checks. So a 64-bit key wider than 32 bits arrives
+///  in its own property truncated to its low 32 bits, silently. Measured
+///  through the REST server's own INSERT and its own FindOne: a row written
+///  with 9007199254740993 read back as 1 - and 9007199254740993 mod 2^32 IS 1.
+///
+///  THE DAMAGE IS NOT THE READ. TAppResourceBase.ParseUpdate hands the row it
+///  read to TRESTObjectSet.Modify, which files it in FObjectState under
+///  GenerateKey's rendering of its primary key. TRESTObjectSet.Update then
+///  looks the EDITED object up under ITS key, and the two keys no longer spell
+///  the same thing - so the entry is never found, no UPDATE is emitted, and the
+///  master-detail sweep at the end of that method reads whatever is LEFT in
+///  FObjectState as a detail row the caller removed and DELETES it. Measured at
+///  the base commit, through the connection's own monitor:
+///    SELECT ktbig.ktbig, ktbig.kttag FROM ktbig WHERE (ktbig.ktbig=9007199254740993)
+///    DELETE FROM ktbig WHERE ktbig = :ktbig [ktbig=1]
+///  and no UPDATE anywhere. A PUT answering 200 while deleting the row whose
+///  key is the truncation of the one it was given.
+///
+///  ONLY tkInt64 CHANGES ROUTE, and the two labels that share this branch keep
+///  theirs. tkInteger is a Longint already, and tkSet is not a number at all -
+///  a set property is written from an ordinal whose meaning is its bit pattern,
+///  and widening the TValue that carries it changes which cast the RTTI writer
+///  performs. Neither has anything to gain here and both have something to
+///  lose, so the guard names tkInt64 rather than excluding tkSet.
+///
+///  AND THAT NARROWNESS IS GROUPED BY ARGUMENT, NOT BY MEASUREMENT, WHICH HAS
+///  TO BE SAID RATHER THAN LEFT TO BE DISCOVERED. Making the guard ALWAYS TRUE
+///  - so that tkInteger and tkSet reach AsLargeInt as well - leaves every suite
+///  that compiles this unit green.
+///
+///  "EVERY SUITE" IS A POPULATION AND IT WAS ENUMERATED, because an earlier
+///  version of this sentence said "every" and then listed THREE. FIVE of the
+///  seven test projects compile this unit and two do not, measured the same way
+///  the mutation was - by whether dcc32 echoes a {$MESSAGE WARN} planted in
+///  this routine: it echoes for Units, RESTHorse, RESTfulDriver, RESTMARS and
+///  RESTOracle, and does not echo for LiveBindings or RESTWiRL.
+///
+///  Of those five, FOUR can carry a verdict: RESTHorse 149/0/0, Units 592/0/0,
+///  RESTfulDriver 130/0/0 and RESTMARS 33/0/0, each with the tripwire echoed.
+///  RESTOracle compiles the unit and cannot answer - its twelve clauses are
+///  already errored at the base commit, so nothing there can die.
+///
+///  Nothing under Test\ tells the two apart. The guard is kept because it is
+///  the conservative half of an untested pair and not because a clause defends
+///  it; the clause that would defend it needs a SET-typed column mapping, which
+///  no entity in this repository has and which is a piece of work of its own.
+///
+///  ONE MORE SURVIVOR, DECLARED AND JUDGED BENIGN. Inverting the ORDER of the
+///  chain below - testing tkInt64 BEFORE the NULL test, so a NULL 64-bit field
+///  reaches AsLargeInt instead of the zero arm - survives in all four suites
+///  that can answer: 149/0/0, 592/0/0, 130/0/0 and 33/0/0, tripwire echoed each
+///  time. It survives because the two paths agree:
+///  TLargeintField.GetAsLargeint - read in the RTL source shipped with Studio
+///  37.0, anchored by METHOD - is `if not GetValue(Result) then Result := 0`,
+///  which is the same zero the arm it skipped would have written. So the order
+///  carries no behaviour for tkInt64 and the survivor is the measurement
+///  saying so, not a hole. The order is kept for shape: of the four sibling
+///  _SetFieldToProperty* routines, the TWO that have a NULL arm at all -
+///  _SetFieldToPropertyString and _SetFieldToPropertyDouble - both lead with
+///  the same `VType <= varNull` test, and _SetFieldToPropertyRecord and
+///  _SetFieldToPropertyEnumeration have no such arm to lead with. Two out of
+///  two, not four out of four, and the sentence says which.
+///
+///  UInt64 IS tkInt64 TOO AND IT GETS NO BRANCH OF ITS OWN, WHICH IS A
+///  MEASUREMENT AND NOT A PREFERENCE. It had one for the length of one commit:
+///  an explicit `PropertyType.Handle = TypeInfo(UInt64)` arm passing
+///  TValue.From<UInt64>, argued for on the grounds that an Int64 above
+///  High(Int64) is negative and a cast to an unsigned property could trip a
+///  range check. Mutation knocked that down twice over. Disabling the arm's
+///  CONDITION - with a tripwire the compiler echoed - left the whole suite at
+///  149/0/0: the line below writes a UInt64 property from a negative Int64 and
+///  the value arrives with every bit intact. And the argument was wrong at the
+///  root as well, because that cast is performed inside System.Rtti, whose
+///  switches are not this project's to set.
+///
+///  Disabling the arm's BODY instead - AsLargeInt back to AsInteger inside it -
+///  killed exactly one clause, so the arm WAS reached; it simply had nothing
+///  the line below does not already do. What guards the unsigned case now is
+///  that clause,
+///  Test.Janus.Server.Resource.IntegerKeyWidth.UnsignedKeyAboveHighInt64_MustRoundTripThroughTheFramework,
+///  which dies with this line. </summary>
 procedure TBind._SetFieldToPropertyInteger(const LProperty: TRttiProperty;
   const AField: TField; const AObject: TObject);
 begin
   if TVarData(AField.Value).VType <= varNull then
     LProperty.SetValue(AObject, 0)
+  else if LProperty.PropertyType.TypeKind = tkInt64 then
+    LProperty.SetValue(AObject, AField.AsLargeInt)
   else
     LProperty.SetValue(AObject, AField.AsInteger);
 end;

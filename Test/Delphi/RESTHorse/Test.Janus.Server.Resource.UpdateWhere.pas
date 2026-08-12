@@ -201,23 +201,36 @@ type
     [Test]
     procedure SinglePrecisionKey_TheKeyLiteralMustCarryADecimalPoint;
 
-    /// THESE TWO ASSERT THE LITERAL AND NOT THE ROW, AND THE REASON IS
-    /// MEASURED RATHER THAN CHOSEN. Both keys are rendered CORRECTLY by the
-    /// predicate at the base commit already, so neither clause is red-first;
-    /// they are regression guards over the numeric branch. Neither can be
-    /// written as a row-level clause, because a PUT on either entity does not
-    /// reach its row for reasons that are NOT this issue's - both measured at
-    /// the base commit through the command monitor and reported separately:
+    /// THESE TWO ASSERT THE LITERAL AND NOT THE ROW. Both keys are rendered
+    /// CORRECTLY by the predicate at the base commit already, so neither clause
+    /// is red-first; they are regression guards over the numeric branch.
     ///
-    ///  - 64-BIT: the predicate is exactly (ktbig.ktbig=9007199254740993), it
-    ///    matches the row - COUNT(*) over that same text answers 1 - and the
-    ///    PUT then emits no UPDATE at all. What it emits is
-    ///    `DELETE FROM ktbig WHERE ktbig = :ktbig` with the parameter bound to
-    ///    1, which is TRESTObjectSet.Update's master-detail sweep firing over
-    ///    a state object whose key is not the one Modify snapshotted.
-    ///  - UNSIGNED: the row the framework's own INSERT writes carries
-    ///    -9223372036854775808 - the signed reinterpretation of the key the
-    ///    caller sent, written by the INSERT path, before any of this runs.
+    /// THE PARAGRAPH THAT USED TO STAND HERE SAID NEITHER COULD BE WRITTEN AS A
+    /// ROW-LEVEL CLAUSE, AND HALF OF IT IS NOW FALSE. The 64-bit half was
+    /// falsified by issue #324's repair: TBind._SetFieldToPropertyInteger
+    /// (anchored by METHOD) routed tkInt64 through TField.AsInteger, which is a
+    /// Longint, so the row FindOne read came back with its key truncated to its
+    /// low 32 bits, TRESTObjectSet.Modify filed it under that truncated key, and
+    /// TRESTObjectSet.Update never found it again. A 64-bit PUT now reaches its
+    /// row, and Test.Janus.Server.Resource.IntegerKeyWidth carries the
+    /// row-level clauses this comment said could not exist.
+    ///
+    /// AND THE MECHANISM THAT PARAGRAPH NAMED WAS HALF RIGHT, WHICH IS WHY IT
+    /// SURVIVED. It said the DELETE was "TRESTObjectSet.Update's master-detail
+    /// sweep firing over a state object whose key is not the one Modify
+    /// snapshotted". The sweep IS the deleter - measured. But the state
+    /// object's key IS exactly what Modify snapshotted; what diverged from it
+    /// was the EDITED object's key, and the divergence was made one layer
+    /// lower, in the bind. Issue #324 in turn calls the whole reading
+    /// unsustainable, and that is one step too far: the sweep is real.
+    ///
+    /// THE UNSIGNED HALF STANDS, and its reason is the storage rather than this
+    /// repository: the row the framework's own INSERT writes carries
+    /// -9223372036854775808, because SQLite's INTEGER storage class is a SIGNED
+    /// 64-bit integer and 9223372036854775808 is High(Int64) + 1. Measured with
+    /// a hand-typed SQL literal, which passes through no TParam and no TField
+    /// of ours: SQLite answers typeof() = real. See issue #325 and the clauses
+    /// in Test.Janus.Server.Resource.IntegerKeyWidth.
     ///
     /// Width. Nothing about selecting the numeric branch depends on it.
     [Test]

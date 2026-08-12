@@ -264,7 +264,9 @@ begin
             ///  that broke the write side.
             ///
             ///  The parse is NOT repeated here. SetValueNullable already owns
-            ///  the arm Janus.Bind.pas:909 needs for the same property shape
+            ///  the arm the FINAL else of TBind._SetFieldToPropertyRecord needs
+            ///  - the arm for a record property that is neither a Nullable nor
+            ///  a TBlob - for the same property shape
             ///  read out of a dataset, so both READERS land on one
             ///  StringToGUID - which accepts only the braced 38-character form
             ///  DoGetValue emits. Only the readers: the write direction parses
