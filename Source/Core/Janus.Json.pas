@@ -155,28 +155,40 @@ begin
           ///  TSessionRestFul.Insert before any request is sent.
           ///
           ///  WHY NOT A GENERIC tkRecord FALLBACK. The population was
-          ///  enumerated, not guessed: every property declaration under
-          ///  Source\, Test\ and Examples\ was listed and its type collected.
-          ///  Of the record types among them, TBlob and Nullable&lt;T&gt; have
-          ///  the two arms above, TGUID has this one, and the only two others
-          ///  cannot arrive - TFormatSettings is declared on this very class
-          ///  and on a SQLite wrapper, neither of which is an entity, and
-          ///  TFileName is an alias of String, so tkUString. Lazy&lt;T&gt; is a
-          ///  record too but never a property: it is always a FIELD behind a
-          ///  read-only property, and the writer skips properties that are not
-          ///  writable (JsonFlow.Builders.pas:915-916). A generic arm would
-          ///  therefore buy no case that exists today while giving every
-          ///  future record a silent, wrong rendering instead of a loud
-          ///  failure.
+          ///  enumerated, not guessed: every record type declared under
+          ///  Source\ and Test\ was listed, and each was counted as a PROPERTY
+          ///  type across Source\, Test\ and Examples\. SIX records appear as
+          ///  a property. Three are answered here - Nullable&lt;T&gt; 99 times,
+          ///  TBlob 18, TGUID 4. The other three cannot arrive, because the
+          ///  writer skips properties that are not writable
+          ///  (JsonFlow.Builders.pas:915-916) and all three are read-only on
+          ///  classes that are not entities: TValue once
+          ///  (Janus.Server.RestQuery.Parse.pas:102), TRestCallRecord once on
+          ///  a test double (Test.Janus.RestConnection.Double.pas:114), and
+          ///  TFormatSettings twice, one of them a CLASS property of TJanusJson
+          ///  itself. Lazy&lt;T&gt; is a record too but never appears as a
+          ///  property at all - it is declared as a field, and in one test even
+          ///  as a local variable (Test.Janus.Types.Lazy.pas:62).
           ///
-          ///  THE TEXT IS NOT A FREE CHOICE. TGUID.ToString is what the three
-          ///  command classes already write to the database
-          ///  (Janus.Command.Inserter.pas:213-217, Updater:118-119,
-          ///  Deleter:97-98), and Janus.DML.Generator.pas:702-709 refuses any
-          ///  other property type for a ftGuid column precisely because those
-          ///  three read it that way. It is also the only form StringToGUID
-          ///  accepts, so DoSetValue can read back what this writes.
-          ///  </summary>
+          ///  A generic arm would therefore buy no case that exists today while
+          ///  giving every future record a silent, wrong rendering instead of a
+          ///  loud failure.
+          ///
+          ///  THE TEXT IS NOT A FREE CHOICE, and the choice was not made here.
+          ///  Janus.DML.Generator.pas:115-120 already writes the doctrine down
+          ///  - a ftGuid column means TGUID, and the Guid32Inc/36/38 generators
+          ///  belong to the ftString world, which is what dissolves the
+          ///  apparent conflict between issues #284 and #311 - and :124-136
+          ///  names the canonical form. FOUR sites already render it:
+          ///  Janus.Command.Inserter.pas:213-217, Updater:118-119,
+          ///  Deleter:97-98 and CanonicalGuidLiteral at
+          ///  Janus.DML.Generator.pas:766-768, all TGUID.ToString.
+          ///  StrToGUID then demands exactly that shape back:
+          ///  System.SysUtils.pas:6025-6028 rejects anything whose length is
+          ///  not 38 or whose braces and hyphens are not in place. It does NOT
+          ///  demand the case - :6036-6037 accepts 'a'..'f' as well - so the
+          ///  upper case is convention here, held by the four sites above and
+          ///  by the tests, not by the parser. </summary>
           if AProperty.PropertyType.Handle = TypeInfo(TGUID) then
           begin
             ABreak := True;
@@ -253,12 +265,15 @@ begin
             ///
             ///  The parse is NOT repeated here. SetValueNullable already owns
             ///  the arm Janus.Bind.pas:909 needs for the same property shape
-            ///  read out of a dataset, so both readers land on one
+            ///  read out of a dataset, so both READERS land on one
             ///  StringToGUID - which accepts only the braced 38-character form
-            ///  DoGetValue emits. A JSON null, or a member absent from the
-            ///  payload, is not a GUID and must not raise: it leaves the
-            ///  property at TGUID.Empty, the same value a freshly constructed
-            ///  object already carries. </summary>
+            ///  DoGetValue emits. Only the readers: the write direction parses
+            ///  too, at Janus.Command.Inserter.pas:172, where the text built
+            ///  from the property is turned back into a TGUID for the param.
+            ///  A JSON null, or a member absent from the payload, is not a
+            ///  GUID and must not raise: it leaves the property at TGUID.Empty,
+            ///  the same value a freshly constructed object already carries.
+            ///  </summary>
             if AProperty.PropertyType.Handle = TypeInfo(TGUID) then
             begin
               ABreak := True;

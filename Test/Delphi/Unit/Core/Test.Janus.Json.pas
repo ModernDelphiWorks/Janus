@@ -25,6 +25,7 @@ interface
 uses
   SysUtils,
   Rtti,
+  Variants,
   Janus.RTTI.Helper,
   Generics.Collections,
   DUnitX.TestFramework,
@@ -144,6 +145,10 @@ type
     procedure TestSetValueNullable_TreatsBlankTextAsEmptyGuid;
     [Test]
     procedure TestSetValueNullable_TreatsBlankTextAsClearedNullableGuid;
+    [Test]
+    procedure TestSetValueNullable_ClearsBareGuidWhenNullRendersAsText;
+    [Test]
+    procedure TestSetValueNullable_ClearsNullableGuidWhenNullRendersAsText;
   end;
 
 implementation
@@ -405,15 +410,25 @@ end;
 // would pass for ANY format the production code chose, as long as the probe
 // chose it too - the probe would be blind to exactly the thing under test.
 //
-// WHY BRACES AND UPPERCASE. This is a contract visible to the consumer, so it
-// is not a free choice; the house already answered it in three places, all
-// reading TGUID.ToString - braced, 38 characters, uppercase hex:
+// WHY BRACES. This is a contract visible to the consumer, and it was not
+// decided here - the repo had already written it down. Janus.DML.Generator.pas
+// :115-120 states that a ftGuid column MEANS TGUID and that the Guid32Inc/36/38
+// generators belong to the ftString world (which is what dissolves the apparent
+// conflict between issues #284 and #311), and :124-136 names the canonical form.
+// FOUR sites render it, all TGUID.ToString:
 //   Janus.Command.Inserter.pas:213-217   (INSERT value)
 //   Janus.Command.Updater.pas:118-119    (UPDATE parameter)
 //   Janus.Command.Deleter.pas:97-98      (DELETE WHERE)
-// and Janus.DML.Generator.pas:707 tells the user a GUID key is stored as text
-// 38 characters wide. The read-back agrees by construction: StringToGUID, the
-// only parse the RTL offers, REQUIRES the braces.
+//   Janus.DML.Generator.pas:766-768      (CanonicalGuidLiteral)
+// StrToGUID agrees on the shape and only on the shape:
+// System.SysUtils.pas:6025-6028 rejects any length but 38 and any misplaced
+// brace or hyphen.
+//
+// THE UPPER CASE, THOUGH, IS CONVENTION AND NOT PARSER LAW.
+// System.SysUtils.pas:6036-6037 accepts 'a'..'f' too. It is pinned here because
+// it is what the four sites above put in the column, so a consumer comparing
+// the JSON text to the stored text gets a match - not because a round trip
+// would break without it.
 //
 // AND THE ignoreCase ARGUMENT IS SPELLED OUT, because Assert.Contains defaults
 // it to TRUE (DUnitX.Assert.pas:1349-1352 forwards fIgnoreCaseDefault). It was
@@ -590,13 +605,25 @@ end;
 
 // A GUID COLUMN THAT WAS NEVER WRITTEN.
 //
-// The house stores a GUID key as text 38 characters wide - MetaDbDiff picks
-// CHAR(38) for Firebird, PostgreSQL, InterBase and MySQL - so a row whose key
-// was never filled hands Bind a string of SPACES, not a null, and StringToGUID
-// raises on it. These two tests are why the guard in SetValueNullable trims
-// instead of comparing to the empty string: without them, dropping the text
-// half of that guard changed nothing any test could see, while the change it
-// makes in the field is turning today's silent loss into an EConvertError.
+// The house means to store a GUID key in a FIXED-WIDTH text column, and a
+// fixed-width text column pads: a row whose key was never filled hands Bind a
+// string of SPACES, not a null, and StringToGUID raises on it.
+//
+// MEASURED, AND AGAINST A NAMED REF, because the answer differs by ref. On
+// MetaDbDiff origin/main (8d8d59d, four commits ahead of the shared checkout),
+// MetaDbDiff.Metadata.Extract.pas:429-451 writes CHAR(%l) for PostgreSQL,
+// Firebird, InterBase and MySQL and NCHAR(%l) for Oracle, and
+// MetaDbDiff.DDL.Generator.pas:484 substitutes %l with AColumn.Size - so the
+// width is whatever the mapping declares, and this repo's own ftGuid model,
+// Test.Janus.Model.RestLazyKeys.pas:159, declares 38. On the checkout this
+// build actually compiles against (3a366e4) those same lines still write '%1',
+// which nothing substitutes - a defect of that repo, fixed there by its PR #21.
+// Either way the column is fixed-width text, which is all these tests rest on.
+//
+// These two tests are why the guard in SetValueNullable trims instead of
+// comparing to the empty string: without them, dropping the text half of that
+// guard changed nothing any test could see, while the change it makes in the
+// field is turning today's silent loss into an EConvertError.
 procedure TTestJanusJson.TestSetValueNullable_TreatsBlankTextAsEmptyGuid;
 var
   LEntity: TGuidJsonEntity;
@@ -628,6 +655,69 @@ begin
     Assert.IsFalse(LEntity.ngopt.HasValue);
   finally
     LEntity.Free;
+  end;
+end;
+
+// A NULL THAT DOES NOT RENDER AS THE EMPTY STRING.
+//
+// VarToStr is not a function of the variant alone. System.Variants.pas:5401-
+// 5403 defines it as VarToStrDef(V, NullAsStringValue), and
+// System.Variants.pas:322-344 declares NullAsStringValue in a var block -
+// a MUTABLE GLOBAL, documented there as the knob other environments set to
+// 'NULL'. Delphi's default is '', which is the only reason a guard written
+// as a bare Trim(VarToStr(...)) = '' appears to answer a real null.
+//
+// These two tests move that global, which is what makes the suite able to
+// SEE the varNull term at all. Without them, deleting that term killed
+// nothing - a survival that measured the probe's blindness, not the code's
+// redundancy. With NullAsStringValue set, deleting it turns the silent
+// clearing of a genuine NULL into EConvertError, which is precisely the
+// disaster the text half of the same guard exists to prevent.
+procedure TTestJanusJson.TestSetValueNullable_ClearsBareGuidWhenNullRendersAsText;
+var
+  LEntity: TGuidJsonEntity;
+  LContext: TRttiContext;
+  LProperty: TRttiProperty;
+  LSavedNullText: String;
+begin
+  LSavedNullText := NullAsStringValue;
+  NullAsStringValue := 'NULL';
+  try
+    LEntity := CreateGuidEntity;
+    try
+      LProperty := LContext.GetType(LEntity.ClassType).GetProperty('gjkey');
+      LProperty.SetValueNullable(LEntity, LProperty.PropertyType.Handle,
+                                 Null, False);
+      Assert.AreEqual(GUIDToString(TGUID.Empty), GUIDToString(LEntity.gjkey));
+    finally
+      LEntity.Free;
+    end;
+  finally
+    NullAsStringValue := LSavedNullText;
+  end;
+end;
+
+procedure TTestJanusJson.TestSetValueNullable_ClearsNullableGuidWhenNullRendersAsText;
+var
+  LEntity: TNullableGuidJsonEntity;
+  LContext: TRttiContext;
+  LProperty: TRttiProperty;
+  LSavedNullText: String;
+begin
+  LSavedNullText := NullAsStringValue;
+  NullAsStringValue := 'NULL';
+  try
+    LEntity := CreateNullableGuidEntity;
+    try
+      LProperty := LContext.GetType(LEntity.ClassType).GetProperty('ngopt');
+      LProperty.SetValueNullable(LEntity, LProperty.PropertyType.Handle,
+                                 Null, False);
+      Assert.IsFalse(LEntity.ngopt.HasValue);
+    finally
+      LEntity.Free;
+    end;
+  finally
+    NullAsStringValue := LSavedNullText;
   end;
 end;
 

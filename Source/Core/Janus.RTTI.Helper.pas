@@ -66,9 +66,11 @@ begin
   ///  Nullable&lt;T&gt;.ToVariant (Janus.Types.Nullable.pas:217-227) ends in
   ///  TValue.AsVariant, and AsVariant over a TGUID is exactly the cast that
   ///  raises 'Invalid class typecast'. So this arm renders the GUID itself,
-  ///  and renders it as the SAME text the three command classes write -
-  ///  TGUID.ToString: Janus.Command.Inserter.pas:213-217,
-  ///  Janus.Command.Updater.pas:118-119, Janus.Command.Deleter.pas:97-98.
+  ///  and renders it as the SAME text the four rendering sites of this repo
+  ///  write - TGUID.ToString: Janus.Command.Inserter.pas:213-217,
+  ///  Janus.Command.Updater.pas:118-119, Janus.Command.Deleter.pas:97-98 and
+  ///  CanonicalGuidLiteral at Janus.DML.Generator.pas:766-768. The doctrine
+  ///  behind them is written out at Janus.DML.Generator.pas:115-136.
   ///
   ///  MISSING IS NOT HARMLESS HERE. Without an arm the function falls off the
   ///  end with Result = Default(TValue), and the caller
@@ -190,25 +192,36 @@ begin
   ///
   ///  Nullable&lt;T&gt;.Create(Variant) would go through TValue.AsType&lt;T&gt;
   ///  (Janus.Types.Nullable.pas:84-96) and fail for the same reason the read
-  ///  side does, so the text is parsed here. StringToGUID is the only parse
-  ///  the RTL offers and it REQUIRES the braced 38-character form - which is
-  ///  what GetValueNullable emits, so the round trip closes.
+  ///  side does, so the text is parsed here. StringToGUID REQUIRES the braced
+  ///  38-character form - System.SysUtils.pas:6025-6028 rejects any other
+  ///  length or a misplaced brace or hyphen - which is what GetValueNullable
+  ///  emits, so the round trip closes. It does NOT require the upper case
+  ///  (:6036-6037 accepts 'a'..'f'); the case is this repo's convention.
   ///
-  ///  NULL AND BLANK TEXT ARE THE SAME ANSWER, AND ONE TEST COVERS BOTH.
-  ///  A JSON null arrives as varNull; a GUID column that was never written
-  ///  arrives as text, and a CHAR(38) one arrives as text made of SPACES.
-  ///  None of the three is a GUID and StringToGUID raises on all three, so
-  ///  all three leave the Nullable cleared.
+  ///  NULL AND BLANK TEXT ARE THE SAME ANSWER, AND THE GUARD NEEDS BOTH
+  ///  TERMS TO SAY SO. A JSON null arrives as varNull; a GUID column that
+  ///  was never written arrives as text, and a fixed-width CHAR one arrives
+  ///  as text made of SPACES. None is a GUID, StringToGUID raises on all of
+  ///  them, and all of them leave the Nullable cleared.
   ///
-  ///  THE GUARD IS ONE TERM AND NOT TWO, which is a measurement and not a
-  ///  preference. Written as the sibling arms are - a varNull test OR a text
-  ///  test - the varNull half could be deleted with no test moving, even
-  ///  with a test that feeds it a JSON null: VarToStr of Null is already the
-  ///  empty string, so the trim answers that case too. Deleting the TRIM,
-  ///  by contrast, is caught. A term whose removal moves no answer is dead
-  ///  weight, so only the term that carries the answer stayed. </summary>
+  ///  THE varNull TERM IS NOT REDUNDANT WITH THE TRIM, and believing it was
+  ///  cost a regression that had to be measured out again. VarToStr is not a
+  ///  function of the variant alone: System.Variants.pas:5401-5403 defines it
+  ///  as VarToStrDef(V, NullAsStringValue), and NullAsStringValue is declared
+  ///  in a var block at System.Variants.pas:322-344 - a MUTABLE GLOBAL whose
+  ///  own comment there says other environments return 'NULL' instead of
+  ///  Delphi's default ''. Set it to 'NULL' and a trim-only guard sends a
+  ///  genuine NULL into StringToGUID: measured, 'NULL is not a valid GUID
+  ///  value', on BOTH arms - the very EConvertError the text term exists to
+  ///  prevent. Deleting the varNull term survived mutation only because no
+  ///  test moved that global; that survival measured the PROBE's blindness,
+  ///  not the code. The two ClearsGuidWhenNullRendersAsText tests move it,
+  ///  and both halves are now killed when removed.
+  ///
+  ///  It also keeps these two arms shaped like the eight above them and like
+  ///  Janus.Bind.pas:845, which all test VType <= varNull first. </summary>
   if ATypeInfo = TypeInfo(Nullable<TGUID>) then
-    if Trim(VarToStr(AValue)) = '' then
+    if (TVarData(AValue).VType <= varNull) or (Trim(VarToStr(AValue)) = '') then
       Self.SetValue(AInstance, TValue.From(Nullable<TGUID>.Create(Null)))
     else
       Self.SetValue(AInstance, TValue.From(Nullable<TGUID>
@@ -226,17 +239,19 @@ begin
   ///  '{00000000-0000-0000-0000-000000000000}' with no error raised, so a
   ///  ftGuid column read back from a dataset silently lost its value.
   ///
-  ///  It is also the single place the GUID text is parsed: TJanusJson's read
-  ///  side routes its bare-TGUID case here instead of repeating the parse.
-  ///  StringToGUID accepts only the braced 38-character form, which is what
-  ///  the write side emits.
+  ///  It is also the single place the GUID text is parsed ON THE WAY IN:
+  ///  TJanusJson's read side routes its bare-TGUID case here instead of
+  ///  repeating the parse. Only on the way in - the INSERT parses too, at
+  ///  Janus.Command.Inserter.pas:172, turning the text it just built back into
+  ///  a TGUID for the param. StringToGUID accepts only the braced
+  ///  38-character form, which is what the write side emits.
   ///
   ///  A BARE TGUID CANNOT BE ABSENT, so a null has to land somewhere: it lands
   ///  on TGUID.Empty, the value a freshly constructed object already carries.
-  ///  The one-term guard is the same measurement as the arm above.
-  ///  </summary>
+  ///  The guard is the same two terms as the arm above, for the same measured
+  ///  reason. </summary>
   if ATypeInfo = TypeInfo(TGUID) then
-    if Trim(VarToStr(AValue)) = '' then
+    if (TVarData(AValue).VType <= varNull) or (Trim(VarToStr(AValue)) = '') then
       Self.SetValue(AInstance, TValue.From<TGUID>(TGUID.Empty))
     else
       Self.SetValue(AInstance, TValue.From<TGUID>(StringToGUID(VarToStr(AValue))));
