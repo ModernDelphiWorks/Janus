@@ -47,7 +47,7 @@ type
   // ftTime/ftTimeStamp/ftOraTimeStamp. POR RAMO, e nao por linha: o
   // ":624/617" que estava aqui ja tinha UMA das duas ancoras podre ANTES desta
   // frente - :617 era o ramo ftLargeint, que nao chama FormatDateTime nenhum -
-  // e a outra apodreceu quando a issue #326 inseriu 97 linhas naquela unit.
+  // e a outra apodreceu quando a issue #326 inseriu linhas naquela unit.
   TADSGeneratorProbe = class(TDMLGeneratorADS)
   public
     function DateFormat: String;

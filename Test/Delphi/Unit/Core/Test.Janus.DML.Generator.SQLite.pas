@@ -352,7 +352,7 @@ const
   /// FDateFormat with ftDate - they are ONE arm of
   /// TDMLGeneratorAbstract._GetPropertyValue, `ftDateTime, ftDate`. BY ARM:
   /// the ":623-626" this line used to carry rotted when issue #326 grew that
-  /// unit by 97 lines. That is a
+  /// unit. That is a
   /// pre-existing defect of a different branch, it is pinned here instead of
   /// being hidden by a substring assertion, and it is not what #284 is about.
   cWHEREGUIDKEY =
@@ -1444,7 +1444,7 @@ end;
 ///  method with its OWN call to _GetPropertyValue and its OWN copy of the
 ///  null-FK guard. NAMED BY METHOD, because the three line anchors this
 ///  paragraph used to carry (:292-354, :304, :328-329) all rotted at once when
-///  issue #326 inserted 97 lines above them.
+///  issue #326 inserted lines above them.
 ///  Covering only GenerateSelectOneToOne would leave half of the
 ///  defect with no test, and deleting the ftGuid branch would still be caught
 ///  - by the other test, not by this one. Hence a second full assertion rather

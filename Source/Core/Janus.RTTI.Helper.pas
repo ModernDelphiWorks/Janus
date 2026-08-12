@@ -73,7 +73,7 @@ begin
   ///  The doctrine behind them is written out in the doc comment over
   ///  TDMLGeneratorAbstract.GuidLiteral, in the same unit.
   ///  BOTH ANCHORS ARE BY SYMBOL BECAUSE THE LINE FORM ROTTED: they read
-  ///  :766-768 and :115-136 until issue #326 inserted 97 lines into that unit.
+  ///  :766-768 and :115-136 until issue #326 inserted lines into that unit.
   ///
   ///  MISSING IS NOT HARMLESS HERE. Without an arm the function falls off the
   ///  end with Result = Default(TValue), and the caller

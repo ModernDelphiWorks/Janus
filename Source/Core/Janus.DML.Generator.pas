@@ -128,9 +128,13 @@ type
     ///  - emitiam '1 = 0': um master COM filhos no banco devolvendo
     ///  NENHUM, sem excecao, sem log e sem SQL malformado.
     ///  AS DUAS ANCORAS ERAM (:265-266) E (:328-329), E FOI ESTA UNIT QUE AS
-    ///  QUEBROU: a issue #326 inseriu 97 linhas acima delas e as guardas
-    ///  andaram para :289-290 e :352-353. Uma auto-citacao por linha e a mais
-    ///  fragil de todas, porque quem cresce o arquivo nao vai procurar por ela.
+    ///  QUEBROU: a issue #326 inseriu linhas acima delas e as guardas andaram.
+    ///  NENHUM NUMERO NOVO E ESCRITO AQUI DE PROPOSITO. Uma versao intermediaria
+    ///  desta frase dizia "andaram para :289-290 e :352-353", e o proprio commit
+    ///  seguinte - que crescia este comentario - moveu as duas OUTRA VEZ. Uma
+    ///  auto-citacao por linha e a mais fragil de todas, porque quem cresce o
+    ///  arquivo nao vai procurar por ela; substitui-la por uma auto-citacao por
+    ///  linha MAIS NOVA e repetir o defeito com numeros melhores.
     ///
     ///  Por que nao um campo FGuidFormat no molde do FDateFormat/FTimeFormat:
     ///  esse molde e' DADO, nao comportamento, e um dialeto novo nasceria com
@@ -797,9 +801,10 @@ begin
          // A ANCORA POR METODO AGORA VALE PARA AS TRES: este comentario ja
          // dizia "ancora por METODO: a de linha apodreceu duas vezes" sobre a
          // do irmao REST e mantinha :265-266 e :328-329 por LINHA para as duas
-         // guardas locais - que a issue #326 empurrou para :289-290 e :352-353
-         // ao inserir 97 linhas nesta unit. A licao estava escrita na mesma
-         // frase que a ignorava.
+         // guardas locais, que a issue #326 empurrou para baixo ao crescer esta
+         // unit. A licao estava escrita na mesma frase que a ignorava, e o
+         // numero NOVO tambem nao e escrito aqui: ele ja teria apodrecido uma
+         // vez dentro desta mesma frente.
          if LGuid = TGUID.Empty then
            Result := ''
          else

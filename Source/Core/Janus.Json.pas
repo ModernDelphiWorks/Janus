@@ -186,7 +186,7 @@ begin
           ///  all TGUID.ToString.
           ///  BY SYMBOL, AND THE REASON IS A MEASUREMENT. This paragraph used
           ///  to anchor those two places as :115-120, :124-136 and :766-768.
-          ///  They were right until issue #326 inserted 97 lines into that
+          ///  They were right until issue #326 inserted lines into that
           ///  unit, after which all three pointed at other code. A symbol
           ///  survives an insertion above it; a line number does not.
           ///  StrToGUID then demands exactly that shape back:

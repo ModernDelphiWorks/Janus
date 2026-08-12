@@ -56,7 +56,7 @@ type
   ///  TDMLGeneratorAbstract._GetGuidValue refuses a ftGuid column declared
   ///  over a String property and names TGUID (or Nullable&lt;TGUID&gt;) as the
   ///  contract - BY SYMBOL, because the ":702-709" this line used to carry
-  ///  rotted when issue #326 grew Janus.DML.Generator.pas by 97 lines;
+  ///  rotted when issue #326 grew Janus.DML.Generator.pas;
   ///  Test.Janus.Model.RestLazyKeys.pas:155-160 says the same in prose and
   ///  declares cck3 that way.
   ///
@@ -419,7 +419,7 @@ end;
 // what dissolves the apparent conflict between issues #284 and #311), and the
 // same comment names the canonical form. THREE ANCHORS IN THIS PARAGRAPH WERE
 // BY LINE - :115-120, :124-136 and :766-768 - and all three rotted at once when
-// issue #326 inserted 97 lines into that unit; they are by symbol now.
+// issue #326 inserted lines into that unit; they are by symbol now.
 // FOUR sites render it, all TGUID.ToString:
 //   Janus.Command.Inserter.pas:213-217   (INSERT value)
 //   Janus.Command.Updater.pas:118-119    (UPDATE parameter)

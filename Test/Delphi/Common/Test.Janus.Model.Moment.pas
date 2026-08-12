@@ -17,7 +17,7 @@
   BOTH date-literal branches of TDMLGeneratorAbstract._GetPropertyValue - the
   `ftDateTime, ftDate` arm and the `ftTime, ftTimeStamp, ftOraTimeStamp` arm,
   named by ARM rather than by line because the ":624 and :628" this sentence
-  used to carry stopped being true when issue #326 inserted 97 lines into
+  used to carry stopped being true when issue #326 inserted lines into
   Janus.DML.Generator.pas - can be exercised through real generated
   SQL. Measured before adding it: no model linked into Janus.Tests.Units mapped
   any column as ftTime / ftTimeStamp / ftOraTimeStamp, so the time branch had no
