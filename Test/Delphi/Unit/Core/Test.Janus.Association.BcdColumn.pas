@@ -57,6 +57,27 @@
   TWO MASTER ROWS, ALWAYS. With ONE master row the walk takes the single-row
   slack in _ExecuteOneToMany and admits every child without asking anything, so
   a fixture with one master row would be green with the filter deleted.
+
+  THIS FIXTURE WAS GREEN ON HEAD THE DAY IT WAS WRITTEN, and that is not a
+  failure of red-first - #319 is a false SENTENCE, not a defect. What has to be
+  shown instead is that the clauses are load-bearing, and the mutations were
+  run with a MESSAGE WARN directive dcc32 echoed as W1054 in the same build:
+
+    b1  the AsString bottom replaced by `Result := True`
+        -> 10 red of 608. Three of them are this fixture's; the other seven
+           belong to Test.Janus.Grandchild.Read, so b1 alone does NOT show that
+           anything here is defended by these clauses and by nothing else.
+    b2  the bottom given a SAME-FAMILY precondition -
+        `(AMasterField.DataType = AChildField.DataType) and (...)`
+        -> 3 red of 608, and they are exactly
+           ABcdChildColumn_IsClaimedOnlyByItsOwnMaster,
+           ..._ReversedRowOrder and ABcdChildColumnNoMasterNames_IsClaimedByNobody.
+           Nothing else in any suite notices. That is the measurement that says
+           the MIXED-FAMILY route through _FieldValuesMatch had no clause at all
+           before this file, which is the whole of #319.
+
+  The premise clause is not in either list because it reads the FIELD TYPES and
+  not the walk; it goes red only if the models change.
 }
 
 unit Test.Janus.Association.BcdColumn;
