@@ -30,39 +30,63 @@
 
   THE ONE THAT IS NOT: THE COMPOSITE KEY. The loop over the primary key columns
   carries `if LFor > 0 then Continue`, so from the second column on the key is
-  DISCARDED and the predicate names only the first column. That cannot be
-  repaired inside this signature: GetGeneratorWhere receives AID: TValue - ONE
-  value - and a composite key needs N. The clauses below MEASURE the
-  consequence and deliberately do not change it; see the header of
-  GetGeneratorWhere for the enumeration of callers and for why each candidate
-  repair is a consumer-visible contract change.
+  DISCARDED and the predicate names only the first column. What blocks the
+  repair is the CALLERS and not the signature - a TValue holds a TArray<TValue>
+  perfectly well, and TManagerObjectSet.Find<T> goes out of its way to collapse
+  whatever it is handed into an integer or a string before it gets here. The
+  clauses below MEASURE and deliberately do not change it; see the header of
+  GetGeneratorWhere for the full enumeration and for why each candidate repair
+  is a consumer-visible change.
 
-  WHY NO CLAUSE HERE PINS THE TRUNCATED PREDICATE ITSELF. A clause asserting
-  "the WHERE names k1 and not k2" would have to be deleted by whoever repairs
-  it, and a test that has to die for a fix to land is a tax on the fix. What is
-  pinned instead is the OBSERVABLE consequence at the layer a consumer sees -
-  Find over a result set that carries more than one row answers nil - which
-  stays true whatever the repair turns out to be.
+  THE PREDICATE ITSELF IS PINNED, AND AN EARLIER VERSION OF THIS FIXTURE
+  REFUSED TO PIN IT. That refusal was argued as "a test that has to die for a
+  fix to land is a tax on the fix" - and this same file KEEPS
+  DateKey_Firebird_TakesTheSQLiteMaskBecauseTheSelecterSwapsIt, a clause with
+  exactly that shape, saying "whoever undoes the swap will see this clause go
+  red, which is the point of it". Two opposite postures on one form, a hundred
+  lines apart. The posture chosen for BOTH is the second one: a clause that
+  goes red when someone changes the thing it describes is doing its job, and
+  the alternative left the CENTRAL claim of this issue with nothing behind it -
+  the Find and Open clauses run against a double that answers the same rows
+  whatever SQL it is handed, so they pin properties of Find and Open and say
+  nothing about what GetGeneratorWhere emitted.
+
+  AND THE CONSEQUENCE IS NOT ONE ANSWER BUT TWO, which is why there are two
+  clauses and not one. Find demands RecordCount = 1 and answers nil: a false
+  NEGATIVE. Open has no such guard - _PopularDataSet Appends every row it walks
+  - so it hands the consumer BOTH rows, which is the issue's original wording
+  literally. An earlier version of this header carried the first half as an
+  unqualified sentence.
 
   THE MUTATIONS THAT WERE RUN, AND WHAT DIED IN EACH. Applied to
   Janus.DML.Generator.pas with a MESSAGE WARN directive dcc32 echoed as W1054
-  in the same build. The green state when they were run was 618/0/0, at commit
-  e477cea - a total is the record of a run, not a description of HEAD.
+  in the same build. ALL SEVEN WERE RE-RUN on the tree that carries this table,
+  whose green state is 620/0/0 - re-run and not re-labelled, which is the
+  correction this table exists to carry:
 
-    d1  the whole date arm short-circuited with `False and`     -> 5 red
-    d2b FFormatSettings replaced by the GLOBAL FormatSettings   -> 1 red
+    d1  the whole date arm short-circuited with `False and`     -> 6 red
+    d2b FFormatSettings replaced by the GLOBAL FormatSettings   -> 2 red
     d3  a TTime key given FDateFormat instead of FTimeFormat    -> 1 red
     d4  the TDateTime term of the guard dropped                 -> 4 red
-    d5  FDateFormat replaced by a hard-coded 'yyyy-MM-dd'       -> 1 red
+    d5  FDateFormat replaced by a hard-coded 'yyyy-MM-dd'       -> 2 red
     d6  the TDate term of the guard dropped                     -> 1 red
+    d7  FFormatSettings replaced by TFormatSettings.Create('en-US') -> 0 red
+
+  THREE OF THOSE COUNTS USED TO BE WRONG, AND THE WAY THEY WENT WRONG IS THE
+  POINT. d1, d2b and d5 were first measured against a 617-clause tree, then
+  the commit that added TDateKey_UsesTheDialectDateMask made each of them kill
+  one more - and the table was re-stamped "618" without re-running. Each was
+  short by exactly the one clause that commit added. A total re-labelled
+  instead of re-measured is a number from a tree that never existed, and the
+  commit that "anchored" these figures shipped the defect it was written to
+  remove.
 
   d6 is why TDateKey_UsesTheDialectDateMask exists: without it that term had
   nothing to kill.
 
-  ONE SURVIVOR, DECLARED. Replacing FFormatSettings with
-  TFormatSettings.Create('en-US') leaves 618 green. It is not evidence that the
-  argument is dead code - d2b, which puts the GLOBAL settings there, kills a
-  clause - it is evidence that en-US happens to spell '/' and ':' the way the
+  d7 IS THE ONE SURVIVOR AND IT IS DECLARED. It is not evidence that the
+  argument is dead code - d2b, which puts the GLOBAL settings there, kills two
+  clauses - it is evidence that en-US happens to spell '/' and ':' the way the
   dialect masks do. Killing it would need a clause that runs under a THIRD
   named locale, which measures the RTL's locale table rather than this unit.
 }
@@ -94,6 +118,8 @@ uses
   MetaDbDiff.Types.Mapping,
   Janus.Command.Selecter,
   Janus.Container.ObjectSet,
+  Janus.Container.FDMemTable,
+  Janus.Container.DataSet.Interfaces,
   Janus.Container.ObjectSet.Interfaces,
   Janus.DML.Generator,
   Janus.DML.Generator.SQLite,
@@ -181,17 +207,32 @@ type
     procedure IntegerKey_IsStillBareDigits;
 
     // ---- the composite key: measured, NOT repaired ----------------------
-    /// THE CONSEQUENCE, at the layer a consumer can see. TKeyOnly's key is
-    /// 'k1;k2'. Ask the executor for one ID over a cursor that carries TWO
-    /// rows - which is what a predicate naming only the first column returns
-    /// when that column is not unique - and Find answers nil. The row is in
-    /// the store and the consumer is told it is not there.
+    /// THE PREDICATE ITSELF, which is the claim #326 is actually about.
+    /// TKeyOnly's key is 'k1;k2' and the WHERE names only k1. Until this
+    /// clause existed NOTHING in any suite held that claim down: the three
+    /// clauses below drive Find and Open over a double that answers the same
+    /// rows whatever SQL it is handed, so they pin properties of THOSE
+    /// methods and say nothing about what GetGeneratorWhere emitted.
+    [Test]
+    procedure CompositeKey_TheWhereNamesOnlyTheFirstColumn;
+    /// THE CONSEQUENCE ON THE Find CHAIN. Ask for one ID over a cursor that
+    /// carries TWO rows - which is what a predicate naming only the first
+    /// column returns when that column is not unique - and Find answers nil.
+    /// The row is in the store and the consumer is told it is not there.
     [Test]
     procedure CompositeKey_FindOverMoreThanOneMatchingRow_AnswersNil;
     /// The control, so the clause above cannot be green because Find always
     /// answers nil: with ONE row it answers the object.
     [Test]
     procedure CompositeKey_FindOverExactlyOneRow_AnswersTheObject;
+    /// THE OTHER CHAIN, AND IT GIVES THE OPPOSITE ANSWER.
+    /// TSessionDataSet&lt;M&gt;._PopularDataSet Appends every row it walks and
+    /// nothing on that path counts them, so Open over a composite key whose
+    /// first column repeats loads MORE THAN ONE ROW into the consumer's
+    /// dataset. On this chain the issue's original wording - "casam mais de
+    /// uma linha" - is literally what happens.
+    [Test]
+    procedure CompositeKey_OpenIdLoadsEveryMatchingRow;
   end;
 
 implementation
@@ -363,6 +404,68 @@ begin
   LSQL := SelectIdSql(dnSQLite, TDateKeyRow, TValue.From<Integer>(10));
   Assert.Contains(LSQL, 'dkkey = 10', True,
     'an integer AID stays bare: ' + LSQL);
+end;
+
+procedure TTestDMLKeyPredicate.CompositeKey_TheWhereNamesOnlyTheFirstColumn;
+var
+  LSQL: String;
+  LWhere: String;
+  LPos: Integer;
+begin
+  LSQL := SelectIdSql(dnSQLite, TKeyOnly, TValue.From<Int64>(1));
+  // ONLY THE PREDICATE, and the tail has to be cut out rather than asserted
+  // over the whole statement: the SELECT LIST names every mapped column, so
+  // `k2` appears in the statement whatever the WHERE says. Measured - the
+  // first version of this clause asserted over the whole string and went red
+  // against `SELECT keyonly.k1, keyonly.k2 FROM keyonly WHERE keyonly.k1 = 1`,
+  // which is the very output it was written to accept.
+  LPos := Pos(' WHERE ', UpperCase(LSQL));
+  Assert.IsTrue(LPos > 0, 'premise: the statement carries a WHERE: ' + LSQL);
+  LWhere := Copy(LSQL, LPos, Length(LSQL));
+  Assert.Contains(LWhere, 'keyonly.k1 = 1', True,
+    'premise: the predicate names the FIRST key column: ' + LWhere);
+  Assert.DoesNotContain(LWhere, 'keyonly.k2', True,
+    'ISSUE #326: TKeyOnly declares a COMPOSITE key, k1;k2, and the second ' +
+    'column never reaches the predicate - the loop in GetGeneratorWhere ' +
+    'carries `if LFor > 0 then Continue`. This clause is deliberately ' +
+    'DELETED-OR-INVERTED by whoever repairs it, and that is what it is for: ' +
+    'the same posture this fixture takes with the Firebird mask swap. ' +
+    'Emitted here: ' + LWhere);
+end;
+
+procedure TTestDMLKeyPredicate.CompositeKey_OpenIdLoadsEveryMatchingRow;
+var
+  LTable: TFDMemTable;
+  LContainer: IContainerDataSet<TKeyOnly>;
+begin
+  // TWO rows, the same premise as the Find clause: it is what a predicate
+  // naming only k1 returns when k1 is not unique.
+  FConnection := TRowsConnection.Create(dnSQLite, 2,
+    procedure(const ADataSet: TFDMemTable)
+    begin
+      ADataSet.FieldDefs.Add('k1', ftInteger);
+      ADataSet.FieldDefs.Add('k2', ftInteger);
+    end,
+    procedure(const ADataSet: TFDMemTable; const AIndex: Integer)
+    begin
+      ADataSet.FieldByName('k1').AsInteger := 1;
+      ADataSet.FieldByName('k2').AsInteger := AIndex;
+    end,
+    'keypredicate-openid');
+  LTable := TFDMemTable.Create(nil);
+  try
+    LContainer := TContainerFDMemTable<TKeyOnly>.Create(FConnection, LTable);
+    LContainer.Open(Integer(1));
+    Assert.AreEqual(2, LTable.RecordCount,
+      'THE OTHER HALF OF #326, and it is NOT the false negative the Find ' +
+      'chain gives: _PopularDataSet Appends every row the cursor walks and ' +
+      'nothing counts them, so asking for ONE id over a composite key whose ' +
+      'first column repeats hands the consumer BOTH rows. This is the ' +
+      'issue''s original wording, literally.');
+    LContainer := nil;
+  finally
+    LTable.Free;
+  end;
 end;
 
 procedure TTestDMLKeyPredicate.CompositeKey_FindOverMoreThanOneMatchingRow_AnswersNil;

@@ -546,29 +546,71 @@ end;
 ///  issue #326, and the reason is a CONTRACT and not an oversight. The loop
 ///  below walks every column of the primary key and carries `if LFor > 0 then
 ///  Continue`, so from the second column on the key is DISCARDED and the
-///  predicate names only the first column. It cannot be repaired inside this
-///  signature: AID is ONE TValue and a composite key needs N values. The loop
+///  predicate names only the first column. The loop
 ///  body does not even carry the ' AND ' that a second term would need, which
 ///  is the honest reading of the Continue - it short-circuits a feature that
 ///  was never finished rather than optimising anything.
 ///
-///  WHO IS AFFECTED, ENUMERATED AND NOT SAMPLED. GetGeneratorWhere is called by
-///  the GeneratorSelectAll of all thirteen dialect generators. On the local
-///  side the chain is TSQLCommandExecutor<M>.Find(AID) and
-///  TSessionDataSet<M>.OpenID, reached from TObjectSetAdapter<M>.Find(Int64),
-///  Find(String), TManagerObjectSet.Find<T>(TValue) and the DataSet family's
-///  OpenID. On the REST server side it is TRESTObjectManager.Find(AID), reached
-///  from TAppResourceBase.ResolverFindID and from ParseDelete's IDExecuteFind.
+///  WHAT BLOCKS THE REPAIR IS THE CALLERS, NOT THIS SIGNATURE. An earlier
+///  version of this paragraph said "AID is ONE TValue and a composite key needs
+///  N values", and that overstates it: a TValue carries a TArray&lt;TValue&gt; per-
+///  fectly well, so the parameter could hold N without changing its type. What
+///  actually blocks it is that NOTHING UPSTREAM EVER BUILDS ONE, and one caller
+///  goes out of its way not to: TManagerObjectSet.Find&lt;T&gt;(const AID: TValue)
+///  collapses whatever it is given into `AID.AsType&lt;integer&gt;` or `AID.ToString`
+///  before the value gets anywhere near here. Widening the contract therefore
+///  means changing the CALLERS, up to and including the two public
+///  Find(Int64)/Find(String) overloads that a consumer actually holds - which
+///  is a consumer-visible change, and the conclusion below survives the
+///  correction even though the sentence did not.
 ///
-///  WHAT THE CONSUMER SEES TODAY, MEASURED. Both Find implementations demand
-///  `LResultSet.RecordCount = 1` and answer nil otherwise. So on an entity
+///  WHO IS AFFECTED, ENUMERATED AND NOT SAMPLED - and the previous version of
+///  this list was neither, so here it is again, counted.
+///
+///  TWELVE OF THE THIRTEEN DIALECT GENERATORS REACH IT, NOT ALL THIRTEEN. Ten
+///  declare a GeneratorSelectAll that calls GetGeneratorWhere (ADS, AbsoluteDB,
+///  ElevateDB, Firebird, MSSQL, MySQL, NexusDB, Oracle, PostgreSQL, SQLite) and
+///  two more inherit Firebird's (Firebird3, InterBase). The thirteenth,
+///  MongoDB, does NOT: TDMLGeneratorMongoDB descends from TDMLGeneratorNoSQL,
+///  whose GeneratorSelectAll answers GetCriteriaSelectNoSQL and never builds a
+///  WHERE at all.
+///
+///  THE CONSUMER ENTRY POINTS, ALL OF THEM. Local object side:
+///  TContainerObjectSet&lt;M&gt;.Find(Int64) and Find(String) - the pair a consumer
+///  actually holds - over TObjectSetAdapter&lt;M&gt;.Find(Int64)/Find(String), plus
+///  TManagerObjectSet.Find&lt;T&gt;(TValue); they all land on
+///  TSQLCommandExecutor&lt;M&gt;.Find(AID). Local DataSet side:
+///  TContainerDataSet&lt;M&gt;.Find(Integer)/Find(String) over
+///  TDataSetBaseAdapter&lt;M&gt;.Find(Integer)/Find(String), and separately
+///  TContainerDataSet&lt;M&gt;.Open(Integer)/Open(String) over
+///  TDataSetBaseAdapter&lt;M&gt;.OpenIDInternal - which is the OTHER chain, through
+///  TSessionDataSet&lt;M&gt;.OpenID. REST server side: TRESTObjectManager.Find(AID),
+///  reached from TAppResourceBase.ResolverFindID and from ParseDelete's
+///  IDExecuteFind.
+///
+///  WHAT THE CONSUMER SEES TODAY, AND IT IS NOT ONE ANSWER BUT TWO. THE Find
+///  CHAIN gives a FALSE NEGATIVE: both Find implementations demand
+///  `LResultSet.RecordCount = 1` and answer nil otherwise, so on an entity
 ///  whose first key column is NOT unique the predicate matches several rows and
 ///  Find answers NIL - the row is in the store and the caller is told it is
 ///  not. ParseDelete turns that nil into "No records found to delete, with the
-///  filter entered!". The failure is a false NEGATIVE, not the wrong row, and
-///  that is worth knowing before anyone repairs it. Pinned by
-///  Test.Janus.DML.KeyPredicate,
-///  CompositeKey_FindOverMoreThanOneMatchingRow_AnswersNil.
+///  filter entered!".
+///
+///  THE OpenID CHAIN HAS NO SUCH GUARD, AND THERE THE ISSUE'S ORIGINAL WORDING
+///  IS LITERALLY WHAT HAPPENS. TSessionDataSet&lt;M&gt;._PopularDataSet walks the
+///  result set to Eof and Appends EVERY row it finds; nothing anywhere on that
+///  path counts them. So Open(AID) over a composite key whose first column
+///  repeats loads MORE THAN ONE ROW into the consumer's dataset, which is
+///  exactly "localiza por PARTE da chave e casa mais de uma linha". An earlier
+///  version of this comment said "the failure is a false NEGATIVE, not the
+///  wrong row" without qualification, and the OpenID chain - which the same
+///  comment enumerated two paragraphs above - falsifies it. The absolute
+///  sentence is gone; the carve-out is the measurement.
+///
+///  Both halves are pinned in Test.Janus.DML.KeyPredicate:
+///  CompositeKey_TheWhereNamesOnlyTheFirstColumn (the predicate itself),
+///  CompositeKey_FindOverMoreThanOneMatchingRow_AnswersNil (the Find chain) and
+///  CompositeKey_OpenIdLoadsEveryMatchingRow (the OpenID chain).
 ///
 ///  AND IF THE FIRST COLUMN HAPPENS TO BE UNIQUE, TODAY'S CODE IS CORRECT. That
 ///  is what makes every candidate repair a consumer-visible change rather than
