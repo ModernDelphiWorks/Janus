@@ -59,8 +59,18 @@ type
   end;
 
 const
-  /// The colons and the T are quoted: ':' is FormatDateTime's placeholder for
-  /// TimeSeparator and would come out swapped by the ambient locale.
+  /// The colons and the T are quoted, and THE REASON THIS COMMENT USED TO GIVE
+  /// WAS FALSE. It said an unquoted ':' "would come out swapped by the ambient
+  /// locale" - which cannot happen, because TFormatSettings.Invariant is passed
+  /// to every FormatDateTime call below and Invariant's TimeSeparator IS ':'.
+  /// The two protections are REDUNDANT, and that is measured rather than
+  /// argued: unquoting the colons alone kills nothing, dropping Invariant alone
+  /// kills nothing, and doing BOTH turns a clause red. The four single
+  /// mutations and the combined one are tabled in
+  /// Test.Janus.RefreshRecord.KeyLiteral. Both are KEPT, because each is one
+  /// edit away from being the only one left; what is removed is a reason that
+  /// read like a measurement and was not one - the same class of defect #319
+  /// corrected two files away.
   cISODATE     = 'yyyy-mm-dd';
   cISODATETIME = 'yyyy-mm-dd"T"hh":"nn":"ss';
   cISOTIME     = 'hh":"nn":"ss';
@@ -139,8 +149,11 @@ uses
 ///  the SERVER's - the newest and most complete of the two - so a future
 ///  unification faces two agreeing tables and one outlier instead of a
 ///  three-way disagreement. The outlier is the CLIENT's _FilterLiteral, which
-///  has no ftBoolean branch, FUSES ftDate with ftDateTime into a single ISO
-///  mask, carries neither DB.ftSingle nor DB.ftExtended on its decimal branch,
+///  has no ftBoolean branch, puts ftDate and ftDateTime on ONE case ARM - and
+///  then picks between cISODATE and cISODATETIME INSIDE that arm with an
+///  ifThen, so what is fused is the BRANCH and not the mask, which an earlier
+///  version of this sentence got wrong - carries neither DB.ftSingle nor
+///  DB.ftExtended on its decimal branch,
 ///  and passes no TFormatSettings to FormatDateTime. Unifying the three means
 ///  a new shared unit under Source\Core AND a change of behaviour at that
 ///  client site, which belongs to the RESTful client family and is not this
@@ -165,12 +178,20 @@ uses
 ///
 ///  WHICH LABELS ARE DEFENDED BY A CLAUSE, and which are only grouped by
 ///  argument: Test.Janus.RefreshRecord.KeyLiteral reaches ftString (plain and
-///  quote-bearing), ftDate, ftFloat, DB.ftSingle, ftBoolean, ftInteger and a
-///  composite ftInteger + ftString key. ftWideString, ftMemo, ftWideMemo,
-///  ftFmtMemo, ftGuid, ftDateTime, ftTime, ftTimeStamp, ftOraTimeStamp,
-///  ftCurrency, ftBCD, ftFMTBcd and DB.ftExtended share a branch with a
-///  defended label and have no model of their own under Test\ whose PRIMARY
-///  KEY carries them, so they are grouped by argument and NOT measured.
+///  quote-bearing), ftDate, ftDateTime, ftTime, ftFloat, DB.ftSingle,
+///  DB.ftExtended, ftBoolean, ftInteger, a composite ftInteger + ftString key
+///  and a composite ftDateTime + ftTime one. ftWideString, ftMemo, ftWideMemo,
+///  ftFmtMemo, ftGuid, ftTimeStamp, ftOraTimeStamp, ftCurrency, ftBCD and
+///  ftFMTBcd share a branch with a defended label and have no model of their
+///  own under Test\ whose PRIMARY KEY carries them, so they are grouped by
+///  argument and NOT measured.
+///
+///  THIS LIST HAS BEEN WRONG TWICE, IN THE SAME DIRECTION, AND BOTH TIMES
+///  BECAUSE OF A LATER COMMIT OF THE SAME BRANCH. It named DB.ftExtended as
+///  grouped-by-argument after TRefreshExtendedKey had already been written for
+///  it, and ftDateTime / ftTime after TRefreshMomentKey had. A list of what is
+///  NOT measured is a claim about the whole of Test\, so it goes stale from the
+///  other side - nobody editing the fixture thinks to come back here.
 ///
 ///  THE DIALECT RESIDUE IS THE SAME ONE THE SERVER SIDE DECLARED. ISO-8601 is
 ///  not every dialect's date literal - TDMLGeneratorAbstract.FDateFormat holds

@@ -42,10 +42,12 @@
   when this was written, and they DISAGREE with each other:
 
     * TRESTDataSetAdapter<M>._FilterLiteral, Janus.RestDataSet.Adapter.pas -
-      the REST CLIENT. Reads a TField. Has NO ftBoolean branch, FUSES ftDate
-      with ftDateTime into one ISO mask, carries neither DB.ftSingle nor
-      DB.ftExtended on its decimal branch, and passes no TFormatSettings to
-      FormatDateTime.
+      the REST CLIENT. Reads a TField. Has NO ftBoolean branch; puts ftDate and
+      ftDateTime on ONE case ARM and then picks between cISODATE and
+      cISODATETIME INSIDE that arm with an ifThen - so what is fused is the
+      BRANCH and not the mask, which an earlier version of this line got wrong;
+      carries neither DB.ftSingle nor DB.ftExtended on its decimal branch, and
+      passes no TFormatSettings to FormatDateTime.
     * _PrimaryKeyValueToSql, Janus.Server.Resource.pas - the REST SERVER, the
       newest and the most complete of the three. Reads a TColumnMapping plus
       the object. Has ftBoolean, separates ftDate / ftDateTime / ftTime, names
@@ -95,14 +97,13 @@
   TRIPWIRE-n - written with the braces a directive needs, which cannot be
   reproduced inside this comment because a Delphi block comment does not nest -
   and dcc32 echoed it as W1054 in the same build, so "applied" is not a claim.
-  Totals are of
-  Janus.Tests.Units, WHOSE TOTAL MOVED AFTERWARDS - the runs below were made
-  on commit e259b53, where the green state was 604/0/0. The count is the
-  record of a run and not a description of HEAD: two later commits on this
-  branch added clauses of their own, so anyone re-running these mutations will
-  see a larger total with the SAME clauses dying.
+  EVERY ONE WAS RE-RUN on the tree that carries this table, whose green state is
+  621/0/0. Re-run and NOT re-labelled: an earlier version of this table was
+  measured at 601, then carried forward to "604" by editing the header instead
+  of repeating the runs, and three of its figures were wrong by exactly the
+  clauses that had been added in between.
 
-    n1  the whole literal put back to AColumns[LFor].AsString  -> 7 red
+    n1  the whole literal put back to AColumns[LFor].AsString  -> 9 red
     n2  ftBoolean branch removed                               -> 1 red
     n3  DB.ftSingle deleted from the decimal branch            -> 1 red
     n4  DB.ftExtended deleted from the decimal branch          -> 1 red
@@ -110,27 +111,55 @@
     n7  VarIsEmpty half of the null guard removed              -> 1 red
     n8  QuotedStr replaced by bare concatenation               -> 3 red
     n9  VarIsNull half of the null guard removed               -> 2 red
+    n13 BOTH locale protections of the two time masks removed
+        at once: colons unquoted in cISODATETIME and cISOTIME
+        AND TFormatSettings.Invariant dropped from both arms   -> 1 red
 
-  n1 kills SEVEN and not nine, and that is the honest arithmetic rather than a
-  hole: the integer clause is a NO-CHANGE guard and stays green by design, and
-  the undetermined-key clause is held up by the cNOROWSGUARD arm, which n1 does
-  not touch - n6 is the mutation that kills that one.
+  n1 DOES NOT KILL EVERYTHING, and the arithmetic is worth spelling out because
+  it has moved twice. It kills 9 clauses: the integer clause is a NO-CHANGE
+  guard and stays green by design, and the undetermined-key clause is held up by
+  the cNOROWSGUARD arm, which n1 does not touch - n6 is what kills that one. The
+  figure was 7 when the fixture had nine clauses, 8 after TRefreshExtendedKey
+  arrived, and is 9 now that TRefreshMomentKey has arrived too. A count in a
+  comment is a fact about a TREE, which is why this one has been restated three
+  times instead of adjusted once.
 
-  n4 SURVIVED ON THE FIRST PASS - 604 green at e259b53, tripwire echoed - because
-  DB.ftExtended had no model of its own. That is the shape #320 could only
-  declare; here TRefreshExtendedKey was written and the mutation now dies.
-  n7 SURVIVED ON THE FIRST PASS for the same reason and got the same treatment:
-  every TParam the framework builds carries an assigned value, so only a caller
-  of the public RefreshRecord(TParams) reaches varEmpty.
+  n4 SURVIVED ON THE FIRST PASS because DB.ftExtended had no model of its own -
+  the shape #320 could only declare. TRefreshExtendedKey was written and the
+  mutation now dies. n7 SURVIVED for the same kind of reason and got the same
+  treatment: every TParam the framework builds carries an assigned value, so
+  only a caller of the public RefreshRecord(TParams) reaches varEmpty.
 
-  ONE SURVIVOR IS DECLARED AND KEPT. Removing TFormatSettings.Invariant from
-  the ftDate branch kills nothing (604 green at e259b53, tripwire echoed). It is inert
-  against the CURRENT MASK and not against the contract: in a FormatDateTime
-  mask only '/' and ':' are separator placeholders, cISODATE is 'yyyy-mm-dd'
-  whose '-' is a literal, and the two other masks quote their colons. So no
-  ambient setting can move that text WHILE THE MASKS STAY AS THEY ARE - and a
+  THE TWO TIME MASKS CARRY TWO INDEPENDENT PROTECTIONS AND NEITHER IS PINNED
+  ALONE. Under a hostile TimeSeparator the colons of cISODATETIME and cISOTIME
+  are protected TWICE over: they are QUOTED inside the mask, and
+  TFormatSettings.Invariant is passed to FormatDateTime three lines below.
+  Measured, one at a time:
+
+    colons unquoted in cISODATETIME, Invariant kept       -> 0 red
+    colons unquoted in cISOTIME, Invariant kept            -> 0 red
+    Invariant dropped from the ftDateTime arm, masks kept   -> 0 red
+    Invariant dropped from the ftTime arm, masks kept       -> 0 red
+
+  and all four at once -> 1 red, which is n13. So the two are REDUNDANT rather
+  than dead, and no clause can tell them apart - which is why the four singles
+  are listed instead of hidden. Before TRefreshMomentKey existed even n13
+  survived: those two arms had no model anywhere under Test\ carrying them as a
+  primary key, so nothing measured them at all.
+
+  AND ONE SENTENCE OVER THE MASKS WAS FALSE. It said the colons are quoted
+  because otherwise they "would come out swapped by the ambient locale" - which
+  cannot happen while Invariant is passed on the very next lines. That is the
+  same class of defect #319 corrected in this commit series: a reason that reads
+  like a measurement and is not one. It now says what the mutations say.
+
+  THE ftDate ARM IS DIFFERENT AND ITS SURVIVOR IS A SINGLE. Removing
+  TFormatSettings.Invariant from it kills nothing (621 green, tripwire echoed),
+  and there is no second protection to remove: cISODATE is 'yyyy-mm-dd', whose
+  '-' is a LITERAL and not a separator placeholder, so the mask alone settles
+  it. It is inert against the CURRENT MASK and not against the contract, and a
   mask is one edit away from carrying a '/'. The clause that would catch it
-  cannot be written against these masks, which is the same reading the sibling
+  cannot be written against this mask, which is the same reading the sibling
   _PrimaryKeyValueToSql records for the same argument.
 }
 
@@ -291,6 +320,30 @@ type
     property ritag: String read Fritag write Fritag;
   end;
 
+  /// A COMPOSITE key of ftDateTime + ftTime, and it exists to settle a claim
+  /// this file used to make without measuring it. Those two arms had NO model
+  /// anywhere under Test\ carrying them as a PRIMARY KEY, so every mutation
+  /// against them survived in silence - including BOTH of the protections that
+  /// keep the ambient locale out of the literal. One model reaches both arms
+  /// because a composite key is already a list of columns.
+  [Entity]
+  [Table('rrmoment', '')]
+  [PrimaryKey('rmstamp;rmtime', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'DateTime + Time primary key')]
+  TRefreshMomentKey = class
+  private
+    Frmstamp: TDateTime;
+    Frmtime: TDateTime;
+    Frmtag: String;
+  public
+    [Column('rmstamp', ftDateTime)]
+    property rmstamp: TDateTime read Frmstamp write Frmstamp;
+    [Column('rmtime', ftTime)]
+    property rmtime: TDateTime read Frmtime write Frmtime;
+    [Column('rmtag', ftString, 20)]
+    property rmtag: String read Frmtag write Frmtag;
+  end;
+
   /// A COMPOSITE key of two DIFFERENT types. With one column the separator
   /// between terms is never written, so ' AND ' could have been anything.
   [Entity]
@@ -325,6 +378,7 @@ type
     function RefreshSqlOfInt(const AKey: Integer): String;
     function RefreshSqlOfComposite(const AK1: Integer;
       const AK2: String): String;
+    function RefreshSqlOfMoment(const AStamp, ATime: TDateTime): String;
     function RefreshSqlOfNullText: String;
   public
     [Setup]
@@ -383,6 +437,15 @@ type
     /// Two terms, two types, and the separator between them.
     [Test]
     procedure CompositeKey_SpellsBothTermsSeparatedByAnd;
+    /// THE ftDateTime AND ftTime ARMS, WHICH HAD NO MODEL AT ALL. Under a
+    /// hostile TimeSeparator both literals must still carry ':' - and the
+    /// interesting part is that TWO independent things guarantee that, the
+    /// quoted colons inside the masks and TFormatSettings.Invariant passed
+    /// three lines below them. See the mutation note in the header: each one
+    /// ALONE is enough, so removing either survives and only removing BOTH
+    /// goes red. Before this clause, removing both survived too.
+    [Test]
+    procedure MomentKey_BothArmsResistAHostileTimeSeparator;
     /// A key column the row left NULL cannot identify a row. Raw it produced
     /// `rtkey=` and the driver refused the statement; it must become the
     /// house's own zero-rows guard instead.
@@ -731,6 +794,47 @@ begin
   end;
 end;
 
+function TTestRefreshRecordKeyLiteral.RefreshSqlOfMoment(
+  const AStamp, ATime: TDateTime): String;
+var
+  LConn: TRowsConnection;
+  LConnRef: IDBConnection;
+  LTable: TFDMemTable;
+  LContainer: IContainerDataSet<TRefreshMomentKey>;
+begin
+  LConn := TRowsConnection.Create(dnSQLite, cROW,
+    procedure(const ADataSet: TFDMemTable)
+    begin
+      ADataSet.FieldDefs.Add('rmstamp', ftDateTime);
+      ADataSet.FieldDefs.Add('rmtime', ftTime);
+      ADataSet.FieldDefs.Add('rmtag', ftString, 20);
+    end,
+    procedure(const ADataSet: TFDMemTable; const AIndex: Integer)
+    begin
+      ADataSet.FieldByName('rmstamp').AsDateTime := EncodeDate(2000, 1, 1);
+      ADataSet.FieldByName('rmtime').AsDateTime := 0;
+      ADataSet.FieldByName('rmtag').AsString := 'seed';
+    end,
+    'refresh-moment');
+  LConnRef := LConn;
+  LTable := TFDMemTable.Create(nil);
+  try
+    LContainer := TContainerFDMemTable<TRefreshMomentKey>.Create(LConnRef,
+                    LTable);
+    LContainer.Open;
+    LTable.First;
+    LTable.Edit;
+    LTable.FieldByName('rmstamp').AsDateTime := AStamp;
+    LTable.FieldByName('rmtime').AsDateTime := ATime;
+    LTable.Post;
+    LContainer.RefreshRecord;
+    Result := LConn.LastSQL;
+    LContainer := nil;
+  finally
+    LTable.Free;
+  end;
+end;
+
 { TTestRefreshRecordKeyLiteral }
 
 procedure TTestRefreshRecordKeyLiteral.Setup;
@@ -893,6 +997,23 @@ begin
     'both terms, each in its own type, joined by AND: ' + LSQL);
 end;
 
+procedure TTestRefreshRecordKeyLiteral.MomentKey_BothArmsResistAHostileTimeSeparator;
+var
+  LSQL: String;
+begin
+  FormatSettings.TimeSeparator := '-';
+  FormatSettings.DateSeparator := '.';
+  LSQL := RefreshSqlOfMoment(EncodeDate(2026, 8, 11) + EncodeTime(9, 30, 0, 0),
+                             EncodeTime(9, 30, 0, 0));
+  Assert.Contains(LSQL, 'rmstamp=''2026-08-11T09:30:00''', True,
+    'the ftDateTime arm must carry ISO-8601 with real colons under a hostile ' +
+    'TimeSeparator: ' + LSQL);
+  Assert.Contains(LSQL, 'rmtime=''09:30:00''', True,
+    'and so must the ftTime arm: ' + LSQL);
+  Assert.DoesNotContain(LSQL, '09-30-00', True,
+    'the ambient TimeSeparator must not reach either literal: ' + LSQL);
+end;
+
 procedure TTestRefreshRecordKeyLiteral.AnUndeterminedKey_BecomesTheZeroRowsGuard;
 var
   LSQL: String;
@@ -918,6 +1039,7 @@ initialization
   TRegisterClass.RegisterEntity(TRefreshBoolKey);
   TRegisterClass.RegisterEntity(TRefreshIntKey);
   TRegisterClass.RegisterEntity(TRefreshCompositeKey);
+  TRegisterClass.RegisterEntity(TRefreshMomentKey);
   TDUnitX.RegisterTestFixture(TTestRefreshRecordKeyLiteral);
 
 end.

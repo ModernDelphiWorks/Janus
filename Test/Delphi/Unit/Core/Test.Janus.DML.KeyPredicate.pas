@@ -167,14 +167,16 @@ type
     /// 'yyyy-MM-dd'. Before the repair this was the machine's DateTimeToStr.
     [Test]
     procedure DateKey_SQLite_UsesTheDialectMask;
-    /// FIREBIRD DOES NOT GET FIREBIRD'S MASK, AND THAT IS NOT THIS REPAIR'S
-    /// DOING. TDMLGeneratorFirebird sets FDateFormat to 'MM/dd/yyyy', but
+    /// FIREBIRD DOES NOT GET FIREBIRD'S MASK, AND THIS BRANCH DID NOT DISCOVER
+    /// THAT. TDMLGeneratorFirebird sets FDateFormat to 'MM/dd/yyyy', but
     /// TCommandSelecter.Create swaps dnFirebird and dnFirebird3 for dnSQLite,
-    /// so every Firebird SELECT runs the SQLite generator - a house decision
-    /// that predates #326 and that TDMLGeneratorFirebird.GuidLiteral's own
-    /// comment already records. An earlier version of this clause expected
-    /// '03/15/2027' and went red for that reason; it is kept, inverted, so the
-    /// swap is measured instead of rediscovered.
+    /// so every Firebird SELECT runs the SQLite generator. THE FACT WAS ALREADY
+    /// WRITTEN DOWN before this frontier existed, in the doc comments over
+    /// TDMLGeneratorFirebird.GuidLiteral and TDMLGeneratorFirebird3.GuidLiteral,
+    /// which both name Janus.Command.Selecter as the place that does the swap.
+    /// What is new here is only the CLAUSE: an earlier version of it expected
+    /// '03/15/2027', went red, and is kept inverted so the swap is measured in
+    /// CI instead of living only in prose. Reading a comment is not a finding.
     [Test]
     procedure DateKey_Firebird_TakesTheSQLiteMaskBecauseTheSelecterSwapsIt;
     /// AND THE SECOND MASK THAT IS ACTUALLY REACHABLE. MSSQL is 'dd/MM/yyyy'
