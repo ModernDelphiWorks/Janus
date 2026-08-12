@@ -34,6 +34,16 @@
   column - and the loop body did not even contain the ' AND ' a second term
   would need. It was functionality never finished, not a decision.
 
+  WHAT THE REPAIR COSTS, DECLARED RATHER THAN GLOSSED. The generator itself
+  needed no wider signature - the values ride inside the TValue it already
+  took. But reaching it from consumer code added a MEMBER TO TWO PUBLISHED
+  INTERFACES: Find(TArray<TValue>) on IContainerObjectSet<M>, and
+  Find(TArray<TValue>) plus Open(TArray<TValue>) on IContainerDataSet<M>. That
+  breaks a third-party implementer exactly as widening IDMLGeneratorCommand
+  would have - the objection that ruled out the old design applies here too,
+  one layer out. Inside this repository each interface has exactly ONE
+  implementer, both enumerated and both updated; outside it, NOT MEASURED.
+
   IT IS REPAIRED, AND THE SHAPE OF THE REPAIR IS WHY NOTHING BELOW HAD TO DIE.
   The mechanism is the one this header already named as possible: a TValue
   holds a TArray<TValue> perfectly well. The predicate is now driven by how
@@ -152,6 +162,22 @@ type
     property dkkey: TDateTime read Fdkkey write Fdkkey;
     [Column('dktag', ftString, 20)]
     property dktag: String read Fdktag write Fdktag;
+  end;
+
+  /// A PRIMARY KEY THAT MAPS NO COLUMNS. MetaDbDiff's PrimaryKey.Create wraps
+  /// the whole column-parsing block in `if Length(AColumns) > 0`, so an empty
+  /// string leaves FColumns empty and Columns.Count is 0 while the mapping
+  /// itself is NOT nil. Issue #326.
+  [Entity]
+  [Table('nokeycols', '')]
+  [PrimaryKey('', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'no columns at all')]
+  TNoKeyColsRow = class
+  private
+    Fnk_id: Integer;
+  public
+    [Column('nk_id', ftInteger)]
+    property nk_id: Integer read Fnk_id write Fnk_id;
   end;
 
   [TestFixture]
@@ -278,6 +304,34 @@ type
     /// one with no RecordCount guard - so it gets its own clause.
     [Test]
     procedure CompositeKey_ThroughTheContainerOpen_ReachesTheFullPredicate;
+    /// THE HOLE THE ENTRY POINT OPENED, AND IT IS THE WORST SHAPE IN THIS
+    /// ISSUE. An EMPTY array is an id that names nothing, and before the
+    /// guard the generator answered `SELECT keyonly.k1, keyonly.k2 FROM
+    /// keyonly` - no WHERE at all. Measured through the public entry point
+    /// this branch created.
+    [Test]
+    procedure EmptyValueArray_IsRefusedInsteadOfMatchingEveryRow;
+    /// AND THE SAME THING ON THE Open CHAIN, WHERE IT IS WORSE. Open has no
+    /// RecordCount guard to mask it, so `Open([])` did not answer nil - it
+    /// LOADED THE WHOLE TABLE into the consumer's dataset. Measured: two
+    /// rows seeded, two rows loaded, for a question about one id.
+    [Test]
+    procedure EmptyValueArray_OnTheOpenChain_IsRefusedNotAWholeTableRead;
+    /// MORE VALUES THAN THE KEY HAS COLUMNS. Three values against k1;k2
+    /// emitted `WHERE keyonly.k1 = 1 AND keyonly.k2 = 2` and dropped the
+    /// third in silence - which is the same class of defect as the
+    /// `if LFor > 0 then Continue` this issue removed, so it is refused.
+    [Test]
+    procedure MoreValuesThanColumns_IsRefusedInsteadOfDiscardingThem;
+    /// THE REGRESSION THIS BRANCH INTRODUCED, PAID BACK. A primary key that
+    /// maps NO columns is constructible - MetaDbDiff's PrimaryKey.Create
+    /// wraps its parsing in `if Length(AColumns) > 0` - and an earlier
+    /// version of this fixture declared the shape uncoverable. It is not.
+    /// Before the composite repair it produced a dangling ' WHERE ' that a
+    /// database rejects loudly; moving the keyword after the loop made it a
+    /// SILENT full-table read. Now it refuses.
+    [Test]
+    procedure PrimaryKeyWithNoColumns_IsRefusedNotAWholeTableRead;
   end;
 
 implementation
@@ -708,7 +762,106 @@ begin
   end;
 end;
 
+procedure TTestDMLKeyPredicate.
+  EmptyValueArray_IsRefusedInsteadOfMatchingEveryRow;
+var
+  LEmpty: TArray<TValue>;
+begin
+  SetLength(LEmpty, 0);
+  Assert.WillRaise(
+    procedure
+    begin
+      SelectIdSql(dnSQLite, TKeyOnly, TValue.From<TArray<TValue>>(LEmpty));
+    end,
+    Exception,
+    'ISSUE #326: an empty value array is an id that names nothing. Before ' +
+    'this guard it emitted SELECT keyonly.k1, keyonly.k2 FROM keyonly - a ' +
+    'statement with NO WHERE, matching every row in the table, reached ' +
+    'through the public entry point this branch created.');
+end;
+
+procedure TTestDMLKeyPredicate.
+  EmptyValueArray_OnTheOpenChain_IsRefusedNotAWholeTableRead;
+var
+  LTable: TFDMemTable;
+  LRows: TRowsConnection;
+  LConn: IDBConnection;
+  LContainer: IContainerDataSet<TKeyOnly>;
+  LEmpty: TArray<TValue>;
+begin
+  SetLength(LEmpty, 0);
+  LRows := TRowsConnection.Create(dnSQLite, 2,
+    procedure(const ADataSet: TFDMemTable)
+    begin
+      ADataSet.FieldDefs.Add('k1', ftInteger);
+      ADataSet.FieldDefs.Add('k2', ftInteger);
+    end,
+    procedure(const ADataSet: TFDMemTable; const AIndex: Integer)
+    begin
+      ADataSet.FieldByName('k1').AsInteger := 1;
+      ADataSet.FieldByName('k2').AsInteger := AIndex;
+    end,
+    'keypredicate-empty-open');
+  LConn := LRows;
+  LTable := TFDMemTable.Create(nil);
+  try
+    LContainer := TContainerFDMemTable<TKeyOnly>.Create(LConn, LTable);
+    Assert.WillRaise(
+      procedure
+      begin
+        LContainer.Open(LEmpty);
+      end,
+      Exception,
+      'THE Open CHAIN HAS NO RecordCount GUARD TO MASK THIS. Measured ' +
+      'before the repair: two rows seeded, and Open([]) loaded BOTH into ' +
+      'the consumer dataset for a question about one id.');
+    Assert.AreEqual(0, LTable.RecordCount,
+      'and nothing may have been loaded on the way to the refusal');
+    LContainer := nil;
+  finally
+    LTable.Free;
+    LConn := nil;
+  end;
+end;
+
+procedure TTestDMLKeyPredicate.
+  MoreValuesThanColumns_IsRefusedInsteadOfDiscardingThem;
+begin
+  Assert.WillRaise(
+    procedure
+    begin
+      SelectIdSql(dnSQLite, TKeyOnly, TValue.From<TArray<TValue>>(
+        [TValue.From<Int64>(1), TValue.From<Int64>(2), TValue.From<Int64>(3)]));
+    end,
+    Exception,
+    'TKeyOnly has TWO key columns. Before this guard a third value emitted ' +
+    'WHERE keyonly.k1 = 1 AND keyonly.k2 = 2 and dropped the 3 in silence - ' +
+    'the same class of defect as the `if LFor > 0 then Continue` #326 ' +
+    'removed. FEWER values than columns stays allowed: that is the design.');
+end;
+
+procedure TTestDMLKeyPredicate.
+  PrimaryKeyWithNoColumns_IsRefusedNotAWholeTableRead;
+begin
+  Assert.WillRaise(
+    procedure
+    begin
+      SelectIdSql(dnSQLite, TNoKeyColsRow, TValue.From<Int64>(1));
+    end,
+    Exception,
+    'A REGRESSION THIS BRANCH INTRODUCED AND THEN PAID BACK. On the base ' +
+    'commit a zero-column key left a dangling '' WHERE '' - malformed SQL a ' +
+    'database rejects loudly. Appending the keyword after the loop turned ' +
+    'that into SELECT nokeycols.nk_id FROM nokeycols: a SILENT full-table ' +
+    'read, measured. An earlier version of this fixture called the shape ' +
+    'uncoverable; it is ten lines away. WHAT REFUSES IT IS THE ' +
+    'TOO-MANY-VALUES GUARD, not a guard of its own: one scalar value against ' +
+    'zero columns IS more values than columns. A dedicated Columns.Count = 0 ' +
+    'test was written and DELETED because removing it killed nothing.');
+end;
+
 initialization
+  TRegisterClass.RegisterEntity(TNoKeyColsRow);
   TRegisterClass.RegisterEntity(TDateKeyRow);
   TDUnitX.RegisterTestFixture(TTestDMLKeyPredicate);
 

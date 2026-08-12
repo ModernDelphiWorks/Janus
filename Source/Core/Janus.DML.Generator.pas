@@ -637,14 +637,29 @@ end;
 ///  that works right now, and answering the zero-rows guard would turn a
 ///  working read into an empty one.
 ///
-///  THE REPAIR TAKEN, AND IT COSTS NO SIGNATURE. Emitting the full predicate
-///  needs the other N-1 values, and an earlier version of this paragraph said
-///  that meant a wider signature and therefore a change to
-///  IDMLGeneratorCommand `which third parties implement`. IT DID NOT. The
-///  values travel inside the TValue this method ALREADY takes, as a
-///  TArray<TValue> - the possibility this same comment named four paragraphs
-///  above. IDMLGeneratorCommand is untouched, and so is every layer between a
-///  consumer and here: TSQLCommandExecutor<M>.Find already took a TValue.
+///  THE REPAIR TAKEN COSTS NO SIGNATURE ON THIS PATH - AND THAT IS AS FAR AS
+///  THE CLAIM GOES. Emitting the full predicate needs the other N-1 values,
+///  and an earlier version of this paragraph said that meant a wider signature
+///  and therefore a change to IDMLGeneratorCommand `which third parties
+///  implement`. THAT PART WAS WRONG: the values travel inside the TValue this
+///  method ALREADY takes, as a TArray<TValue> - the possibility this same
+///  comment named four paragraphs above. IDMLGeneratorCommand is untouched
+///  (it does not even declare GetGeneratorWhere), and so is every layer
+///  between a consumer and here: TSQLCommandExecutor<M>.Find already took a
+///  TValue.
+///
+///  BUT THE REPLACEMENT SENTENCE WAS ALSO WRONG, AND IT SAID `IT COSTS NO
+///  SIGNATURE ANYWHERE`. It does. Reaching this from consumer code needed a
+///  NEW MEMBER ON TWO PUBLISHED INTERFACES: Find(TArray<TValue>) on
+///  IContainerObjectSet<M>, and Find(TArray<TValue>) plus Open(TArray<TValue>)
+///  on IContainerDataSet<M>. ADDING A MEMBER TO A PUBLISHED INTERFACE BREAKS A
+///  THIRD-PARTY IMPLEMENTER EXACTLY AS WIDENING IDMLGeneratorCommand WOULD -
+///  the objection that killed the old design applies to this one too, just one
+///  layer out. Inside this repository each interface has exactly ONE
+///  implementer, both enumerated and both updated; OUTSIDE it, whether anyone
+///  implements them is NOT MEASURABLE FROM HERE AND IS NOT MEASURED. The
+///  sibling issue #333 declared that same exposure explicitly, and this one
+///  should have said it the first time.
 ///
 ///  WHAT DECIDES THE PREDICATE IS HOW MANY VALUES ARRIVE, NOT HOW MANY COLUMNS
 ///  THE KEY HAS. A scalar aid yields a one-element array and therefore the
@@ -695,9 +710,46 @@ begin
     // a working read into an empty one - which matters, because where the
     // first key column happens to be UNIQUE the old behaviour was CORRECT.
     LValues := _KeyValues(AID);
+    // AN ID WAS SUPPLIED AND NOT ONE TERM CAN BE BUILT FROM IT: REFUSE.
+    // Reaching here means _IsType already agreed the caller HAS given an id,
+    // so answering with no predicate would read the WHOLE TABLE for a question
+    // about one row. Two shapes get here and both were MEASURED, not imagined:
+    //   * an EMPTY TArray<TValue> from the entry point #326 adds - Find([])
+    //     and Open([]) emitted `SELECT keyonly.k1, keyonly.k2 FROM keyonly`
+    //     and Open loaded EVERY row of the table;
+    //   * a primary key mapping NO COLUMNS, which MetaDbDiff's
+    //     PrimaryKey.Create yields from an empty column string because it
+    //     wraps its whole parsing block in `if Length(AColumns) > 0`. That one
+    //     is caught by the SECOND guard below, not by a third of its own.
+    // THE SECOND SHAPE IS A REGRESSION THIS BRANCH INTRODUCED, and these
+    // guards are how it is paid back. Before the composite repair the WHERE
+    // was appended BEFORE the loop, so a zero-column key left a dangling
+    // ' WHERE ' - malformed SQL the database rejects loudly. Appending it
+    // after the loop turned that loud failure into a SILENT full-table read.
+    // Refusing is louder than either.
+    if Length(LValues) = 0 then
+      raise Exception.Create('An id was supplied carrying no values, so the ' +
+        'predicate would be empty and the statement would match EVERY row. ' +
+        'To read all records, use the overload that takes no id.');
+    // AND THIS ONE ALSO CATCHES THE ZERO-COLUMN KEY, which is why there is no
+    // third guard for it. A separate `Columns.Count = 0` test was written,
+    // measured and DELETED: with the empty array already refused above, every
+    // surviving call has at least one value, so `Length(LValues) > 0` is
+    // exactly the zero-column condition and this line fires first. Removing
+    // that third guard with a tripwire the compiler echoed killed ZERO
+    // clauses - it was unreachable, not redundant-but-safe.
+    if Length(LValues) > LPrimaryKey.Columns.Count then
+      raise Exception.Create(Format('%d key value(s) were supplied for a ' +
+        'primary key of %d column(s) on %s. Dropping the extra values in ' +
+        'silence is the very defect issue #326 repaired, so they are refused.',
+        [Length(LValues), LPrimaryKey.Columns.Count, AClass.ClassName]));
     LTerms := '';
     for LFor := 0 to LPrimaryKey.Columns.Count - 1 do
     begin
+      // FEWER VALUES THAN COLUMNS IS ALLOWED, AND IS THE WHOLE DESIGN: the
+      // predicate follows what the caller SUPPLIED, so one value gives the
+      // one-column predicate the scalar path always gave. MORE values than
+      // columns is refused above, because those could only be discarded.
       if LFor > High(LValues) then
         Break;
       if LTerms <> '' then
@@ -705,12 +757,7 @@ begin
       LTerms := LTerms + ATableName + '.' + LPrimaryKey.Columns[LFor] +
                 ' = ' + _KeyLiteral(LValues[LFor]);
     end;
-    // The WHERE keyword is appended only when there is a term to hang off it.
-    // Today's code appended it FIRST and could therefore leave a dangling
-    // ' WHERE ' when the key mapped no columns at all; no clause covers that
-    // degenerate shape, and the change is noted rather than claimed as a fix.
-    if LTerms <> '' then
-      Result := Result + IfThen(LScopeWhere = '', ' WHERE ', ' AND ') + LTerms;
+    Result := Result + IfThen(LScopeWhere = '', ' WHERE ', ' AND ') + LTerms;
   end;
 end;
 
