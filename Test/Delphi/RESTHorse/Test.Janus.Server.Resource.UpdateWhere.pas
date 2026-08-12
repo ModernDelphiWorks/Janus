@@ -93,6 +93,7 @@ uses
   FireDAC.Comp.Client,
   DataEngine.FactoryInterfaces,
   Janus.Server.Resource,
+  Janus.Server.RestQuery.Parse,
   Test.Janus.Model.KeyTypes,
   Test.Janus.Model.KeyTypeDecoy;
 
@@ -106,6 +107,10 @@ type
     /// TMonitorProc the connection was built with.
     FCommands: TStringList;
     function InsertRaw(const AResource, ABody: String): String;
+    /// The two SIBLING paths of ParseUpdate, which locate their row from the
+    /// URI's ID rather than by building a predicate out of the body.
+    function DeleteRaw(const AURI: String): String;
+    function FindRaw(const AURI: String): String;
     function UpdateRaw(const AResource, ABody: String): String;
     /// The last SELECT the factory emitted against ATable. Fails - dumping the
     /// whole capture - when there is none.
@@ -251,6 +256,21 @@ type
     /// The response of a PUT that did land.
     [Test]
     procedure TheUpdateResponseNamesTheResource;
+
+    /// THE TWO SIBLING PATHS THE ISSUE LEFT UNMEASURED, AND THEY ARE MEASURED
+    /// HERE RATHER THAN REPAIRED, BECAUSE THEY TURNED OUT NOT TO NEED IT.
+    /// ParseDelete and ResolverFindID hand AQuery.ID.ToString to
+    /// TRESTObjectSet.Find, which reaches TDMLGeneratorAbstract.GetGeneratorWhere
+    /// (anchored by METHOD) - and that method already dispatches: bare for
+    /// Integer, Int64 and UInt64, QuotedStr for everything else. These clauses
+    /// are regression guards over that dispatch, not repairs. They are green at
+    /// the base commit and they say so.
+    [Test]
+    procedure ParseDelete_ATextualIdReachesOnlyItsOwnRow;
+    [Test]
+    procedure ParseDelete_AnIdCarryingAQuoteTravelsAsAValue;
+    [Test]
+    procedure ResolverFindID_ATextualIdReachesOnlyItsOwnRow;
   end;
 
 implementation
@@ -730,6 +750,80 @@ begin
     + 'is always true passes every other clause in this fixture.');
   Assert.AreEqual(1, ScalarInt('SELECT COUNT(*) FROM kttext'),
     'The PUT inserted a row instead of leaving the table alone.');
+end;
+
+function TTestServerResourceUpdateWhere.DeleteRaw(const AURI: String): String;
+var
+  LResource: TAppResourceBase;
+  LQuery: TRESTQueryParse;
+begin
+  LResource := TAppResourceBase.Create(FConnection);
+  try
+    LQuery := TRESTQueryParse.Create;
+    try
+      LQuery.ParseQuery(AURI);
+      Result := LResource.ParseDelete(LQuery);
+    finally
+      LQuery.Free;
+    end;
+  finally
+    LResource.Free;
+  end;
+end;
+
+function TTestServerResourceUpdateWhere.FindRaw(const AURI: String): String;
+var
+  LResource: TAppResourceBase;
+  LQuery: TRESTQueryParse;
+begin
+  LResource := TAppResourceBase.Create(FConnection);
+  try
+    LQuery := TRESTQueryParse.Create;
+    try
+      LQuery.ParseQuery(AURI);
+      Result := LResource.ParseFind(LQuery);
+    finally
+      LQuery.Free;
+    end;
+  finally
+    LResource.Free;
+  end;
+end;
+
+procedure TTestServerResourceUpdateWhere.ParseDelete_ATextualIdReachesOnlyItsOwnRow;
+begin
+  InsertRaw('KeyTypeText', '{"ktcode":"ABC","kttag":"gone"}');
+  InsertRaw('KeyTypeText', '{"ktcode":"DEF","kttag":"stays"}');
+  DeleteRaw('KeyTypeText(ABC)');
+  Assert.AreEqual(0, ScalarInt('SELECT COUNT(*) FROM kttext WHERE ktcode = ''ABC'''),
+    'DELETE by a textual ID did not reach its row.');
+  Assert.AreEqual(1, ScalarInt('SELECT COUNT(*) FROM kttext WHERE ktcode = ''DEF'''),
+    'DELETE by a textual ID reached a row it does not name.');
+end;
+
+procedure TTestServerResourceUpdateWhere.ParseDelete_AnIdCarryingAQuoteTravelsAsAValue;
+begin
+  InsertRaw('KeyTypeText', '{"ktcode":"O''Brien","kttag":"gone"}');
+  InsertRaw('KeyTypeText', '{"ktcode":"DEF","kttag":"stays"}');
+  DeleteRaw('KeyTypeText(O''Brien)');
+  Assert.AreEqual(0,
+    ScalarInt('SELECT COUNT(*) FROM kttext WHERE ktcode = ''O''''Brien'''),
+    'DELETE by an ID carrying a quote did not reach its row.');
+  Assert.AreEqual(1, ScalarInt('SELECT COUNT(*) FROM kttext WHERE ktcode = ''DEF'''),
+    'DELETE by an ID carrying a quote reached a row it does not name.');
+end;
+
+procedure TTestServerResourceUpdateWhere.ResolverFindID_ATextualIdReachesOnlyItsOwnRow;
+var
+  LBody: String;
+begin
+  InsertRaw('KeyTypeText', '{"ktcode":"ABC","kttag":"mine"}');
+  InsertRaw('KeyTypeText', '{"ktcode":"DEF","kttag":"theirs"}');
+  LBody := FindRaw('KeyTypeText(ABC)');
+  Assert.IsTrue(ContainsText(LBody, 'mine'),
+    'GET by a textual ID did not return its row. Body was: ' + LBody);
+  Assert.IsFalse(ContainsText(LBody, 'theirs'),
+    'GET by a textual ID returned a row it does not name. Body was: ' + LBody);
 end;
 
 procedure TTestServerResourceUpdateWhere.TheUpdateResponseNamesTheResource;
