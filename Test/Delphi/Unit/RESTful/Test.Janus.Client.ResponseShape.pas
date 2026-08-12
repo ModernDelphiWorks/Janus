@@ -121,6 +121,7 @@ uses
   Janus.Client.Methods,
   Janus.Client.RestException,
   Janus.Client.DataSnap,
+  Janus.Client.Horse,
   Janus.Client.WS;
 
 type
@@ -151,6 +152,7 @@ type
     FStub: TStubShapeServer;
     FWS: TRESTClientWS;
     FDataSnap: TRESTClientDataSnap;
+    FHorse: TRESTClientHorse;
     FErrorSeen: String;
     /// TErrorCommandEvent is a method pointer and not an anonymous method, so
     /// the handler has to be a method of the fixture.
@@ -168,6 +170,10 @@ type
     function CaptureWS(const ARequestMethod: TRESTRequestMethodType;
       const ARootElement, ABody: String): String;
     function CaptureDataSnap(const ARequestMethod: TRESTRequestMethodType;
+      const ABody: String): String;
+    /// Same, for the Horse client - which has no root element and so never
+    /// unwraps, and whose only reachable shape failure is the absent value.
+    function CaptureHorse(const ARequestMethod: TRESTRequestMethodType;
       const ABody: String): String;
   public
     [Setup]
@@ -276,6 +282,24 @@ type
     /// naming the shape must not cost the evidence.
     [Test]
     procedure DataSnap_GET_AbsentResultKey_StillCarriesTheServerBody;
+
+    /// ---- TRESTClientHorse, over the live stub ----
+    ///
+    /// The Horse client casts nothing, so it was outside the ten hard casts
+    /// issue #323 enumerates - but it dereferences the same nil, at the same
+    /// point, in all four of its verbs: JSONValue.ToJSON with no guard. Unlike
+    /// the other two families it IS compiled and driven by three test projects,
+    /// and it still answered "Access violation ... Read of address 00000000"
+    /// to a body that is not JSON. One clause per verb, because four
+    /// independent sites are four independent sites.
+    [Test]
+    procedure Horse_GET_NonJsonBody_IsNamed;
+    [Test]
+    procedure Horse_POST_NonJsonBody_IsNamed;
+    [Test]
+    procedure Horse_PUT_NonJsonBody_IsNamed;
+    [Test]
+    procedure Horse_DELETE_NonJsonBody_IsNamed;
   end;
 
 implementation
@@ -379,12 +403,16 @@ begin
   FDataSnap := TRESTClientDataSnap.Create(nil);
   FDataSnap.Host := cLOOPBACK;
   FDataSnap.Port := FStub.Port;
+  FHorse := TRESTClientHorse.Create(nil);
+  FHorse.Host := cLOOPBACK;
+  FHorse.Port := FStub.Port;
 end;
 
 procedure TTestClientResponseShape.TearDown;
 begin
   FreeAndNil(FWS);
   FreeAndNil(FDataSnap);
+  FreeAndNil(FHorse);
   FreeAndNil(FStub);
 end;
 
@@ -441,6 +469,26 @@ begin
   Result := '';
   try
     RunDataSnap(ARequestMethod, ABody);
+  except
+    on E: EJanusRESTException do
+      Result := E.Message;
+  end;
+  Assert.AreNotEqual('', Result,
+    'The call should have raised EJanusRESTException.');
+end;
+
+function TTestClientResponseShape.CaptureHorse(
+  const ARequestMethod: TRESTRequestMethodType; const ABody: String): String;
+begin
+  FStub.ContentType := 'text/plain';
+  FStub.Body := ABody;
+  Result := '';
+  try
+    FHorse.Execute('s323', '', ARequestMethod,
+                   procedure
+                   begin
+                     FHorse.AddBodyParam('{"probe":1}');
+                   end);
   except
     on E: EJanusRESTException do
       Result := E.Message;
@@ -803,6 +851,50 @@ begin
   Assert.IsTrue(ContainsText(LMessage, cSERVERERROR_MK),
     'The server body has to survive into the message. Message was: ' +
     LMessage);
+end;
+
+procedure TTestClientResponseShape.Horse_GET_NonJsonBody_IsNamed;
+var
+  LMessage: String;
+begin
+  LMessage := CaptureHorse(TRESTRequestMethodType.rtGET, 'this is not json');
+  Assert.IsTrue(ContainsText(LMessage, cRESTNOJSONVALUE),
+    'The absent value has to be named. Message was: ' + LMessage);
+end;
+
+procedure TTestClientResponseShape.Horse_POST_NonJsonBody_IsNamed;
+var
+  LMessage: String;
+begin
+  LMessage := CaptureHorse(TRESTRequestMethodType.rtPOST, 'this is not json');
+  Assert.IsTrue(ContainsText(LMessage, cRESTNOJSONVALUE),
+    'The absent value has to be named. Message was: ' + LMessage);
+end;
+
+procedure TTestClientResponseShape.Horse_PUT_NonJsonBody_IsNamed;
+var
+  LMessage: String;
+begin
+  LMessage := CaptureHorse(TRESTRequestMethodType.rtPUT, 'this is not json');
+  Assert.IsTrue(ContainsText(LMessage, cRESTNOJSONVALUE),
+    'The absent value has to be named. Message was: ' + LMessage);
+end;
+
+procedure TTestClientResponseShape.Horse_DELETE_NonJsonBody_IsNamed;
+var
+  LMessage: String;
+begin
+  /// DoDELETE is the one of the four that answers ToString and not ToJSON.
+  /// That asymmetry is NOT repaired here and it is not incidental: ToJSON is
+  /// ToChars with EncodeBelow32 and EncodeAbove127 and ToString is ToChars
+  /// with neither (Studio 37.0, System.JSON.pas, TJSONAncestor.ToJSON and
+  /// TJSONAncestor.ToString), so the two answers differ for any character
+  /// above 127 - which in this framework's own examples is most of them.
+  /// Changing it changes an answer the consumer already receives, so it is
+  /// reported and not decided here. The nil guard below does not touch it.
+  LMessage := CaptureHorse(TRESTRequestMethodType.rtDELETE, 'this is not json');
+  Assert.IsTrue(ContainsText(LMessage, cRESTNOJSONVALUE),
+    'The absent value has to be named. Message was: ' + LMessage);
 end;
 
 initialization

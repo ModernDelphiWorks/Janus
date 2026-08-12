@@ -180,6 +180,26 @@ type
     /// </summary>
     class function ResponsePayload(const AValue: TJSONValue;
       const AUnwrapEnvelope: Boolean): String;
+    /// <summary>
+    ///   ISSUE #323 - THE HALF OF THAT RULE THAT THE HORSE CLIENT ALSO NEEDS.
+    ///
+    ///   Answers AValue, or raises when there is none. TRESTClientHorse casts
+    ///   nothing - so it was outside the ten hard casts the issue enumerates -
+    ///   but its four verbs all read JSONValue.ToJSON or .ToString with no
+    ///   guard, and nil is exactly as reachable there as anywhere else.
+    ///   Measured over a live server: all four answered "Access violation ...
+    ///   Read of address 00000000" to a body that is not JSON.
+    ///
+    ///   It is separate from ResponsePayload because the Horse verbs do not
+    ///   agree on how to render the value they got: three answer ToJSON and
+    ///   DoDELETE answers ToString, and those two differ for every character
+    ///   above 127 (Studio 37.0, System.JSON.pas: ToJSON is ToChars with
+    ///   EncodeBelow32 and EncodeAbove127, ToString is ToChars with neither).
+    ///   Guarding nil is not a licence to change the answer of a call that
+    ///   currently succeeds, so the rendering is left exactly as each site
+    ///   had it and the disagreement is reported instead.
+    /// </summary>
+    class function ResponseValue(const AValue: TJSONValue): TJSONValue;
     property MethodGET: String read GetMethodGET write SetMethodGET;
     property MethodPOST: String read GetMethodPOST write SetMethodPOST;
     property MethodPUT: String read GetMethodPUT write SetMethodPUT;
@@ -266,13 +286,19 @@ begin
     FAfterCommand(FStatusCode, FResponseString, FRequestMethod);
 end;
 
+class function TJanusClient.ResponseValue(const AValue: TJSONValue): TJSONValue;
+begin
+  if AValue = nil then
+    raise EJanusRESTResponseShape.Create(cRESTNOJSONVALUE);
+  Result := AValue;
+end;
+
 class function TJanusClient.ResponsePayload(const AValue: TJSONValue;
   const AUnwrapEnvelope: Boolean): String;
 var
   LArray: TJSONArray;
 begin
-  if AValue = nil then
-    raise EJanusRESTResponseShape.Create(cRESTNOJSONVALUE);
+  ResponseValue(AValue);
 
   if not AUnwrapEnvelope then
   begin
