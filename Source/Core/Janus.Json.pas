@@ -143,6 +143,42 @@ begin
               AResult := DateTimeToIso8601(AResult, UseISO8601DateFormat)
           end
           else
+          /// <summary> A bare TGUID - issue #314.
+          ///
+          ///  WHY IT NEEDS AN ARM OF ITS OWN. TGUID is tkRecord, is not a
+          ///  TBlob and is not a Nullable, so before this arm it reached the
+          ///  else below, where GetNullableValue(...).AsVariant is a cast the
+          ///  RTL refuses. Measured at ea0208f over a class with one TGUID
+          ///  property: ObjectToJsonString raised 'Erro no SetValue() da
+          ///  propriedade [gjkey] / Invalid class typecast' - the same text
+          ///  issue #314 reports, and in the REST client it escapes
+          ///  TSessionRestFul.Insert before any request is sent.
+          ///
+          ///  WHY NOT A GENERIC tkRecord FALLBACK. The population that reaches
+          ///  this case is closed and was enumerated over Source\, Test\ and
+          ///  Examples\: TBlob, Nullable&lt;T&gt; and TGUID are the only record
+          ///  types declared on a mapped property. Lazy&lt;T&gt; is a record
+          ///  too but is never one: it is always a FIELD behind a read-only
+          ///  property, and the JSON writer skips properties that are not
+          ///  writable (JsonFlow.Builders.pas:915-916). A generic arm would
+          ///  therefore buy no case that exists today while giving every
+          ///  future record a silent, wrong rendering instead of a loud
+          ///  failure.
+          ///
+          ///  THE TEXT IS NOT A FREE CHOICE. TGUID.ToString is what the three
+          ///  command classes already write to the database
+          ///  (Janus.Command.Inserter.pas:213-217, Updater:118-119,
+          ///  Deleter:97-98), and Janus.DML.Generator.pas:702-709 refuses any
+          ///  other property type for a ftGuid column precisely because those
+          ///  three read it that way. It is also the only form StringToGUID
+          ///  accepts, so DoSetValue can read back what this writes.
+          ///  </summary>
+          if AProperty.PropertyType.Handle = TypeInfo(TGUID) then
+          begin
+            ABreak := True;
+            AResult := AProperty.GetValue(AInstance).AsType<TGUID>.ToString;
+          end
+          else
             AResult := AProperty.GetNullableValue(AInstance).AsVariant;
         end;
       tkEnumeration:
@@ -199,6 +235,33 @@ begin
                                           AProperty.PropertyType.Handle,
                                           AValue,
                                           UseISO8601DateFormat);
+            end
+            else
+            /// <summary> The way back for a bare TGUID - issue #314.
+            ///
+            ///  Serialising without being able to deserialise trades one
+            ///  defect for another, so the arm added to DoGetValue needs this
+            ///  one. Without it ABreak stays False and the JSON reader falls
+            ///  to its own tkRecord case,
+            ///  TValue.FromVariant(LValue) into a TGUID property
+            ///  (JsonFlow.Builders.pas:497-498) - the mirror image of the cast
+            ///  that broke the write side.
+            ///
+            ///  The parse is NOT repeated here. SetValueNullable already owns
+            ///  the arm Janus.Bind.pas:909 needs for the same property shape
+            ///  read out of a dataset, so both readers land on one
+            ///  StringToGUID - which accepts only the braced 38-character form
+            ///  DoGetValue emits. A JSON null, or a member absent from the
+            ///  payload, is not a GUID and must not raise: it leaves the
+            ///  property at TGUID.Empty, the same value a freshly constructed
+            ///  object already carries. </summary>
+            if AProperty.PropertyType.Handle = TypeInfo(TGUID) then
+            begin
+              ABreak := True;
+              AProperty.SetValueNullable(AInstance,
+                                         AProperty.PropertyType.Handle,
+                                         AValue,
+                                         UseISO8601DateFormat);
             end;
           end;
         tkEnumeration:
