@@ -224,13 +224,21 @@ type
     /// lower, in the bind. Issue #324 in turn calls the whole reading
     /// unsustainable, and that is one step too far: the sweep is real.
     ///
-    /// THE UNSIGNED HALF STANDS, and its reason is the storage rather than this
-    /// repository: the row the framework's own INSERT writes carries
-    /// -9223372036854775808, because SQLite's INTEGER storage class is a SIGNED
-    /// 64-bit integer and 9223372036854775808 is High(Int64) + 1. Measured with
-    /// a hand-typed SQL literal, which passes through no TParam and no TField
-    /// of ours: SQLite answers typeof() = real. See issue #325 and the clauses
-    /// in Test.Janus.Server.Resource.IntegerKeyWidth.
+    /// THE UNSIGNED HALF STANDS, and its reason was never this repository:
+    /// 9223372036854775808 is High(Int64) + 1, and a signed 64-bit column has
+    /// nowhere to put the sign. Measured with a hand-typed SQL literal, which
+    /// passes through no TParam and no TField of ours: SQLite answers
+    /// typeof() = real. WHERE the sign is dropped on the framework's own path
+    /// is NOT measured - an earlier version of this sentence named
+    /// TParam.AsLargeInt and that accessor is not on it; see the comment over
+    /// UnsignedKeyAboveHighInt64_TheStorageIsTheWallAndNotTheFramework in
+    /// Test.Janus.Server.Resource.IntegerKeyWidth.
+    ///
+    /// THE SENTENCE HERE USED TO SAY "the row the framework's own INSERT
+    /// writes carries -9223372036854775808", AND ISSUE #325 FALSIFIED IT: the
+    /// framework no longer writes that row at all - it refuses the value, by
+    /// name, at the point the parameter is built. See the clauses in
+    /// Test.Janus.Server.Resource.IntegerKeyWidth.
     ///
     /// Width. Nothing about selecting the numeric branch depends on it.
     [Test]
@@ -682,12 +690,23 @@ begin
     + 'Statement was: ' + LastSelect('ktbig'));
 end;
 
+/// THE SEED IS WRITTEN BY HAND SINCE ISSUE #325, AND THE SUBJECT DID NOT MOVE.
+/// What this clause is about is the LITERAL _PrimaryKeyValueToSql renders out
+/// of a varUInt64 on its NUMERIC branch, and that branch is selected by
+/// TColumnMapping.FieldType - so the entity has to stay TKeyTypeUnsigned, with
+/// its ftLargeint column. What changed is that the framework now REFUSES to
+/// write such a key, so the seed arrives by direct SQL instead. It is seeded
+/// as the signed reinterpretation because that is the only 64-bit integer
+/// SQLite can hold in that column, and it is what the row carried before
+/// anyway; the assertion never looks at the row - it looks at the TEXT of the
+/// predicate the request produced.
 procedure TTestServerResourceUpdateWhere.UnsignedKeyAboveHighInt64_TheKeyLiteralMustNotFlipSign;
 begin
   /// High(Int64) + 1. Reinterpreted as signed, this exact bit pattern is
   /// -9223372036854775808 - a valid SQL literal that names no row.
-  InsertRaw('KeyTypeUnsigned',
-    '{"ktu":9223372036854775808,"kttag":"before"}');
+  FDConnection.ExecSQL(
+    'INSERT INTO ktunsigned (ktu, kttag) VALUES (-9223372036854775808, ' +
+    QuotedStr('before') + ')');
   Assert.AreEqual(1, ScalarInt('SELECT COUNT(*) FROM ktunsigned'),
     'The seed did not write the unsigned row.');
   FCommands.Clear;

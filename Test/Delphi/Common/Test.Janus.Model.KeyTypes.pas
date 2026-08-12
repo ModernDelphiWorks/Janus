@@ -226,16 +226,29 @@ type
   /// The claim has to be narrow to be true, and the narrow version is the one
   /// that matters: the response emits PRIMARY KEY columns and nothing else,
   /// and every PRIMARY KEY column in the units this project links spells the
-  /// same as its property. Re-measured at THIS commit over the 25 units named
-  /// with a path in Janus.Tests.RESTHorse.dpr: 30 key columns, exactly one
-  /// divergent - this one.
+  /// same as its property, ignoring case. Re-measured at THIS commit over the
+  /// 26 units named with a path in Janus.Tests.RESTHorse.dpr: 31 key columns,
+  /// exactly one divergent - this one.
   ///
   /// THE FIGURES USED TO READ 24 AND 29 AND WERE CORRECT WHEN WRITTEN. Issue
   /// #320's branch moved both without touching this sentence: it added one
-  /// unit to that .dpr, and TKeyTypeSingle above added one key column. Both
-  /// were re-derived by scanning the .dpr's path-named units and resolving
+  /// unit to that .dpr, and TKeyTypeSingle above added one key column. They
+  /// are re-derived by scanning the .dpr's path-named units and resolving
   /// every [PrimaryKey] against its [Column]; the scan answers 24/29 at
-  /// ea0208f and 25/30 here, so the sentence moved and the FINDING did not. NON-key columns are a different story and diverge freely; there are
+  /// ea0208f, 26/30 at 0546a51 and 26/31 here, and the FINDING has not moved
+  /// through any of it.
+  ///
+  /// THE UNIT COUNT WAS ALREADY WRONG BEFORE THIS BRANCH TOUCHED IT, and the
+  /// honest thing is to say so rather than quietly correct it: the sentence
+  /// read 25 while the same scan answered 26 at 0546a51. Issue #325 moved the
+  /// COLUMN count, from 30 to 31, by adding TKeyTypeUnsignedAsText below.
+  ///
+  /// "IGNORING CASE" IS ALSO NEW WORDING FOR AN OLD MEASUREMENT. A
+  /// case-SENSITIVE scan answers EIGHT divergent, seven of them the same
+  /// id/Id pair in RestHorseTest.Models. The claim was always the
+  /// case-insensitive one - it is about a column being swapped for a property,
+  /// not about capitalisation - and now it says which it is.
+  /// NON-key columns are a different story and diverge freely; there are
   /// five in RestHorseTest.Models alone (customer_id/CustomerId and four more
   /// in TCustomerOrderSummary), which is why the sentence says KEY.
   [Entity]
@@ -327,6 +340,43 @@ type
     property kttag: String read Fkttag write Fkttag;
   end;
 
+  /// THE ESCAPE HATCH THE REFUSAL OF ISSUE #325 NAMES, so that the advice
+  /// inside that message is MEASURED rather than asserted. The property is the
+  /// SAME UInt64 as TKeyTypeUnsigned above - so the parameter still arrives as
+  /// a Variant of VType varUInt64 - and only the COLUMN differs: ftString,
+  /// which binds through TParam.AsString and keeps all twenty digits.
+  ///
+  /// IT IS ALSO WHAT MAKES THE ftLargeint TERM OF THAT GUARD LOAD-BEARING.
+  /// Widening the guard to every integer label would refuse the very mapping
+  /// its own message recommends, and this entity is the clause that says so.
+  [Entity]
+  [Table('ktutext', '')]
+  [PrimaryKey('ktut', TAutoIncType.NotInc,
+                      TGeneratorType.NoneInc,
+                      TSortingOrder.NoSort,
+                      True, 'Unsigned 64-bit primary key stored as text')]
+  TKeyTypeUnsignedAsText = class
+  private
+    Fktut: UInt64;
+    Fktw: UInt64;
+    Fkttag: String;
+  public
+    [Restrictions([TRestriction.NotNull])]
+    [Column('ktut', ftString, 20)]
+    property ktut: UInt64 read Fktut write Fktut;
+
+    /// A NON-KEY unsigned column, and the only shape in this repository that
+    /// can ask whether the refusal of issue #325 is about VALUES or about
+    /// KEYS. It rides on this entity rather than on TKeyTypeUnsigned because
+    /// this one's KEY is accepted, so an insert gets far enough for the
+    /// question about the non-key column to be asked at all.
+    [Column('ktw', ftLargeint)]
+    property ktw: UInt64 read Fktw write Fktw;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
   /// A COMPOSITE textual key. The pair list is a LOOP, and a loop that stops
   /// after its first turn is invisible to every single-column clause in the
   /// fixture. The declaration uses the comma form, which
@@ -403,6 +453,7 @@ initialization
   TRegisterClass.RegisterEntity(TKeyTypeBool);
   TRegisterClass.RegisterEntity(TKeyTypeBig);
   TRegisterClass.RegisterEntity(TKeyTypeUnsigned);
+  TRegisterClass.RegisterEntity(TKeyTypeUnsignedAsText);
   TRegisterClass.RegisterEntity(TKeyTypeComposite);
   TRegisterClass.RegisterEntity(TKeyTypeNullable);
 

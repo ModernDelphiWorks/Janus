@@ -119,6 +119,14 @@ begin
           Value := LColumn.ColumnProperty.GetNullableValue(AObject).AsType<TGuid>.ToString
         else
           Value := LColumn.ColumnProperty.GetNullableValue(AObject).AsVariant;
+        /// ISSUE #325 DOES NOT GUARD HERE, AND THE ASYMMETRY IS THE POINT.
+        /// These parameters are the WHERE of the update - a lookup, not a
+        /// write - and the lookup REACHES THE SAME ROW the read took the key
+        /// from. That is measured as an outcome, by a clause that updates a row
+        /// whose key is Low(Int64) through an object loaded from it, and NOT
+        /// argued from a mechanism: where the write path drops the sign is not
+        /// established. The loop below, which writes VALUES, does carry the
+        /// guard. Measured in Test.Janus.Server.Resource.IntegerKeyWidth.
       end;
     end;
     FResultCommand := FGeneratorCommand.GeneratorUpdate(AObject, LParams, AModifiedFields);
@@ -143,6 +151,12 @@ begin
         DataType := LFieldType.FieldType;
         ParamType := ptInput;
         Value := _GetParamValue(AObject, LProperty, DataType);
+        /// Issue #325, on a WRITTEN column of the UPDATE.
+        Self._RefuseUnsignedValueTheColumnCannotCarry(AObject,
+                                                      LFieldType.ColumnName,
+                                                      LProperty,
+                                                      DataType,
+                                                      Value);
         if FConnection.GetDriver = TDriverName.dnPostgreSQL then
           Continue;
     	  // Tratamento para o tipo ftBoolean nativo, indo como Integer
