@@ -484,6 +484,15 @@ end;
 /// and stops is a prettier silence. Every fragment asserted below is a thing
 /// the reader needs in order to act: which value was refused, which property
 /// and which entity carry it, what the limit is, and what to write instead.
+///
+/// TWO OF THE FRAGMENTS ARE QUOTED WITH THE WORDS AROUND THEM, AND THAT IS NOT
+/// STYLE - IT IS THE ONLY WAY THEY MEASURE ANYTHING. TCommandInserter wraps
+/// whatever is raised inside it in a DIAG line that ALREADY spells
+/// `column=ktu class=TKeyTypeUnsigned`, so a bare search for "ktu" or for
+/// "TKeyTypeUnsigned" passes with the refusal's own message emptied of both.
+/// Measured, and it is why this comment exists: blanking AObject.ClassName in
+/// the raise left this clause GREEN until the assertion started naming the
+/// phrase the refusal itself writes.
 procedure TTestServerResourceIntegerKeyWidth.UnsignedKeyAboveHighInt64_TheInsertMustBeRefusedAndNameTheWay;
 var
   LMessage: String;
@@ -498,12 +507,18 @@ begin
   Assert.IsFalse(LMessage = '',
     'The insert of an unsigned key above High(Int64) was accepted. Issue #325 '
     + 'decided it must be refused. Captured: ' + Captured);
-  Assert.IsTrue(ContainsText(LMessage, '9223372036854775808'),
+  /// The trailing period matters. The message ALSO carries the signed
+  /// reinterpretation, -9223372036854775808, whose text contains the unsigned
+  /// one - so a bare search for the digits passes with the value slot blanked.
+  /// Measured; the assertion was written that way and survived the mutation.
+  Assert.IsTrue(ContainsText(LMessage, 'refuses the value 9223372036854775808.'),
     'The refusal does not quote the value it refused: ' + LMessage);
-  Assert.IsTrue(ContainsText(LMessage, 'ktu'),
-    'The refusal names neither the property nor the column: ' + LMessage);
-  Assert.IsTrue(ContainsText(LMessage, 'TKeyTypeUnsigned'),
+  Assert.IsTrue(ContainsText(LMessage, 'property "ktu"'),
+    'The refusal does not name the property: ' + LMessage);
+  Assert.IsTrue(ContainsText(LMessage, 'entity TKeyTypeUnsigned'),
     'The refusal does not name the entity: ' + LMessage);
+  Assert.IsTrue(ContainsText(LMessage, 'column "ktu"'),
+    'The refusal does not name the column: ' + LMessage);
   Assert.IsTrue(ContainsText(LMessage, '9223372036854775807'),
     'The refusal does not state the limit: ' + LMessage);
   Assert.IsTrue(ContainsText(LMessage, 'ftString'),
