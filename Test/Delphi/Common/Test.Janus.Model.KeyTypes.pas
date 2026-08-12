@@ -184,6 +184,41 @@ type
     property kttag: String read Fkttag write Fkttag;
   end;
 
+  /// A key declared ftSingle. It is NOT a variant of TKeyTypeFloat: the two
+  /// exist to pin different things. TKeyTypeFloat asks whether the DECIMAL
+  /// SEPARATOR is normalised; this one asks whether the LABEL ftSingle reaches
+  /// the branch that normalises it at all.
+  ///
+  /// ftSingle and ftExtended are the two binary-float labels that the
+  /// server-side literal table left out, and they are not exotic here:
+  /// Janus.DataSet.Base.Adapter declares cBINARYFLOATFIELDKINDS as
+  /// [ftFloat, DB.ftSingle, DB.ftExtended] and Janus.DataSet.Fields creates a
+  /// TSingleField and a TExtendedField for them (both anchored by SYMBOL, not
+  /// by line).
+  ///
+  /// DB.ftSingle QUALIFIED, and not by style: TypInfo declares an ftSingle of
+  /// its own, so an unqualified reference resolves by uses-clause order rather
+  /// than by intent. Janus.DataSet.Base.Adapter says the same thing about the
+  /// same two labels.
+  [Entity]
+  [Table('ktsingle', '')]
+  [PrimaryKey('ktsng', TAutoIncType.NotInc,
+                       TGeneratorType.NoneInc,
+                       TSortingOrder.NoSort,
+                       True, 'Single-precision fractional primary key')]
+  TKeyTypeSingle = class
+  private
+    Fktsng: Single;
+    Fkttag: String;
+  public
+    [Restrictions([TRestriction.NotNull])]
+    [Column('ktsng', DB.ftSingle, 18, 4)]
+    property ktsng: Single read Fktsng write Fktsng;
+
+    [Column('kttag', ftString, 60)]
+    property kttag: String read Fkttag write Fkttag;
+  end;
+
   /// The COLUMN and the PROPERTY are deliberately named differently. The
   /// response names the PROPERTY - it always did - and swapping one for the
   /// other was invisible until this entity existed.
@@ -191,9 +226,16 @@ type
   /// The claim has to be narrow to be true, and the narrow version is the one
   /// that matters: the response emits PRIMARY KEY columns and nothing else,
   /// and every PRIMARY KEY column in the units this project links spells the
-  /// same as its property. Measured over the 24 units named with a path in
-  /// Janus.Tests.RESTHorse.dpr: 29 key columns, exactly one divergent - this
-  /// one. NON-key columns are a different story and diverge freely; there are
+  /// same as its property. Re-measured at THIS commit over the 25 units named
+  /// with a path in Janus.Tests.RESTHorse.dpr: 30 key columns, exactly one
+  /// divergent - this one.
+  ///
+  /// THE FIGURES USED TO READ 24 AND 29 AND WERE CORRECT WHEN WRITTEN. Issue
+  /// #320's branch moved both without touching this sentence: it added one
+  /// unit to that .dpr, and TKeyTypeSingle above added one key column. Both
+  /// were re-derived by scanning the .dpr's path-named units and resolving
+  /// every [PrimaryKey] against its [Column]; the scan answers 24/29 at
+  /// ea0208f and 25/30 here, so the sentence moved and the FINDING did not. NON-key columns are a different story and diverge freely; there are
   /// five in RestHorseTest.Models alone (customer_id/CustomerId and four more
   /// in TCustomerOrderSummary), which is why the sentence says KEY.
   [Entity]
@@ -356,6 +398,7 @@ initialization
   TRegisterClass.RegisterEntity(TKeyTypeGuid);
   TRegisterClass.RegisterEntity(TKeyTypeDate);
   TRegisterClass.RegisterEntity(TKeyTypeFloat);
+  TRegisterClass.RegisterEntity(TKeyTypeSingle);
   TRegisterClass.RegisterEntity(TKeyTypeAlias);
   TRegisterClass.RegisterEntity(TKeyTypeBool);
   TRegisterClass.RegisterEntity(TKeyTypeBig);

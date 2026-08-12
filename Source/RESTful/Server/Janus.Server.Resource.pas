@@ -87,6 +87,8 @@ implementation
 
 uses
   JSON,
+  DB,
+  StrUtils,
   MetaDbDiff.mapping.classes,
   MetaDbDiff.mapping.attributes,
   MetaDbDiff.rtti.helper,
@@ -203,6 +205,234 @@ begin
   if VarIsFloat(LValue) then
     Exit(TJSONNumber.Create(Double(VarAsType(LValue, varDouble))));
   Result := TJSONString.Create(VarToStr(LValue));
+end;
+
+/// <summary> The SQL LITERAL of one primary key column, RENDERED rather than
+///  pasted into a statement. Issue #320.
+///
+///  What it replaces emitted the value raw, straight out of VarToStr, next to
+///  a '='. In SQL a bare token in that position is a COLUMN REFERENCE, so the
+///  whole of PUT was broken for any entity whose key is not a bare number:
+///  measured through this very path against SQLite, a textual key produced
+///  `[FireDAC][Phys][SQLite] ERROR: no such column: ABC`, and a date key
+///  produced `(ktdate.ktday=17/03/2026)` - three integers divided, no error
+///  raised, no row found, the PUT silently doing nothing.
+///
+///  AND THE VALUE COMES OUT OF THE REQUEST BODY. Measured at the base commit,
+///  through the server's own monitor callback: a body whose key was
+///  `kttag) OR (kttext.ktcode='ABC'` produced
+///    SELECT ... FROM kttext WHERE (kttext.ktcode=kttag) OR (kttext.ktcode='ABC')
+///  which SQLite accepts, and the row named ABC did not survive the request.
+///  That is not a hypothesis about a hostile client; it is what concatenating
+///  request text into a statement means.
+///
+///  WHY THIS DISPATCHES ON TColumnMapping.FieldType AND ITS JSON SIBLING
+///  DISPATCHES ON THE VARIANT, AND WHY THAT IS NOT A CONTRADICTION.
+///  _PrimaryKeyValueToJson, above, argues at length for the Variant, and that
+///  argument is sound FOR JSON: JSON has four value kinds and the Variant has
+///  four reachable states, so the mapping is total and a wrong bucket is
+///  visible. SQL is not like that. The correct literal for a date depends on
+///  how the column STORES it, not on the fact that a TDateTime arrived, and
+///  varDate, varDouble and a string are three Variant states that need three
+///  different literal forms which the Variant alone cannot choose between.
+///  The house already answered this exact question on the other side of the
+///  same family: TRESTDataSetAdapter<M>._FilterLiteral in
+///  Janus.RestDataSet.Adapter builds the literal for a $filter predicate and
+///  dispatches on TField.DataType. That is the PRECEDENT this function follows,
+///  taking a TColumnMapping and an instance instead of a TField, because that
+///  is what the server side has.
+///
+///  AN EARLIER VERSION OF THIS PARAGRAPH SAID THE TWO WERE "THE SAME TABLE OF
+///  BRANCHES" AND THAT "THIS FUNCTION IS THAT TABLE". BOTH ARE FALSE, RELIED
+///  ON A READING THAT WAS NEVER MADE, AND THE FALSE HALF IS THE ONE THAT
+///  JUSTIFIED THE WHOLE ROUTE. Read at this commit, the two tables diverge in
+///  three places:
+///
+///    - _FilterLiteral has NO ftBoolean branch; this one does.
+///    - _FilterLiteral folds ftDateTime and ftDate into ONE case label and
+///      picks the mask inside it with an ifThen; this one gives them two.
+///    - _FilterLiteral's decimal branch is ftCurrency, ftBCD, ftFMTBcd,
+///      ftFloat; this one adds DB.ftSingle and DB.ftExtended. That third
+///      divergence was opened BY THIS BRANCH, one commit after the sentence
+///      above was corrected - which is exactly how the first one got written.
+///
+///  The precedent is real and the route stands on it. The word "same" did not.
+///
+///  AND THE TWO TABLES ALREADY DIVERGED BEFORE THIS BRANCH TOUCHED EITHER OF
+///  THEM: the ftDateTime/ftDate split is on the server side of the family and
+///  predates all of this. Nothing noticed, because NO TEST ANYWHERE COMPARES
+///  THE TWO TABLES - the duplication is defended clause by clause on each side
+///  and not against each other. That absence is recorded here and NOT repaired
+///  here; closing it is a piece of work of its own.
+///
+///  ONE OF THOSE DIVERGENCES IS VISIBLE ON THE WIRE AND HAS TO BE SAID OUT
+///  LOUD. A boolean key now leaves this side as 1 - measured,
+///  WHERE (ktbool.ktflag=1) - while the client side, which has no ftBoolean
+///  branch, still renders the bare token True into a $filter. The two ends of
+///  the same family now spell the same key differently. No clause on either
+///  side sees that, for the reason in the paragraph above.
+///
+///  A FieldType table is a list of enum labels, and the honest thing to say
+///  about it is which labels are DEFENDED. The clauses in
+///  Test.Janus.Server.Resource.UpdateWhere reach ftString (plain, quote-bearing,
+///  GUID-shaped, aliased, composite and nullable), ftInteger, ftLargeint,
+///  ftFloat, DB.ftSingle, ftDate and ftBoolean. ftWideString, ftMemo,
+///  ftWideMemo, ftFmtMemo, ftGuid, ftDateTime, ftTime, ftTimeStamp,
+///  ftOraTimeStamp, ftCurrency, ftBCD, ftFMTBcd and DB.ftExtended share a
+///  branch with a defended label but have no primary key of their own anywhere
+///  under Test\, so they are grouped by argument and not by measurement.
+///
+///  THE TWO LISTS ABOVE HAVE TO ACCOUNT FOR EVERY LABEL THIS FUNCTION NAMES,
+///  and the previous version of them did not: DB.ftSingle and DB.ftExtended
+///  appeared in neither, because the branch did not name them and nothing
+///  forced the question. A label that is in no list is not "grouped by
+///  argument" - it is unexamined, and it fell through to the default.
+///
+///  AND "GROUPED BY ARGUMENT" HAS A MEASURABLE CONSEQUENCE, SO HERE IT IS:
+///  deleting DB.ftExtended from the decimal branch leaves the whole suite
+///  green. Run, not predicted - the mutation was applied with a tripwire the
+///  compiler echoed, and 138 clauses stayed at 138/0/0. That is what a label
+///  with no entity of its own means, and it is the honest reading of the
+///  second list rather than a gap in it. The same is true of every other label
+///  named there.
+///
+///  THE EMPTY RESULT IS A SIGNAL, NOT A LITERAL. A key the request left
+///  undetermined - a Nullable the caller did not send - cannot identify a row,
+///  and must not be allowed to identify an arbitrary one. It comes back as ''
+///  and the caller emits `1 = 0`, the same idiom Janus.DML.Generator uses for
+///  an undetermined association value. The PUT then leaves through the
+///  `if LObjectOld = nil then Exit` that ParseUpdate already had for a row
+///  that is not there, so this is not a new exit - it is an existing one,
+///  reached honestly instead of by a SQL syntax error.
+///
+///  AND THAT TRADE HAS A COST WORTH NAMING. Before this change, a PUT whose
+///  key carried no value emitted `WHERE (ktnull.ktopt=)` and the request died
+///  loudly - `[FireDAC][Phys][SQLite] ERROR: near ")": syntax error`. It now
+///  emits `WHERE (1 = 0)` and the caller gets an EMPTY BODY and no exception.
+///  That is consistent with what ParseUpdate already did for a row that is not
+///  there, and the alternative - letting a malformed statement decide - was
+///  worse. But the "PUT that silently does nothing" this issue was opened
+///  against remains the house's answer for a missing row: what changed is that
+///  it is now reached BY CONTRACT rather than BY ACCIDENT. Whether a PUT that
+///  matches no row should answer 404 instead of an empty 200 is a question
+///  about what a consumer receives, and it is not this repair's to settle.
+///
+///  DATE AND TIME GO OUT IN ISO-8601 AND THE RESIDUE IS DECLARED. The
+///  dialect-correct mask lives in TDMLGeneratorAbstract.FDateFormat, which has
+///  four distinct STRINGS across the thirteen dialects - and only THREE
+///  distinct formats, because 'yyyy-MM-dd' and 'yyyy-mm-dd' are the same date:
+///  in a FormatDateTime mask both 'mm' and 'MM' are the month, and the minute
+///  is 'nn'. Read at this commit, the thirteen are 'yyyy-MM-dd' (ADS, MySQL,
+///  Oracle, PostgreSQL, SQLite), 'yyyy-mm-dd' (ElevateDB, MongoDB, NexusDB),
+///  'dd/MM/yyyy' (AbsoluteDB, MSSQL) and 'MM/dd/yyyy' (Firebird, Firebird3,
+///  InterBase). The count that matters to a date key is THREE, and the field
+///  is unreachable from
+///  this layer - the resource holds an IDBConnection and a TRESTObjectSet, and
+///  nothing on that path exposes the generator. ISO-8601 is what the sibling
+///  _FilterLiteral already speaks, and it happens to be exactly the SQLite
+///  generator's own FDateFormat ('yyyy-MM-dd'), which is what the fixture
+///  measures. On a dialect whose FDateFormat differs, a date PRIMARY KEY is
+///  still not located - it is now a well-formed literal that finds nothing
+///  rather than a malformed statement, which is an improvement and not a
+///  repair. Fixing it properly means building the predicate inside the
+///  generator, which means a new method on IDMLGeneratorCommand: a contract
+///  change, and not this issue's to make.
+///
+///  THE COLONS ARE QUOTED INSIDE THE MASKS because ':' is FormatDateTime's
+///  placeholder for TimeSeparator and would come out swapped by the ambient
+///  locale. TFormatSettings.Invariant is passed as well, so neither separator
+///  nor the ambient calendar can move the text. That is one step stricter than
+///  _FilterLiteral, which passes no FormatSettings; the divergence is
+///  deliberate and is recorded rather than fixed here, because that unit
+///  belongs to the client side of this family.
+///
+///  ON THE ftDate BRANCH THAT Invariant IS INERT TODAY, AND IT IS KEPT ANYWAY.
+///  Measured by mutation: removing it from the ftDate branch kills nothing.
+///  The reason is structural rather than lucky - in a FormatDateTime mask only
+///  '/' and ':' are separator PLACEHOLDERS, and cISODATE is 'yyyy-mm-dd',
+///  whose '-' is a literal. So no locale can move that particular text with or
+///  without the argument. It stays because the mask is the only thing making
+///  it inert, and a mask is one edit away from carrying a '/'. The clause that
+///  would catch it does not exist and cannot be written against this mask.
+///
+///  ftBoolean HAS A BRANCH OF ITS OWN, AND AN EARLIER DRAFT OF THIS VERY
+///  COMMENT SAID IT DID NOT. It was written while the boolean still fell
+///  through to the default branch, and the measurement that followed - the row
+///  the framework's own INSERT leaves behind carries typeof() = integer under
+///  SQLite - moved it. The branch, and the residue it does not remove, are
+///  described where the branch is. </summary>
+function _PrimaryKeyValueToSql(const AColumn: TColumnMapping;
+  const AObject: TObject): String;
+const
+  /// The colons are quoted: ':' is the TimeSeparator placeholder.
+  cISODATE     = 'yyyy-mm-dd';
+  cISODATETIME = 'yyyy-mm-dd"T"hh":"nn":"ss';
+  cISOTIME     = 'hh":"nn":"ss';
+var
+  LValue: Variant;
+begin
+  LValue := AColumn.ColumnProperty.GetNullableValue(AObject).AsVariant;
+  if VarIsNull(LValue) or VarIsEmpty(LValue) then
+    Exit('');
+  case AColumn.FieldType of
+    ftString, ftWideString, ftMemo, ftWideMemo, ftFmtMemo, ftGuid:
+      Result := QuotedStr(VarToStr(LValue));
+    ftDate:
+      Result := QuotedStr(FormatDateTime(cISODATE, VarToDateTime(LValue),
+                                         TFormatSettings.Invariant));
+    ftDateTime:
+      Result := QuotedStr(FormatDateTime(cISODATETIME, VarToDateTime(LValue),
+                                         TFormatSettings.Invariant));
+    ftTime, ftTimeStamp, ftOraTimeStamp:
+      Result := QuotedStr(FormatDateTime(cISOTIME, VarToDateTime(LValue),
+                                         TFormatSettings.Invariant));
+    /// A numeric literal, and the decimal separator has to be the SQL one and
+    /// not the machine's. VarToStr follows the ambient DecimalSeparator for
+    /// varDouble, varSingle and varCurrency, so the text is normalised here -
+    /// the same normalisation TDMLGeneratorAbstract._GetPropertyValue applies
+    /// on ITS decimal branches - which are ftCurrency/ftBCD/ftFMTBcd and
+    /// ftFloat, and NOT the same set as this one. This branch carries two more,
+    /// and the divergence was opened here; see the note on DB.ftSingle below.
+    /// An earlier version of this sentence said "the very same field types",
+    /// and the two extra labels three lines down falsified it in place.
+    ///
+    /// DB.ftSingle AND DB.ftExtended ARE ON THIS LIST BECAUSE LEAVING THEM OFF
+    /// REOPENED THE DEFECT INSIDE THE FUNCTION WRITTEN TO CLOSE IT. Measured
+    /// on the tree that carried this branch without them, through the server's
+    /// own monitor callback:
+    ///   SELECT ... FROM ktsingle WHERE (ktsingle.ktsng=10,5)
+    ///   [FireDAC][Phys][SQLite] ERROR: near ",": syntax error
+    /// They are not exotic labels in this repository: Janus.DataSet.Base.Adapter
+    /// declares cBINARYFLOATFIELDKINDS as [ftFloat, DB.ftSingle, DB.ftExtended]
+    /// and Janus.DataSet.Fields builds a TSingleField and a TExtendedField for
+    /// them - both anchored by SYMBOL. QUALIFIED with DB. because TypInfo
+    /// declares an ftSingle of its own, which is the reason
+    /// Janus.DataSet.Base.Adapter gives for qualifying the same two labels.
+    ftCurrency, ftBCD, ftFMTBcd, ftFloat, DB.ftSingle, DB.ftExtended:
+      Result := ReplaceStr(VarToStr(LValue), ',', '.');
+    /// VarToStr renders a boolean as the bare token True, which is the very
+    /// shape this repair exists to stop emitting. What replaces it is 1 / 0,
+    /// and the reason is MEASURED rather than conventional: the row this
+    /// framework writes through its own bound-parameter INSERT lands in SQLite
+    /// with `typeof(ktflag)` = integer - read back through the fixture's own
+    /// connection - so an integer literal is what locates it.
+    ///
+    /// THE RESIDUE IS THE SAME ONE THE DATE BRANCH HAS, and it is declared
+    /// rather than papered over: on a dialect with a native BOOLEAN type that
+    /// refuses an integer comparison, this literal is well-formed SQL that
+    /// finds nothing. Only the generator knows the dialect, and reaching it
+    /// from here is a contract change - see the header. No mapping in this
+    /// repository outside the fixture has a boolean primary key.
+    ftBoolean:
+      Result := IfThen(Boolean(LValue), '1', '0');
+  else
+    /// Integer, 64-bit and unsigned 64-bit keys leave as bare digits. Measured
+    /// by the #311 author over varInteger, varInt64 and varUInt64 under four
+    /// FormatSettings: no ORDINAL type takes a separator under any of them,
+    /// and VarToStr of a varUInt64 above High(Int64) keeps its unsigned value
+    /// rather than the signed reinterpretation of the bit pattern.
+    Result := VarToStr(LValue);
+  end;
 end;
 
 { TAppResourceBase }
@@ -456,6 +686,7 @@ var
   LPrimaryKey: TPrimaryKeyColumnsMapping;
   LColumn: TColumnMapping;
   LWhere: string;
+  LLiteral: string;
   LAllowVerbs: TRESTAllowVerbCache;
 begin
   LClassType := TMappingExplorer.GetRepositoryMapping
@@ -488,11 +719,22 @@ begin
       if LPrimaryKey = nil then
         raise Exception.Create(cMESSAGEPKNOTFOUND);
 
+      /// The value is now rendered as a SQL LITERAL instead of being pasted in
+      /// raw - see _PrimaryKeyValueToSql. A key the request left undetermined
+      /// yields the unsatisfiable predicate rather than `col=`, which is the
+      /// same idiom Janus.DML.Generator already uses for an undetermined
+      /// association value (GenerateSelectOneToOne / GenerateSelectOneToOneMany,
+      /// anchored by METHOD).
       for LColumn in LPrimaryKey.Columns do
-        LWhere := LWhere + '(' + LObjectNew.GetTable.Name
-                         + '.' + LColumn.ColumnName
-                         + '=' + VarToStr(LColumn.ColumnProperty
-                                                 .GetNullableValue(LObjectNew).AsVariant) + ') AND ';
+      begin
+        LLiteral := _PrimaryKeyValueToSql(LColumn, LObjectNew);
+        if LLiteral = '' then
+          LWhere := LWhere + '(1 = 0) AND '
+        else
+          LWhere := LWhere + '(' + LObjectNew.GetTable.Name
+                           + '.' + LColumn.ColumnName
+                           + '=' + LLiteral + ') AND ';
+      end;
       LWhere := Copy(LWhere, 1, Length(LWhere) -5);
       LObjectOld := LObjectSet.FindOne(LWhere);
       if LObjectOld = nil then
