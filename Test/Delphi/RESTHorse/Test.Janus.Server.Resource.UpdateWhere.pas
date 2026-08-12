@@ -71,8 +71,11 @@
 
   It does not pin a date literal FORMAT beyond what SQLite needs. The correct
   literal for a date key is a per-dialect question - TDMLGeneratorAbstract
-  carries an FDateFormat with four distinct values across the thirteen dialects
-  - and the resource layer cannot reach that field. What is pinned here is that
+  carries an FDateFormat with four distinct STRINGS across the thirteen
+  dialects, and only THREE distinct formats, because 'yyyy-MM-dd' and
+  'yyyy-mm-dd' are the same date - in a FormatDateTime mask both 'mm' and 'MM'
+  are the month, and the minute is 'nn'. The resource layer cannot reach that
+  field either way. What is pinned here is that
   a date key locates the row the framework itself wrote. See the note on
   _PrimaryKeyValueToSql in Janus.Server.Resource for the residue.
 

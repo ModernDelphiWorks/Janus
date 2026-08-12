@@ -319,7 +319,14 @@ end;
 ///
 ///  DATE AND TIME GO OUT IN ISO-8601 AND THE RESIDUE IS DECLARED. The
 ///  dialect-correct mask lives in TDMLGeneratorAbstract.FDateFormat, which has
-///  four distinct values across the thirteen dialects and is unreachable from
+///  four distinct STRINGS across the thirteen dialects - and only THREE
+///  distinct formats, because 'yyyy-MM-dd' and 'yyyy-mm-dd' are the same date:
+///  in a FormatDateTime mask both 'mm' and 'MM' are the month, and the minute
+///  is 'nn'. Read at this commit, the thirteen are 'yyyy-MM-dd' (ADS, MySQL,
+///  Oracle, PostgreSQL, SQLite), 'yyyy-mm-dd' (ElevateDB, MongoDB, NexusDB),
+///  'dd/MM/yyyy' (AbsoluteDB, MSSQL) and 'MM/dd/yyyy' (Firebird, Firebird3,
+///  InterBase). The count that matters to a date key is THREE, and the field
+///  is unreachable from
 ///  this layer - the resource holds an IDBConnection and a TRESTObjectSet, and
 ///  nothing on that path exposes the generator. ISO-8601 is what the sibling
 ///  _FilterLiteral already speaks, and it happens to be exactly the SQLite
@@ -383,7 +390,11 @@ begin
     /// not the machine's. VarToStr follows the ambient DecimalSeparator for
     /// varDouble, varSingle and varCurrency, so the text is normalised here -
     /// the same normalisation TDMLGeneratorAbstract._GetPropertyValue applies
-    /// to the very same field types.
+    /// on ITS decimal branches - which are ftCurrency/ftBCD/ftFMTBcd and
+    /// ftFloat, and NOT the same set as this one. This branch carries two more,
+    /// and the divergence was opened here; see the note on DB.ftSingle below.
+    /// An earlier version of this sentence said "the very same field types",
+    /// and the two extra labels three lines down falsified it in place.
     ///
     /// DB.ftSingle AND DB.ftExtended ARE ON THIS LIST BECAUSE LEAVING THEM OFF
     /// REOPENED THE DEFECT INSIDE THE FUNCTION WRITTEN TO CLOSE IT. Measured
