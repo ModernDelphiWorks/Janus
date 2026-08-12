@@ -98,7 +98,11 @@
   AID: String) hands straight to FCommandExecutor.Find, and
   TSQLCommandExecutor<M>.Find answers `Result := nil` whenever the select
   does not bring back exactly one row. Only the session this class installs
-  today - TSessionRestFul<M> - cannot answer nil. The sibling of the same
+  today - TSessionRestFul<M> - cannot answer nil, and that is enumerated, not
+  assumed: TSessionAbstract<M> has THREE descendants in Source\ -
+  TSessionDataSet<M>, TSessionObjectSet<M>, TSessionRestFul<M> - and only the
+  third declares Find at all, so two of the three inherit the nil path. The
+  sibling of the same
   family keeps the guard too: TRESTFDMemTableAdapter<M>.OpenIDInternal exits
   on nil, leaving the dataset empty and raising nothing. A clause here would
   be measuring the serialiser, not this adapter.
@@ -137,9 +141,10 @@ uses
 
 type
   /// <summary> Classic cracker descendant: OpenIDInternal is protected, and
-  ///  the production callers that reach it (TContainerDataSet.OpenID,
-  ///  TManagerDataSet.OpenID) would drag a whole container in for nothing.
-  /// </summary>
+  ///  the production entry points that reach it - TContainerDataSet<M>.Open and
+  ///  TManagerDataSet.Open<T>, each in its String and its Integer overload,
+  ///  which is every call site of OpenIDInternal in Source\ - would drag a
+  ///  whole container or manager in for nothing. </summary>
   ///  NOT generic on purpose: a class method of a parameterized type declared
   ///  in the interface section may not touch an implementation-local symbol,
   ///  and the scrub below has to be one - see _ZeroTheFrameBelow.

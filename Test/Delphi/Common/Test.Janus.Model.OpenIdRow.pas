@@ -18,11 +18,23 @@
 
   What issue #328 is about is an object that the session BUILDS and the caller
   then throws away: TRESTClientDataSetAdapter<M>.OpenIDInternal called
-  FSession.Find and dropped the result on the floor. Two of the three
-  consequences are observable through the dataset, but the third - the found
-  object is never freed - is only observable from the object itself. No entity
-  already in Common\ counts its destructions, and adding the counter to one of
-  them would change a type that four other fixtures share.
+  FSession.Find and dropped the result on the floor. Of its three consequences
+  only ONE is observable through the dataset - the row that never arrives. The
+  leak is not: a dataset looks exactly the same whether the object behind the
+  row was released or abandoned.
+
+  A destruction counter is the cheapest instrument that sees it, and not the
+  only conceivable one - a memory-manager hook or an AllocMemCount delta would
+  register the abandoned block too, at the price of also counting every
+  unrelated allocation the JSON parse makes.
+
+  Why a NEW entity instead of a counter bolted onto an existing one, both parts
+  measured: searching `class var` over Test\Delphi\Common\Test.Janus.Model.*.pas
+  finds it in this unit and nowhere else - the destructors the other models do
+  have free owned lists, they count nothing. And the candidates are shared:
+  TKeyOnly, the closest flat model, is referenced by EIGHT fixture units under
+  Test\Delphi\Unit, this one included, so putting mutable class state on it
+  would put that state in the path of the other seven.
 
   The counter is a class var on purpose: JsonFlow builds the instance inside
   TJanusJson.JsonToObject<T>, so the test never holds the reference and cannot

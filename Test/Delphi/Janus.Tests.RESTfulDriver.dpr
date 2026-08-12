@@ -78,9 +78,9 @@ uses
   /// A key declared NotInc and with NO [Sequence] - the one entity family in
   /// the test tree for which ExistSequence answers False. Issue #301.
   Test.Janus.Model.NotIncKey in 'Common\Test.Janus.Model.NotIncKey.pas',
-  /// A flat entity that COUNTS ITS OWN DESTRUCTIONS - the only way to observe
-  /// an object the session builds, hands over, and the caller then drops.
-  /// Issue #328.
+  /// A flat entity that COUNTS ITS OWN DESTRUCTIONS - how the leak of an object
+  /// the session builds, hands over and the caller then drops is observed, the
+  /// dataset being blind to it. Issue #328.
   Test.Janus.Model.OpenIdRow in 'Common\Test.Janus.Model.OpenIdRow.pas',
   /// Doubles
   Test.Janus.RestConnection.Double in 'Common\Test.Janus.RestConnection.Double.pas',

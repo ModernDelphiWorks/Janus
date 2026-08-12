@@ -321,7 +321,13 @@ begin
     ///  select does not bring back exactly one row. What cannot answer nil is
     ///  only the session this class happens to install today -
     ///  TSessionRestFul<M>, because TJsonBuilder.JsonToObject<T> raises
-    ///  instead. Deleting the guard would be discarding a clause of the
+    ///  instead. ENUMERATED rather than assumed: TSessionAbstract<M> has
+    ///  THREE descendants in Source\ - TSessionDataSet<M>,
+    ///  TSessionObjectSet<M> and TSessionRestFul<M> - and only the third
+    ///  declares Find at all; the other two inherit the ancestor's, which is
+    ///  the path that answers nil. Two of the three sessions that exist today
+    ///  can therefore hand this method a nil.
+    ///  Deleting the guard would be discarding a clause of the
     ///  ANCESTOR's contract on the strength of one concrete descendant. The
     ///  sibling of this family keeps it too -
     ///  TRESTFDMemTableAdapter<M>.OpenIDInternal exits and leaves the dataset
