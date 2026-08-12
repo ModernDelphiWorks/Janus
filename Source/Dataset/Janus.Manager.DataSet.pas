@@ -193,11 +193,23 @@ type
     function NestedList<T: class>: TObjectList<T>;
     /// <summary> ISSUE #332 - THIS WAS A `function ... : TManagerDataSet` AND
     ///  ITS BODY NEVER ASSIGNED Result. dcc32 said so on every build that
-    ///  reached it (W1035), and a probe clause measured what a caller actually
-    ///  received: nil - `Access violation at address 00000000` the moment the
-    ///  returned reference was touched. Anyone who chained off it was already
-    ///  broken at run time; as a procedure they are broken at COMPILE time
-    ///  instead, which is the point of the change. The methods around it in the
+    ///  reached it (W1035). A probe clause touched the returned reference and
+    ///  the process died with `Access violation at address 00000000 ...
+    ///  Execution of address 00000000` - control transferred TO address zero,
+    ///  which is what a virtual call through a GARBAGE pointer does when the
+    ///  VMT is read out of an invalid place.
+    ///
+    ///  WHAT THE SLOT HELD IS NOT CLAIMED HERE, AND AN EARLIER VERSION OF THIS
+    ///  COMMENT CLAIMED IT WAS nil. That was an inference dressed as a
+    ///  measurement, and it was wrong twice over: the value is UNDEFINED BY
+    ///  CONSTRUCTION, so no particular value may be asserted for it at all;
+    ///  and a nil reference would have faulted READING a low address rather
+    ///  than by executing address zero. The access violation reproduces; no
+    ///  story about the contents does.
+    ///
+    ///  Anyone who chained off it was already broken at run time; as a
+    ///  procedure they are broken at COMPILE time instead, which is the point
+    ///  of the change. The methods around it in the
     ///  implementation - ApplyUpdates and both Open overloads that take an id -
     ///  have always been procedures with this same one-line shape. </summary>
     procedure AutoNextPacket<T: class, constructor>(const AValue: Boolean);

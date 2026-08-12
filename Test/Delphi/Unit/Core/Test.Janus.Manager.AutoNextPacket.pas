@@ -34,13 +34,23 @@
     Components\Source\Janus.DB.Manager.FDMemTable.pas
       function TManagerFDMemTable.AutoNextPacket<T>(...): TManagerFDMemTable;
 
-  Neither is a W1035 in any build because NO .dproj in the repository compiles
-  Components\ - the seven test projects do not name it. They are left alone
-  here: they are a different class each, reached through a different wrapper
+  Neither shows up as a W1035 HERE because none of THE SEVEN TEST PROJECTS
+  compiles Components\ - they do not name it. AN EARLIER VERSION OF THIS
+  PARAGRAPH SAID `NO .dproj IN THE REPOSITORY COMPILES Components\`, AND THAT
+  ABSOLUTE IS FALSE: the design-time packages do, by explicit reference -
+  Components\Packages\Delphi\dclJanusManagerClientDataSet.dproj names
+  ..\..\Source\Janus.DB.Manager.ClientDataSet.pas, and
+  dclJanusManagerFDMemTable.dproj is its pair. What was measured was the seven
+  test projects, and that is all the sentence may say. Whether those packages
+  emit the warning was NOT MEASURED - they are not part of the suite this
+  branch builds.
+
+  They are left alone here for a reason that does not depend on any of that:
+  each is a different class, reached through a different wrapper
   (Janus.Manager.ClientDataSet / Janus.Manager.FDMemTable, whose own
   AutoNextPacket<T> DOES assign Result from them), so turning them into
-  procedures cascades into a surface no build in this repository covers. The
-  fact is recorded rather than acted on.
+  procedures cascades into a surface no build in this branch covers. Recorded,
+  not acted on.
 
   WHY A PROCEDURE AND NOT `Result := Self`. The three methods immediately
   around it in the implementation - ApplyUpdates<T>, Open<T>(String),
@@ -63,9 +73,8 @@
   Components classes, not TManagerDataSet. So the change breaks no consumer in
   the tree, and the seven test projects were rebuilt to prove it.
 
-  WHAT WAS MEASURED BEFORE THE CHANGE, AND IT IS WORSE THAN `UNDEFINED`. A
-  probe clause held the returned reference against the manager it was called
-  on:
+  WHAT WAS MEASURED BEFORE THE CHANGE. A probe clause held the returned
+  reference against the manager it was called on:
 
     LReturned := FManager.AutoNextPacket<TKeyOnly>(False);
     Assert.AreSame(FManager, LReturned)
@@ -73,12 +82,26 @@
   On 0546a51 it did not merely fail - it ERRORED, with
 
     Access violation at address 00000000 in module 'Janus.Tests.Units.exe'
+    (offset 0). Execution of address 00000000
 
-  The return slot carried nil, so a consumer who wrote the fluent chain the
-  signature invited would have taken an access violation on the very next
-  call. That clause is GONE from this fixture, deliberately and not by
+  so a consumer who wrote the fluent chain the signature invited took an
+  access violation on the very next call.
+
+  AND WHAT THE SLOT CONTAINED IS NOT CLAIMED HERE, BECAUSE AN EARLIER VERSION
+  OF THIS HEADER CLAIMED IT WAS nil AND THAT WAS FALSE. It said so under the
+  heading "MEASURED AND NOT ASSUMED", which is exactly what it was not. The
+  value a function leaves in its return slot when no branch assigns Result is
+  UNDEFINED BY CONSTRUCTION, so NO particular value may be asserted for it -
+  not nil, and not whatever number a single run happens to show. The reading
+  is contradicted by the fault itself as well: `Execution of address 00000000`
+  means control transferred TO address zero, which is what a virtual call
+  through a GARBAGE pointer does when the VMT is fetched out of an invalid
+  place; a nil reference faults READING a low address instead. The access
+  violation reproduces. The story about the contents did not.
+
+  The probe clause is GONE from this fixture, deliberately and not by
   oversight: after the repair the method has no return value, so the clause
-  cannot be written at all. Its number is recorded here instead, which is the
+  cannot be written at all. Its result is recorded here instead, which is the
   only place it can live. What survives is the side effect, below, and the
   side effect is the whole of what the method ever did.
 
