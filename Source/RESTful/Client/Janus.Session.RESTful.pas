@@ -371,6 +371,33 @@ var
   LFor: Integer;
   LPar: Integer;
 begin
+  // ISSUE #313 - O `finally` LIA ESTE LOCAL SEM ELE TER SIDO ATRIBUIDO.
+  // TJSONObject e tipo NAO GERENCIADO, e Delphi nao zera local desses. A
+  // primeira atribuicao esta em :387, DENTRO do try aberto logo abaixo, e o
+  // FConnection.Execute que a antecede pode levantar - servidor fora, timeout,
+  // 500 virando EJanusRESTException no cliente concreto. Nesse caminho o
+  // `if LParamsObject <> nil` do finally le o que a pilha tinha, e libera lixo:
+  // a violacao de acesso SUBSTITUI o erro de rede enquanto ele desempilha, e
+  // quem chamou recebe "access violation" no lugar de "o servidor respondeu
+  // 500". O `<> nil` nao protege porque lixo de pilha raramente e zero.
+  //
+  // O QUE FOI MEDIDO, E O QUE A ISSUE ALEGAVA E NAO SE CONFIRMOU. Medido em
+  // ea0208f, Studio 37.0, Debug/Win32, RESTfulDriver: a AV NAO acontece hoje.
+  // Test.Janus.Rest.InsertAnswerRobustness suja 64KB de pilha com $CD na
+  // MESMA profundidade que o frame de Insert vai ocupar, e o slot ainda le
+  // 00000000 - com os enderecos batendo (slot em 012FF3E4, faixa raspada
+  // 012EF408..012FF407), ou seja o prologo do proprio Insert zera o frame,
+  // porque o metodo tem quatro locais String e o compilador limpa a area
+  // inteira. A rotina EQUIVALENTE escrita a mao fora de uma classe generica
+  // NAO e zerada e da EAccessViolation "Read of address CDCDCDCD" trocando o
+  // erro de rede - medido no mesmo commit. Ou seja: o defeito e real e a
+  // consequencia depende de codegen, que nao e contrato.
+  //
+  // O QUE E CONTRATO E O PROPRIO COMPILADOR DIZER. dcc32 emite em ea0208f
+  // "W1036 Variable 'LParamsObject' might not have been initialized" apontando
+  // Janus.Session.RESTful.pas:446 - a linha do finally. Esta atribuicao e o
+  // que faz esse aviso sumir, e o aviso e a medida de que ela e necessaria.
+  LParamsObject := nil;
   LSubResource := ifThen(Length(FConnection.MethodPOST) > 0, FConnection.MethodPOST, FSubResource);
   LJSON := TJanusJson.ObjectToJsonString(AObject);
   try
