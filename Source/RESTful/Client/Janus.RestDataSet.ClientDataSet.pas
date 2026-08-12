@@ -295,7 +295,46 @@ begin
     EnsureOpen;
     EmptyDataSet;
     inherited;
-    FSession.Find(AID.ToString);
+    /// <summary> ISSUE #328 - THE RESULT OF Find WAS DISCARDED AND LObject WAS
+    ///  NEVER ASSIGNED. Three things came out of that one missing assignment:
+    ///  "open by id" emptied the dataset and put nothing back, the instance
+    ///  the session had just built leaked once per call, and the `<> nil`
+    ///  test plus the `Free` below ran on stack leftovers.
+    ///
+    ///  The third one was not hypothetical. Measured on b66b04b, in
+    ///  Janus.Tests.Units.exe (Debug/Win32, DCC_MapFile=3), over ALL FIVE
+    ///  instantiations of this method the linker kept: the prologue is
+    ///  `add esp,-14h / xor ecx,ecx / mov [ebp-14h],ecx` and the ONLY slot it
+    ///  zeroes is the UnicodeString temp for AID.ToString - zeroed because it
+    ///  is a MANAGED type. LObject lives at [ebp-8], nothing writes it, and
+    ///  `cmp [ebp-8],0` reads it anyway. That is the opposite of what issue
+    ///  #313 measured for TSessionRestFul<M>.Insert, whose prologue zeroed
+    ///  its whole local area - so "the compiler happens to zero it" is not a
+    ///  property of this compiler, it is a property of each frame.
+    ///
+    ///  THE `<> nil` GUARD IS KEPT, and mutating it to `if True` is a
+    ///  SURVIVOR that nothing in this tree can kill. That is a property of
+    ///  the WIRING, not of the contract, and the difference is the whole
+    ///  argument: FSession is declared TSessionAbstract<M>, whose
+    ///  Find(const AID: String) hands straight to FCommandExecutor.Find, and
+    ///  TSQLCommandExecutor<M>.Find answers `Result := nil` whenever the
+    ///  select does not bring back exactly one row. What cannot answer nil is
+    ///  only the session this class happens to install today -
+    ///  TSessionRestFul<M>, because TJsonBuilder.JsonToObject<T> raises
+    ///  instead. ENUMERATED rather than assumed: TSessionAbstract<M> has
+    ///  THREE descendants in Source\ - TSessionDataSet<M>,
+    ///  TSessionObjectSet<M> and TSessionRestFul<M> - and only the third
+    ///  declares Find at all; the other two inherit the ancestor's, which is
+    ///  the path that answers nil. Two of the three sessions that exist today
+    ///  can therefore hand this method a nil.
+    ///  Deleting the guard would be discarding a clause of the
+    ///  ANCESTOR's contract on the strength of one concrete descendant. The
+    ///  sibling of this family keeps it too -
+    ///  TRESTFDMemTableAdapter<M>.OpenIDInternal exits and leaves the dataset
+    ///  empty.
+    ///
+    ///  Driven by Test.Janus.Rest.OpenIdPopulates. </summary>
+    LObject := FSession.Find(AID.ToString);
     if LObject <> nil then
     begin
       try
@@ -394,7 +433,6 @@ end;
 procedure TRESTClientDataSetAdapter<M>.ApplyInternal(const MaxErros: Integer);
 var
   LRecnoBook: TBookmark;
-  LProperty: TRttiProperty;
 begin
   LRecnoBook := FOrmDataSet.Bookmark;
   FOrmDataSet.DisableControls;
