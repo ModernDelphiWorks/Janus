@@ -524,10 +524,11 @@ type
     /// refused it. Again intact, again not case (1).
     [Test]
     procedure Voice_AForeignAnswerIsAnnouncedAndIsNotTheOrphanCase;
-    /// The FIFTH exit, which #305 did not name: the depth guard refused an
-    /// answer shallower than the graph the client holds. It is the exit a Lazy
-    /// branch produces on the shipped server, so it is the one a consumer meets
-    /// most often. Its own case, not folded into any of the four.
+    /// The depth-guard exit - labelled (5) in the issue's numbering, door 7 in
+    /// the header table - which #305 did not name: the guard refused an answer
+    /// shallower than the graph the client holds. It is the exit a Lazy branch
+    /// produces on the shipped server, so it is the one a consumer meets most
+    /// often. Its own case, not folded into any of the four.
     [Test]
     procedure Voice_AShallowAnswerIsAnnouncedUnderItsOwnCase;
     /// THE CONTROL. A save whose graph really was reconciled announces NOTHING.
