@@ -149,7 +149,49 @@ end;
 
 procedure TJanusDriverEditorSQLDirect.RequiresUnits(Proc: TGetStrProc);
 begin
-  Proc('Janus.DML.Generator.sqldirect');
+  // ISSUE #340 - NO Proc(...) HERE, AND THAT IS THE FIX.
+  //
+  // This used to call Proc with the literal 'Janus.DML.Generator.sqldirect',
+  // naming a unit that does not exist anywhere in this repository (git ls-tree confirmed
+  // 0 hits on origin/develop). The IDE would write that dead name into the
+  // uses clause of whoever dropped TJanusDriverLinkSQLDirect on a form -
+  // a uses clause that does not compile, in the CONSUMER's own project.
+  //
+  // RENAMING WAS CONSIDERED AND RULED OUT BY MEASUREMENT. Every one of the
+  // other eight Janus-Links components (Firebird, InterBase, MSSQL, MySQL,
+  // Oracle, MongoDB, PostgreSQL, SQLite) names ONE fixed SQL dialect, and
+  // each RequiresUnits body below correctly points at that dialect's own
+  // TDMLGeneratorXXX unit - confirmed by reading every one of the seven
+  // surviving Janus.DML.Generator.*.pas units' `initialization` block,
+  // which registers the matching TDriverName (e.g.
+  // Janus.DML.Generator.Firebird.pas:206 registers dnFirebird,
+  // Janus.DML.Generator.MSSQL.pas:231 registers dnMSSQL, and so on for all
+  // seven). SQLDirect is not that: it is a third-party DATA ACCESS layer,
+  // not a dialect. TDriverName (DataEngine.FactoryInterfaces.pas:50-53) has
+  // no dnSQLDirect member at all, and Examples\Delphi\Data\SQLDirect\
+  // uMainFormORM.pas:154 shows the factory taking the dialect as an
+  // explicit PARAMETER - `TFactorySQLDirect.Create(SDDatabase1, dnFirebird)`
+  // - with that same example importing Janus.DML.Generator.Firebird, not
+  // any SQLDirect-specific generator. A SQLDirect-based project can target
+  // ANY of the seven dialects above; which generator it needs is a fact
+  // about the connection the DEVELOPER configures, not about the
+  // TJanusDriverLinkSQLDirect component, so no single fixed unit name could
+  // ever be correct here. Janus.Driver.Link.SQLDirect.pas itself confirms
+  // this: like all nine siblings it is an empty TComponent marker with no
+  // TDriverName property to read a dialect from.
+  //
+  // Leaving RequiresUnits empty is therefore not "unfinished" - it is
+  // answering honestly that this component carries no fixed dialect
+  // dependency to auto-require. A developer using SQLDirect against, say,
+  // Firebird still gets the correct unit by also dropping
+  // TJanusDriverLinkFirebird (or by adding the generator unit by hand),
+  // exactly as every SQLDirect example in this repository already does.
+  //
+  // Guarded by Test.Janus.LinkReg.RequiresUnits.EveryRequiredUnitEqualsAFileUnderSource
+  // (Test\Delphi\Unit\Core\Test.Janus.LinkReg.RequiresUnits.pas), which reads
+  // every Proc(...) argument in this file and asserts a matching .pas exists
+  // under Source\ - RED against the line this comment replaces, GREEN now
+  // that it is gone.
 end;
 
 end.
