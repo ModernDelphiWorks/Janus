@@ -261,6 +261,28 @@ begin
   // PUT
   try
     FRESTRequest.Execute;
+    // ISSUE #338 - THIS ASSIGNMENT WAS ABSENT, AND EVERY PUT ANSWERED ''.
+    // The method executed the request and returned without ever touching
+    // Result, so the server's answer was read and discarded - and nothing
+    // warned, because the except below terminates the function.
+    //
+    // #338 repaired the identical hole in TRESTClientDataSnap.DoPUT and
+    // deliberately left this one open, because "the sibling does it" is not an
+    // argument this house accepts. So the contract was measured HERE, on this
+    // class, and it is NOT the same contract: DoGET, DoPOST and DoDELETE OF
+    // THIS CLASS all answer ResponsePayload under the expression below, and
+    // the flag in it is genuinely VARIABLE here - RootElement is a published,
+    // writable property of TRESTClientWS alone and the constructor leaves it
+    // EMPTY - where TRESTClientDataSnap pins it to 'result' with no way in from
+    // outside. So this expression has two live arms and its DataSnap
+    // counterpart has one, and TTestClientWSVerb drives both.
+    //
+    // Joining that contract means joining its failure half: ResponsePayload
+    // raises INSIDE this try for a nil, non-array or empty answer, so a PUT
+    // that used to swallow a malformed body silently now reports it through the
+    // handler below, with the server body still attached.
+    Result := ResponsePayload(FRESTRequest.Response.JSONValue,
+                              Length(FRESTResponse.RootElement) > 0);
   except
     on E: Exception do
     begin
@@ -329,11 +351,14 @@ begin
     // which discarded the result of Find; the sibling TRESTClientDataSnap.
     // Execute already assigned all four.
     //
-    // PUT stays a statement because there is nothing to gain, NOT because
-    // assigning it would cost anything. TRESTClientWS.DoPUT does not read the
-    // response and never assigns its own Result, so it answers an empty string
-    // by construction and `Result := DoPUT(...)` is INERT here - a measured
-    // equivalent, not a preference.
+    // PUT WAS THE ONE ARM STILL LEFT AS A STATEMENT, AND IT NO LONGER IS.
+    // The #323 repair assigned the other three and left this one, on the
+    // measured ground that DoPUT read nothing from the response and never
+    // assigned its own Result - so `Result := DoPUT(...)` was INERT here. That
+    // ground was real while it lasted and it is now gone: DoPUT answers
+    // ResponsePayload, so the assignment carries a payload, and dropping it
+    // would reproduce on this one arm exactly the defect #323 removed from the
+    // other three.
     //
     // AN EARLIER VERSION OF THIS COMMENT GAVE A FALSE REASON, and it sat in
     // Source holding up a design choice. It said assigning it "would add the
@@ -341,7 +366,8 @@ begin
     // Re-measured at ea18be3 under #338, full rebuild with the DCU output
     // wiped so that every unit re-emits its warnings: writing
     // `Result := DoPUT(...)` here and building emits NO warning naming this
-    // unit at all. THAT is the half the decision rests on, and it stands.
+    // unit at all. That measurement is what made the assignment free to make,
+    // and it is the half of the old note that survives its conclusion.
     //
     // THE INVENTORY CLAUSE THAT USED TO FOLLOW IT IS WITHDRAWN. It said "the
     // only W1035 in the entire build is Janus.Manager.DataSet's
@@ -375,20 +401,22 @@ begin
     // is unaffected: that was about a call site earning no warning, which
     // remains true here.
     //
-    // THIS SIDE IS DELIBERATELY LEFT ALONE. #338 repaired the DataSnap client
-    // because the contract was measured on THAT class - its DoGET, DoPOST and
-    // DoDELETE all answer the payload. Nothing was measured about this one,
-    // and "the sibling does it" is the argument this house does not accept.
-    // TRESTClientWS.DoPUT still reads nothing from the response and still
-    // never assigns its own Result, so `Result := DoPUT(...)` would remain
-    // INERT here until that is changed too.
+    // THIS SIDE WAS DELIBERATELY LEFT ALONE, AND IS NO LONGER. #338 repaired
+    // the DataSnap client because the contract was measured on THAT class, and
+    // refused to carry the repair across on the strength of the analogy alone -
+    // "the sibling does it" is the argument this house does not accept. The
+    // follow-up measured the contract HERE instead, and found a DIFFERENT one:
+    // the root-element flag is variable on this class and constant on that one,
+    // so this DoPUT's answer had to be pinned in BOTH arms where one was enough
+    // there. See the note in DoPUT, and TTestClientWSVerb.
     //
     // Also measured under #338, by mutation with a compiler-echoed directive:
-    // swapping the HTTP verb of TRESTClientWS.DoPOST kills NO test in the
-    // suite. This family's verbs are pinned by nothing - the #323 stub answers
-    // every verb identically, so verb identity is invisible to it. The
-    // DataSnap family now has that cover in TTestClientDataSnapVerb; this one
-    // does not.
+    // swapping the HTTP verb of TRESTClientWS.DoPOST killed NO test in the
+    // suite, and the same was true of DoPUT. This family's verbs were pinned by
+    // nothing - the #323 stub answers every verb identically, so verb identity
+    // was invisible to it. Both were re-run at 0d21f2c and both confirmed,
+    // 214 found / 214 passed each. TTestClientWSVerb now reads the verb off the
+    // socket, and both die there.
     case ARequestMethod of
       TRESTRequestMethodType.rtPOST:
         begin
@@ -396,7 +424,7 @@ begin
         end;
       TRESTRequestMethodType.rtPUT:
         begin
-          DoPUT(AResource, ASubResource);
+          Result := DoPUT(AResource, ASubResource);
         end;
       TRESTRequestMethodType.rtGET:
         begin

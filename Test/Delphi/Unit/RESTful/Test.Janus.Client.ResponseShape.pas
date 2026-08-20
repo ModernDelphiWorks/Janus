@@ -116,9 +116,18 @@
   root element also had DoPOST and DoDELETE unwrapping unconditionally, and
   WS_Execute_DELETE_NoRootElement_AnswersTheWholeBody is the one that came out
   as an ERROR rather than a failure, because that unwrap raised EInvalidCast
-  and the handler turned it into an EJanusRESTException. The PUT arm is left as a statement: TRESTClientWS.DoPUT reads nothing
-  from the response and never assigns its own Result, so there is no payload
-  there to lose and assigning it would pin nothing.
+  and the handler turned it into an EJanusRESTException.
+
+  THE PUT ARM WAS LEFT AS A STATEMENT HERE, AND IS NO LONGER ONE. When #323
+  took these figures TRESTClientWS.DoPUT read nothing from the response and
+  never assigned its own Result, so there was no payload to lose and assigning
+  it would have pinned nothing - which is why this fixture has WS_Execute_GET,
+  _POST and _DELETE clauses and no _PUT one. The #338 follow-up closed that
+  hole: DoPUT now answers ResponsePayload and Execute assigns it, so all four
+  arms carry a payload today. The PUT clauses live in
+  Test.Janus.Client.WSVerb, which drives BOTH arms of the root-element rule for
+  it, rather than being retro-fitted here - so nothing in this fixture's
+  figures below moves.
 
   ============================================================================
   MUTATION - EVERY FIGURE MEASURED, EVERY SURVIVOR DECLARED

@@ -32,6 +32,13 @@
     M09  TRESTClientWS.DoPOST  rmPOST -> rmPUT   W1054 echoed at DoPOST
     R7   TRESTClientWS.DoPUT   rmPUT  -> rmPOST  W1054 echoed at DoPUT
 
+  THOSE TWO IDS ARE #338's, AND ONE OF THEM IS TAKEN. Test.Janus.Client.
+  ResponseShape numbers its own mutation table from M01, and ITS M09 is a
+  different experiment entirely - "POST result discarded again", which kills 2
+  of its clauses. The collision is real and it is the reason this paragraph
+  spells both mutations out as source edits instead of quoting a bare label: a
+  mutation id is only meaningful inside the fixture that assigned it.
+
   Each was built and run on its own against 0d21f2c: 214 found, 214 passed,
   0 failed - ZERO clauses killed by either. The reason is not that the verb
   does not matter; it is that the #323 stub in Test.Janus.Client.ResponseShape

@@ -283,8 +283,18 @@ begin
     // warned, because the except below terminates the function. The contract
     // it now meets is the one DoGET, DoPOST and DoDELETE OF THIS SAME CLASS
     // already met, measured on this class rather than borrowed from
-    // TRESTClientWS - whose DoPUT has the identical hole, still open, and is
-    // where #323 left the question.
+    // TRESTClientWS - whose DoPUT had the identical hole, and which #338 left
+    // open ON PURPOSE rather than repair by analogy.
+    //
+    // THAT HOLE IS NOW CLOSED TOO, AND NOT BY ANALOGY EITHER. The #338
+    // follow-up measured the contract on the WS class in its own right and
+    // found a DIFFERENT one: TRESTClientWS leaves RootElement EMPTY and
+    // publishes it as a writable property, so the unwrap flag is genuinely
+    // variable there and its DoPUT had to be pinned in BOTH arms. Here it is
+    // constant-True - this class's constructor sets 'result' and nothing can
+    // reach it from outside - which is why one arm was enough. The two repairs
+    // agree in shape and rest on separate measurements; neither is evidence
+    // about the other.
     //
     // Joining that contract means joining its failure half: ResponsePayload
     // raises INSIDE this try for a nil, non-array or empty answer, so a PUT
