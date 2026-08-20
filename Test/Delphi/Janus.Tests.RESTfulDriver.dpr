@@ -163,6 +163,17 @@ uses
   /// update against every DataSnap server. It also closes the half of #338
   /// that IS a defect: DoPUT never assigned Result - issue #338
   Test.Janus.Client.DataSnapVerb in 'Unit\RESTful\Test.Janus.Client.DataSnapVerb.pas',
+  /// The same two questions asked of the OTHER client family, whose answers
+  /// are different ones. TRESTClientWS speaks plain REST - its constructor
+  /// leaves the API context EMPTY, so no prefix dispatcher stands in front of
+  /// it and its verbs go out STRAIGHT. #338 measured, and this fixture
+  /// re-measured, that nothing pinned them: swapping the verb of DoPOST or of
+  /// DoPUT killed ZERO clauses, because the #323 stub answers every verb
+  /// alike. It also closes the half of #338 deliberately left open on this
+  /// side - TRESTClientWS.DoPUT never assigned Result either, and Execute
+  /// called it as a statement - against the contract measured on THIS class,
+  /// which has two arms where the DataSnap one has one
+  Test.Janus.Client.WSVerb in 'Unit\RESTful\Test.Janus.Client.WSVerb.pas',
   /// The half of the #301 reader a Nullable key never reached: a `Nullable<T>`
   /// property is tkRecord, so the case fell off its end and the object came out
   /// of an insert still holding the AutoInc placeholder - which the cascade

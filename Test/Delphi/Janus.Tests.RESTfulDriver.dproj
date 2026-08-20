@@ -116,6 +116,7 @@
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.OpenIdPopulates.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Client.ResponseShape.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Client.DataSnapVerb.pas"/>
+        <DCCReference Include="Unit\RESTful\Test.Janus.Client.WSVerb.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.NullableKeyReconciliation.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
