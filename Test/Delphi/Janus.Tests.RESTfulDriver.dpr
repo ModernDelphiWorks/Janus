@@ -150,7 +150,15 @@ uses
   Janus.Client.WS,
   /// The shape of the answer the six sites read, and what Execute does with
   /// it - the WS one dropped it on the floor - issue #323
-  Test.Janus.Client.ResponseShape in 'Unit\RESTful\Test.Janus.Client.ResponseShape.pas';
+  Test.Janus.Client.ResponseShape in 'Unit\RESTful\Test.Janus.Client.ResponseShape.pas',
+  /// WHICH VERB the DataSnap client puts on the wire, which server method that
+  /// verb reaches, and what its PUT answers. The POST/PUT swap is a
+  /// COMPENSATION for Embarcadero's own inverted prefix rule - HTTP PUT
+  /// reaches accept* and HTTP POST reaches update* - and this fixture pins it,
+  /// so the next reader does not "straighten" it and thereby swap insert with
+  /// update against every DataSnap server. It also closes the half of #338
+  /// that IS a defect: DoPUT never assigned Result - issue #338
+  Test.Janus.Client.DataSnapVerb in 'Unit\RESTful\Test.Janus.Client.DataSnapVerb.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
