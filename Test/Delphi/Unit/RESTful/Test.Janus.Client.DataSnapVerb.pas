@@ -76,11 +76,44 @@
 
   The label and the wire DO disagree, and that half of #338 is confirmed here
   by measurement, not conceded: FRequestMethod - the string that reaches
-  OnBeforeCommand, OnAfterCommand, OnErrorCommand and the 'Method : ' line of
-  EJanusRESTException - says POST while the packet says PUT. What it names is
-  the OPERATION in REST terms, which is right; what it does not name is the
-  verb a packet capture will show, which is what a reader comparing the two
-  will trip over. Both facts are pinned below, so neither can drift.
+  OnBeforeCommand, OnAfterCommand and OnErrorCommand - says POST while the
+  packet says PUT. What it names is the OPERATION in REST terms, which is
+  right; what it does not name is the verb a packet capture will show, which is
+  what a reader comparing the two will trip over. Both facts are pinned below,
+  so neither can drift.
+
+  AND THE ONE PLACE THAT NOW NAMES BOTH: THE EXCEPTION TEXT
+
+  A #338 follow-up closed the reader's half of that complaint where the reader
+  actually meets it - the 'Method : ' line of EJanusRESTException, which is
+  what lands in a log or a bug report. It now reads
+
+      Method : POST (wire: PUT)
+
+  WHERE, AND ONLY WHERE, THE TWO DIVERGE. GET and DELETE print plain, because
+  for them there is nothing to reconcile, and Diagnostic_GET_IsNotAnnotated and
+  Diagnostic_DELETE_IsNotAnnotated are the control that says so: an annotation
+  applied unconditionally would be noise, and it would also stop distinguishing
+  the two write verbs from the two read ones - which is the whole information
+  it carries.
+
+  WHAT DID NOT CHANGE, DELIBERATELY
+
+  Only the TEXT. FRequestMethod is still the operation, and the events still
+  receive it plain - Diagnostic_OnErrorCommand_StillCarriesThePlainLabel drives
+  that, because a handler that switches on the verb string would break if the
+  annotation reached it. No event signature moved and neither did
+  EJanusRESTException's: the constructor still takes seven arguments and prints
+  its fourth verbatim under 'Method', which is what
+  Test.Janus.Client.RestExceptionFields.
+  Constructor_EachArgumentLandsUnderItsOwnLabel pins. The composition happens in
+  TRESTClientDataSnap, at its four raise sites, and nowhere else - so the MARS,
+  WS, Horse, WiRL and DMVC clients are untouched and their own fixtures do not
+  move.
+
+  The wire verb is read back from FRESTRequest.Method through the RTL's own
+  RESTRequestMethodToString (REST.Types.pas), not from a table written here.
+  A hand-rolled table would be a second place for the enum to be wrong.
 
   HOW THE DISPATCH IS OBSERVED
 
@@ -93,11 +126,65 @@
   this fixture would test Embarcadero's code, not Janus's. What is NOT modelled
   is measured directly: the verb itself comes off the socket.
 
+  ============================================================================
+  MUTATION - THE DIAGNOSTIC HALF, EVERY FIGURE MEASURED
+  ============================================================================
+
+  Janus.Tests.RESTfulDriver Debug/Win32, 233 clauses, 233/0/0 unmutated. Each
+  applied with a $MESSAGE WARN directive - written without its braces HERE,
+  because inside this comment they would close it - and the W1054 echo checked
+  BEFORE the run, each
+  reverted after; figures are clauses killed across the whole binary.
+
+    TRESTClientDataSnap.DiagnosticMethod
+      D1  the suffix is printed unconditionally               2
+      D3  the label and the wire are transposed in it         2
+    the four raise sites
+      D2  the annotation leaks into the FErrorCommand arm     4 sites, 2 kills
+
+  3 mutations, NO SURVIVORS.
+
+  D1 kills exactly Diagnostic_GET_IsNotAnnotated and
+  Diagnostic_DELETE_IsNotAnnotated - the two controls - and nothing else. That
+  is what makes them controls rather than filler: without them an
+  unconditional suffix passes.
+
+  D2 kills Diagnostic_OnErrorCommand_StillCarriesThePlainLabel AND the
+  pre-existing Label_PUT_ReachesTheErrorPathAsPUT, which is the older clause
+  that already stood over the event path.
+
+  The RED-FIRST half, which mutation cannot show: against the tree before the
+  repair the two divergent-verb clauses were RED and the three controls green -
+  233 found / 231 passed / 2 failed.
+
   NOT MEASURED HERE
 
   Nothing in this fixture speaks to a live DataSnap server. The dispatch
   clauses assert the METHOD NAME the rule yields, not that a TDSServer invoked
   it. Issue #338 records the same gap.
+
+  WHO ELSE READS THE 'Method : ' LINE - ENUMERATED, NOT ASSUMED
+
+  A widened text is only safe if nothing parses it, and "nothing does" is a
+  claim about a SEARCH, so the search is recorded. Grepped over all of Source,
+  Test and Examples for the label and for consumers of
+  EJanusRESTException.Message: the string is WRITTEN in exactly one place -
+  Janus.Client.RestException's constructor - and READ in exactly three, all of
+  them fixtures:
+
+    Test.Janus.Client.RestExceptionFields   over TRESTClientMARS, untouched by
+                                            this change and re-run: 33/33 in
+                                            Janus.Tests.RESTMARS
+    Test.Janus.Client.DataSnapVerb          this file
+    Test.Janus.Client.WSVerb                the WS side, which asserts the line
+                                            stays PLAIN there
+
+  Nothing under Source or Examples parses it - the only other mentions of
+  EJanusRESTException outside the client units are prose in
+  Janus.Session.RESTful, which names the exception without touching its text.
+  So no shipped consumer can mis-parse the annotation. What is NOT measured is
+  code outside this repository: a downstream application logging or scraping
+  that line would see the wider string.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
@@ -113,6 +200,7 @@ interface
 uses
   Classes,
   SysUtils,
+  StrUtils,
   JSON,
   DUnitX.TestFramework,
   IdContext,
@@ -174,6 +262,12 @@ type
     /// An envelope carrying one distinct payload, in the shape the DataSnap
     /// client is configured to unwrap.
     function Envelope(const APayload: String): String;
+    /// Value printed under ALabel in an EJanusRESTException message, or a
+    /// sentinel that can never be mistaken for one when the label is absent.
+    /// Same reader as Test.Janus.Client.RestExceptionFields uses, and for the
+    /// same reason it gives: a whole-message Contains cannot see WHICH line a
+    /// value landed on, nor whether anything was appended to it.
+    function FieldOf(const AMessage, ALabel: String): String;
   public
     [Setup]
     procedure Setup;
@@ -234,6 +328,29 @@ type
     [Test]
     procedure Label_PUT_ReachesTheErrorPathAsPUT;
 
+    /// ---- AND WHERE THE READER MEETS BOTH: THE EXCEPTION TEXT ----
+    ///
+    /// The 'Method : ' line names the wire verb WHERE IT DIVERGES from the
+    /// label, and only there. Read as a FIELD of the message, never as a
+    /// substring of it: 'PUT' is contained in 'PUT (wire: POST)' too, so a
+    /// Contains assertion could not tell an annotated line from a plain one -
+    /// which is precisely the distinction these four clauses exist to hold.
+
+    [Test]
+    procedure Diagnostic_POST_NamesTheWireVerbUnderMethod;
+    [Test]
+    procedure Diagnostic_PUT_NamesTheWireVerbUnderMethod;
+    /// The control. Without these two, an annotation applied unconditionally
+    /// would pass, and the line would stop carrying any information at all.
+    [Test]
+    procedure Diagnostic_GET_IsNotAnnotated;
+    [Test]
+    procedure Diagnostic_DELETE_IsNotAnnotated;
+    /// Only the TEXT moved. A handler switching on the verb string would break
+    /// if the annotation reached it, so it must not.
+    [Test]
+    procedure Diagnostic_OnErrorCommand_StillCarriesThePlainLabel;
+
     /// ---- WHAT DoPUT ANSWERS ----
     ///
     /// The other half of #338. DoPUT executed the request and returned without
@@ -269,6 +386,8 @@ const
   cM_INSERT = 'acceptapp';
   cM_UPDATE = 'updateapp';
   cM_DELETE = 'cancelapp';
+
+  cABSENT   = '<<label-absent>>';
 
 /// <summary>
 ///   A MODEL of Studio 37.0's TDSRESTService.SetMethodNameWithPrefix
@@ -409,6 +528,31 @@ end;
 function TTestClientDataSnapVerb.Envelope(const APayload: String): String;
 begin
   Result := '{"' + cROOT + '":[' + APayload + ',{"tail":"ignored"}]}';
+end;
+
+function TTestClientDataSnapVerb.FieldOf(const AMessage,
+  ALabel: String): String;
+var
+  LLines: TStringList;
+  LPrefix: String;
+  LFor: Integer;
+begin
+  Result := cABSENT;
+  LPrefix := ALabel + ' : ';
+  LLines := TStringList.Create;
+  try
+    LLines.Text := AMessage;
+    for LFor := 0 to LLines.Count - 1 do
+    begin
+      if StartsStr(LPrefix, LLines[LFor]) then
+      begin
+        Result := Copy(LLines[LFor], Length(LPrefix) + 1, MaxInt);
+        Exit;
+      end;
+    end;
+  finally
+    LLines.Free;
+  end;
 end;
 
 function TTestClientDataSnapVerb.Run(
@@ -583,6 +727,68 @@ begin
   LMessage := Capture(TRESTRequestMethodType.rtPUT, '{"no-result-key":1}');
   Assert.Contains(LMessage, 'PUT',
     'The exception names the method that failed.');
+end;
+
+procedure TTestClientDataSnapVerb.Diagnostic_POST_NamesTheWireVerbUnderMethod;
+var
+  LMessage: String;
+begin
+  /// ISSUE #338's reader-facing complaint, closed where the reader meets it.
+  /// The label stays the OPERATION - that decision is not reopened - and the
+  /// line now also says which verb a packet capture will show, so the two can
+  /// be reconciled from the log alone instead of from this fixture's header.
+  LMessage := Capture(TRESTRequestMethodType.rtPOST, '{"no-result-key":1}');
+  Assert.AreEqual('POST (wire: PUT)', FieldOf(LMessage, 'Method'),
+    'A DataSnap INSERT is labelled POST and travels as PUT. Both belong on ' +
+    'the line, and the label is the one that comes first.');
+end;
+
+procedure TTestClientDataSnapVerb.Diagnostic_PUT_NamesTheWireVerbUnderMethod;
+var
+  LMessage: String;
+begin
+  LMessage := Capture(TRESTRequestMethodType.rtPUT, '{"no-result-key":1}');
+  Assert.AreEqual('PUT (wire: POST)', FieldOf(LMessage, 'Method'));
+end;
+
+procedure TTestClientDataSnapVerb.Diagnostic_GET_IsNotAnnotated;
+var
+  LMessage: String;
+begin
+  /// THE CONTROL. An annotation printed unconditionally would satisfy the two
+  /// clauses above and destroy the information they carry - the point of the
+  /// suffix is that it appears exactly where the two verbs disagree, and for
+  /// GET they do not.
+  LMessage := Capture(TRESTRequestMethodType.rtGET, '{"no-result-key":1}');
+  Assert.AreEqual('GET', FieldOf(LMessage, 'Method'),
+    'GET goes out as GET, so there is nothing to reconcile and nothing to ' +
+    'print.');
+end;
+
+procedure TTestClientDataSnapVerb.Diagnostic_DELETE_IsNotAnnotated;
+var
+  LMessage: String;
+begin
+  /// The second control, and not redundant with the first: DELETE is the verb
+  /// the prefix table DOES touch - it maps to 'cancel' - so it is the one a
+  /// reader might expect to be crossed like the write pair. It is not, and the
+  /// wire proves it in Wire_DELETE_SendsDELETE. This clause says the message
+  /// agrees with the wire.
+  LMessage := Capture(TRESTRequestMethodType.rtDELETE, '{"no-result-key":1}');
+  Assert.AreEqual('DELETE', FieldOf(LMessage, 'Method'));
+end;
+
+procedure TTestClientDataSnapVerb.Diagnostic_OnErrorCommand_StillCarriesThePlainLabel;
+begin
+  /// ONLY THE TEXT MOVED. FRequestMethod is the operation and the events
+  /// receive it unchanged; a handler that compares the string to 'PUT' would
+  /// break if the annotation leaked into it. The event path and the raise path
+  /// are two different arms of the same handler, so this is not implied by the
+  /// clauses above - it has to be driven.
+  FDataSnap.OnErrorCommand := CaptureErrorCommand;
+  Run(TRESTRequestMethodType.rtPUT, '{"no-result-key":1}');
+  Assert.AreEqual('PUT', FErrorLabelSeen,
+    'The event carries the operation, with no wire annotation appended.');
 end;
 
 initialization
