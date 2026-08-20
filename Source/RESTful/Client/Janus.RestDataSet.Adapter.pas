@@ -499,6 +499,16 @@ begin
               // Sem sequence na raiz o carimbo nunca aconteceu; um filho com
               // chave propria AutoInc continua podendo estar defasado, e e a
               // mesma pergunta que os dois ramos acima fazem.
+              // SOBREVIVENTE DECLARADO, E DECLARADO EM VEZ DE ESCONDIDO.
+              // Trocando esta linha por `LStaleAndMute := False`, com tripwire
+              // {$MESSAGE WARN} que o dcc32 devolveu (W1054), a suite
+              // Janus.Tests.RESTfulDriver fecha 246/0/0 - nenhuma clausula
+              // morre. A razao e a fixtura e nao o codigo: TAitRoot declara
+              // [Sequence], entao ExistSequence responde True e nenhum teste do
+              // repositorio dirige por aqui. O ramo fica porque a pergunta que
+              // ele faz e a MESMA dos dois irmaos acima e porque
+              // _GraphBelowIsStale ja se protege sozinho; quem acrescentar um
+              // model REST sem sequence com filho AutoInc comeca por aqui.
               LStaleAndMute := _GraphBelowIsStale(Self);
             if LStaleAndMute then
               _AnnounceStaleGraph(sgcNoKeyToAskBy);
