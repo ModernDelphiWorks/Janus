@@ -37,12 +37,6 @@ uses
   Janus.RestFactory.Interfaces,
   MetaDbDiff.mapping.classes,
   MetaDbDiff.types.mapping,
-  /// Nullable<...> and the SetValueNullable helper that writes one - issue #317.
-  /// Janus.RTTI.Helper's helper DESCENDS from MetaDbDiff's TRttiPropertyHelper,
-  /// so bringing it in adds SetValueNullable without hiding anything the unit
-  /// already had from the base helper.
-  Janus.Types.Nullable,
-  Janus.RTTI.Helper,
   Janus.Objects.Helper;
 
 type
@@ -177,6 +171,15 @@ implementation
 uses
   Janus.Session.RESTful,
   MetaDbDiff.mapping.explorer,
+  /// Nullable<...> and the SetValueNullable helper that writes one - issue #317.
+  /// IN THE IMPLEMENTATION and not the interface, deliberately: nothing in this
+  /// unit's interface mentions either, and a class helper named in an INTERFACE
+  /// uses clause travels to every unit downstream, where the LAST one in scope
+  /// wins. Janus.RTTI.Helper's helper descends from MetaDbDiff's
+  /// TRttiPropertyHelper so it would add rather than hide - but the way to not
+  /// have to make that argument at all is to keep it out of the interface.
+  Janus.Types.Nullable,
+  Janus.RTTI.Helper,
   Janus.Core.Consts;
 
 { TRESTObjectSetAdapter<M> }
