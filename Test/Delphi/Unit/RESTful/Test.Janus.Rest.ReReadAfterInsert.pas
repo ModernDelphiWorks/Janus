@@ -109,7 +109,8 @@ uses
   Janus.RestDataSet.Adapter,
   Janus.RestDataSet.ClientDataSet,
   Janus.RestDataSet.FDMemTable,
-  Test.Janus.Model.AutoIncTree;
+  Test.Janus.Model.AutoIncTree,
+  Test.Janus.Model.ClientKeyRoot;
 
 type
   /// <summary> An ICommandMonitor that keeps every line it is handed - issue
@@ -250,6 +251,13 @@ type
     FLone: TRESTFDMemTableAdapter<TAitLeaf>;
     FOtherMem: TFDMemTable;
     FOther: TRESTFDMemTableAdapter<TAitNoCascade>;
+    /// The client-key tree - issue #305, the third door. A root with NO
+    /// [Sequence] over a child that HAS one: the only shape in the repository
+    /// where FSession.ExistSequence answers False on a REST adapter.
+    FCkRootMem: TFDMemTable;
+    FCkChildMem: TFDMemTable;
+    FCkRoot: TRESTFDMemTableAdapter<TCkrRoot>;
+    FCkChild: TRESTFDMemTableAdapter<TCkrChild>;
     // -- issue #305, the voice ------------------------------------------------
     FSpy: TMonitorSpy;
     /// The spy is a TInterfacedObject: something has to hold the interface or it
@@ -265,6 +273,8 @@ type
       const AEntity: String);
     procedure AttachMonitor;
     function StaleLines: String;
+    procedure BuildClientKeyTree;
+    procedure SeedClientKeyTree;
     procedure BuildMemTree;
     procedure BuildCdsTree;
     procedure SeedRoot(const ADataSet: TDataSet; const ATag: String);
@@ -530,6 +540,26 @@ type
     /// "identical to its sibling" argument.
     [Test]
     procedure Voice_Cds_TheOrphanCaseIsAnnouncedThereToo;
+
+    /// THE THIRD DOOR of ApplyInserter, and the one that had no fixture at all
+    /// until Test.Janus.Model.ClientKeyRoot was written for it. The root's key
+    /// came from the OPERATOR - TAutoIncType.NotInc, no [Sequence] - so
+    /// FSession.ExistSequence answers False, the stamping block is skipped
+    /// whole, no bookmark is taken and the re-read is never attempted. The
+    /// child, which DOES have a sequence, is left on its placeholder.
+    /// WHY IT IS ITS OWN CASE. A GET on the key the operator typed would work,
+    /// so nothing is orphaned and nothing is lost - the exact opposite of what
+    /// the sgcNoKeyToAskBy sentence tells the reader. This clause pins the case
+    /// AND the sentence, because a case that carried a false sentence would be
+    /// the same defect wearing a nicer name.
+    [Test]
+    procedure Voice_ARootWithNoSequenceIsItsOwnCaseAndNotTheOrphanOne;
+    /// And the premise the clause above rests on, measured separately so a
+    /// green result there can never be an accident of a save that did nothing:
+    /// the aggregate really was POSTed, no GET was bought, and the child really
+    /// is sitting on the placeholder.
+    [Test]
+    procedure Voice_TheNoSequenceRootReallyReachesThatDoor;
   end;
 
 implementation
@@ -541,6 +571,14 @@ const
   cOTHERKEY = 'other_id';
   cTAG     = 'tag';
   cPLACEHOLDER = -1;
+  /// The client-key pair - issue #305, the third door.
+  cCKROOTKEY  = 'ckrroot_id';
+  cCKCHILDKEY = 'ckrchild_id';
+  /// The key the OPERATOR typed into the root. Distinct from every server key
+  /// below and from the placeholder, so "the client already knew this" can
+  /// never be confused with "the answer supplied it" - no answer in this
+  /// fixture ever names it.
+  cTYPEDKEY = 4242;
   /// The three numbers the server generated. They are DIFFERENT from each other
   /// and from the placeholder on purpose: a repair that copied the root's key
   /// downwards would look green if they were equal.
@@ -872,6 +910,10 @@ begin
   FreeAndNil(FLeafMem);
   FreeAndNil(FMidMem);
   FreeAndNil(FRootMem);
+  FreeAndNil(FCkChild);
+  FreeAndNil(FCkChildMem);
+  FreeAndNil(FCkRoot);
+  FreeAndNil(FCkRootMem);
   FConn := nil;
   FRep := nil;
   FSpy := nil;
@@ -887,6 +929,35 @@ begin
   FMemMid := TRESTFDMemTableAdapter<TAitMid>.Create(FConn, FMidMem, -1, FMemRoot);
   FLeafMem := TFDMemTable.Create(nil);
   FMemLeaf := TRESTFDMemTableAdapter<TAitLeaf>.Create(FConn, FLeafMem, -1, FMemMid);
+end;
+
+/// The same two-adapter wiring BuildMemTree uses, over the client-key pair -
+/// issue #305. REST fixtures need no central registration: the adapter is
+/// instantiated directly, exactly as Cost_AnAggregateWithNoChildrenCostsNoGet
+/// stands one up for TAitLeaf.
+procedure TTestRestReReadAfterInsert.BuildClientKeyTree;
+begin
+  FCkRootMem := TFDMemTable.Create(nil);
+  FCkRoot := TRESTFDMemTableAdapter<TCkrRoot>.Create(FConn, FCkRootMem, -1, nil);
+  FCkChildMem := TFDMemTable.Create(nil);
+  FCkChild := TRESTFDMemTableAdapter<TCkrChild>.Create(FConn, FCkChildMem, -1,
+                FCkRoot);
+end;
+
+/// The root carries a key the OPERATOR typed - that is the whole difference
+/// from SeedTree - and the child carries the AutoInc placeholder, which is what
+/// makes the graph below stale.
+procedure TTestRestReReadAfterInsert.SeedClientKeyTree;
+begin
+  FCkRootMem.Append;
+  FCkRootMem.FieldByName(cCKROOTKEY).AsInteger := cTYPEDKEY;
+  FCkRootMem.FieldByName(cTAG).AsString := 'typed by the operator';
+  FCkRootMem.Post;
+  FCkChildMem.Append;
+  FCkChildMem.FieldByName(cCKCHILDKEY).AsInteger := cPLACEHOLDER;
+  FCkChildMem.FieldByName(cCKROOTKEY).AsInteger := cTYPEDKEY;
+  FCkChildMem.FieldByName(cTAG).AsString := 'child';
+  FCkChildMem.Post;
 end;
 
 procedure TTestRestReReadAfterInsert.BuildCdsTree;
@@ -1385,8 +1456,8 @@ end;
 function CasesToText(const ACases: TStaleGraphCases): String;
 const
   cNAME: array[TStaleGraphCase] of String = ('sgcNoKeyToAskBy',
-    'sgcMultiRootNotReRead', 'sgcAnswerHadNoRow', 'sgcAnswerWasAnotherRow',
-    'sgcAnswerWasShallower');
+    'sgcMultiRootNotReRead', 'sgcReReadNeverAttempted', 'sgcAnswerHadNoRow',
+    'sgcAnswerWasAnotherRow', 'sgcAnswerWasShallower');
 var
   LCase: TStaleGraphCase;
 begin
@@ -1616,6 +1687,54 @@ begin
     'neither overrides it - and this clause is what keeps that a measurement ' +
     'rather than the "identical to its sibling" argument. Heard: ' +
     CasesToText(FCdsRoot.StaleGraphCases));
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Voice_TheNoSequenceRootReallyReachesThatDoor;
+begin
+  AttachMonitor;
+  BuildClientKeyTree;
+  SeedClientKeyTree;
+  TMemApply<TCkrRoot>.Apply(FCkRoot);
+  Assert.AreEqual(1, FRep.PostCount,
+    'the aggregate really was sent - a clause about what a save announced is ' +
+    'worth nothing if the save did not happen');
+  Assert.AreEqual(0, FRep.GetCount,
+    'and NO re-read was bought: this door never reaches the block that takes ' +
+    'the bookmark, which is exactly why the graph below stays stale');
+  Assert.AreEqual(cTYPEDKEY, KeyOf(FCkRootMem, cCKROOTKEY),
+    'the root still carries the key the OPERATOR typed - nothing stamped it, ' +
+    'and nothing had to');
+  Assert.AreEqual(cPLACEHOLDER, KeyOf(FCkChildMem, cCKCHILDKEY),
+    'while the child, which DOES have a sequence, is still on the AutoInc ' +
+    'placeholder - the server generated a key for it and the client never ' +
+    'heard which');
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Voice_ARootWithNoSequenceIsItsOwnCaseAndNotTheOrphanOne;
+begin
+  AttachMonitor;
+  BuildClientKeyTree;
+  SeedClientKeyTree;
+  TMemApply<TCkrRoot>.Apply(FCkRoot);
+  Assert.IsTrue(sgcReReadNeverAttempted in FCkRoot.StaleGraphCases,
+    'the third door has to speak, and to speak as ITSELF. Heard: ' +
+    CasesToText(FCkRoot.StaleGraphCases));
+  Assert.IsFalse(sgcNoKeyToAskBy in FCkRoot.StaleGraphCases,
+    'and it must NOT come out as the orphan case, which is where it went ' +
+    'before this member existed: nothing here is orphaned - a GET on ' +
+    'ckrroot_id=4242 would work, because the operator typed that key. Heard: ' +
+    CasesToText(FCkRoot.StaleGraphCases));
+  // THE SENTENCE, AND NOT ONLY THE CASE. A case relabelled while the monitor
+  // kept telling the reader the key was lost forever would be the same defect
+  // with a nicer name on it.
+  Assert.IsTrue(Pos(cSTALEGRAPHCASE[sgcReReadNeverAttempted], StaleLines) > 0,
+    'the monitor line has to carry the sentence of THIS case. Stale lines ' +
+    'seen: ' + StaleLines);
+  Assert.IsTrue(Pos('nunca vai saber', StaleLines) = 0,
+    'and must NOT carry the orphan sentence: the client knows this key, it ' +
+    'typed it. Stale lines seen: ' + StaleLines);
 end;
 
 initialization

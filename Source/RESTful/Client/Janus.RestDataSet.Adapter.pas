@@ -95,16 +95,40 @@ type
   ///  deletes=0`, pinned by Detector_AllThreePhasesRunInsideTheSameCall. Every
   ///  member of this enum is announced, never raised. </summary>
   TStaleGraphCase = (
-    /// (1) The insert answer named no key for this row - either it carried no
-    ///  `params` at all, or the `params` it carried named no column this row has.
-    ///  There is nothing to ask BY, so no re-read is possible and the row sits on
-    ///  the server under a key the client will never know. THE ONLY case that
-    ///  leaves something orphaned on the far side.
+    /// (1) The insert answer named no key for this row, so there is nothing to
+    ///  ask BY, no re-read is possible, and the row sits on the server under a
+    ///  key the client will never know. THE ONLY case that leaves something
+    ///  orphaned on the far side.
+    ///  TWO DOORS REACH IT, and they are the two where the root DOES have a
+    ///  sequence and the answer still failed to name its key: the answer carried
+    ///  no `params` at all, or it carried `params` naming no column this row has.
+    ///  A THIRD door used to arrive here and no longer does - a root with no
+    ///  sequence goes to sgcReReadNeverAttempted, because over that shape the
+    ///  sentence this case puts on the monitor is FALSE.
     sgcNoKeyToAskBy,
     /// (2) More than one root was saved in the same call, so the re-read was
     ///  skipped ON PURPOSE - see _ReReadStaleRoots. The client keeps every row it
     ///  typed, on placeholders.
     sgcMultiRootNotReRead,
+    /// (2b) The root has NO SEQUENCE - TAutoIncType.NotInc, or any key whose
+    ///  generator is not SequenceInc - so FSession.ExistSequence answers False,
+    ///  ApplyInserter never entered the stamping block, never took a bookmark,
+    ///  and the re-read was NEVER ATTEMPTED. The root's key is the one the
+    ///  CLIENT supplied and has been sitting in the dataset the whole time, so a
+    ///  GET by it would work; only the graph BELOW is on placeholders.
+    ///
+    ///  WHY IT IS NOT sgcNoKeyToAskBy, WHICH IS WHERE IT WENT UNTIL THIS CASE
+    ///  EXISTED. That case tells the reader the key is lost forever, and over
+    ///  this shape that is FALSE - the operator typed the key. Announcing an
+    ///  orphan where nothing is orphaned is the same disease #305 is curing: it
+    ///  makes the warning unbelievable. The remedy differs too - here the
+    ///  consumer can simply call Refresh, which in case (1) it cannot.
+    ///
+    ///  THE DOOR HAD NO FIXTURE UNTIL Test.Janus.Model.ClientKeyRoot, because
+    ///  every other model this repository points at a REST adapter declares
+    ///  [Sequence]. Measured by
+    ///  Voice_ARootWithNoSequenceIsItsOwnCaseAndNotTheOrphanOne.
+    sgcReReadNeverAttempted,
     /// (3) The re-read was issued and the server answered NO row.
     sgcAnswerHadNoRow,
     /// (4) The re-read answered a DIFFERENT row and the identity guard refused it.
@@ -147,6 +171,9 @@ const
     'gravada no servidor sob uma chave que este cliente nunca vai saber',
     'mais de uma raiz foi gravada na mesma chamada e a re-leitura foi ' +
     'desligada de proposito - nenhuma linha do cliente foi perdida',
+    'a raiz nao tem sequence, entao a re-leitura nunca foi tentada - a chave ' +
+    'da raiz veio do cliente e continua conhecida; so o grafo abaixo dela ' +
+    'ficou no placeholder',
     'a re-leitura nao encontrou linha nenhuma - o dado do cliente esta intacto',
     'a re-leitura respondeu OUTRA linha e foi recusada - o dado do cliente ' +
     'esta intacto',
@@ -285,9 +312,14 @@ end;
 ///
 ///  THE MONITOR LINE FOLLOWS THE HOUSE FORMAT and not a new one: labelled fields
 ///  padded to the same column, `Command(text, nil)`, and guarded by
-///  `CommandMonitor <> nil` - the shape of all fourteen call sites in
-///  TSessionRestFul<M>. What it does NOT copy is the 'URI' label: this line is
-///  not a round trip, and a URI on it would be a request that never happened.
+///  `CommandMonitor <> nil` - the shape of all NINE call sites in
+///  TSessionRestFul<M> (Janus.Session.RESTful.pas, nine `CommandMonitor <> nil`
+///  guards and the nine `.Command(..., nil)` they guard; counted at this HEAD,
+///  and an earlier version of this sentence said FOURTEEN, which was a number
+///  nobody had counted). Repo-wide there are eleven call sites: those nine, the
+///  one in TDMLCommandFactory._SendCommandMonitor, and this one.
+///  What it does NOT copy is the 'URI' label: this line is not a round trip, and
+///  a URI on it would be a request that never happened.
 ///
 ///  IT CANNOT RAISE, AND THAT IS THE WHOLE CONSTRAINT. Everything here runs
 ///  inside ApplyInserter, the first of three phases in one try; an exception
@@ -373,6 +405,7 @@ var
   LParam: TParam;
   LStale: TList<TBookmark>;
   LStaleAndMute: Boolean;
+  LNoSequenceStale: Boolean;
 begin
   inherited;
   // ISSUE #305 - O ESTADO E DESTA GRAVACAO E NAO DA ANTERIOR. Zerado aqui, no
@@ -414,6 +447,7 @@ begin
             // ramo em que a re-leitura assume a conta - la o veredito quem da e
             // _ReReadRootRow, que sabe o que a resposta trouxe.
             LStaleAndMute := False;
+            LNoSequenceStale := False;
             if FSession.ExistSequence then
             begin
               if FSession.ResultParams.Count > 0 then
@@ -496,22 +530,25 @@ begin
                 LStaleAndMute := _GraphBelowIsStale(Self);
             end
             else
-              // Sem sequence na raiz o carimbo nunca aconteceu; um filho com
-              // chave propria AutoInc continua podendo estar defasado, e e a
-              // mesma pergunta que os dois ramos acima fazem.
-              // SOBREVIVENTE DECLARADO, E DECLARADO EM VEZ DE ESCONDIDO.
-              // Trocando esta linha por `LStaleAndMute := False`, com tripwire
-              // {$MESSAGE WARN} que o dcc32 devolveu (W1054), a suite
-              // Janus.Tests.RESTfulDriver fecha 246/0/0 - nenhuma clausula
-              // morre. A razao e a fixtura e nao o codigo: TAitRoot declara
-              // [Sequence], entao ExistSequence responde True e nenhum teste do
-              // repositorio dirige por aqui. O ramo fica porque a pergunta que
-              // ele faz e a MESMA dos dois irmaos acima e porque
-              // _GraphBelowIsStale ja se protege sozinho; quem acrescentar um
-              // model REST sem sequence com filho AutoInc comeca por aqui.
-              LStaleAndMute := _GraphBelowIsStale(Self);
+              // A TERCEIRA PORTA, E ELA NAO E O CASO (1) - issue #305. Sem
+              // sequence na raiz o carimbo nunca aconteceu, nenhum bookmark foi
+              // tomado e a re-leitura NUNCA FOI TENTADA; mas a chave da raiz
+              // veio do CLIENTE e esta no dataset o tempo todo, entao um GET por
+              // ela funcionaria. Dizer "uma chave que este cliente nunca vai
+              // saber" aqui seria simplesmente FALSO - por isso este ramo tem
+              // caso proprio. Ver TStaleGraphCase.sgcReReadNeverAttempted.
+              // ESTE RAMO TEVE COBERTURA DEPOIS DE NAO TER: enquanto ele
+              // anunciava sgcNoKeyToAskBy era um sobrevivente declarado -
+              // trocando a linha por `LStaleAndMute := False` a suite fechava
+              // 246/0/0 e nada morria, porque todo model REST do repositorio
+              // declara [Sequence]. Test.Janus.Model.ClientKeyRoot foi escrito
+              // para alcancar a porta, e a mesma mutacao agora MATA
+              // Voice_ARootWithNoSequenceIsItsOwnCaseAndNotTheOrphanOne.
+              LNoSequenceStale := _GraphBelowIsStale(Self);
             if LStaleAndMute then
               _AnnounceStaleGraph(sgcNoKeyToAskBy);
+            if LNoSequenceStale then
+              _AnnounceStaleGraph(sgcReReadNeverAttempted);
             FOrmDataSet.Fields[FInternalIndex].AsInteger := -1;
             FOrmDataSet.Post;
           finally
