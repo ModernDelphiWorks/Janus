@@ -52,7 +52,7 @@
 
   The reader dispatches per element type, so one entity carrying several
   Nullable columns would exercise one arm and no more: only the primary key is
-  named by the insert answer. Four roots therefore:
+  named by the insert answer. Four Nullable roots therefore:
 
     TNkRoot   Nullable<Integer>  - the Examples shape, and the only one with a
                                    cascading child, so the ORDER of the read
@@ -60,10 +60,10 @@
     TNlRoot   Nullable<Int64>    - the 64-bit arm
     TNsRoot   Nullable<String>   - a TEXTUAL key that IS generated, which is the
                                    shape issue #317 asks about by name and which
-                                   exists nowhere else in this repository:
-                                   `TKeyTypeGuid` is generated but its property
-                                   is a bare String, and the two Nullable keys
-                                   named above are not generated
+                                   existed nowhere in this repository before
+                                   this unit: `TKeyTypeGuid` is generated but
+                                   its property is a bare String, and the two
+                                   Nullable keys named above are not generated
     TNdRoot   Nullable<Double>   - the NEGATIVE CONTROL. Its element type is
                                    outside the three the reader writes, so it
                                    must come out of an insert still holding the
@@ -75,6 +75,19 @@
                                    occasion - `Examples\Delphi\Data\Quatro
                                    Niveis de Dados\Model.Setor` declares a
                                    Double primary key today.
+
+  AND TWO ROOTS WITH NOTHING NULLABLE ABOUT THEM
+
+    TNbRoot   String             - a bare textual key WITH a [Sequence]
+    TNiRoot   Int64              - a bare 64-bit key WITH a [Sequence]
+
+  They are here because supplying the missing key shapes for this project is
+  what this unit is for, and because between them they close FOUR of the FIVE
+  mutations `Test.Janus.Rest.ObjectSetInsertKey` lists as surviving - the
+  ordinal string branch, its empty-text check, the ordinal tkInt64 branch and
+  its TryStrToInt64 guard. That header carries the re-measurement. `TNbRoot`
+  doubles as the positive control for a DataSet-family finding; see
+  `TTestRestNullableKeyDataSetFamily`.
 
   THE CHILD'S FOREIGN KEY IS A NULLABLE TOO
 
@@ -236,6 +249,33 @@ type
     property tag: String read Ftag write Ftag;
   end;
 
+  /// A BARE Int64 key, generated. It closes two of the FIVE mutations
+  /// Test.Janus.Rest.ObjectSetInsertKey lists as surviving - "the TryStrToInt64
+  /// guard removed" and "the whole tkInt64 branch removed" - which survived for
+  /// one reason that unit states plainly: no entity reachable from an ObjectSet
+  /// insert in this project had a 64-bit key. Now one does. Nothing about it is
+  /// Nullable; it is here because this unit is where the missing key shapes for
+  /// that project were supplied.
+  [Entity]
+  [Table('niroot', '')]
+  [PrimaryKey('ni_id', TAutoIncType.AutoInc,
+                       TGeneratorType.SequenceInc,
+                       TSortingOrder.NoSort,
+                       True, 'Primary key')]
+  [Sequence('niroot')]
+  TNiRoot = class
+  private
+    Fni_id: Int64;
+    Ftag: String;
+  public
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('ni_id', ftLargeint)]
+    property ni_id: Int64 read Fni_id write Fni_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+  end;
+
   /// THE NEGATIVE CONTROL - see the header. A Nullable whose element type the
   /// reader does not write, so an insert must leave it exactly as it was.
   [Entity]
@@ -279,6 +319,7 @@ initialization
   TRegisterClass.RegisterEntity(TNlRoot);
   TRegisterClass.RegisterEntity(TNsRoot);
   TRegisterClass.RegisterEntity(TNbRoot);
+  TRegisterClass.RegisterEntity(TNiRoot);
   TRegisterClass.RegisterEntity(TNdRoot);
 
 end.

@@ -108,6 +108,51 @@
   key WITH a `[Sequence]` - a combination that exists nowhere else in this
   repository - and it is reconciled by the same arm as the rest.
 
+  EVERY BRANCH THE REPAIR ADDS DIES UNDER MUTATION
+
+  Nine mutations, each applied with a MESSAGE WARN directive on the mutated line
+  that the build echoed back as W1054 - a run whose patch cannot be shown to
+  have landed measures nothing - and each run over the whole project at
+  total=212. (The directive is named here WITHOUT its braces on purpose: this
+  header is itself a brace comment, and writing the directive out closes the
+  comment at its first closing brace. Measured the hard way, one build.)
+
+    the whole `tkRecord` arm removed           6 red
+    the `Nullable<Integer>` arm removed        4 red
+    the `Nullable<Int64>` arm removed          1 red
+    the `Nullable<String>` arm removed         1 red
+    the `TryStrToInt` guard dropped            3 ERRORS, and the message is the
+                                               one #301 feared verbatim: `Could
+                                               not convert variant of type
+                                               (UnicodeString) into type
+                                               (Integer)`
+    the `TryStrToInt64` guard dropped          1 red
+    the empty-text guard on the string arm     1 red
+    the 64-bit arm narrowed to 32 bits         1 red
+    a `Nullable<Double>` arm ADDED             1 red - the negative control,
+                                               which is how it is shown not to
+                                               be decorative
+
+  THE FIFTH OF THOSE IS THE WHOLE ARGUMENT FOR THE DESIGN, RUN RATHER THAN
+  ASSERTED. Removing the parse and handing the text straight to
+  `SetValueNullable` reproduces exactly the exception under which #301 deleted
+  its own Nullable arm. The arm as written cannot reach it, because the value
+  `SetValueNullable` receives has already been proved to be of the element type
+  by the same comparison that chose the element type.
+
+  FOUR CLAUSES HERE ARE NOT ABOUT NULLABLE AT ALL
+
+  `Insert_ABareStringGeneratedKey...`, `Insert_AnEmptyBareStringKey...`,
+  `Insert_ABareInt64GeneratedKey...` and `Insert_ABareInt64KeyThatOverflows...`
+  drive the ORDINAL arms #301 wrote. They are here because #301 listed FIVE
+  mutations of its own reader as surviving, all for one reason - the project had
+  no entity of the right key shape reachable from an ObjectSet insert - and
+  because supplying exactly those shapes is what this branch had to do anyway.
+  Four of the five now die. The fifth, the IsWritable guard, still survives and
+  still should: no key property in this project is read-only. The re-measurement
+  is written out in `Test.Janus.Rest.ObjectSetInsertKey`'s header, where the
+  original claim lives.
+
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
 
@@ -241,6 +286,28 @@ const
     '{"result":"Resource nsroot insert command executed successfully", ' +
     '"params":[{"ns_id":""}]}';
 
+  /// The two BARE-typed roots that exist to close mutations the #301 fixture
+  /// lists as surviving - see the header note THE FOUR CLAUSES THAT ARE NOT
+  /// ABOUT NULLABLE AT ALL.
+  cANSWERNBSTRING =
+    '{"result":"Resource nbroot insert command executed successfully", ' +
+    '"params":[{"nb_id":"NB-000555"}]}';
+
+  cANSWERNBISEMPTY =
+    '{"result":"Resource nbroot insert command executed successfully", ' +
+    '"params":[{"nb_id":""}]}';
+
+  cSERVERKEYBARETEXT = 'NB-000555';
+  cBARETEXTPLACEHOLDER = 'PENDING-BARE';
+
+  cANSWERNIINT64 =
+    '{"result":"Resource niroot insert command executed successfully", ' +
+    '"params":[{"ni_id":4294967851}]}';
+
+  cANSWERNIOVERFLOWS =
+    '{"result":"Resource niroot insert command executed successfully", ' +
+    '"params":[{"ni_id":9223372036854775808}]}';
+
   /// Well formed, right shape, wrong name. Nothing may be stamped from it.
   cANSWERNKNAMINGNOKEY =
     '{"result":"Resource nkroot insert command executed successfully", ' +
@@ -324,6 +391,20 @@ type
     /// the property as it was rather than CLEAR it.
     [Test]
     procedure Insert_AnEmptyNullableStringKeyLeavesThePlaceholder;
+
+    /// THE FOUR CLAUSES THAT ARE NOT ABOUT NULLABLE AT ALL. They drive the
+    /// ORDINAL arms #301 wrote and could not hold honest, and they exist
+    /// because this branch had to supply the missing key shapes anyway. Each is
+    /// paired with one of the FIVE MUTATIONS Test.Janus.Rest.ObjectSetInsertKey
+    /// lists as surviving; four of the five die here. See that unit's header.
+    [Test]
+    procedure Insert_ABareStringGeneratedKeyCarriesTheKeyTheServerGenerated;
+    [Test]
+    procedure Insert_AnEmptyBareStringKeyLeavesThePlaceholder;
+    [Test]
+    procedure Insert_ABareInt64GeneratedKeyCarriesTheKeyTheServerGenerated;
+    [Test]
+    procedure Insert_ABareInt64KeyThatOverflowsLeavesThePlaceholder;
   end;
 
   /// <summary> THE OTHER OPEN QUESTION OF ISSUE #317: does the DataSet half of
@@ -729,6 +810,113 @@ begin
     Assert.IsTrue(LRoot.ns_id.HasValue,
       'and it must still be present, which is the half a value comparison ' +
       'alone cannot see');
+  finally
+    LRoot.Free;
+  end;
+end;
+
+procedure TTestRestNullableKeyReconciliation.Insert_ABareStringGeneratedKeyCarriesTheKeyTheServerGenerated;
+var
+  LAdapter: TRESTObjectSetAdapter<TNbRoot>;
+  LRoot: TNbRoot;
+begin
+  FRecorder.Response := cANSWERNBSTRING;
+  LRoot := TNbRoot.Create;
+  try
+    LRoot.nb_id := cBARETEXTPLACEHOLDER;
+    LRoot.tag := 'bare';
+    LAdapter := TRESTObjectSetAdapter<TNbRoot>.Create(FConn);
+    try
+      LAdapter.Insert(LRoot);
+    finally
+      LAdapter.Free;
+    end;
+    Assert.AreEqual(cSERVERKEYBARETEXT, LRoot.nb_id, False,
+      'THE ORDINAL STRING ARM, which #301 wrote and listed as unheld: "the ' +
+      'whole string branch removed" survived there because the only textual ' +
+      'key reachable from an ObjectSet insert in this project was TStrMaster, ' +
+      'which carries no [Sequence] so the block is never entered for it. ' +
+      'TNbRoot is a bare String key WITH a [Sequence] - the shape #301 said ' +
+      'would have to be invented - and this clause is what kills that mutation');
+  finally
+    LRoot.Free;
+  end;
+end;
+
+procedure TTestRestNullableKeyReconciliation.Insert_AnEmptyBareStringKeyLeavesThePlaceholder;
+var
+  LAdapter: TRESTObjectSetAdapter<TNbRoot>;
+  LRoot: TNbRoot;
+begin
+  FRecorder.Response := cANSWERNBISEMPTY;
+  LRoot := TNbRoot.Create;
+  try
+    LRoot.nb_id := cBARETEXTPLACEHOLDER;
+    LRoot.tag := 'bare';
+    LAdapter := TRESTObjectSetAdapter<TNbRoot>.Create(FConn);
+    try
+      LAdapter.Insert(LRoot);
+    finally
+      LAdapter.Free;
+    end;
+    Assert.AreEqual(cBARETEXTPLACEHOLDER, LRoot.nb_id, False,
+      'and the `if LText <> ''''` INSIDE that arm - #301 listed its removal as ' +
+      'a second surviving mutation. An empty answer must leave the key, not ' +
+      'blank it: a JSON null and an empty string are indistinguishable here ' +
+      'because the parser forces ftString on every param');
+  finally
+    LRoot.Free;
+  end;
+end;
+
+procedure TTestRestNullableKeyReconciliation.Insert_ABareInt64GeneratedKeyCarriesTheKeyTheServerGenerated;
+var
+  LAdapter: TRESTObjectSetAdapter<TNiRoot>;
+  LRoot: TNiRoot;
+begin
+  FRecorder.Response := cANSWERNIINT64;
+  LRoot := TNiRoot.Create;
+  try
+    LRoot.ni_id := cPLACEHOLDER;
+    LRoot.tag := 'wide';
+    LAdapter := TRESTObjectSetAdapter<TNiRoot>.Create(FConn);
+    try
+      LAdapter.Insert(LRoot);
+    finally
+      LAdapter.Free;
+    end;
+    Assert.AreEqual(cSERVERKEY64, LRoot.ni_id,
+      'THE ORDINAL tkInt64 ARM, the third of #301''s five surviving ' +
+      'mutations. It survived because no entity reachable from an ObjectSet ' +
+      'insert in this project had a 64-bit key; TNiRoot is one. The value is ' +
+      'above High(Integer) so a 32-bit conversion would be visible as a ' +
+      'different number rather than as no number');
+  finally
+    LRoot.Free;
+  end;
+end;
+
+procedure TTestRestNullableKeyReconciliation.Insert_ABareInt64KeyThatOverflowsLeavesThePlaceholder;
+var
+  LAdapter: TRESTObjectSetAdapter<TNiRoot>;
+  LRoot: TNiRoot;
+begin
+  FRecorder.Response := cANSWERNIOVERFLOWS;
+  LRoot := TNiRoot.Create;
+  try
+    LRoot.ni_id := cPLACEHOLDER;
+    LRoot.tag := 'wide';
+    LAdapter := TRESTObjectSetAdapter<TNiRoot>.Create(FConn);
+    try
+      LAdapter.Insert(LRoot);
+    finally
+      LAdapter.Free;
+    end;
+    Assert.AreEqual(Int64(cPLACEHOLDER), LRoot.ni_id,
+      'and its TryStrToInt64 guard, the fourth. #301 measured that dropping ' +
+      'it back to TParam.AsLargeInt changed nothing; with a 64-bit key in the ' +
+      'project it does - High(Int64) plus one is a number the target cannot ' +
+      'hold, and the guard is what leaves the key alone instead');
   finally
     LRoot.Free;
   end;
