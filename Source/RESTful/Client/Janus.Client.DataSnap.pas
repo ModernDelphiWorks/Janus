@@ -215,6 +215,19 @@ end;
 function TRESTClientDataSnap.DoPOST(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'POST';
+  // ISSUE #338 - THE VERB IS CROSSED ON PURPOSE. DO NOT "STRAIGHTEN" IT.
+  // DataSnap dispatches by METHOD NAME PREFIX, and its own table is the one
+  // that is inverted: Studio 37.0, Datasnap.DSService.pas,
+  // TDSRESTService.SetMethodNameWithPrefix, reached from ProcessREST, maps
+  // 'PUT' -> 'accept', 'POST' -> 'update', 'DELETE' -> 'cancel'. So an INSERT
+  // has to travel as HTTP PUT to reach acceptapp, which is the method that
+  // inserts - see Janus.Server.Resource.DataSnap, and acceptmaster in the
+  // shipped example server. Sending rmPOST here would reach updateapp and turn
+  // every insert into an update against a real server. Both transports land on
+  // that table: TDSRESTServer over Indy and TDSHTTPWebDispatcher over
+  // WebBroker. TRESTClientWS maps 'POST' -> rmPOST and is NOT a counterexample
+  // - it speaks plain REST, which has no prefix dispatch to compensate.
+  // Pinned by TTestClientDataSnapVerb.
   FRESTRequest.Method := TRESTRequestMethod.rmPUT;
   // Define valores dos parametros
   SetParamsBodyValue;
@@ -254,12 +267,33 @@ end;
 function TRESTClientDataSnap.DoPUT(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'PUT';
+  // ISSUE #338 - CROSSED ON PURPOSE, the mirror of the note in DoPOST above.
+  // 'POST' -> 'update' in the DataSnap prefix table, so an UPDATE has to
+  // travel as HTTP POST to reach updateapp. Sending rmPUT here would reach
+  // acceptapp and turn every update into an insert.
   FRESTRequest.Method := TRESTRequestMethod.rmPOST;
   // Define valores dos parametros
   SetParamsBodyValue;
   // PUT
   try
     FRESTRequest.Execute;
+    // ISSUE #338 - THIS ASSIGNMENT WAS ABSENT, AND EVERY PUT ANSWERED ''.
+    // The method executed the request and returned without ever touching
+    // Result, so the server's answer was read and discarded - and nothing
+    // warned, because the except below terminates the function. The contract
+    // it now meets is the one DoGET, DoPOST and DoDELETE OF THIS SAME CLASS
+    // already met, measured on this class rather than borrowed from
+    // TRESTClientWS - whose DoPUT has the identical hole, still open, and is
+    // where #323 left the question.
+    //
+    // Joining that contract means joining its failure half: ResponsePayload
+    // raises INSIDE this try for a nil, non-array or empty answer, so a PUT
+    // that used to swallow a malformed body silently now reports it through
+    // the handler below, with the server body still attached. That widening is
+    // the point - a DataSnap error answers a body with no 'result' key, which
+    // is exactly the shape this used to discard.
+    Result := ResponsePayload(FRESTRequest.Response.JSONValue,
+                              Length(FRESTResponse.RootElement) > 0);
   except
     on E: Exception do
     begin
