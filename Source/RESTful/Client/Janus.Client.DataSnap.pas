@@ -59,6 +59,40 @@ type
     function DoPUT(const AResource, ASubResource: string): string;
     function DoDELETE(const AResource, ASubResource: string): string;
     function RemoveContextServerUse(const Value: string): string;
+    /// <summary>
+    ///   ISSUE #338 - THE LABEL, PLUS THE VERB THAT ACTUALLY CROSSED THE WIRE
+    ///   WHERE THE TWO DIVERGE.
+    ///
+    ///   This class crosses POST with PUT on purpose, to compensate DataSnap's
+    ///   own inverted prefix dispatch - see the notes in DoPOST and DoPUT. The
+    ///   consequence #338 named is that a reader holding a log line and a
+    ///   packet capture sees two different verbs and has nothing to reconcile
+    ///   them with. So the diagnostic text says both:
+    ///
+    ///       Method : POST (wire: PUT)
+    ///
+    ///   and says it ONLY where they disagree - GET and DELETE print plain,
+    ///   because a suffix that always appeared would carry no information.
+    ///
+    ///   WHAT THIS IS NOT. FRequestMethod still names the OPERATION and is
+    ///   still what OnBeforeCommand, OnAfterCommand and OnErrorCommand receive,
+    ///   unannotated: a handler comparing that string to 'PUT' must keep
+    ///   working. Only the TEXT of EJanusRESTException changes, and only at
+    ///   this class's four raise sites - no event signature moves, and neither
+    ///   does the exception's, which still takes seven arguments and prints its
+    ///   fourth verbatim under 'Method'. The other five client families are
+    ///   untouched; TRESTClientWS in particular sends its verbs straight, so
+    ///   there would be nothing for it to annotate.
+    ///
+    ///   The wire verb comes from FRESTRequest.Method through the RTL's own
+    ///   RESTRequestMethodToString (Studio 37.0, REST.Types.pas) rather than a
+    ///   table written here - a second table would be a second place for the
+    ///   enum to be wrong.
+    ///
+    ///   Pinned by TTestClientDataSnapVerb's four Diagnostic_* clauses and by
+    ///   Diagnostic_OnErrorCommand_StillCarriesThePlainLabel.
+    /// </summary>
+    function DiagnosticMethod: string;
   protected
     procedure DoAfterCommand; override;
     procedure SetBaseURL; override;
@@ -164,7 +198,10 @@ begin
                 .Create(FRESTClient.BaseURL,
                         AResource,
                         ASubResource,
-                        FRequestMethod,
+                        // ISSUE #338 - the label PLUS the wire verb where they
+                        // diverge. FRequestMethod itself is unchanged and the
+                        // FErrorCommand arm above still receives it plain.
+                        DiagnosticMethod,
                         FRESTRequest.Response.Content,
                         E.Message,
                         FRESTRequest.Response.StatusCode);
@@ -203,7 +240,10 @@ begin
                 .Create(FRESTClient.BaseURL,
                         AResource,
                         ASubResource,
-                        FRequestMethod,
+                        // ISSUE #338 - the label PLUS the wire verb where they
+                        // diverge. FRequestMethod itself is unchanged and the
+                        // FErrorCommand arm above still receives it plain.
+                        DiagnosticMethod,
                         FRESTRequest.Response.Content,
                         E.Message,
                         FRESTRequest.Response.StatusCode);
@@ -256,7 +296,10 @@ begin
                 .Create(FRESTClient.BaseURL,
                         AResource,
                         ASubResource,
-                        FRequestMethod,
+                        // ISSUE #338 - the label PLUS the wire verb where they
+                        // diverge. FRequestMethod itself is unchanged and the
+                        // FErrorCommand arm above still receives it plain.
+                        DiagnosticMethod,
                         FRESTRequest.Response.Content,
                         E.Message,
                         FRESTRequest.Response.StatusCode);
@@ -319,7 +362,10 @@ begin
                 .Create(FRESTClient.BaseURL,
                         AResource,
                         ASubResource,
-                        FRequestMethod,
+                        // ISSUE #338 - the label PLUS the wire verb where they
+                        // diverge. FRequestMethod itself is unchanged and the
+                        // FErrorCommand arm above still receives it plain.
+                        DiagnosticMethod,
                         FRESTRequest.Response.Content,
                         E.Message,
                         FRESTRequest.Response.StatusCode);
@@ -470,6 +516,20 @@ function TRESTClientDataSnap.RemoveContextServerUse(
   const Value: string): string;
 begin
   Result := ReplaceStr(Value, '/Janus/app', '');
+end;
+
+function TRESTClientDataSnap.DiagnosticMethod: string;
+var
+  LWireVerb: string;
+begin
+  Result := FRequestMethod;
+  LWireVerb := RESTRequestMethodToString(FRESTRequest.Method);
+  /// SameText and not '=': the label is written in capitals at all four Do*
+  /// sites and so is the RTL's answer, so today they can only differ by being
+  /// different verbs - but comparing case-insensitively is what makes that a
+  /// property of the comparison rather than of the current spelling.
+  if not SameText(LWireVerb, Result) then
+    Result := Result + ' (wire: ' + LWireVerb + ')';
 end;
 
 procedure TRESTClientDataSnap.SetAuthenticatorTypeValues;
