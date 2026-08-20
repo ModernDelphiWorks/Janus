@@ -205,6 +205,37 @@ type
     property tag: String read Ftag write Ftag;
   end;
 
+  /// A BARE String key, generated, and otherwise identical to TNsRoot. It is
+  /// the POSITIVE CONTROL for a neighbouring defect this branch measured and
+  /// did NOT repair: in the DataSet family a GENERATED key gets
+  /// `DefaultExpression := '-1'` written onto its TField unconditionally -
+  /// TBind.SetInternalInitFieldDefsObjectClass does it for every column of an
+  /// AutoIncrement primary key without looking at the column's type - and a
+  /// TFDMemTable evaluating that on a string field raises
+  /// `[FireDAC][Stan][Eval]-104. Type mismatch in expression` on the APPEND,
+  /// before any answer is read. This entity exists so the finding can be shown
+  /// to be about a TEXTUAL GENERATED KEY and not about Nullable: it fails the
+  /// same way with no Nullable anywhere in it.
+  [Entity]
+  [Table('nbroot', '')]
+  [PrimaryKey('nb_id', TAutoIncType.AutoInc,
+                       TGeneratorType.SequenceInc,
+                       TSortingOrder.NoSort,
+                       True, 'Primary key')]
+  [Sequence('nbroot')]
+  TNbRoot = class
+  private
+    Fnb_id: String;
+    Ftag: String;
+  public
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('nb_id', ftString, 20)]
+    property nb_id: String read Fnb_id write Fnb_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+  end;
+
   /// THE NEGATIVE CONTROL - see the header. A Nullable whose element type the
   /// reader does not write, so an insert must leave it exactly as it was.
   [Entity]
@@ -247,6 +278,7 @@ initialization
   TRegisterClass.RegisterEntity(TNkRoot);
   TRegisterClass.RegisterEntity(TNlRoot);
   TRegisterClass.RegisterEntity(TNsRoot);
+  TRegisterClass.RegisterEntity(TNbRoot);
   TRegisterClass.RegisterEntity(TNdRoot);
 
 end.

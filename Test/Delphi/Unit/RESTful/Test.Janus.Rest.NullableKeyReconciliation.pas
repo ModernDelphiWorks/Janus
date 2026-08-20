@@ -120,15 +120,34 @@ interface
 {$ENDIF}
 
 uses
+  DB,
   Classes,
   SysUtils,
+  DBClient,
   Generics.Collections,
   DUnitX.TestFramework,
+  FireDAC.Stan.Intf,
+  FireDAC.Stan.Option,
+  FireDAC.Stan.Param,
+  FireDAC.Stan.Error,
+  FireDAC.DatS,
+  FireDAC.Phys.Intf,
+  FireDAC.DApt.Intf,
+  FireDAC.Comp.DataSet,
+  FireDAC.Comp.Client,
   Janus.Client.Methods,
   Janus.RestFactory.Interfaces,
   Janus.RestObjectSet.Adapter,
+  Janus.RestDataSet.FDMemTable,
+  Janus.RestDataSet.ClientDataSet,
   Janus.Types.Nullable,
   Test.Janus.RestConnection.Double,
+  /// TReplayRestConnection and the TMemApply cracker, both declared in that
+  /// unit's INTERFACE. Reused rather than copied for the reason its own header
+  /// gives about doubles: the DataSet family answers a POST and may then answer
+  /// a GET, which TRecordingRestConnection cannot express - and a fourth double
+  /// saying the same thing is how doubles grow apart.
+  Test.Janus.Rest.ReReadAfterInsert,
   Test.Janus.Model.NullableKey;
 
 const
@@ -179,6 +198,14 @@ const
   cANSWERNDDOUBLE =
     '{"result":"Resource ndroot insert command executed successfully", ' +
     '"params":[{"nd_id":555.5}]}';
+
+  /// The same for the DataSet family, INTEGRAL on purpose. That side writes the
+  /// answer text onto a TFloatField, so whether a fractional part survives
+  /// depends on the machine's decimal separator - a question about the wire
+  /// format of #311, not about this issue. Kept out of the measurement.
+  cANSWERNDINTEGRAL =
+    '{"result":"Resource ndroot insert command executed successfully", ' +
+    '"params":[{"nd_id":555}]}';
 
   /// The three documents that PARSE and still carry no usable key, for the
   /// Nullable integer root. Every param reaches the reader as TEXT -
@@ -297,6 +324,110 @@ type
     /// the property as it was rather than CLEAR it.
     [Test]
     procedure Insert_AnEmptyNullableStringKeyLeavesThePlaceholder;
+  end;
+
+  /// <summary> THE OTHER OPEN QUESTION OF ISSUE #317: does the DataSet half of
+  ///  the REST client have the same gap? The issue records it as NOT MEASURED.
+  ///  It is measured here, and the answer is NO - for a reason worth writing
+  ///  down, because it is what decides that the repair does NOT belong on that
+  ///  side.
+  ///
+  ///  THE TWO FAMILIES DO NOT SHARE THE MECHANISM. The ObjectSet reader,
+  ///  TRESTObjectSetAdapter<M>._SetGeneratedKeyValue, writes a typed PROPERTY
+  ///  through RTTI, so the property's declared type is the thing it has to
+  ///  dispatch on and a Nullable is a record it had no arm for. The DataSet
+  ///  reader, TRESTDataSetAdapter<M>.ApplyInserter, does
+  ///  `LField.Value := LParam.Value` onto the row under the cursor: it writes a
+  ///  FIELD, whose DataType came from the [Column] attribute, and the property
+  ///  behind that column is never consulted at that moment at all. So the
+  ///  Nullable is INVISIBLE to it, and there is nothing there to repair.
+  ///
+  ///  A CLAIM SHAPED LIKE THAT IS EXACTLY THE ONE THIS REPOSITORY HAS BEEN
+  ///  BITTEN BY - "it is the same as the sibling", asserted and not run. So the
+  ///  clauses below drive the DataSet family over the same entities, AND THE
+  ///  MEASUREMENT WAS TAKEN TWICE: once with the ObjectSet repair in place, and
+  ///  once with Janus.RestObjectSet.Adapter.pas checked out at its 7e5e51d text
+  ///  and the project rebuilt. Both runs, this fixture: 5 tests, 0 failures,
+  ///  0 errors. In the second run the OTHER fixture in this unit went 13/6/0 -
+  ///  so the probe was not blind, and "the DataSet family never had this gap"
+  ///  is a measurement with a positive control rather than an argument.
+  ///
+  ///  AND ONE OF THEM REACHES A SHAPE THE OBJECTSET SIDE DOES NOT.
+  ///  Nullable&lt;Double&gt; is the negative control of the fixture above - the
+  ///  ObjectSet reader leaves it on the placeholder. Here it is stamped. The
+  ///  two families therefore disagree about a fractional key today, and that is
+  ///  recorded rather than repaired: closing it means giving the ObjectSet
+  ///  reader a float arm, which the issue does not ask for and which no
+  ///  Examples model with a [Sequence] motivates.
+  ///
+  ///  SO THE ANSWER TO THE ISSUE'S QUESTION IS PARTIAL, AND THE PART THAT IS
+  ///  MISSING IS MISSING FOR A MEASURED REASON. Nullable&lt;Integer&gt; and
+  ///  Nullable&lt;Double&gt; are measured and arrive. A generated TEXTUAL key -
+  ///  Nullable or not - IS NOT MEASURED HERE AT ALL, because the adapter for it
+  ///  CANNOT BE CONSTRUCTED: TBind.SetInternalInitFieldDefsObjectClass writes
+  ///  `DefaultExpression := '-1'` onto EVERY column of an AutoIncrement primary
+  ///  key without looking at the column's type, and both concrete adapters of
+  ///  the family refuse it on a string field -
+  ///  `[FireDAC][Stan][Eval]-104. Type mismatch in expression` from the
+  ///  FDMemTable one, `Preparation of default expression failed with error
+  ///  "Type mismatch in expression"` from the ClientDataSet one. Three clauses
+  ///  below pin that, and TWO of them are controls: `TNbRoot` is a BARE String
+  ///  key with no Nullable anywhere and fails identically, and the second
+  ///  adapter fails identically too. So the finding is about a GENERATED
+  ///  TEXTUAL key in the DataSet family; it is neither a Nullable question nor
+  ///  one adapter being fussy.
+  ///
+  ///  IT IS NOT REPAIRED HERE, on purpose. The write is in Janus.Bind, which
+  ///  every family and all five test projects compile, and the mechanism is
+  ///  field-def construction rather than answer reading - a different piece of
+  ///  work from the one #317 asks for. `TKeyTypeGuid` shows the shape is
+  ///  supported elsewhere in the framework: a String key with
+  ///  TGeneratorType.Guid38Inc.
+  ///
+  ///  NOT MEASURED: a fractional key with a FRACTIONAL PART. The float value
+  ///  below is integral on purpose. `LField.Value := LParam.Value` hands TEXT to
+  ///  a TFloatField, and whether '555.5' converts depends on the machine's
+  ///  decimal separator, which is a question about #311's wire format and not
+  ///  about this issue. </summary>
+  [TestFixture]
+  TTestRestNullableKeyDataSetFamily = class
+  private
+    FRep: TReplayRestConnection;
+    FConn: IRESTConnection;
+    FMem: TFDMemTable;
+    FNkAdapter: TRESTFDMemTableAdapter<TNkRoot>;
+    FNsAdapter: TRESTFDMemTableAdapter<TNsRoot>;
+    FNbAdapter: TRESTFDMemTableAdapter<TNbRoot>;
+    FCds: TClientDataSet;
+    FNsCdsAdapter: TRESTClientDataSetAdapter<TNsRoot>;
+    FNdAdapter: TRESTFDMemTableAdapter<TNdRoot>;
+  public
+    [Setup]
+    procedure Setup;
+    [TearDown]
+    procedure TearDown;
+
+    [Test]
+    procedure DataSet_NullableIntegerKeyIsStampedOnTheRow;
+
+    /// THE NEIGHBOURING DEFECT, characterised and not repaired - see the
+    /// header. A generated TEXTUAL key cannot reach the reader at all.
+    [Test]
+    procedure DataSet_ATextualGeneratedKeyCannotEvenBeAppended;
+    /// The POSITIVE CONTROL for it: a BARE String key fails identically, so the
+    /// defect is not about Nullable.
+    [Test]
+    procedure Control_ABareStringGeneratedKeyCannotBeAppendedEither;
+    /// The SECOND positive control: the same wall stands on the OTHER concrete
+    /// adapter of the family, so the shape is unreachable on this side full
+    /// stop - not an FDMemTable quirk.
+    [Test]
+    procedure Control_TheSameWallStandsOnTheClientDataSetAdapter;
+
+    /// The divergence, stated as a clause: the shape the ObjectSet reader
+    /// leaves alone is one this family already writes.
+    [Test]
+    procedure DataSet_NullableDoubleKeyIsStampedOnTheRow;
   end;
 
 implementation
@@ -603,7 +734,132 @@ begin
   end;
 end;
 
+{ TTestRestNullableKeyDataSetFamily }
+
+procedure TTestRestNullableKeyDataSetFamily.Setup;
+begin
+  FRep := TReplayRestConnection.Create;
+  FConn := FRep;
+  FMem := nil;
+  FNkAdapter := nil;
+  FNsAdapter := nil;
+  FNbAdapter := nil;
+  FCds := nil;
+  FNsCdsAdapter := nil;
+  FNdAdapter := nil;
+end;
+
+procedure TTestRestNullableKeyDataSetFamily.TearDown;
+begin
+  FreeAndNil(FNdAdapter);
+  FreeAndNil(FNsCdsAdapter);
+  FreeAndNil(FCds);
+  FreeAndNil(FNbAdapter);
+  FreeAndNil(FNsAdapter);
+  FreeAndNil(FNkAdapter);
+  FreeAndNil(FMem);
+  FConn := nil;
+  FRep := nil;
+end;
+
+procedure TTestRestNullableKeyDataSetFamily.DataSet_NullableIntegerKeyIsStampedOnTheRow;
+begin
+  FRep.PostAnswer := cANSWERNKINTEGER;
+  FMem := TFDMemTable.Create(nil);
+  FNkAdapter := TRESTFDMemTableAdapter<TNkRoot>.Create(FConn, FMem, -1, nil);
+  FMem.Append;
+  FMem.FieldByName('nk_id').AsInteger := cPLACEHOLDER;
+  FMem.FieldByName('tag').AsString := 'root';
+  FMem.Post;
+  TMemApply<TNkRoot>.Apply(FNkAdapter);
+  FMem.First;
+  Assert.AreEqual(cSERVERKEY, FMem.FieldByName('nk_id').AsInteger,
+    'the DataSet family writes the answer onto the FIELD, whose DataType came ' +
+    'from [Column(''nk_id'', ftInteger)]. The Nullable on the property is not ' +
+    'consulted at that moment, so this side never had the #317 gap - and this ' +
+    'clause is what makes that a measurement instead of an assertion');
+end;
+
+procedure TTestRestNullableKeyDataSetFamily.DataSet_ATextualGeneratedKeyCannotEvenBeAppended;
+begin
+  FMem := TFDMemTable.Create(nil);
+  Assert.WillRaise(
+    procedure
+    begin
+      FNsAdapter := TRESTFDMemTableAdapter<TNsRoot>.Create(FConn, FMem, -1, nil);
+      FMem.Append;
+    end,
+    nil,
+    'CHARACTERISATION of a defect this branch measured and did NOT repair. ' +
+    'TBind.SetInternalInitFieldDefsObjectClass writes DefaultExpression ' +
+    '''-1'' onto every column of an AutoIncrement primary key without ' +
+    'looking at the column''s type, and FireDAC evaluating that on a string ' +
+    'field raises [Stan][Eval]-104 Type mismatch in expression - on the ' +
+    'APPEND, before any answer is read. If this clause ever goes green the ' +
+    'defect was fixed somewhere and the three clauses around it should be ' +
+    'revisited, starting with the one that clears the expression by hand');
+end;
+
+procedure TTestRestNullableKeyDataSetFamily.Control_ABareStringGeneratedKeyCannotBeAppendedEither;
+begin
+  FMem := TFDMemTable.Create(nil);
+  Assert.WillRaise(
+    procedure
+    begin
+      FNbAdapter := TRESTFDMemTableAdapter<TNbRoot>.Create(FConn, FMem, -1, nil);
+      FMem.Append;
+    end,
+    nil,
+    'THE POSITIVE CONTROL. TNbRoot carries a BARE String key - no Nullable ' +
+    'anywhere in it - and fails the same way. Without this clause the finding ' +
+    'above would read as "a Nullable textual key is broken", which is not what ' +
+    'was measured: what is broken is a GENERATED TEXTUAL key on this side of ' +
+    'the family, Nullable or not');
+end;
+
+procedure TTestRestNullableKeyDataSetFamily.Control_TheSameWallStandsOnTheClientDataSetAdapter;
+begin
+  Assert.WillRaise(
+    procedure
+    begin
+      FCds := TClientDataSet.Create(nil);
+      FNsCdsAdapter := TRESTClientDataSetAdapter<TNsRoot>.Create(FConn, FCds,
+                         -1, nil);
+      FCds.Append;
+    end,
+    nil,
+    'THE SECOND POSITIVE CONTROL, and it is what turns the finding from "the ' +
+    'FDMemTable adapter is fussy" into "this shape is unreachable on the ' +
+    'DataSet side". TClientDataSet refuses the same DefaultExpression with a ' +
+    'message of its own - `Preparation of default expression failed with ' +
+    'error "Type mismatch in expression"` - so BOTH concrete adapters of the ' +
+    'family are shut. The consequence for issue #317 is stated plainly: the ' +
+    'DataSet reader''s behaviour for a generated TEXTUAL key is NOT MEASURED ' +
+    'by this branch, because there is no door into it that does not first ' +
+    'repair Janus.Bind');
+end;
+
+procedure TTestRestNullableKeyDataSetFamily.DataSet_NullableDoubleKeyIsStampedOnTheRow;
+begin
+  FRep.PostAnswer := cANSWERNDINTEGRAL;
+  FMem := TFDMemTable.Create(nil);
+  FNdAdapter := TRESTFDMemTableAdapter<TNdRoot>.Create(FConn, FMem, -1, nil);
+  FMem.Append;
+  FMem.FieldByName('nd_id').AsFloat := cDOUBLEPLACEHOLDER;
+  FMem.FieldByName('tag').AsString := 'frac';
+  FMem.Post;
+  TMemApply<TNdRoot>.Apply(FNdAdapter);
+  FMem.First;
+  Assert.AreEqual(Double(cSERVERKEY), FMem.FieldByName('nd_id').AsFloat,
+    0.000001,
+    'THE DIVERGENCE, stated rather than repaired: this is the very shape ' +
+    'NullableDoubleKeyIsNotReconciled requires the ObjectSet reader to leave ' +
+    'alone. The two families disagree about a fractional key today, because ' +
+    'one dispatches on the property type and the other does not dispatch at all');
+end;
+
 initialization
   TDUnitX.RegisterTestFixture(TTestRestNullableKeyReconciliation);
+  TDUnitX.RegisterTestFixture(TTestRestNullableKeyDataSetFamily);
 
 end.
