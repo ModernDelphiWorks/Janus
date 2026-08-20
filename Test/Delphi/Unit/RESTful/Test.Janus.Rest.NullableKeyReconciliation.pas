@@ -43,6 +43,12 @@
   writes nothing at all. The basal one commit under it, 7e5e51d, was total=190
   failures=0 errors=0 over 16 fixtures.
 
+  THAT FIGURE DESCRIBES THIS UNIT AS IT WAS AT THAT COMMIT - thirteen clauses in
+  the first fixture and the second fixture not yet written. Four clauses and a
+  whole second fixture arrived afterwards, so the project total moved to 212;
+  what did NOT move is which six clauses were red, and they are the six named in
+  the mutation table below under "the whole tkRecord arm removed".
+
   WHY THE ARM DISPATCHES ON `TypeInfo(Nullable<X>)` AND NOT ON THE COLUMN
 
   The alternative the issue leaves open is to decide the conversion HIGHER UP,
