@@ -126,11 +126,65 @@
   this fixture would test Embarcadero's code, not Janus's. What is NOT modelled
   is measured directly: the verb itself comes off the socket.
 
+  ============================================================================
+  MUTATION - THE DIAGNOSTIC HALF, EVERY FIGURE MEASURED
+  ============================================================================
+
+  Janus.Tests.RESTfulDriver Debug/Win32, 233 clauses, 233/0/0 unmutated. Each
+  applied with a $MESSAGE WARN directive - written without its braces HERE,
+  because inside this comment they would close it - and the W1054 echo checked
+  BEFORE the run, each
+  reverted after; figures are clauses killed across the whole binary.
+
+    TRESTClientDataSnap.DiagnosticMethod
+      D1  the suffix is printed unconditionally               2
+      D3  the label and the wire are transposed in it         2
+    the four raise sites
+      D2  the annotation leaks into the FErrorCommand arm     4 sites, 2 kills
+
+  3 mutations, NO SURVIVORS.
+
+  D1 kills exactly Diagnostic_GET_IsNotAnnotated and
+  Diagnostic_DELETE_IsNotAnnotated - the two controls - and nothing else. That
+  is what makes them controls rather than filler: without them an
+  unconditional suffix passes.
+
+  D2 kills Diagnostic_OnErrorCommand_StillCarriesThePlainLabel AND the
+  pre-existing Label_PUT_ReachesTheErrorPathAsPUT, which is the older clause
+  that already stood over the event path.
+
+  The RED-FIRST half, which mutation cannot show: against the tree before the
+  repair the two divergent-verb clauses were RED and the three controls green -
+  233 found / 231 passed / 2 failed.
+
   NOT MEASURED HERE
 
   Nothing in this fixture speaks to a live DataSnap server. The dispatch
   clauses assert the METHOD NAME the rule yields, not that a TDSServer invoked
   it. Issue #338 records the same gap.
+
+  WHO ELSE READS THE 'Method : ' LINE - ENUMERATED, NOT ASSUMED
+
+  A widened text is only safe if nothing parses it, and "nothing does" is a
+  claim about a SEARCH, so the search is recorded. Grepped over all of Source,
+  Test and Examples for the label and for consumers of
+  EJanusRESTException.Message: the string is WRITTEN in exactly one place -
+  Janus.Client.RestException's constructor - and READ in exactly three, all of
+  them fixtures:
+
+    Test.Janus.Client.RestExceptionFields   over TRESTClientMARS, untouched by
+                                            this change and re-run: 33/33 in
+                                            Janus.Tests.RESTMARS
+    Test.Janus.Client.DataSnapVerb          this file
+    Test.Janus.Client.WSVerb                the WS side, which asserts the line
+                                            stays PLAIN there
+
+  Nothing under Source or Examples parses it - the only other mentions of
+  EJanusRESTException outside the client units are prose in
+  Janus.Session.RESTful, which names the exception without touching its text.
+  So no shipped consumer can mis-parse the annotation. What is NOT measured is
+  code outside this repository: a downstream application logging or scraping
+  that line would see the wider string.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }

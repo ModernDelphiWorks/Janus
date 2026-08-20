@@ -129,11 +129,58 @@
   Nothing is modelled here: unlike the DataSnap fixture there is no dispatch
   rule to reproduce, because a plain REST endpoint has none.
 
+  ============================================================================
+  MUTATION - EVERY FIGURE MEASURED, EVERY SURVIVOR DECLARED
+  ============================================================================
+
+  Janus.Tests.RESTfulDriver Debug/Win32, 233 clauses, 233/0/0 unmutated. Each
+  mutation applied with a $MESSAGE WARN directive - written without its braces
+  HERE, because inside this comment they would close it - and the W1054 echo
+  checked BEFORE the
+  run - a mutation the compiler did not report is not in the binary, and a
+  green suite would then be meaningless. Each reverted immediately after. The
+  figures are clauses killed ACROSS THE WHOLE BINARY, so a mutation that
+  reached another fixture would show here.
+
+    TRESTClientWS.DoPOST / DoPUT - the verb on the wire
+      M09  DoPOST sends rmPUT instead of rmPOST              2
+      R7   DoPUT sends rmPOST instead of rmPUT               2
+    TRESTClientWS.DoPUT - the root-element rule it now obeys
+      W1   DoPUT never unwraps    (flag forced False)        1
+      W2   DoPUT always unwraps   (flag forced True)         5
+    TRESTClientWS.Execute - the frame above it
+      W3   the PUT answer is discarded again                 3
+
+  5 mutations, NO SURVIVORS.
+
+  W1 AND W2 ARE THE PAIR THAT MATTERS, and they are complementary rather than
+  redundant: W1 kills ONLY PUT_RootElement_AnswersTheEnvelopePayload and W2
+  kills PUT_NoRootElement_AnswersTheWholeBody and spares the other. Each kills
+  what the other leaves alone. THAT is the measurement behind this header's
+  claim that the WS contract has two live arms - without it the claim would be
+  an assertion, and one clause would look like enough.
+
+  W2's other three kills are collateral and are recorded as such: forcing the
+  unwrap makes DoPUT raise before the assertion in Wire_PUT_SendsPUT,
+  Label_PUT_IsPUT and Label_AndWire_AgreeForEveryVerb is reached. They are not
+  evidence about the root-element rule.
+
+  M09 and R7 both kill Label_AndWire_AgreeForEveryVerb as well as their own
+  Wire_ clause, which is the point of that clause existing.
+
+  AND THE RED-FIRST HALF, which mutation cannot show: against 0d21f2c the five
+  clauses PUT_NoRootElement_AnswersTheWholeBody,
+  PUT_RootElement_AnswersTheEnvelopePayload, PUT_AnswerReachesTheCaller,
+  PUT_RootElement_Absent_IsNamed and Exception_Method_CarriesNoWireAnnotation
+  were all RED. 228 found / 223 passed / 5 failed.
+
   NOT MEASURED HERE
 
   Nothing in this fixture speaks to the public web service the shipped example
   points TRESTClientWS at, nor to rtPATCH - which TRESTClientWS.Execute maps to
-  an empty case arm, unchanged by this work.
+  an empty case arm, unchanged by this work. Nor is any of it measured against
+  a real server: the stub is a loan Indy listener, so what is pinned is the
+  verb this client SENDS, never what a server does with it.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }

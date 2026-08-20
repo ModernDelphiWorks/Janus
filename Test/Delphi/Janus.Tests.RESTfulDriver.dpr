@@ -161,7 +161,11 @@ uses
   /// reaches accept* and HTTP POST reaches update* - and this fixture pins it,
   /// so the next reader does not "straighten" it and thereby swap insert with
   /// update against every DataSnap server. It also closes the half of #338
-  /// that IS a defect: DoPUT never assigned Result - issue #338
+  /// that IS a defect: DoPUT never assigned Result. And it closes the reader's
+  /// half of the complaint where the reader meets it - the 'Method : ' line of
+  /// EJanusRESTException now reads 'POST (wire: PUT)' WHERE the label and the
+  /// wire diverge, and plain where they do not, with the events still carrying
+  /// the operation unannotated - issue #338
   Test.Janus.Client.DataSnapVerb in 'Unit\RESTful\Test.Janus.Client.DataSnapVerb.pas',
   /// The same two questions asked of the OTHER client family, whose answers
   /// are different ones. TRESTClientWS speaks plain REST - its constructor
