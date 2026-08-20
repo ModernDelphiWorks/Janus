@@ -63,6 +63,22 @@
   LATER repair that depends on an answer, while the write that guard refuses
   happens before any answer exists.
 
+  AND SINCE ISSUE #305 THIS FIXTURE ALSO MEASURES THE VOICE
+
+  #297 left FIVE exits where the client KNOWS its graph stayed stale and says
+  nothing - the four #305 enumerated plus the depth guard, which the issue did
+  not name and which is the one a Lazy sibling branch produces on the SHIPPED
+  server. Each of those exits already had a clause here pinning WHAT THE CLIENT
+  DID; the Voice_ block at the bottom pins WHAT THE CLIENT WAS TOLD, over the
+  same doubles and the same seeds. The two halves are kept apart on purpose: not
+  one of the twenty-five older clauses was edited, so if the voice had cost
+  behaviour they would be the red ones.
+
+  RAISING WAS REFUSED BY MEASUREMENT AND STAYS REFUSED - see
+  Detector_AllThreePhasesRunInsideTheSameCall, which pins that all three phases
+  run inside one call, so an exception at the end of the insert phase costs the
+  operator the update AND the delete of that same save.
+
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
 

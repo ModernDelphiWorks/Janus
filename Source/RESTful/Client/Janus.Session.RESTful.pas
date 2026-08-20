@@ -543,8 +543,10 @@ begin
     //
     // ISSO MUDA QUANDO O RE-LER DA #297 DISPARA, e o numero esta medido em
     // Test.Janus.Rest.CompositeKeyReReadGate: o portao de
-    // TRESTDataSetAdapter<M>.ApplyInserter e `not _RowKeyIsUngenerated`, que le
-    // a chave da linha COLUNA A COLUNA. Com a chave composta pela metade ele
+    // TRESTDataSetAdapter<M>.ApplyInserter e _RowKeyIsUngenerated, que le
+    // a chave da linha COLUNA A COLUNA - a #305 dividiu o `if` em que ele estava
+    // para que o ramo da recusa pudesse AVISAR, mas o predicado e a decisao sao
+    // os mesmos. Com a chave composta pela metade ele
     // recusava - e recusava certo, porque nao havia por que perguntar. Sobre o
     // mesmo modelo e a mesma resposta: antes deste conserto GetCount = 0, com
     // ele GetCount = 1. REMEDIDO em 0f13601, RESTfulDriver Debug/Win32: com o
