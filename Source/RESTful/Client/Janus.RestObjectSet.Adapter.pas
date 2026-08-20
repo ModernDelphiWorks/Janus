@@ -37,6 +37,12 @@ uses
   Janus.RestFactory.Interfaces,
   MetaDbDiff.mapping.classes,
   MetaDbDiff.types.mapping,
+  /// Nullable<...> and the SetValueNullable helper that writes one - issue #317.
+  /// Janus.RTTI.Helper's helper DESCENDS from MetaDbDiff's TRttiPropertyHelper,
+  /// so bringing it in adds SetValueNullable without hiding anything the unit
+  /// already had from the base helper.
+  Janus.Types.Nullable,
+  Janus.RTTI.Helper,
   Janus.Objects.Helper;
 
 type
@@ -67,34 +73,87 @@ type
     ///  rule is: write only what the declared type provably accepts, and leave
     ///  the property alone otherwise.
     ///
-    ///  A KNOWN LIMIT, NOT AN OVERSIGHT. A key whose property is a Nullable, a
-    ///  tkFloat or a tkEnumeration falls through the case untouched. Such an
-    ///  entity comes out of an insert WITHOUT its generated key reconciled - it
-    ///  keeps the placeholder, exactly as it did before #301, so nothing
-    ///  regresses; but #301 does not reach it either. That shape needs a
-    ///  follow-up, not a patch here.
+    ///  A KNOWN LIMIT, NOT AN OVERSIGHT. A key whose property is a tkFloat or a
+    ///  tkEnumeration falls through the case untouched. Such an entity comes out
+    ///  of an insert WITHOUT its generated key reconciled - it keeps the
+    ///  placeholder, exactly as it did before #301, so nothing regresses; but
+    ///  #301 does not reach it either. That shape needs a follow-up, not a patch
+    ///  here.
     ///
-    ///  WHY THE NULLABLE BRANCH WAS WRITTEN AND THEN REMOVED. Writing text into
-    ///  a Nullable goes through SetValueNullable, which casts to the element
-    ///  type and raises on anything that is not one - so the branch could make
-    ///  an insert fail on an answer the shipped code simply ignored. The rule
-    ///  above settles it on its own: a branch that can raise and cannot be held
-    ///  honest by a test is worth less than the placeholder it would replace.
-    ///
-    ///  AND THE SCOPE OF THAT "CANNOT BE HELD HONEST" IS Test/Delphi, NOT THIS
-    ///  REPOSITORY. Measured: of the 39 entities carrying a [PrimaryKey] under
-    ///  Test/Delphi none has a Nullable key - but Examples/ has SEVENTEEN
-    ///  entities whose key is non-numeric or Nullable, eight of them Nullable
-    ///  (Orion.Model.Contato and five siblings on Nullable<Integer>,
-    ///  Orion.Model.Cidade and Orion.Model.Estado on Nullable<String>), besides
-    ///  Double keys in Model.Setor and several String keys. The fixture
-    ///  material EXISTS in this repository; it is simply not wired into any test
-    ///  project today, and none of those eight carries a [Sequence] either,
-    ///  which is a second thing a fixture would have to supply.
+    ///  A NULLABLE KEY USED TO BE ON THAT LIST AND IS NOT ANY MORE - issue #317.
+    ///  #301 wrote a tkRecord branch for it and REMOVED it, because writing text
+    ///  into a Nullable goes through SetValueNullable, which casts to the
+    ///  element type and raises on anything that is not one, and because no
+    ///  entity under Test/Delphi had a Nullable key to hold the branch honest.
+    ///  Both halves have been re-measured; see _SetGeneratedKeyValueNullable
+    ///  below for what changed and why the branch can no longer raise.
     ///
     ///  NOT MEASURED against a live server. </summary>
     procedure _SetGeneratedKeyValue(const AObject: TObject;
       const AColumn: TColumnMapping);
+    /// <summary> The Nullable arm of the reader above - issue #317.
+    ///
+    ///  WHAT WAS WRONG. A `Nullable<T>` property is tkRecord, so it matched no
+    ///  label of the case above and the object came out of an insert still
+    ///  holding the AutoInc placeholder, which the cascade then handed down to
+    ///  every child's foreign key. That is the shape the repository SHIPS AS AN
+    ///  EXAMPLE: all eight models under Examples\Delphi\Data\Varios Niveis de
+    ///  Dados declare their key that way, Orion.Model.Contato spelling it
+    ///  [Column('id', ftInteger)] over property id: Nullable&lt;Integer&gt;.
+    ///
+    ///  WHY IT CAN BE HELD HONEST NOW, AND THE #301 ENUMERATION THAT SAID IT
+    ///  COULD NOT. That enumeration read "of the 39 entities carrying a
+    ///  [PrimaryKey] under Test/Delphi none has a Nullable key". RE-RUN at
+    ///  7e5e51d it is FALSE - Test.Janus.Model.KeyTypes.TKeyTypeNullable and
+    ///  Test.Janus.Model.KeyTypeDecoy.TKeyTypeDecoy are both
+    ///  Nullable&lt;String&gt; keys, added by #311 after that sentence was
+    ///  written. It is still true that NEITHER can hold this arm honest: both
+    ///  are TAutoIncType.NotInc with no [Sequence], so ExistSequence answers
+    ///  False and Insert never reaches the reader for them at all. What #317
+    ///  supplies is the missing combination - a Nullable key AND a [Sequence] -
+    ///  in Test.Janus.Model.NullableKey, one root per element type.
+    ///
+    ///  WHY IT CANNOT RAISE, WHICH IS THE RULE #301 REMOVED THE OLD BRANCH
+    ///  UNDER. The text is parsed HERE, and SetValueNullable is called only with
+    ///  a variant already of the element's type, so the `Integer(AValue)` and
+    ///  `Int64(AValue)` casts inside it cannot fail. The arm that receives the
+    ///  value is selected by comparing PropertyType.Handle against
+    ///  TypeInfo(Nullable&lt;X&gt;) - THE SAME COMPARISON SetValueNullable uses
+    ///  to choose its own arm - so the parse and the write cannot disagree. They
+    ///  are not two tables kept in step by hand; they are one question asked
+    ///  twice.
+    ///
+    ///  WHY NOT DISPATCH ON TColumnMapping.FieldType, WHICH THE CALLER ALREADY
+    ///  HAS. Because the column type is not the property type, and where they
+    ///  differ a FieldType-keyed parse feeds the wrong arm of SetValueNullable -
+    ///  which is exactly the raise the rule forbids. Enumerated at 7e5e51d over
+    ///  every [PrimaryKey] under Test\ and Examples\ resolved to its [Column],
+    ///  the repository ships three keys where the two disagree:
+    ///  Test.Janus.Model.KeyTypes' ktut is [Column(..., ftString, 60)] over a
+    ///  UInt64 property, and Model.Setor under "Quatro Niveis de Dados" and
+    ///  under "Object Lazy" are ftInteger and ftBCD over Double properties.
+    ///  Structurally too: TFieldType has some forty labels against
+    ///  SetValueNullable's eleven arms, and ftFloat alone cannot say whether the
+    ///  property is Nullable&lt;Double&gt; or Nullable&lt;Currency&gt; - so the
+    ///  higher-up reader would have to consult the property anyway, at which
+    ///  point it IS this method, written twice.
+    ///
+    ///  SCOPE, AND THE CLAUSE THAT KEEPS IT MEASURED. Three element types are
+    ///  written and every other one falls through untouched. That is not a
+    ///  comment: Test.Janus.Rest.NullableKeyReconciliation drives a
+    ///  Nullable&lt;Double&gt; key - TNdRoot - and requires the placeholder to
+    ///  stand. A float arm added without a fixture reddens there.
+    ///
+    ///  THE EMPTY-TEXT GUARD ON THE STRING ARM IS NOT COSMETIC. Handing an empty
+    ///  variant to SetValueNullable reaches Nullable&lt;String&gt;.Create(Variant),
+    ///  whose VarIsNullOrEmpty test CLEARS the record - so without the guard an
+    ///  object would come out of an insert holding LESS than it went in with.
+    ///  Measured by AnEmptyNullableStringKeyLeavesThePlaceholder, which checks
+    ///  HasValue and not only the text.
+    ///
+    ///  NOT MEASURED against a live server. </summary>
+    procedure _SetGeneratedKeyValueNullable(const AObject: TObject;
+      const AProperty: TRttiProperty; const AText: String);
   public
     constructor Create(const AConnection: IRESTConnection;
       const APageSize: Integer = -1); overload;
@@ -177,6 +236,40 @@ begin
   Result := FSession.FindWhere(AWhere, AOrderBy);
 end;
 
+procedure TRESTObjectSetAdapter<M>._SetGeneratedKeyValueNullable(
+  const AObject: TObject; const AProperty: TRttiProperty; const AText: String);
+var
+  LHandle: PTypeInfo;
+  LInteger: Integer;
+  LInt64: Int64;
+begin
+  LHandle := AProperty.PropertyType.Handle;
+  // THE SAME COMPARISON SetValueNullable USES TO PICK ITS OWN ARM. Parsing here
+  // and dispatching there on two different questions is what would let a text
+  // reach `Integer(AValue)`; asking the one question twice is what makes that
+  // impossible. See the doc comment over the declaration.
+  if LHandle = TypeInfo(Nullable<Integer>) then
+  begin
+    if TryStrToInt(AText, LInteger) then
+      AProperty.SetValueNullable(AObject, LHandle, LInteger);
+  end
+  else
+  if LHandle = TypeInfo(Nullable<Int64>) then
+  begin
+    if TryStrToInt64(AText, LInt64) then
+      AProperty.SetValueNullable(AObject, LHandle, LInt64);
+  end
+  else
+  if LHandle = TypeInfo(Nullable<String>) then
+  begin
+    // The empty text is refused rather than passed on: Nullable<String>.Create
+    // reads an empty variant as "no value" and would CLEAR a key the object
+    // already had.
+    if AText <> '' then
+      AProperty.SetValueNullable(AObject, LHandle, AText);
+  end;
+end;
+
 procedure TRESTObjectSetAdapter<M>._SetGeneratedKeyValue(const AObject: TObject;
   const AColumn: TColumnMapping);
 var
@@ -226,6 +319,12 @@ begin
       tkString, tkLString, tkWString, tkUString:
         if LText <> '' then
           LProperty.SetValue(AObject, TValue.From<String>(LText));
+      /// A Nullable is a record, and the ONLY record shape this reader writes.
+      /// Anything else that lands here - a bare TGUID key, say - falls through
+      /// the method below untouched, which is what it did when there was no arm
+      /// at all. Issue #317.
+      tkRecord:
+        _SetGeneratedKeyValueNullable(AObject, LProperty, LText);
     end;
     // The FIRST param that names this key decides, whether or not its value
     // could be used. The shipped contract emits one object per primary key
