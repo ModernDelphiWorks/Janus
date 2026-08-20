@@ -158,7 +158,10 @@ uses
   /// The fluent method that never assigned its Result - issue #332
   Test.Janus.Manager.AutoNextPacket in 'Unit\Core\Test.Janus.Manager.AutoNextPacket.pas',
   /// The width of the by-id API, and the guards that read it back - issue #333
-  Test.Janus.KeyWidth.ByIdApi in 'Unit\Core\Test.Janus.KeyWidth.ByIdApi.pas';
+  Test.Janus.KeyWidth.ByIdApi in 'Unit\Core\Test.Janus.KeyWidth.ByIdApi.pas',
+  /// Compile gate for Components\Source\: every RequiresUnits entry in
+  /// Janus.Link.Reg.pas must name a unit that actually exists - issue #340
+  Test.Janus.LinkReg.RequiresUnits in 'Unit\Core\Test.Janus.LinkReg.RequiresUnits.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
