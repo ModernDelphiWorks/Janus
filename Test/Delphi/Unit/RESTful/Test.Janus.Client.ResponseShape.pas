@@ -124,8 +124,23 @@
   MUTATION - EVERY FIGURE MEASURED, EVERY SURVIVOR DECLARED
   ============================================================================
 
-  Measured on the tree this fixture ships in, Janus.Tests.RESTfulDriver
-  Debug/Win32, 174 clauses, 174/0/0 unmutated. Every mutation carries a
+  Measured on the tree this fixture shipped in when issue #323 took these
+  figures: Janus.Tests.RESTfulDriver Debug/Win32, 174 clauses, 174/0/0
+  unmutated. That total still held at b33b88e, re-measured under #338.
+
+  THE TOTAL IS NO LONGER 174, AND NOTHING BELOW DEPENDS ON IT. At ea18be3 the
+  same binary runs 190/0/0: Test.Janus.Client.DataSnapVerb, added by issue
+  #338, links into it and brings sixteen clauses of its own. Every figure in
+  the table below is the number of clauses ONE mutation killed, all of them
+  inside THIS fixture - none is a tree total - so none of them moves. M15, M16
+  and M17 are 1, 3 and 1, and are cited again as such further down.
+
+  The sentence above used to say "the tree this fixture ships in", in the
+  present tense, and a second fixture joining the same binary falsified it
+  without touching this file. Hence the commit anchors: a count in the present
+  tense is a claim about a tree that will keep changing.
+
+  Every mutation carries a
   MESSAGE WARN 'S323-MUT-Mnn' directive on the line it changes and is listed
   only after dcc32 echoed it back as W1054 IN THE SAME BUILD. The directive is
   spelled without its braces on purpose: it is a directive, not a comment, and

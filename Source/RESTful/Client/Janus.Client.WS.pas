@@ -338,15 +338,57 @@ begin
     // AN EARLIER VERSION OF THIS COMMENT GAVE A FALSE REASON, and it sat in
     // Source holding up a design choice. It said assigning it "would add the
     // undefined-return warning that assigning an unassigned Result earns".
-    // Measured on this tree: writing `Result := DoPUT(...)` here and building
-    // emits NO warning naming this unit at all. W1035 is a warning about a
-    // DEFINITION, not about a call site, and the only W1035 in the entire
-    // build is Janus.Manager.DataSet's AutoNextPacket. The counter-example was
-    // already in the tree - TRESTClientDataSnap.DoPUT likewise never assigns
-    // Result and IS assigned at two sites, silently.
+    // Re-measured at ea18be3 under #338, full rebuild with the DCU output
+    // wiped so that every unit re-emits its warnings: writing
+    // `Result := DoPUT(...)` here and building emits NO warning naming this
+    // unit at all. THAT is the half the decision rests on, and it stands.
     //
-    // That a PUT answers nothing at all in EITHER family is a real question,
-    // and it is not this issue's: it belongs to #338, with the swapped verb.
+    // THE INVENTORY CLAUSE THAT USED TO FOLLOW IT IS WITHDRAWN. It said "the
+    // only W1035 in the entire build is Janus.Manager.DataSet's
+    // AutoNextPacket". There is no W1035 in this build AT ALL: the census is
+    // W1000 x12, W1010 x3, W1020 x100, W1036 x2, identical with and without
+    // the experiment above, and the warning is suppressed nowhere - not in
+    // Janus.inc, not in the .dproj.
+    //
+    // THE EXAMPLE DID NOT GO MISSING - ISSUE #332 REMOVED IT.
+    // AutoNextPacket<T> genuinely did emit that W1035 while it was a function
+    // whose body never assigned Result; #332 made it a procedure, so there is
+    // no site left for the warning to come from. Test.Janus.Manager.
+    // AutoNextPacket carries that measurement, and records besides that "the
+    // only W1035 in the tree" was a false framing even when the warning still
+    // existed: two more instances of the same defect sit under Components\,
+    // which no test project compiles. This comment was therefore repeating a
+    // count that had already been retired AND already been corrected in
+    // another fixture - which is the whole hazard of quoting a census across
+    // files instead of re-running it.
+    //
+    // W1035 remains a warning about a DEFINITION rather than about a call
+    // site, and that is the point being made here. The counter-example was
+    // already in the tree - TRESTClientDataSnap.DoPUT likewise never assigned
+    // Result and WAS assigned at two sites, silently.
+    //
+    // ISSUE #338 HAS SINCE CLOSED THAT COUNTER-EXAMPLE, AND ONLY ON THAT SIDE.
+    // TRESTClientDataSnap.DoPUT now answers ResponsePayload, like the three
+    // other verbs of ITS class - so the sentence above is history, not a
+    // description of the tree, and the silent-assignment point it made no
+    // longer has that example to stand on. The W1035 measurement it rests on
+    // is unaffected: that was about a call site earning no warning, which
+    // remains true here.
+    //
+    // THIS SIDE IS DELIBERATELY LEFT ALONE. #338 repaired the DataSnap client
+    // because the contract was measured on THAT class - its DoGET, DoPOST and
+    // DoDELETE all answer the payload. Nothing was measured about this one,
+    // and "the sibling does it" is the argument this house does not accept.
+    // TRESTClientWS.DoPUT still reads nothing from the response and still
+    // never assigns its own Result, so `Result := DoPUT(...)` would remain
+    // INERT here until that is changed too.
+    //
+    // Also measured under #338, by mutation with a compiler-echoed directive:
+    // swapping the HTTP verb of TRESTClientWS.DoPOST kills NO test in the
+    // suite. This family's verbs are pinned by nothing - the #323 stub answers
+    // every verb identically, so verb identity is invisible to it. The
+    // DataSnap family now has that cover in TTestClientDataSnapVerb; this one
+    // does not.
     case ARequestMethod of
       TRESTRequestMethodType.rtPOST:
         begin
