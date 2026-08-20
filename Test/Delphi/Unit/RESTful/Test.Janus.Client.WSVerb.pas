@@ -160,10 +160,19 @@
   claim that the WS contract has two live arms - without it the claim would be
   an assertion, and one clause would look like enough.
 
-  W2's other three kills are collateral and are recorded as such: forcing the
-  unwrap makes DoPUT raise before the assertion in Wire_PUT_SendsPUT,
-  Label_PUT_IsPUT and Label_AndWire_AgreeForEveryVerb is reached. They are not
-  evidence about the root-element rule.
+  W2's other FOUR kills are collateral and are recorded as such: with the
+  unwrap forced on, the stub's body is a JSON OBJECT where an envelope is now
+  demanded, so ResponsePayload raises inside DoPUT and the exception leaves
+  Execute before the assertion in
+
+    Wire_PUT_SendsPUT
+    Label_PUT_IsPUT
+    Label_AndWire_AgreeForEveryVerb
+    PUT_AnswerReachesTheCaller
+
+  is ever reached. None of the four is evidence about the root-element rule.
+  They are listed in full, rather than counted, because a collateral tally that
+  is short by one is indistinguishable from a survivor nobody noticed.
 
   M09 and R7 both kill Label_AndWire_AgreeForEveryVerb as well as their own
   Wire_ clause, which is the point of that clause existing.
