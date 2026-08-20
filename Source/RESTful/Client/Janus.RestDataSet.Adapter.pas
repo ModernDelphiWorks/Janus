@@ -546,12 +546,14 @@ begin
               // ela funcionaria. Dizer "uma chave que este cliente nunca vai
               // saber" aqui seria simplesmente FALSO - por isso este ramo tem
               // caso proprio. Ver TStaleGraphCase.sgcReReadNeverAttempted.
-              // ESTE RAMO TEVE COBERTURA DEPOIS DE NAO TER: enquanto ele
-              // anunciava sgcNoKeyToAskBy era um sobrevivente declarado -
-              // trocando a linha por `LStaleAndMute := False` a suite fechava
-              // 246/0/0 e nada morria, porque todo model REST do repositorio
-              // declara [Sequence]. Test.Janus.Model.ClientKeyRoot foi escrito
-              // para alcancar a porta, e a mesma mutacao agora MATA
+              // ESTE RAMO TEVE COBERTURA DEPOIS DE NAO TER, e o registro fica
+              // porque ele diz o que a fixtura vale. Enquanto anunciava
+              // sgcNoKeyToAskBy era um sobrevivente declarado: trocando a
+              // atribuicao logo abaixo por `False`, com tripwire {$MESSAGE WARN}
+              // que o dcc32 devolveu (W1054), a suite fechava 246/0/0 e NADA
+              // morria - porque todo model REST do repositorio declara
+              // [Sequence]. Test.Janus.Model.ClientKeyRoot foi escrito para
+              // alcancar a porta, e a MESMA mutacao agora fecha 248 com 1 falha:
               // Voice_ARootWithNoSequenceIsItsOwnCaseAndNotTheOrphanOne.
               LNoSequenceStale := _GraphBelowIsStale(Self);
             if LStaleAndMute then
