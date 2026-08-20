@@ -92,6 +92,23 @@
   {$ENDIF}
 {$ENDIF}
 
+{ Issue #190: the toggle above (line 49-50) is a one-shot, JanusInstall-time
+  switch meant for a checkout dedicated to a single target framework - it
+  always leaves VCL/HAS_VCL on unless someone hand-flips it. The Examples
+  repo builds both VCL and FMX examples from the SAME checkout in the same
+  gate run, so an FMX example additionally passes HAS_FMX via its own
+  DCC_Define (its FrameworkType is not read by the compiler). Without this,
+  HAS_VCL and HAS_FMX end up both true for that project, and Janus.Types.Blob
+  (uses HAS_VCL to pull in Graphics/GIFImg/JPEG/PngImage) fails to compile
+  under FMX, whose DCC_Namespace has no "Vcl" entry to resolve those unit
+  names. A project that explicitly opted into HAS_FMX always means FMX;
+  let it win. }
+{$IFDEF HAS_FMX}
+  {$IFDEF HAS_VCL}
+    {$UNDEF HAS_VCL}
+  {$ENDIF}
+{$ENDIF}
+
 {$IFDEF USEFDMEMTABLE}
   {$DEFINE USEMEMDATASET}
 {$ENDIF}
