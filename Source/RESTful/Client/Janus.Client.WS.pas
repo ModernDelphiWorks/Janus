@@ -342,11 +342,31 @@ begin
     // emits NO warning naming this unit at all. W1035 is a warning about a
     // DEFINITION, not about a call site, and the only W1035 in the entire
     // build is Janus.Manager.DataSet's AutoNextPacket. The counter-example was
-    // already in the tree - TRESTClientDataSnap.DoPUT likewise never assigns
-    // Result and IS assigned at two sites, silently.
+    // already in the tree - TRESTClientDataSnap.DoPUT likewise never assigned
+    // Result and WAS assigned at two sites, silently.
     //
-    // That a PUT answers nothing at all in EITHER family is a real question,
-    // and it is not this issue's: it belongs to #338, with the swapped verb.
+    // ISSUE #338 HAS SINCE CLOSED THAT COUNTER-EXAMPLE, AND ONLY ON THAT SIDE.
+    // TRESTClientDataSnap.DoPUT now answers ResponsePayload, like the three
+    // other verbs of ITS class - so the sentence above is history, not a
+    // description of the tree, and the silent-assignment point it made no
+    // longer has that example to stand on. The W1035 measurement it rests on
+    // is unaffected: that was about a call site earning no warning, which
+    // remains true here.
+    //
+    // THIS SIDE IS DELIBERATELY LEFT ALONE. #338 repaired the DataSnap client
+    // because the contract was measured on THAT class - its DoGET, DoPOST and
+    // DoDELETE all answer the payload. Nothing was measured about this one,
+    // and "the sibling does it" is the argument this house does not accept.
+    // TRESTClientWS.DoPUT still reads nothing from the response and still
+    // never assigns its own Result, so `Result := DoPUT(...)` would remain
+    // INERT here until that is changed too.
+    //
+    // Also measured under #338, by mutation with a compiler-echoed directive:
+    // swapping the HTTP verb of TRESTClientWS.DoPOST kills NO test in the
+    // suite. This family's verbs are pinned by nothing - the #323 stub answers
+    // every verb identically, so verb identity is invisible to it. The
+    // DataSnap family now has that cover in TTestClientDataSnapVerb; this one
+    // does not.
     case ARequestMethod of
       TRESTRequestMethodType.rtPOST:
         begin
