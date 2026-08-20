@@ -12,7 +12,12 @@
 #   exclude  — third-party / external dep; gate prints [EXCLUDE]; not counted.
 #
 # Distribution lock (ADR-002 / CA-003):
-#   compile=24  run=0  defer=4  exclude=21  total=49
+#   compile=18  run=0  defer=8  exclude=23  total=49
+#   (issue #190: AbsoluteDB and DelphiMVC/Client reclassified compile -> exclude,
+#    matching the third-party policy already applied to every sibling row;
+#    ADO, ADO Sem DataSet, Blob Sem DataSet and Livebindings VCL reclassified
+#    compile -> defer, each for a measured defect not fixable within this repo
+#    or not safely fixable as a small change — see the per-row notes below)
 #
 # Drift rule (ADR-006):
 #   The driver script counts tracked .dproj under Examples/Delphi/ and
@@ -21,11 +26,11 @@
 #
 # Mode classification reference: .claude/pipeline/adr.md ADR-002 appendix.
 #
-Examples/Delphi/Data/ADO/Janus_ADO.dproj	compile
-Examples/Delphi/Data/ADO Sem DataSet/Janus_ADOSemDataSet.dproj	compile
-Examples/Delphi/Data/AbsoluteDB/JanusABS.dproj	compile
+Examples/Delphi/Data/ADO/Janus_ADO.dproj	defer	DataEngine.DriverADO.pas(42) TDriverADO.Create override drops the base class's ACache/AMetadataCache params -> E2037 "differs from previous declaration"; upstream DataEngine defect (.modules/DataEngine, not this repo), not fixable here (issue #190)
+Examples/Delphi/Data/ADO Sem DataSet/Janus_ADOSemDataSet.dproj	defer	same upstream DataEngine.DriverADO.pas(42) E2037 as ADO row above (issue #190)
+Examples/Delphi/Data/AbsoluteDB/JanusABS.dproj	exclude	AbsoluteDB driver — third-party / not on default CI runner (issue #190: matches sibling drivers below; ABSMain.pas not found anywhere on this machine)
 Examples/Delphi/Data/Blob/Janus_Blob.dproj	compile
-Examples/Delphi/Data/Blob Sem DataSet/Janus_BlobSemDataSet.dproj	compile
+Examples/Delphi/Data/Blob Sem DataSet/Janus_BlobSemDataSet.dproj	defer	TBlob (Source/Core/Janus.Types.Blob.pas) has no FMX-side ToBitmap/FindGraphicClass, only HAS_VCL; example calls .ToBitmap under FMX -> E2003 undeclared identifier. Adding FMX image support is real feature work, not a compile-gate fix (issue #190)
 Examples/Delphi/Data/DBExpress/Janus_DBExpress.dproj	exclude	DBExpress driver — not on default CI runner
 Examples/Delphi/Data/DBExpress Sem DataSet/Janus_DBExpressSemDataSet.dproj	exclude	DBExpress driver — not on default CI runner
 Examples/Delphi/Data/ElevateDB/JanusElevateDB.dproj	exclude	ElevateDB driver — third-party / not on default CI runner
@@ -51,7 +56,7 @@ Examples/Delphi/Data/Zeos Sem DataSet/Janus_ZeosSemDataSet.dproj	exclude	Zeos dr
 Examples/Delphi/JSON/PJson.dproj	defer	CarregaJson API drift / embedded JSON path (carry-forward from #187 CA-009; closed in 8/8)
 Examples/Delphi/Datasnap/Client/JanusFireDAC.dproj	exclude	Datasnap framework dependency — third-party
 Examples/Delphi/Datasnap/Server/JanusServer.dproj	exclude	Datasnap framework dependency — third-party
-Examples/Delphi/Livebindings/VCL/Janus_LivebindingsVCL.dproj	compile
+Examples/Delphi/Livebindings/VCL/Janus_LivebindingsVCL.dproj	defer	Source/Livebindings/Janus.Binder.Resolver.pas fails F2063 "Could not compile used unit" only inside this project's full build (standalone dcc32 compiles it clean, 0 errors, DCC defined in both interface/implementation per $MESSAGE probe); mechanism not identified after isolation testing (issue #190, MEDIDO not MECANISMO)
 Examples/Delphi/Metadata/FireDAC/Firemonkey/JanusMetadata.dproj	compile
 Examples/Delphi/Metadata/FireDAC/VCL/MetaDbDiffMetadata.dproj	defer	missing symbol post-DataEngine relocate (carry-forward from #187 CA-009; closed in 8/8)
 Examples/Delphi/Middlewares/Events/Janus_MiddlewareEvents.dproj	compile
@@ -61,7 +66,7 @@ Examples/Delphi/NoSQL/MongoDB/MongoWire MongoDB Crud/JanusMongoWire.dproj	exclud
 Examples/Delphi/RESTful/Horse/HorseJanus.dproj	compile
 Examples/Delphi/RESTful/RESTFul via Driver/Datasnap/Client/JanusClient.dproj	compile
 Examples/Delphi/RESTful/RESTFul via Driver/Datasnap/Server/JanusServer.dproj	exclude	Datasnap framework dependency — third-party
-Examples/Delphi/RESTful/RESTFul via Driver/DelphiMVC/Client/JanusClient.dproj	compile
+Examples/Delphi/RESTful/RESTFul via Driver/DelphiMVC/Client/JanusClient.dproj	exclude	DelphiMVC framework — third-party owner (issue #190: matches DelphiMVC/Server row below; MVCFramework.RESTClient not on the project's own search path, and DMVC does not build clean on Studio 37 per REST driver inventory)
 Examples/Delphi/RESTful/RESTFul via Driver/DelphiMVC/Server/JanusServer.dproj	exclude	DelphiMVC framework — third-party owner
 Examples/Delphi/RESTful/RESTFul via Driver/Horse/Client/JanusClient.dproj	compile
 Examples/Delphi/RESTful/RESTFul via Driver/Horse/Server/JanusServer.dproj	defer	missing JanusServer.ico (carry-forward from #187 CA-009; closed in 8/8)

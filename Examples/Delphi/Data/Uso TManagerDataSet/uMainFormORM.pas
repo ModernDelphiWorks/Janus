@@ -158,7 +158,7 @@ procedure TForm3.FormCreate(Sender: TObject);
 begin
   // Inst�ncia da class de conex�o via FireDAC
   oConn := TFactoryFireDAC.Create(FDConnection1, dnMySQL,
-                                  procedure(AParam: TMonitorParam)
+                                  procedure(const AParam: TMonitorParam)
                                   var
                                     LCommand: String;
                                   begin

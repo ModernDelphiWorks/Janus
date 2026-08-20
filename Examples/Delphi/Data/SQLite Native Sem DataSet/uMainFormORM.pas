@@ -264,7 +264,7 @@ begin
   /// Variaveis declaradas em { Private declarations } acima.
   /// </summary>
   // Inst�ncia da class de conex�o via FireDAC
-  oConn := TFactorySQLite.Create(FDatabase, dnSQLite);
+  oConn := TFactorySQLite3.Create(FDatabase, dnSQLite);
   oConn.SetCommandMonitor(TCommandMonitor.GetInstance);
   /// Class Adapter
   /// Par�metros: (IDBConnection, TClientDataSet)
