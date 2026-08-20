@@ -73,20 +73,29 @@ type
   ///  WHY AN ENUM AND NOT A BOOLEAN. The cases are not equally bad and the
   ///  consumer has to be able to tell them apart. sgcNoKeyToAskBy is the only one
   ///  where the SERVER holds a row whose key this client will never learn - an
-  ///  orphan nothing can reach afterwards. sgcAnswerHadNoRow,
-  ///  sgcAnswerWasAnotherRow and sgcAnswerWasShallower all leave the client's own
-  ///  data INTACT: the re-read was refused and the client is exactly where #297
-  ///  found it, which is a defect and not a loss. Collapsing them into one flag
-  ///  would make a screen that wants to shout only about the orphan unable to.
+  ///  orphan nothing can reach afterwards. Every other member leaves the client's
+  ///  own data INTACT: the re-read was refused, or never attempted, and the
+  ///  client is exactly where #297 found it - a defect, not a loss. Collapsing
+  ///  them into one flag would make a screen that wants to shout only about the
+  ///  orphan unable to. Worse, it would put the orphan SENTENCE on the monitor
+  ///  for a save where nothing is orphaned, and a warning that overstates once is
+  ///  a warning nobody reads twice.
   ///
-  ///  sgcAnswerWasShallower IS NOT ONE OF THE FOUR THE ISSUE NAMED, and is
-  ///  declared rather than hidden. #305 enumerates four silent exits; reading
-  ///  RefreshRecordInternal there is a FIFTH, the depth guard
-  ///  _AnswerReachesEveryLoadedLevel, which refuses the answer for exactly the
-  ///  same reason as the identity guard and leaves the same silence behind. It is
-  ///  the ordinary outcome for an aggregate with a Lazy sibling branch, so it is
-  ///  the one a consumer is MOST likely to meet. Measured by
-  ///  Voice_AShallowAnswerIsAnnouncedUnderItsOwnCase.
+  ///  THE (n) LABELS BELOW ARE THE ISSUE'S NUMBERING, NOT THE ORDINAL OF THE
+  ///  MEMBER, and they are deliberately not renumbered: #305 enumerated FOUR
+  ///  silent exits and this enum has SIX members, because reading the code found
+  ///  two the issue did not name.
+  ///    - sgcAnswerWasShallower, labelled (5): the depth guard
+  ///      _AnswerReachesEveryLoadedLevel refuses the answer for the same reason
+  ///      the identity guard does and leaves the same silence. It is the ordinary
+  ///      outcome for an aggregate with a Lazy sibling branch on the SHIPPED
+  ///      server, so it is the one a consumer is MOST likely to meet. Measured by
+  ///      Voice_AShallowAnswerIsAnnouncedUnderItsOwnCase.
+  ///    - sgcReReadNeverAttempted, labelled (2b): the third door of
+  ///      ApplyInserter, found by the review of #305. Measured by
+  ///      Voice_ARootWithNoSequenceIsItsOwnCaseAndNotTheOrphanOne.
+  ///  Test.Janus.Rest.ReReadAfterInsert's header carries the full door-by-door
+  ///  enumeration, seven doors onto these six cases.
   ///
   ///  RAISING WAS REFUSED BY MEASUREMENT AND THIS DOES NOT REOPEN IT. ApplyInserter
   ///  is the first of three phases inside one try and ApplyUpdates clears

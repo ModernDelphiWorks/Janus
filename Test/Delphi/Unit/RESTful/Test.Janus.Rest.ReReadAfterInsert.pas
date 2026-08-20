@@ -65,13 +65,33 @@
 
   AND SINCE ISSUE #305 THIS FIXTURE ALSO MEASURES THE VOICE
 
-  #297 left FIVE exits where the client KNOWS its graph stayed stale and says
-  nothing - the four #305 enumerated plus the depth guard, which the issue did
-  not name and which is the one a Lazy sibling branch produces on the SHIPPED
-  server. Each of those exits already had a clause here pinning WHAT THE CLIENT
-  DID; the Voice_ block at the bottom pins WHAT THE CLIENT WAS TOLD, over the
-  same doubles and the same seeds. The two halves are kept apart on purpose: not
-  one of the twenty-five older clauses was edited, so if the voice had cost
+  #297 left SEVEN doors out of a save that end with the client's graph stale,
+  and they collapse into SIX cases because two of them are the same silence.
+  Enumerated, and enumerated because an earlier version of this paragraph said
+  FIVE and was made false by the review of #305:
+
+    ApplyInserter, the root HAS a sequence
+      1. the answer carried no `params`                  -> sgcNoKeyToAskBy
+      2. `params` named no column of this row            -> sgcNoKeyToAskBy
+    ApplyInserter, the root has NO sequence
+      3. the re-read was never attempted                 -> sgcReReadNeverAttempted
+    _ReReadStaleRoots
+      4. more than one root in this save                 -> sgcMultiRootNotReRead
+    the re-read was issued and refused
+      5. no row came back                                -> sgcAnswerHadNoRow
+      6. the row that came back was another one          -> sgcAnswerWasAnotherRow
+      7. the answer was shallower than the client        -> sgcAnswerWasShallower
+
+  #305 named four of those seven. Door 3 and door 7 it did not: door 7 is the
+  depth guard, which a Lazy sibling branch produces on the SHIPPED server, and
+  door 3 needs a root with no [Sequence], which no model in this repository
+  pointed at a REST adapter until Test.Janus.Model.ClientKeyRoot was written for
+  it.
+
+  Every door except 3 already had a clause here pinning WHAT THE CLIENT DID; the
+  Voice_ block at the bottom pins WHAT THE CLIENT WAS TOLD, over the same doubles
+  and the same seeds. The two halves are kept apart on purpose: not one of the
+  twenty-five clauses that predate the voice was edited, so if the voice had cost
   behaviour they would be the red ones.
 
   RAISING WAS REFUSED BY MEASUREMENT AND STAYS REFUSED - see
@@ -366,8 +386,13 @@ type
     [Test]
     procedure Cost_AStaleGrandchildAloneStillBuysTheGet;
     /// Every level already carries a key of its own. Nothing is stale, so there
-    /// is nothing to ask about - the fifth and last case that pays nothing, and
-    /// the only one that had no clause of its own.
+    /// is nothing to ask about - the last of the Cost_ shapes that pay nothing,
+    /// and the only one that had no clause of its own.
+    /// COUNTED BY NAME AND NOT BY ORDINAL ANY MORE. This line used to call it
+    /// "the fifth", which #305 made false without touching it: the no-sequence
+    /// root of Voice_TheNoSequenceRootReallyReachesThatDoor is one more shape
+    /// that buys no GET. An ordinal in a comment is a claim about a population,
+    /// and populations grow.
     [Test]
     procedure Cost_AGraphThatAlreadyCarriesEveryKeyBuysNoGet;
     /// `params` came back, but named no column this row has - so the stamp
@@ -1545,8 +1570,10 @@ procedure TTestRestReReadAfterInsert
 begin
   // The same stranger the guard clause above uses: complete to every level the
   // client holds, so the DEPTH guard has nothing to object to and only identity
-  // can refuse it. Anything shallower and this clause would be measuring the
-  // fifth case instead of the fourth.
+  // can refuse it. Anything shallower and this clause would be measuring
+  // sgcAnswerWasShallower instead of sgcAnswerWasAnotherRow - named, because
+  // this line used to say "the fifth case instead of the fourth" and #305 put a
+  // sixth member in the middle of the enum.
   FRep.GetAnswer :=
     '[{"root_id":901,"tag":"someone else","others":[],"mids":[' +
       '{"mid_id":902,"root_id":901,"tag":"theirs","leafs":[' +
