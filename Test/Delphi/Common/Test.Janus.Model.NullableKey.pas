@@ -249,6 +249,73 @@ type
     property tag: String read Ftag write Ftag;
   end;
 
+  /// THE TWO DIVERGENT PAIRS - the column type and the property type
+  /// DELIBERATELY DISAGREE, and each mirrors a disagreement this repository
+  /// actually ships.
+  ///
+  /// WHY THEY EXIST. The repair dispatches on the PROPERTY's TypeInfo, and the
+  /// alternative issue #317 left open dispatches on TColumnMapping.FieldType.
+  /// Every other root in this unit has a column and a property that AGREE by
+  /// construction, so both readings write the same thing on all of them and the
+  /// decision between them rested on argument and an enumeration - not on a
+  /// clause. These two are where the two readings part company, in both of the
+  /// directions in which they can.
+  ///
+  /// TNxRoot: a NUMERIC column over a TEXTUAL property. The shipped shape is
+  /// `Model.Setor` under "Quatro Niveis de Dados" - [Column('SETOR', ftInteger)]
+  /// over a Double property - and under "Object Lazy", ftBCD over Double. A
+  /// column-keyed reader parses the answer as a number, fails on a textual key,
+  /// and writes NOTHING. The property-keyed reader writes it.
+  ///
+  /// TNyRoot: a TEXTUAL column over a NUMERIC property. The shipped shape is
+  /// Test.Janus.Model.KeyTypes' `ktut` - [Column('ktut', ftString, 60)] over a
+  /// UInt64 property. A column-keyed reader passes the text straight through to
+  /// SetValueNullable, whose Nullable<Integer> arm performs `Integer(AValue)` -
+  /// and on a value outside the 32-bit range that RAISES, which is the exact
+  /// failure mode the #301 rule forbids and the exact reason the parse and the
+  /// write have to be chosen by the SAME question.
+  [Entity]
+  [Table('nxroot', '')]
+  [PrimaryKey('nx_id', TAutoIncType.AutoInc,
+                       TGeneratorType.SequenceInc,
+                       TSortingOrder.NoSort,
+                       True, 'Primary key')]
+  [Sequence('nxroot')]
+  TNxRoot = class
+  private
+    Fnx_id: Nullable<String>;
+    Ftag: String;
+  public
+    /// ftInteger over Nullable<String>, on purpose. See the note above.
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('nx_id', ftInteger)]
+    property nx_id: Nullable<String> read Fnx_id write Fnx_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+  end;
+
+  [Entity]
+  [Table('nyroot', '')]
+  [PrimaryKey('ny_id', TAutoIncType.AutoInc,
+                       TGeneratorType.SequenceInc,
+                       TSortingOrder.NoSort,
+                       True, 'Primary key')]
+  [Sequence('nyroot')]
+  TNyRoot = class
+  private
+    Fny_id: Nullable<Integer>;
+    Ftag: String;
+  public
+    /// ftString over Nullable<Integer>, on purpose - `ktut`'s shape. See above.
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('ny_id', ftString, 20)]
+    property ny_id: Nullable<Integer> read Fny_id write Fny_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+  end;
+
   /// A BARE Int64 key, generated. It closes two of the FIVE mutations
   /// Test.Janus.Rest.ObjectSetInsertKey lists as surviving - "the TryStrToInt64
   /// guard removed" and "the whole tkInt64 branch removed" - which survived for
@@ -320,6 +387,8 @@ initialization
   TRegisterClass.RegisterEntity(TNsRoot);
   TRegisterClass.RegisterEntity(TNbRoot);
   TRegisterClass.RegisterEntity(TNiRoot);
+  TRegisterClass.RegisterEntity(TNxRoot);
+  TRegisterClass.RegisterEntity(TNyRoot);
   TRegisterClass.RegisterEntity(TNdRoot);
 
 end.

@@ -94,6 +94,54 @@
   not raise", but "the arm that receives it was selected by the same comparison
   that selected the parse".
 
+  AND ALL OF THAT WAS ARGUMENT UNTIL TWO CLAUSES WERE ADDED TO CARRY IT.
+
+  An independent reviewer implemented alternative B as a mutation and found it
+  passed sixteen of this fixture's then seventeen clauses - because EVERY root
+  here had a column and a property that AGREE by construction, so the two
+  readings write the same thing on all of them. A decision defended only by an
+  enumeration in a comment is a decision nothing measures.
+
+  `TNxRoot` and `TNyRoot` are the divergent pairs that separate them, one in
+  each direction in which they can differ, and each mirrors a disagreement the
+  repository actually ships:
+
+    TNxRoot   [Column('nx_id', ftInteger)] over Nullable<String>
+              the direction of Model.Setor - a NUMERIC column over a
+              non-numeric property. B parses the answer as a number, fails
+              TryStrToInt on a textual key, and writes NOTHING.
+
+    TNyRoot   [Column('ny_id', ftString, 20)] over Nullable<Integer>
+              the direction of Test.Janus.Model.KeyTypes' `ktut`. B sees
+              ftString, passes the TEXT through, and SetValueNullable's
+              Nullable<Integer> arm casts it - which RAISES on a value outside
+              the 32-bit range.
+
+  ALTERNATIVE B WAS THEN IMPLEMENTED HERE AND RUN, in three variants, each with
+  a MESSAGE WARN directive the build echoed as W1054, each over the whole
+  project at total=214. All three take the parse from `AColumn.FieldType` and
+  still write through the property, which is what B is:
+
+    B1  B with EXACTLY this reader's element scope, the steelman
+        2 red: both divergent-pair clauses, the second as an ERROR reading
+        `Overflow while converting variant of type (UnicodeString) into type
+        (Integer)`
+
+    B2  B plus a guarded float arm (TryStrToFloat)
+        the same 2 red, and NOTHING else - the negative control survives here
+        because TryStrToFloat refuses `555.5` under this machine's decimal
+        separator, which is a property of the locale and not of B
+
+    B3  B plus an UNGUARDED float arm (StrToFloatDef), the shape a column-keyed
+        table naturally takes when its author trusts the column
+        3 red: the same two, plus NullableDoubleKeyIsNotReconciled - and that
+        third one is the single pre-existing clause the reviewer's own B
+        mutation killed
+
+  So the design decision now costs a red clause to reverse, in both directions,
+  and the ERROR under B is the #301 failure mode reproduced through nothing but
+  a column/property disagreement this repository already contains.
+
   THE THREE ARMS AND THE ONE FALL-THROUGH
 
   `Nullable<Integer>`, `Nullable<Int64>` and `Nullable<String>` are written;
@@ -116,7 +164,7 @@
 
   EVERY BRANCH THE REPAIR ADDS DIES UNDER MUTATION
 
-  Nine mutations, each applied with a MESSAGE WARN directive on the mutated line
+  Twelve mutations, each applied with a MESSAGE WARN directive on the mutated line
   that the build echoed back as W1054 - a run whose patch cannot be shown to
   have landed measures nothing - and each run over the whole project at
   total=212. (The directive is named here WITHOUT its braces on purpose: this
@@ -138,6 +186,10 @@
     a `Nullable<Double>` arm ADDED             1 red - the negative control,
                                                which is how it is shown not to
                                                be decorative
+    ALTERNATIVE B (parse keyed on the column)  2 red, one of them an ERROR; 3
+                                               red if B's float arm is
+                                               unguarded. See the section above
+                                               for the three variants
 
   THE FIFTH OF THOSE IS THE WHOLE ARGUMENT FOR THE DESIGN, RUN RATHER THAN
   ASSERTED. Removing the parse and handing the text straight to
@@ -314,6 +366,28 @@ const
     '{"result":"Resource niroot insert command executed successfully", ' +
     '"params":[{"ni_id":9223372036854775808}]}';
 
+  /// THE TWO DIVERGENT PAIRS - see the note over TNxRoot in
+  /// Test.Janus.Model.NullableKey.
+  ///
+  /// A TEXTUAL key for a root whose COLUMN says ftInteger. Non-numeric on
+  /// purpose: a numeric text would be parsed correctly by a column-keyed reader
+  /// too and would separate nothing.
+  cANSWERNXTEXT =
+    '{"result":"Resource nxroot insert command executed successfully", ' +
+    '"params":[{"nx_id":"NX-000555"}]}';
+
+  cSERVERKEYNX = 'NX-000555';
+  cNXPLACEHOLDER = 'PENDING-NX';
+
+  /// A key ABOVE High(Integer) for a root whose COLUMN says ftString and whose
+  /// PROPERTY is Nullable<Integer>. The property cannot hold it, so the
+  /// property-keyed reader refuses it and leaves the placeholder; a
+  /// column-keyed reader hands the TEXT to SetValueNullable, whose
+  /// Nullable<Integer> arm casts it with `Integer(AValue)` and raises.
+  cANSWERNYOUTOFRANGE =
+    '{"result":"Resource nyroot insert command executed successfully", ' +
+    '"params":[{"ny_id":4294967851}]}';
+
   /// Well formed, right shape, wrong name. Nothing may be stamped from it.
   cANSWERNKNAMINGNOKEY =
     '{"result":"Resource nkroot insert command executed successfully", ' +
@@ -411,6 +485,16 @@ type
     procedure Insert_ABareInt64GeneratedKeyCarriesTheKeyTheServerGenerated;
     [Test]
     procedure Insert_ABareInt64KeyThatOverflowsLeavesThePlaceholder;
+
+    /// THE TWO CLAUSES THAT DECIDE THE DESIGN - see the header note WHY THE ARM
+    /// DISPATCHES ON `TypeInfo(Nullable<X>)` AND NOT ON THE COLUMN. Every other
+    /// root here has a column and a property that agree, so both readings pass
+    /// them all; these two are where the readings part company, one in each
+    /// direction.
+    [Test]
+    procedure Insert_ADivergentPairIsResolvedByThePropertyAndNotByTheColumn;
+    [Test]
+    procedure Insert_ADivergentPairCannotBeMadeToRaiseByTheColumnType;
   end;
 
   /// <summary> THE OTHER OPEN QUESTION OF ISSUE #317: does the DataSet half of
@@ -923,6 +1007,74 @@ begin
       'it back to TParam.AsLargeInt changed nothing; with a 64-bit key in the ' +
       'project it does - High(Int64) plus one is a number the target cannot ' +
       'hold, and the guard is what leaves the key alone instead');
+  finally
+    LRoot.Free;
+  end;
+end;
+
+procedure TTestRestNullableKeyReconciliation.Insert_ADivergentPairIsResolvedByThePropertyAndNotByTheColumn;
+var
+  LAdapter: TRESTObjectSetAdapter<TNxRoot>;
+  LRoot: TNxRoot;
+begin
+  FRecorder.Response := cANSWERNXTEXT;
+  LRoot := TNxRoot.Create;
+  try
+    LRoot.nx_id := cNXPLACEHOLDER;
+    LRoot.tag := 'divergent';
+    LAdapter := TRESTObjectSetAdapter<TNxRoot>.Create(FConn);
+    try
+      LAdapter.Insert(LRoot);
+    finally
+      LAdapter.Free;
+    end;
+    Assert.AreEqual(cSERVERKEYNX, LRoot.nx_id.Value, False,
+      'TNxRoot declares [Column(''nx_id'', ftInteger)] over a ' +
+      'Nullable<String> property - the direction Model.Setor ships, a NUMERIC ' +
+      'column over a non-numeric property. The reader must resolve the ' +
+      'conversion from the PROPERTY. A reader keyed on TColumnMapping.FieldType ' +
+      'would take the answer for a number, fail TryStrToInt on a textual key ' +
+      'and write nothing at all, leaving ' + cNXPLACEHOLDER + ' here. THIS IS ' +
+      'THE CLAUSE THAT DECIDES BETWEEN THE TWO READINGS: every other root in ' +
+      'this fixture has a column and a property that agree, so both readings ' +
+      'pass them and only this one and its sibling below can tell them apart');
+    Assert.IsTrue(LRoot.nx_id.HasValue, 'and the key must be present');
+  finally
+    LRoot.Free;
+  end;
+end;
+
+procedure TTestRestNullableKeyReconciliation.Insert_ADivergentPairCannotBeMadeToRaiseByTheColumnType;
+var
+  LAdapter: TRESTObjectSetAdapter<TNyRoot>;
+  LRoot: TNyRoot;
+begin
+  FRecorder.Response := cANSWERNYOUTOFRANGE;
+  LRoot := TNyRoot.Create;
+  try
+    LRoot.ny_id := cPLACEHOLDER;
+    LRoot.tag := 'divergent';
+    LAdapter := TRESTObjectSetAdapter<TNyRoot>.Create(FConn);
+    try
+      // AN ERROR RATHER THAN A FAILURE ON THIS LINE IS THE POINT. TNyRoot
+      // declares [Column('ny_id', ftString, 20)] over a Nullable<Integer>
+      // property - `ktut`'s shape - and the answer names a value the property
+      // cannot hold. A reader keyed on the COLUMN sees ftString, passes the
+      // text through, and SetValueNullable's Nullable<Integer> arm casts it
+      // with `Integer(AValue)`, which raises on a value outside the 32-bit
+      // range. That is the very failure #301 removed its own Nullable branch
+      // to avoid, reachable through nothing but a column/property
+      // disagreement the repository already ships.
+      LAdapter.Insert(LRoot);
+    finally
+      LAdapter.Free;
+    end;
+    Assert.AreEqual(cPLACEHOLDER, LRoot.ny_id.Value,
+      'the property is a Nullable<Integer> and the answer names a value it ' +
+      'cannot hold, so the key must simply be left alone. The reader asks the ' +
+      'PROPERTY what to parse - TryStrToInt refuses it - and never reaches a ' +
+      'cast that could raise. What the column happens to say is not consulted ' +
+      'and must not be able to change this outcome');
   finally
     LRoot.Free;
   end;
