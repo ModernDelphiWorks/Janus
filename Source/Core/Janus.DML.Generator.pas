@@ -199,10 +199,33 @@ type
       ///  make it - and ten of the fourteen did not. The field they left behind
       ///  is not empty, it is the ZERO VALUE of TFluentSQLDriver, which is
       ///  dbnMSSQL: every one of them was asking FluentSQL to serialize as
-      ///  T-SQL without ever saying so. Declaring the choice here makes the
-      ///  COMPILER refuse a descendant that stays silent, which closes the
-      ///  class of the defect rather than its instances - a thirteenth
-      ///  generator cannot inherit dbnMSSQL by accident any more.
+      ///  T-SQL without ever saying so.
+      ///
+      ///  WHAT ACTUALLY HAPPENS TO A DESCENDANT THAT STAYS SILENT, MEASURED AND
+      ///  NOT ASSUMED - because "the compiler refuses it" is what an abstract
+      ///  member SOUNDS like and it is not what this build does. Deleting the
+      ///  NexusDB override and building Janus.Tests.Units: EXIT CODE 0, ZERO
+      ///  compile errors, an executable produced. What comes out is one
+      ///  W1020 - "Constructing instance of 'TDMLGeneratorNexusDB' containing
+      ///  abstract method 'TDMLGeneratorAbstract.SerializationDialect'", on the
+      ///  RegisterDriver factory at the foot of that unit - and W1020 is ROUTINE
+      ///  NOISE here: the same build already emits 118 of them, one of which is
+      ///  TDMLGeneratorAbstract.GuidLiteral, the sibling net this design copies.
+      ///  The refusal is at RUNTIME, EAbstractError on the first construction:
+      ///  six clauses errored with "Abstract Error", DialectOf_NexusDB among
+      ///  them.
+      ///
+      ///  THAT IS STILL THE WHOLE POINT, AND IT IS STILL BETTER THAN WHAT IT
+      ///  REPLACES. A silent dbnMSSQL emits plausible SQL forever and nothing
+      ///  says a word; a missing declaration cannot survive one construction,
+      ///  and Test.Janus.DML.Dialect.Wiring gives every generator a clause of
+      ///  its own so the construction happens in the suite.
+      ///
+      ///  AND IT CLOSES THE CLASS ONLY INSIDE TDMLGeneratorAbstract. Every route
+      ///  from THIS tree to a FluentSQL dialect now passes through here. It is
+      ///  not the only route in Janus: Janus.Server.RestView.Manager.pas has a
+      ///  second, independent TDriverName-to-TFluentSQLDriver map that
+      ///  SerializationDialect does not reach.
       ///
       ///  Asked as a class function, and answered by the descendant with a
       ///  constant it already owns: each generator unit names its TDriverName

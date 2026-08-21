@@ -25,8 +25,19 @@
 ///  this fixture the field was set by TWO constructors out of the whole tree
 ///  and the rest inherited the ENUM'S ZERO VALUE, which is not "no dialect" but
 ///  dbnMSSQL. The repair moved the choice into the base class through an
-///  ABSTRACT class function, so a descendant can no longer stay silent: it
-///  either names its dialect or it does not compile.
+///  ABSTRACT class function, so a descendant can no longer stay silent.
+///
+///  AND "CANNOT STAY SILENT" IS A RUNTIME NET, NOT A COMPILE-TIME ONE, WHICH IS
+///  PART OF WHY THESE CLAUSES EXIST. Measured, by deleting the NexusDB override
+///  and building this project: EXIT CODE 0, no compile error, an executable
+///  produced. The compiler says only W1020 - "Constructing instance of
+///  'TDMLGeneratorNexusDB' containing abstract method
+///  'TDMLGeneratorAbstract.SerializationDialect'" - and W1020 is ROUTINE NOISE
+///  in this build: 118 of them come out already, one being the GuidLiteral net
+///  this design is modelled on. What fails is the first CONSTRUCTION, with
+///  EAbstractError: six clauses errored, DialectOf_NexusDB among them. A
+///  generator with no clause of its own would never be constructed by the suite
+///  and the omission would ship behind a warning nobody reads.
 ///
 ///  ONE CLAUSE PER GENERATOR, and that is deliberate. Five of the twelve emit
 ///  byte-identical SQL whichever of the two dialects they are given, so a

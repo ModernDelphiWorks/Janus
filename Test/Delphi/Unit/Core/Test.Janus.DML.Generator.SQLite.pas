@@ -122,8 +122,13 @@ type
   ///  emitted '1 = 0' again. </summary>
   TDMLGeneratorWithoutGuid = class(TDMLGeneratorAbstract)
   protected
-    /// Issue #355 made this abstract in the base, so a generator that forgets
-    /// its dialect no longer compiles - including the ones that live in a test.
+    /// Issue #355 made this abstract in the base, and a generator that lives in
+    /// a test answers it like any other. NOT because the build would otherwise
+    /// fail - measured by deleting the NexusDB override: the compile ends at
+    /// exit code 0 and the only complaint is a W1020 that drowns among the 118
+    /// this project already emits, GuidLiteral's included. The failure lands at
+    /// the FIRST CONSTRUCTION, as EAbstractError. Which is exactly why it is
+    /// answered here: this class is constructed, by the clause below.
     class function SerializationDialect: TFluentSQLDriver; override;
   public
     constructor Create; override;
