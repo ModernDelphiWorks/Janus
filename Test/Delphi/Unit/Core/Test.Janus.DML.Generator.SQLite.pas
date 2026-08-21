@@ -294,6 +294,27 @@ type
     property nm: String read Fnm write Fnm;
   end;
 
+  /// <summary> A GENERATOR THAT LETS A CLAUSE REACH THE TWO REFUSALS. #337.
+  ///
+  ///  Neither refusal can be produced by any statement Janus builds today, and
+  ///  both are presented in the code as ACTIVE nets rather than as declared
+  ///  survivors - so each needs a clause of its own, or an inverted condition
+  ///  and a wrong message would ship unnoticed.
+  ///
+  ///  UseDialect reaches ConfigureFluentSQLDriver, which only the SQLite and
+  ///  Firebird generators call for real; asking for MySQL makes FluentSQL
+  ///  serialize as MySQL, and their MySQL serializer rewrites every ':pN' to
+  ///  '?' (FluentSQL.SerializeMySQL.pas:52), so NOTHING is left to restore.
+  ///  SpliceWith reaches the splice with a hand-made pair that is not a
+  ///  prefix, which their serializer never produces. Descending from the
+  ///  SQLite generator rather than from the abstract keeps the probe down to
+  ///  the two lines that are actually the subject. </summary>
+  TDMLGeneratorDialectProbe = class(TDMLGeneratorSQLite)
+  public
+    procedure UseDialect(const ADriver: TDriverName);
+    function SpliceWith(const AValueRegion, AWholeStatement: String): String;
+  end;
+
   [TestFixture]
   TTestDMLGenerator = class
   private
@@ -377,6 +398,13 @@ type
     procedure TestGenerateUpdate_AKeyNamedLikeAPlaceholder_KeepsItsOwnMarker;
     [Test]
     procedure FluentSQLRendersTheValueRegionAsAPrefixOfTheWholeUpdate;
+    // Issue #337 - the two refusals, reached through TDMLGeneratorDialectProbe.
+    [Test]
+    procedure TestGenerateInsert_ADialectThatEatsThePlaceholders_RefusesByName;
+    [Test]
+    procedure TestSplice_AValueRegionThatIsNotAPrefix_RefusesByName;
+    [Test]
+    procedure TestSplice_AValueRegionThatIsAPrefix_CarriesTheTailOverUntouched;
     [Test]
     procedure TestGenerateNextPacket_UsesSqlitePagination;
     [Test]
@@ -1417,6 +1445,100 @@ begin
   Assert.AreEqual(LBefore, Copy(LAfter, 1, Length(LBefore)),
     Format('the value region must be a prefix of the whole statement: ' +
            'before=[%s] whole=[%s]', [LBefore, LAfter]));
+end;
+
+{ TDMLGeneratorDialectProbe }
+
+procedure TDMLGeneratorDialectProbe.UseDialect(const ADriver: TDriverName);
+begin
+  ConfigureFluentSQLDriver(ADriver);
+end;
+
+function TDMLGeneratorDialectProbe.SpliceWith(const AValueRegion,
+  AWholeStatement: String): String;
+begin
+  /// No binds and no markers on purpose: the prefix refusal is decided before
+  /// either is looked at, and the positive control must come back byte for
+  /// byte so that a rewrite creeping into this path would show up as a diff.
+  Result := _SpliceRestoredValueRegion(AValueRegion, AWholeStatement, nil, nil);
+end;
+
+procedure TTestDMLGenerator.TestGenerateInsert_ADialectThatEatsThePlaceholders_RefusesByName;
+var
+  LProbe: TDMLGeneratorDialectProbe;
+  LRow: TPlaceholderNamedKey;
+  LRaised: String;
+begin
+  LRow := TPlaceholderNamedKey.Create;
+  LProbe := TDMLGeneratorDialectProbe.Create;
+  try
+    LRow.p1 := 7;
+    LRow.nm := 'NEWNAME';
+    /// MySQL turns every ':pN' into '?' on the way out, so the statement comes
+    /// back with the value slots emptied of anything a consumer could bind to.
+    /// Counting the BINDS would not notice - they were allocated, and they
+    /// carry what this generator put there. Counting the SUBSTITUTIONS does.
+    LProbe.UseDialect(dnMySQL);
+    LRaised := '';
+    try
+      LProbe.GeneratorInsert(LRow);
+    except
+      on E: Exception do
+        LRaised := E.Message;
+    end;
+    Assert.IsTrue(LRaised <> '',
+      'a statement whose value slots carry no bindable marker must not be returned');
+    Assert.Contains(LRaised, 'only 0 marker(s) could be put back',
+      'the refusal must say how many of the expected markers survived');
+    Assert.Contains(LRaised, 'Issue #337', 'the refusal must name its issue');
+  finally
+    LProbe.Free;
+    LRow.Free;
+  end;
+end;
+
+procedure TTestDMLGenerator.TestSplice_AValueRegionThatIsNotAPrefix_RefusesByName;
+var
+  LProbe: TDMLGeneratorDialectProbe;
+  LRaised: String;
+begin
+  LProbe := TDMLGeneratorDialectProbe.Create;
+  try
+    LRaised := '';
+    try
+      LProbe.SpliceWith('UPDATE r337pk SET nm = :p1',
+                        'DELETE FROM r337pk WHERE p1 = :p1');
+    except
+      on E: Exception do
+        LRaised := E.Message;
+    end;
+    Assert.IsTrue(LRaised <> '',
+      'splicing two strings that do not line up must not be done silently');
+    Assert.Contains(LRaised, 'cannot be told',
+      'the refusal must say that the two regions cannot be told apart');
+    Assert.Contains(LRaised, 'Issue #337', 'the refusal must name its issue');
+  finally
+    LProbe.Free;
+  end;
+end;
+
+procedure TTestDMLGenerator.TestSplice_AValueRegionThatIsAPrefix_CarriesTheTailOverUntouched;
+const
+  cREGION = 'UPDATE r337pk SET nm = :nm';
+  cWHOLE  = 'UPDATE r337pk SET nm = :nm WHERE p1 = :p1';
+var
+  LProbe: TDMLGeneratorDialectProbe;
+begin
+  /// The control for the clause above: with a real prefix the splice must NOT
+  /// refuse, and the verbatim tail - ':p1' being exactly the token a rewrite
+  /// would be tempted by - has to come back untouched.
+  LProbe := TDMLGeneratorDialectProbe.Create;
+  try
+    Assert.AreEqual(cWHOLE, LProbe.SpliceWith(cREGION, cWHOLE),
+      'a prefix must splice back to the statement it came from, byte for byte');
+  finally
+    LProbe.Free;
+  end;
 end;
 
 procedure TTestDMLGenerator.TestGenerateNextPacket_UsesSqlitePagination;

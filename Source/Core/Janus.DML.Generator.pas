@@ -189,6 +189,29 @@ type
         const AGeneratorDriver: TDriverName): TFluentSQLDriver; static;
       procedure ConfigureFluentSQLDriver(const AGeneratorDriver: TDriverName);
       function CreateFluentSQL: IFluentSQL;
+    /// <summary> THE RESTORED VALUE REGION, WITH THE VERBATIM TAIL CARRIED OVER
+    ///  UNTOUCHED. Issue #337.
+    ///
+    ///  AValueRegion is the statement as FluentSQL rendered it BEFORE any
+    ///  verbatim clause of ours was added, and AWholeStatement is the finished
+    ///  one. Everything past the region is text this generator wrote itself -
+    ///  today, the key predicate of GeneratorUpdate - and the rewrite must
+    ///  never see it: a key column named `p1` is textually indistinguishable
+    ///  from the bind FluentSQL allocated. For an INSERT there is no verbatim
+    ///  tail and the two arguments are the same string.
+    ///
+    ///  PROTECTED SO THE REFUSAL CAN BE MEASURED. The prefix property belongs
+    ///  to THEIR serializer, and is pinned separately by
+    ///  FluentSQLRendersTheValueRegionAsAPrefixOfTheWholeUpdate. What is pinned
+    ///  HERE is that this method REFUSES when the property does not hold -
+    ///  which no statement Janus builds can produce, so the only way to reach
+    ///  it is to hand it a pair directly. That is what the test descendant in
+    ///  Test.Janus.DML.Generator.SQLite does. A guard presented as an active
+    ///  net has to have its own clause; an inverted condition or a wrong
+    ///  message would otherwise ship unnoticed. </summary>
+    function _SpliceRestoredValueRegion(const AValueRegion,
+      AWholeStatement: String; const AParams: IFluentSQLParams;
+      const AMarkers: TArray<String>): String;
       function _BuildSelectSQL(AClass: TClass; AID: TValue): IFluentSQL; virtual;
       function GetGeneratorSelect(const ASQL: String;
         const AOrderBy: String = ''): String; virtual;
@@ -498,6 +521,7 @@ var
   LKey: String;
   LMarker: String;
   LMarkers: TArray<String>;
+  LRendered: String;
 begin
   Result := '';
   try
@@ -533,7 +557,11 @@ begin
     /// Issue #337. The FluentSQL value slot parameterises; the marker this
     /// generator asked for is put back over the :pN it allocated. See
     /// _RestoreNamedPlaceholders for why the ordinal cannot be read directly.
-    Result := _RestoreNamedPlaceholders(LSQL.AsString, LSQL.Params, LMarkers);
+    /// An INSERT has no verbatim clause of ours, so the value region IS the
+    /// whole statement - it goes through the same splice as the UPDATE so that
+    /// both carry the same guards rather than two spellings of them.
+    LRendered := LSQL.AsString;
+    Result := _SpliceRestoredValueRegion(LRendered, LRendered, LSQL.Params, LMarkers);
     FQueryCache.AddOrSetValue(LKey, Result);
   except
     on E: Exception do
@@ -1247,14 +1275,7 @@ begin
   for LFor := 0 to AParams.Count -1 do
     LSQL.Where(AParams.Items[LFor].Name + ' = :' + AParams.Items[LFor].Name);
   LWhole := LSQL.AsString;
-  if Copy(LWhole, 1, Length(LValueRegion)) <> LValueRegion then
-    raise Exception.CreateFmt(
-      'The FluentSQL UPDATE no longer starts with what it rendered before the ' +
-      'key predicate was added, so the value region cannot be told from the ' +
-      'verbatim one. Issue #337. before=[%s] whole=[%s]',
-      [LValueRegion, LWhole]);
-  Result := _RestoreNamedPlaceholders(LValueRegion, LSQL.Params, LMarkers) +
-            Copy(LWhole, Length(LValueRegion) + 1, MaxInt);
+  Result := _SpliceRestoredValueRegion(LValueRegion, LWhole, LSQL.Params, LMarkers);
 end;
 
 function TDMLGeneratorAbstract._RestoreNamedPlaceholders(const ASQL: String;
@@ -1263,6 +1284,7 @@ function TDMLGeneratorAbstract._RestoreNamedPlaceholders(const ASQL: String;
 var
   LMap: TDictionary<String, String>;
   LFor: Integer;
+  LWritten: Integer;
   LBound: String;
   LPos: Integer;
   LStart: Integer;
@@ -1307,6 +1329,7 @@ begin
     try
       LLength := Length(ASQL);
       LPos := 1;
+      LWritten := 0;
       while LPos <= LLength do
       begin
         if ASQL[LPos] <> ':' then
@@ -1322,11 +1345,42 @@ begin
           Inc(LStop);
         LName := Copy(ASQL, LStart, LStop - LStart);
         if (LName <> '') and LMap.TryGetValue(LName, LMarker) then
-          LBuilder.Append(LMarker)
+        begin
+          LBuilder.Append(LMarker);
+          Inc(LWritten);
+        end
         else
           LBuilder.Append(Copy(ASQL, LPos, LStop - LPos));
         LPos := LStop;
       end;
+      /// THE REWRITE HAS TO HAVE HAPPENED. Issue #337.
+      ///
+      /// Counting the binds is not the same as counting the SUBSTITUTIONS, and
+      /// the difference is a silent one: if the rendered text carries no ':pN'
+      /// at all, every check above still passes - the binds were allocated,
+      /// they carry what this generator put there - and the SQL is returned
+      /// with no marker any consumer can bind to. The DML would go out with the
+      /// value slots empty and nothing would say so.
+      ///
+      /// THAT IS NOT HYPOTHETICAL, IT IS ONE `IF` AWAY. FluentSQL's MySQL
+      /// serializer rewrites every ':pN' to '?' before returning
+      /// (FluentSQL.SerializeMySQL.pas:52, a StringReplace over the whole
+      /// string), and their UNION merge renumbers ':pN' to ':pM'
+      /// (FluentSQL.Serialize.pas:58-62). Neither reaches Janus TODAY, and the
+      /// reason is itself a defect rather than a design: only two of the twelve
+      /// dialect generators call ConfigureFluentSQLDriver - SQLite and Firebird
+      /// - so every other one renders through the enum's zero value, dbnMSSQL,
+      /// which leaves ':pN' alone. The day somebody repairs THAT, the MySQL
+      /// generator starts serializing as MySQL, and without this count the DML
+      /// of MySQL and MariaDB breaks WITHOUT A WORD. The count has to land
+      /// before the repair, not after it.
+      if LWritten <> Length(AMarkers) then
+        raise Exception.CreateFmt(
+          'The FluentSQL value slot allocated %d bind(s) but only %d marker(s) ' +
+          'could be put back: the rendered SQL does not carry the ":pN" this ' +
+          'generator was told to expect. Issue #337: a statement whose value ' +
+          'slots no consumer can bind to must not be returned. SQL=[%s]',
+          [Length(AMarkers), LWritten, ASQL]);
       Result := LBuilder.ToString;
     finally
       LBuilder.Free;
@@ -1334,6 +1388,20 @@ begin
   finally
     LMap.Free;
   end;
+end;
+
+function TDMLGeneratorAbstract._SpliceRestoredValueRegion(const AValueRegion,
+  AWholeStatement: String; const AParams: IFluentSQLParams;
+  const AMarkers: TArray<String>): String;
+begin
+  if Copy(AWholeStatement, 1, Length(AValueRegion)) <> AValueRegion then
+    raise Exception.CreateFmt(
+      'The FluentSQL statement no longer starts with what it rendered before ' +
+      'the verbatim clauses were added, so the value region cannot be told ' +
+      'from the verbatim one. Issue #337. region=[%s] whole=[%s]',
+      [AValueRegion, AWholeStatement]);
+  Result := _RestoreNamedPlaceholders(AValueRegion, AParams, AMarkers) +
+            Copy(AWholeStatement, Length(AValueRegion) + 1, MaxInt);
 end;
 
 class function TDMLGeneratorAbstract.ResolveFluentSQLDriver(
