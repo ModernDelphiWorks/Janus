@@ -22,8 +22,6 @@
 
 unit Janus.Client.RestDriver.MARS;
 
-{$IFDEF JANUS_REST_MARS}
-
 interface
 
 uses
@@ -31,11 +29,11 @@ uses
   SysUtils,
   Janus.Client.MARS,
   Janus.Client.Methods,
-  Janus.Driver.REST;
+  Janus.Client.RestDriver;
 
 type
   /// <summary>
-  /// Classe de conexão concreta com MARS
+  /// Classe de conexao concreta com MARS
   /// </summary>
   TRESTDriverMARS = class(TRESTDriver)
   protected
@@ -156,10 +154,5 @@ procedure TRESTDriverMARS.SetClassNotServerUse(const Value: Boolean);
 begin
   FConnection.SetClassNotServerUse(Value);
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

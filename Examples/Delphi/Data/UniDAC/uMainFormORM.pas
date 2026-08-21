@@ -42,9 +42,8 @@ uses
   ExtCtrls,
   MidasLib,
   /// orm factory
-  Janus.Types.Database,
-  Janus.Factory.Interfaces,
-  Janus.Factory.UniDAC,
+  DataEngine.FactoryInterfaces,
+  DataEngine.FactoryUniDac,
   Janus.Container.ClientDataSet,
   Janus.Container.DataSet.Interfaces,
   /// orm model

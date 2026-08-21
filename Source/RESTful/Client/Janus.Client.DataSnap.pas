@@ -24,8 +24,6 @@
 
 unit Janus.Client.DataSnap;
 
-{$IFDEF JANUS_REST_DATASNAP}
-
 interface
 
 uses
@@ -61,6 +59,40 @@ type
     function DoPUT(const AResource, ASubResource: string): string;
     function DoDELETE(const AResource, ASubResource: string): string;
     function RemoveContextServerUse(const Value: string): string;
+    /// <summary>
+    ///   ISSUE #338 - THE LABEL, PLUS THE VERB THAT ACTUALLY CROSSED THE WIRE
+    ///   WHERE THE TWO DIVERGE.
+    ///
+    ///   This class crosses POST with PUT on purpose, to compensate DataSnap's
+    ///   own inverted prefix dispatch - see the notes in DoPOST and DoPUT. The
+    ///   consequence #338 named is that a reader holding a log line and a
+    ///   packet capture sees two different verbs and has nothing to reconcile
+    ///   them with. So the diagnostic text says both:
+    ///
+    ///       Method : POST (wire: PUT)
+    ///
+    ///   and says it ONLY where they disagree - GET and DELETE print plain,
+    ///   because a suffix that always appeared would carry no information.
+    ///
+    ///   WHAT THIS IS NOT. FRequestMethod still names the OPERATION and is
+    ///   still what OnBeforeCommand, OnAfterCommand and OnErrorCommand receive,
+    ///   unannotated: a handler comparing that string to 'PUT' must keep
+    ///   working. Only the TEXT of EJanusRESTException changes, and only at
+    ///   this class's four raise sites - no event signature moves, and neither
+    ///   does the exception's, which still takes seven arguments and prints its
+    ///   fourth verbatim under 'Method'. The other five client families are
+    ///   untouched; TRESTClientWS in particular sends its verbs straight, so
+    ///   there would be nothing for it to annotate.
+    ///
+    ///   The wire verb comes from FRESTRequest.Method through the RTL's own
+    ///   RESTRequestMethodToString (Studio 37.0, REST.Types.pas) rather than a
+    ///   table written here - a second table would be a second place for the
+    ///   enum to be wrong.
+    ///
+    ///   Pinned by TTestClientDataSnapVerb's four Diagnostic_* clauses and by
+    ///   Diagnostic_OnErrorCommand_StillCarriesThePlainLabel.
+    /// </summary>
+    function DiagnosticMethod: string;
   protected
     procedure DoAfterCommand; override;
     procedure SetBaseURL; override;
@@ -139,12 +171,18 @@ function TRESTClientDataSnap.DoDELETE(const AResource, ASubResource: string): st
 begin
   FRequestMethod := 'DELETE';
   FRESTRequest.Method := TRESTRequestMethod.rmDELETE;
-  // Define valores dos parâmetros
+  // Define valores dos parametros
   SetParamValues;
   // DELETE
   try
     FRESTRequest.Execute;
-    Result := (FRESTRequest.Response.JSONValue as TJSONArray).Items[0].ToJSON;
+    // ISSUE #323 - was (JSONValue as TJSONArray).Items[0], two unguarded steps
+    // whose three failing shapes escaped as three different untyped errors.
+    // TJanusClient.ResponsePayload carries the rule and the measurements; it
+    // raises INSIDE this try on purpose, so the handler below is what reports
+    // it, with the server body still attached.
+    Result := ResponsePayload(FRESTRequest.Response.JSONValue,
+                              Length(FRESTResponse.RootElement) > 0);
   except
     on E: Exception do
     begin
@@ -160,7 +198,10 @@ begin
                 .Create(FRESTClient.BaseURL,
                         AResource,
                         ASubResource,
-                        FRequestMethod,
+                        // ISSUE #338 - the label PLUS the wire verb where they
+                        // diverge. FRequestMethod itself is unchanged and the
+                        // FErrorCommand arm above still receives it plain.
+                        DiagnosticMethod,
                         FRESTRequest.Response.Content,
                         E.Message,
                         FRESTRequest.Response.StatusCode);
@@ -172,12 +213,18 @@ function TRESTClientDataSnap.DoGET(const AResource, ASubResource: string): strin
 begin
   FRequestMethod := 'GET';
   FRESTRequest.Method := TRESTRequestMethod.rmGET;
-  // Define valores dos parâmetros
+  // Define valores dos parametros
   SetParamValues;
   // DELETE
   try
     FRESTRequest.Execute;
-    Result := (FRESTRequest.Response.JSONValue as TJSONArray).Items[0].ToJSON
+    // ISSUE #323 - was (JSONValue as TJSONArray).Items[0], two unguarded steps
+    // whose three failing shapes escaped as three different untyped errors.
+    // TJanusClient.ResponsePayload carries the rule and the measurements; it
+    // raises INSIDE this try on purpose, so the handler below is what reports
+    // it, with the server body still attached.
+    Result := ResponsePayload(FRESTRequest.Response.JSONValue,
+                              Length(FRESTResponse.RootElement) > 0)
   except
     on E: Exception do
     begin
@@ -193,7 +240,10 @@ begin
                 .Create(FRESTClient.BaseURL,
                         AResource,
                         ASubResource,
-                        FRequestMethod,
+                        // ISSUE #338 - the label PLUS the wire verb where they
+                        // diverge. FRequestMethod itself is unchanged and the
+                        // FErrorCommand arm above still receives it plain.
+                        DiagnosticMethod,
                         FRESTRequest.Response.Content,
                         E.Message,
                         FRESTRequest.Response.StatusCode);
@@ -205,13 +255,32 @@ end;
 function TRESTClientDataSnap.DoPOST(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'POST';
+  // ISSUE #338 - THE VERB IS CROSSED ON PURPOSE. DO NOT "STRAIGHTEN" IT.
+  // DataSnap dispatches by METHOD NAME PREFIX, and its own table is the one
+  // that is inverted: Studio 37.0, Datasnap.DSService.pas,
+  // TDSRESTService.SetMethodNameWithPrefix, reached from ProcessREST, maps
+  // 'PUT' -> 'accept', 'POST' -> 'update', 'DELETE' -> 'cancel'. So an INSERT
+  // has to travel as HTTP PUT to reach acceptapp, which is the method that
+  // inserts - see Janus.Server.Resource.DataSnap, and acceptmaster in the
+  // shipped example server. Sending rmPOST here would reach updateapp and turn
+  // every insert into an update against a real server. Both transports land on
+  // that table: TDSRESTServer over Indy and TDSHTTPWebDispatcher over
+  // WebBroker. TRESTClientWS maps 'POST' -> rmPOST and is NOT a counterexample
+  // - it speaks plain REST, which has no prefix dispatch to compensate.
+  // Pinned by TTestClientDataSnapVerb.
   FRESTRequest.Method := TRESTRequestMethod.rmPUT;
-  // Define valores dos parâmetros
+  // Define valores dos parametros
   SetParamsBodyValue;
   // POST
   try
     FRESTRequest.Execute;
-    Result := (FRESTRequest.Response.JSONValue as TJSONArray).Items[0].ToJSON;
+    // ISSUE #323 - was (JSONValue as TJSONArray).Items[0], two unguarded steps
+    // whose three failing shapes escaped as three different untyped errors.
+    // TJanusClient.ResponsePayload carries the rule and the measurements; it
+    // raises INSIDE this try on purpose, so the handler below is what reports
+    // it, with the server body still attached.
+    Result := ResponsePayload(FRESTRequest.Response.JSONValue,
+                              Length(FRESTResponse.RootElement) > 0);
   except
     on E: Exception do
     begin
@@ -227,7 +296,10 @@ begin
                 .Create(FRESTClient.BaseURL,
                         AResource,
                         ASubResource,
-                        FRequestMethod,
+                        // ISSUE #338 - the label PLUS the wire verb where they
+                        // diverge. FRequestMethod itself is unchanged and the
+                        // FErrorCommand arm above still receives it plain.
+                        DiagnosticMethod,
                         FRESTRequest.Response.Content,
                         E.Message,
                         FRESTRequest.Response.StatusCode);
@@ -238,12 +310,43 @@ end;
 function TRESTClientDataSnap.DoPUT(const AResource, ASubResource: string): string;
 begin
   FRequestMethod := 'PUT';
+  // ISSUE #338 - CROSSED ON PURPOSE, the mirror of the note in DoPOST above.
+  // 'POST' -> 'update' in the DataSnap prefix table, so an UPDATE has to
+  // travel as HTTP POST to reach updateapp. Sending rmPUT here would reach
+  // acceptapp and turn every update into an insert.
   FRESTRequest.Method := TRESTRequestMethod.rmPOST;
-  // Define valores dos parâmetros
+  // Define valores dos parametros
   SetParamsBodyValue;
   // PUT
   try
     FRESTRequest.Execute;
+    // ISSUE #338 - THIS ASSIGNMENT WAS ABSENT, AND EVERY PUT ANSWERED ''.
+    // The method executed the request and returned without ever touching
+    // Result, so the server's answer was read and discarded - and nothing
+    // warned, because the except below terminates the function. The contract
+    // it now meets is the one DoGET, DoPOST and DoDELETE OF THIS SAME CLASS
+    // already met, measured on this class rather than borrowed from
+    // TRESTClientWS - whose DoPUT had the identical hole, and which #338 left
+    // open ON PURPOSE rather than repair by analogy.
+    //
+    // THAT HOLE IS NOW CLOSED TOO, AND NOT BY ANALOGY EITHER. The #338
+    // follow-up measured the contract on the WS class in its own right and
+    // found a DIFFERENT one: TRESTClientWS leaves RootElement EMPTY and
+    // publishes it as a writable property, so the unwrap flag is genuinely
+    // variable there and its DoPUT had to be pinned in BOTH arms. Here it is
+    // constant-True - this class's constructor sets 'result' and nothing can
+    // reach it from outside - which is why one arm was enough. The two repairs
+    // agree in shape and rest on separate measurements; neither is evidence
+    // about the other.
+    //
+    // Joining that contract means joining its failure half: ResponsePayload
+    // raises INSIDE this try for a nil, non-array or empty answer, so a PUT
+    // that used to swallow a malformed body silently now reports it through
+    // the handler below, with the server body still attached. That widening is
+    // the point - a DataSnap error answers a body with no 'result' key, which
+    // is exactly the shape this used to discard.
+    Result := ResponsePayload(FRESTRequest.Response.JSONValue,
+                              Length(FRESTResponse.RootElement) > 0);
   except
     on E: Exception do
     begin
@@ -259,7 +362,10 @@ begin
                 .Create(FRESTClient.BaseURL,
                         AResource,
                         ASubResource,
-                        FRequestMethod,
+                        // ISSUE #338 - the label PLUS the wire verb where they
+                        // diverge. FRequestMethod itself is unchanged and the
+                        // FErrorCommand arm above still receives it plain.
+                        DiagnosticMethod,
                         FRESTRequest.Response.Content,
                         E.Message,
                         FRESTRequest.Response.StatusCode);
@@ -284,14 +390,14 @@ var
 
 begin
   Result := '';
-  // Executa a procedure de adição dos parâmetros
+  // Executa a procedure de adicao dos parametros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autenticação
+  // Define valores de autenticacao
   SetAuthenticatorTypeValues;
 
   for LFor := 0 to FParams.Count -1 do
@@ -320,11 +426,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poderá ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que podera ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou não no evento AfterCommand
+    // Pega de volta o JSON manipulado ou nao no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -344,7 +450,7 @@ var
   begin
     FRESTClient.BaseURL := GetBaseURL;
     // Trata a URL Base caso o componente esteja para usar o servidor,
-    // mas a classe não.
+    // mas a classe nao.
     if (FServerUse) and (FClassNotServerUse) then
       FRESTClient.BaseURL := RemoveContextServerUse(FRESTClient.BaseURL);
 
@@ -356,14 +462,14 @@ var
 
 begin
   Result := '';
-  // Executa a procedure de adição dos parâmetros
+  // Executa a procedure de adicao dos parametros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autenticação
+  // Define valores de autenticacao
   SetAuthenticatorTypeValues;
 
   for LFor := 0 to FParams.Count -1 do
@@ -392,11 +498,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poderá ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que podera ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou não no evento AfterCommand
+    // Pega de volta o JSON manipulado ou nao no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -410,6 +516,20 @@ function TRESTClientDataSnap.RemoveContextServerUse(
   const Value: string): string;
 begin
   Result := ReplaceStr(Value, '/Janus/app', '');
+end;
+
+function TRESTClientDataSnap.DiagnosticMethod: string;
+var
+  LWireVerb: string;
+begin
+  Result := FRequestMethod;
+  LWireVerb := RESTRequestMethodToString(FRESTRequest.Method);
+  /// SameText and not '=': the label is written in capitals at all four Do*
+  /// sites and so is the RTL's answer, so today they can only differ by being
+  /// different verbs - but comparing case-insensitively is what makes that a
+  /// property of the comparison rather than of the current spelling.
+  if not SameText(LWireVerb, Result) then
+    Result := Result + ' (wire: ' + LWireVerb + ')';
 end;
 
 procedure TRESTClientDataSnap.SetAuthenticatorTypeValues;
@@ -463,7 +583,7 @@ var
   LFor: Integer;
 begin
   if FBodyParams.Count = 0 then
-    raise Exception.Create('Não foi passado o parâmetro com os dados do insert!');
+    raise Exception.Create('N'#$00E3'o foi passado o par'#$00E2'metro com os dados do insert!');
 
   for LFor := 0 to FBodyParams.Count -1 do
     FRESTRequest.Body.Add(FBodyParams.Items[LFor].AsString, ContentTypeFromString('application/json'));
@@ -488,10 +608,5 @@ begin
     FRESTContext := FRESTContext + '/Janus/app';
   SetBaseURL;
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

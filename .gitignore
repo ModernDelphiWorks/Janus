@@ -69,6 +69,17 @@ Test/Delphi/*.xml
 Test/Delphi/*.txt
 Test/Delphi/*.bat
 
+# Delphi build-generated per-project .res files (msbuild auto-generates
+# <ProjectName>.res on build); unlike the versioned .res files under
+# Components/Packages and Examples, these are build output and not tracked.
+/Test/Delphi/Janus.Tests.Units.res
+/Test/Delphi/Janus.Tests.LiveBindings.res
+/Test/Delphi/Janus.Tests.RESTfulDriver.res
+/Test/Delphi/Janus.Tests.RESTHorse.res
+/Test/Delphi/Janus.Tests.RESTMARS.res
+/Test/Delphi/Janus.Tests.RESTOracle.res
+/Test/Delphi/Janus.Tests.RESTWiRL.res
+
 # Compiled Lazarus output directory
 Test/Lazarus/output/
 

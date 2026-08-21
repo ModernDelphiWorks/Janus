@@ -366,10 +366,10 @@ begin
 end;
 
 /// <summary>
-///   clNone    - N�o especifica nenhuma compress�o; os dados s�o meramente copiados para o fluxo de sa�da.
-///   clFastest - Especifica a compress�o mais r�pida, resultando em um arquivo maior.
-///   clDefault - Compromisso entre velocidade e quantidade de compress�o.
-///   clMax     - Especifica a compress�o m�xima, resultando em um tempo maior para realizar a opera��o.
+///   clNone    - Nao especifica nenhuma compressao; os dados sao meramente copiados para o fluxo de saida.
+///   clFastest - Especifica a compressao mais rapida, resultando em um arquivo maior.
+///   clDefault - Compromisso entre velocidade e quantidade de compressao.
+///   clMax     - Especifica a compressao maxima, resultando em um tempo maior para realizar a operacao.
 /// </summary>
 procedure TBlob.CompressStream(ASource, ATarget: TStream);
 var

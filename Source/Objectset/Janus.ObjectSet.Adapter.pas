@@ -46,6 +46,9 @@ type
     destructor Destroy; override;
     function Find: TObjectList<M>; overload; override;
     function Find(const AID: Int64): M; overload; override;
+    /// One value per key column - issue #326. Not on TObjectSetAbstract, so
+    /// the REST object-set adapter is not forced to answer it.
+    function Find(const AIDs: TArray<TValue>): M; overload;
     function Find(const AID: String): M; overload; override;
     function FindWhere(const AWhere: String;
       const AOrderBy: String = ''): TObjectList<M>; overload; override;
@@ -83,7 +86,7 @@ var
   LIsConnected: Boolean;
 begin
   inherited;
-  // Controle de transa��o externa, controlada pelo desenvolvedor
+  // Controle de transacao externa, controlada pelo desenvolvedor
   LInTransaction := FConnection.InTransaction;
   LIsConnected := FConnection.IsConnected;
   if not LIsConnected then
@@ -123,6 +126,21 @@ begin
     FConnection.Connect;
   try
     Result := FSession.FindWhere(AWhere, AOrderBy);
+  finally
+    if not LIsConnected then
+      FConnection.Disconnect;
+  end;
+end;
+
+function TObjectSetAdapter<M>.Find(const AIDs: TArray<TValue>): M;
+var
+  LIsConnected: Boolean;
+begin
+  LIsConnected := FConnection.IsConnected;
+  if not LIsConnected then
+    FConnection.Connect;
+  try
+    Result := FSession.Find(AIDs);
   finally
     if not LIsConnected then
       FConnection.Disconnect;
@@ -169,7 +187,7 @@ var
   LIsConnected: Boolean;
 begin
   inherited;
-  // Controle de transa��o externa, controlada pelo desenvolvedor
+  // Controle de transacao externa, controlada pelo desenvolvedor
   LInTransaction := FConnection.InTransaction;
   LIsConnected := FConnection.IsConnected;
   if not LIsConnected then
@@ -210,6 +228,8 @@ end;
 
 procedure TObjectSetAdapter<M>.Update(const AObject: M);
 var
+  LPrimaryKey: TPrimaryKeyColumnsMapping;
+  LColumn: TColumnMapping;
   LRttiType: TRttiType;
   LProperty: TRttiProperty;
   LObjectKey: TObject;
@@ -218,7 +238,7 @@ var
   LIsConnected: Boolean;
 begin
   inherited;
-  // Controle de transa��o externa, controlada pelo desenvolvedor
+  // Controle de transacao externa, controlada pelo desenvolvedor
   LInTransaction := FConnection.InTransaction;
   LIsConnected := FConnection.IsConnected;
   if not LIsConnected then
@@ -227,6 +247,19 @@ begin
     if not LInTransaction then
       FConnection.StartTransaction;
     try
+      // Carimba a chave do master nos filhos ANTES do cascade, do mesmo jeito
+      // que Insert faz. O cascade abaixo grava os filhos, e um filho que so
+      // existe no objeto editado - a linha de detalhe que o registro gravado
+      // nao tinha - chega nele com a chave estrangeira em zero se ninguem a
+      // preencheu. Aqui a chave do master ja existe: e um update, nao ha
+      // sequence a esperar.
+      LPrimaryKey := TMappingExplorer
+                         .GetMappingPrimaryKeyColumns(AObject.ClassType);
+      if LPrimaryKey = nil then
+        raise Exception.Create(cMESSAGEPKNOTFOUND);
+
+      for LColumn in LPrimaryKey.Columns do
+        SetAutoIncValueChilds(AObject, LColumn);
       // Executa comando update em cascade
       CascadeActionsExecute(AObject, TCascadeAction.CascadeUpdate);
       // Gera a lista com as propriedades que foram alteradas
@@ -247,7 +280,7 @@ begin
           FObjectState.Remove(LKey);
           FObjectState.TrimExcess;
         end;
-        // Remove o item exclu�do em Update Mestre-Detalhe
+        // Remove o item excluido em Update Mestre-Detalhe
         for LObjectKey in FObjectState.Values do
           FSession.Delete(LObjectKey);
       end;
@@ -265,7 +298,7 @@ begin
     if not LIsConnected then
       FConnection.Disconnect;
     FObjectState.Clear;
-    // Ap�s executar o comando SQL Update, limpa a lista de campos alterados.
+    // Apos executar o comando SQL Update, limpa a lista de campos alterados.
     FSession.ModifiedFields.Clear;
     FSession.ModifiedFields.TrimExcess;
     FSession.DeleteList.Clear;

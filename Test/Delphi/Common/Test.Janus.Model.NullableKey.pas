@@ -1,0 +1,394 @@
+{
+  ------------------------------------------------------------------------------
+  Janus
+  Modern Object-Relational Mapping (ORM) framework for Delphi.
+
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2016-2026 Isaque Pinheiro
+
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
+}
+
+{ @abstract(Janus Framework - test fixture models: a GENERATED primary key whose
+  property is a Nullable. Issue #317.)
+
+  WHY THESE EXIST
+
+  The #301 repair reads the key the server generated out of the insert answer
+  and writes it onto the inserted object. It writes only ORDINAL and textual
+  properties; a key declared `Nullable<...>` fell through untouched. The author
+  of #301 wrote a `tkRecord` arm for it and then REMOVED it, under a rule that
+  is still in force - the reader must not be able to raise - and with an
+  enumeration that was true where it was measured: nothing under `Test\Delphi`
+  had a Nullable key, so the arm could not be held honest by any clause.
+
+  THE ENUMERATION HAS SINCE MOVED, AND THE MOVE IS RECORDED HERE RATHER THAN
+  ASSUMED. Re-run at 7e5e51d over every `[PrimaryKey]` under `Test\` resolved to
+  its `[Column]` declaration, `Test\Delphi` now carries TWO Nullable keys -
+  `Test.Janus.Model.KeyTypes.TKeyTypeNullable` and
+  `Test.Janus.Model.KeyTypeDecoy.TKeyTypeDecoy`, both `Nullable<String>`, both
+  added by #311. So the sentence "none has a Nullable key" is FALSE at this
+  commit. It is still true that neither of them can hold the client reader
+  honest: both are `TAutoIncType.NotInc` with NO `[Sequence]`, so
+  `TSessionRestFul<M>.ExistSequence` answers False and
+  `TRESTObjectSetAdapter<M>.Insert` never enters the block that reads the answer
+  at all. They are also linked only into `Janus.Tests.RESTHorse`.
+
+  A NULLABLE KEY *AND* A `[Sequence]` TOGETHER is the shape that was missing,
+  and it is what every entity below carries.
+
+  THE SHAPE IS THE ONE THE REPOSITORY SHIPS AS AN EXAMPLE
+
+  `Examples\Delphi\Data\Varios Niveis de Dados` declares all eight of its models
+  this way. `TNkRoot` below reproduces `Orion.Model.Contato.Tcontato` pair for
+  pair - `[Column('...', ftInteger)]` over `property ...: Nullable<Integer>` -
+  because a Nullable property over an INTEGER column is the combination the
+  consumer is taught, and it is the one a reader that dispatches on the COLUMN
+  type rather than on the PROPERTY type gets wrong.
+
+  ONE ROOT PER ELEMENT TYPE, ON PURPOSE
+
+  The reader dispatches per element type, so one entity carrying several
+  Nullable columns would exercise one arm and no more: only the primary key is
+  named by the insert answer. Four Nullable roots therefore:
+
+    TNkRoot   Nullable<Integer>  - the Examples shape, and the only one with a
+                                   cascading child, so the ORDER of the read
+                                   against the cascade is measured here
+    TNlRoot   Nullable<Int64>    - the 64-bit arm
+    TNsRoot   Nullable<String>   - a TEXTUAL key that IS generated, which is the
+                                   shape issue #317 asks about by name and which
+                                   existed nowhere in this repository before
+                                   this unit: `TKeyTypeGuid` is generated but
+                                   its property is a bare String, and the two
+                                   Nullable keys named above are not generated
+    TNdRoot   Nullable<Double>   - the NEGATIVE CONTROL. Its element type is
+                                   outside the three the reader writes, so it
+                                   must come out of an insert still holding the
+                                   placeholder. Without it "the reader handles
+                                   Nullable" would be indistinguishable from
+                                   "the reader handles every Nullable", and the
+                                   scope of the repair would rest on a comment.
+                                   A fractional key is not invented for the
+                                   occasion - `Examples\Delphi\Data\Quatro
+                                   Niveis de Dados\Model.Setor` declares a
+                                   Double primary key today.
+
+  AND TWO ROOTS WITH NOTHING NULLABLE ABOUT THEM
+
+    TNbRoot   String             - a bare textual key WITH a [Sequence]
+    TNiRoot   Int64              - a bare 64-bit key WITH a [Sequence]
+
+  They are here because supplying the missing key shapes for this project is
+  what this unit is for, and because between them they close FOUR of the FIVE
+  mutations `Test.Janus.Rest.ObjectSetInsertKey` lists as surviving - the
+  ordinal string branch, its empty-text check, the ordinal tkInt64 branch and
+  its TryStrToInt64 guard. That header carries the re-measurement. `TNbRoot`
+  doubles as the positive control for a DataSet-family finding; see
+  `TTestRestNullableKeyDataSetFamily`.
+
+  THE CHILD'S FOREIGN KEY IS A NULLABLE TOO
+
+  `TNkChild.nk_id` is `Nullable<Integer>`, matching its parent. The cascade
+  copies the parent's key property onto it as a raw TValue
+  (`TObjectSetBaseAdapter<M>.SetAutoIncValueOneToMany`), so the two ends have to
+  agree in type for anything to arrive - and a root left on the placeholder
+  hands the placeholder down, which is the half of the defect a consumer sees
+  as a foreign key pointing at a row nobody has.
+
+  ANCHORS ARE BY METHOD, NEVER BY `file:line`.
+}
+
+unit Test.Janus.Model.NullableKey;
+
+interface
+
+uses
+  Classes,
+  DB,
+  SysUtils,
+  Generics.Collections,
+  Janus.Types.Nullable,
+  MetaDbDiff.mapping.attributes,
+  MetaDbDiff.Types.Mapping,
+  MetaDbDiff.Mapping.Register;
+
+type
+  [Entity]
+  [Table('nkchild', '')]
+  [PrimaryKey('child_id', TAutoIncType.AutoInc,
+                          TGeneratorType.SequenceInc,
+                          TSortingOrder.NoSort,
+                          True, 'Primary key')]
+  [Sequence('nkchild')]
+  TNkChild = class
+  private
+    Fchild_id: Nullable<Integer>;
+    Fnk_id: Nullable<Integer>;
+    Ftag: String;
+  public
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('child_id', ftInteger)]
+    property child_id: Nullable<Integer> read Fchild_id write Fchild_id;
+
+    /// The foreign key onto nkroot.nk_id, declared with the SAME Nullable the
+    /// parent's key carries. The cascade copies a raw TValue across, so a
+    /// mismatch here would write nothing at all and the fixture would be
+    /// measuring the wrong thing.
+    [Column('nk_id', ftInteger)]
+    property nk_id: Nullable<Integer> read Fnk_id write Fnk_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+  end;
+
+  [Entity]
+  [Table('nkroot', '')]
+  [PrimaryKey('nk_id', TAutoIncType.AutoInc,
+                       TGeneratorType.SequenceInc,
+                       TSortingOrder.NoSort,
+                       True, 'Primary key')]
+  [Sequence('nkroot')]
+  TNkRoot = class
+  private
+    Fnk_id: Nullable<Integer>;
+    Ftag: String;
+    Fchilds: TObjectList<TNkChild>;
+  public
+    constructor Create;
+    destructor Destroy; override;
+
+    /// `Orion.Model.Contato.Tcontato` declares its key exactly like this:
+    /// an INTEGER column carrying a NULLABLE property. Reproduced pair for
+    /// pair, because the disagreement between the two is the thing.
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('nk_id', ftInteger)]
+    property nk_id: Nullable<Integer> read Fnk_id write Fnk_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+
+    [Association(TMultiplicity.OneToMany, 'nk_id', 'nkchild', 'nk_id')]
+    [CascadeActions([TCascadeAction.CascadeAutoInc,
+                     TCascadeAction.CascadeInsert,
+                     TCascadeAction.CascadeUpdate,
+                     TCascadeAction.CascadeDelete])]
+    property childs: TObjectList<TNkChild> read Fchilds write Fchilds;
+  end;
+
+  [Entity]
+  [Table('nlroot', '')]
+  [PrimaryKey('nl_id', TAutoIncType.AutoInc,
+                       TGeneratorType.SequenceInc,
+                       TSortingOrder.NoSort,
+                       True, 'Primary key')]
+  [Sequence('nlroot')]
+  TNlRoot = class
+  private
+    Fnl_id: Nullable<Int64>;
+    Ftag: String;
+  public
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('nl_id', ftLargeint)]
+    property nl_id: Nullable<Int64> read Fnl_id write Fnl_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+  end;
+
+  [Entity]
+  [Table('nsroot', '')]
+  [PrimaryKey('ns_id', TAutoIncType.AutoInc,
+                       TGeneratorType.SequenceInc,
+                       TSortingOrder.NoSort,
+                       True, 'Primary key')]
+  [Sequence('nsroot')]
+  TNsRoot = class
+  private
+    Fns_id: Nullable<String>;
+    Ftag: String;
+  public
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('ns_id', ftString, 20)]
+    property ns_id: Nullable<String> read Fns_id write Fns_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+  end;
+
+  /// A BARE String key, generated, and otherwise identical to TNsRoot. It is
+  /// the POSITIVE CONTROL for a neighbouring defect this branch measured and
+  /// did NOT repair: in the DataSet family a GENERATED key gets
+  /// `DefaultExpression := '-1'` written onto its TField unconditionally -
+  /// TBind.SetInternalInitFieldDefsObjectClass does it for every column of an
+  /// AutoIncrement primary key without looking at the column's type - and a
+  /// TFDMemTable evaluating that on a string field raises
+  /// `[FireDAC][Stan][Eval]-104. Type mismatch in expression` on the APPEND,
+  /// before any answer is read. This entity exists so the finding can be shown
+  /// to be about a TEXTUAL GENERATED KEY and not about Nullable: it fails the
+  /// same way with no Nullable anywhere in it.
+  [Entity]
+  [Table('nbroot', '')]
+  [PrimaryKey('nb_id', TAutoIncType.AutoInc,
+                       TGeneratorType.SequenceInc,
+                       TSortingOrder.NoSort,
+                       True, 'Primary key')]
+  [Sequence('nbroot')]
+  TNbRoot = class
+  private
+    Fnb_id: String;
+    Ftag: String;
+  public
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('nb_id', ftString, 20)]
+    property nb_id: String read Fnb_id write Fnb_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+  end;
+
+  /// THE TWO DIVERGENT PAIRS - the column type and the property type
+  /// DELIBERATELY DISAGREE, and each mirrors a disagreement this repository
+  /// actually ships.
+  ///
+  /// WHY THEY EXIST. The repair dispatches on the PROPERTY's TypeInfo, and the
+  /// alternative issue #317 left open dispatches on TColumnMapping.FieldType.
+  /// Every other root in this unit has a column and a property that AGREE by
+  /// construction, so both readings write the same thing on all of them and the
+  /// decision between them rested on argument and an enumeration - not on a
+  /// clause. These two are where the two readings part company, in both of the
+  /// directions in which they can.
+  ///
+  /// TNxRoot: a NUMERIC column over a TEXTUAL property. The shipped shape is
+  /// `Model.Setor` under "Quatro Niveis de Dados" - [Column('SETOR', ftInteger)]
+  /// over a Double property - and under "Object Lazy", ftBCD over Double. A
+  /// column-keyed reader parses the answer as a number, fails on a textual key,
+  /// and writes NOTHING. The property-keyed reader writes it.
+  ///
+  /// TNyRoot: a TEXTUAL column over a NUMERIC property. The shipped shape is
+  /// Test.Janus.Model.KeyTypes' `ktut` - [Column('ktut', ftString, 60)] over a
+  /// UInt64 property. A column-keyed reader passes the text straight through to
+  /// SetValueNullable, whose Nullable<Integer> arm performs `Integer(AValue)` -
+  /// and on a value outside the 32-bit range that RAISES, which is the exact
+  /// failure mode the #301 rule forbids and the exact reason the parse and the
+  /// write have to be chosen by the SAME question.
+  [Entity]
+  [Table('nxroot', '')]
+  [PrimaryKey('nx_id', TAutoIncType.AutoInc,
+                       TGeneratorType.SequenceInc,
+                       TSortingOrder.NoSort,
+                       True, 'Primary key')]
+  [Sequence('nxroot')]
+  TNxRoot = class
+  private
+    Fnx_id: Nullable<String>;
+    Ftag: String;
+  public
+    /// ftInteger over Nullable<String>, on purpose. See the note above.
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('nx_id', ftInteger)]
+    property nx_id: Nullable<String> read Fnx_id write Fnx_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+  end;
+
+  [Entity]
+  [Table('nyroot', '')]
+  [PrimaryKey('ny_id', TAutoIncType.AutoInc,
+                       TGeneratorType.SequenceInc,
+                       TSortingOrder.NoSort,
+                       True, 'Primary key')]
+  [Sequence('nyroot')]
+  TNyRoot = class
+  private
+    Fny_id: Nullable<Integer>;
+    Ftag: String;
+  public
+    /// ftString over Nullable<Integer>, on purpose - `ktut`'s shape. See above.
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('ny_id', ftString, 20)]
+    property ny_id: Nullable<Integer> read Fny_id write Fny_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+  end;
+
+  /// A BARE Int64 key, generated. It closes two of the FIVE mutations
+  /// Test.Janus.Rest.ObjectSetInsertKey lists as surviving - "the TryStrToInt64
+  /// guard removed" and "the whole tkInt64 branch removed" - which survived for
+  /// one reason that unit states plainly: no entity reachable from an ObjectSet
+  /// insert in this project had a 64-bit key. Now one does. Nothing about it is
+  /// Nullable; it is here because this unit is where the missing key shapes for
+  /// that project were supplied.
+  [Entity]
+  [Table('niroot', '')]
+  [PrimaryKey('ni_id', TAutoIncType.AutoInc,
+                       TGeneratorType.SequenceInc,
+                       TSortingOrder.NoSort,
+                       True, 'Primary key')]
+  [Sequence('niroot')]
+  TNiRoot = class
+  private
+    Fni_id: Int64;
+    Ftag: String;
+  public
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('ni_id', ftLargeint)]
+    property ni_id: Int64 read Fni_id write Fni_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+  end;
+
+  /// THE NEGATIVE CONTROL - see the header. A Nullable whose element type the
+  /// reader does not write, so an insert must leave it exactly as it was.
+  [Entity]
+  [Table('ndroot', '')]
+  [PrimaryKey('nd_id', TAutoIncType.AutoInc,
+                       TGeneratorType.SequenceInc,
+                       TSortingOrder.NoSort,
+                       True, 'Primary key')]
+  [Sequence('ndroot')]
+  TNdRoot = class
+  private
+    Fnd_id: Nullable<Double>;
+    Ftag: String;
+  public
+    [Restrictions([TRestriction.NoUpdate, TRestriction.NotNull])]
+    [Column('nd_id', ftFloat)]
+    property nd_id: Nullable<Double> read Fnd_id write Fnd_id;
+
+    [Column('tag', ftString, 20)]
+    property tag: String read Ftag write Ftag;
+  end;
+
+implementation
+
+{ TNkRoot }
+
+constructor TNkRoot.Create;
+begin
+  Fchilds := TObjectList<TNkChild>.Create;
+end;
+
+destructor TNkRoot.Destroy;
+begin
+  Fchilds.Free;
+  inherited;
+end;
+
+initialization
+  TRegisterClass.RegisterEntity(TNkChild);
+  TRegisterClass.RegisterEntity(TNkRoot);
+  TRegisterClass.RegisterEntity(TNlRoot);
+  TRegisterClass.RegisterEntity(TNsRoot);
+  TRegisterClass.RegisterEntity(TNbRoot);
+  TRegisterClass.RegisterEntity(TNiRoot);
+  TRegisterClass.RegisterEntity(TNxRoot);
+  TRegisterClass.RegisterEntity(TNyRoot);
+  TRegisterClass.RegisterEntity(TNdRoot);
+
+end.

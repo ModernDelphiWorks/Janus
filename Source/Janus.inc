@@ -1,20 +1,14 @@
 {
-      ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi
+  ------------------------------------------------------------------------------
+  Janus ORM
+  State-of-the-art Object-Relational Mapping (ORM) framework for Delphi.
 
-                   Copyright (c) 2016, Isaque Pinheiro
-                          All rights reserved.
+  SPDX-License-Identifier: MIT
+  Copyright (c) 2025-2026 Isaque Pinheiro
 
-                    GNU Lesser General Public License
-                      Vers�o 3, 29 de junho de 2007
-
-       Copyright (C) 2007 Free Software Foundation, Inc. <http://fsf.org/>
-       A todos � permitido copiar e distribuir c�pias deste documento de
-       licen�a, mas mud�-lo n�o � permitido.
-
-       Esta vers�o da GNU Lesser General Public License incorpora
-       os termos e condi��es da vers�o 3 da GNU General Public License
-       Licen�a, complementado pelas permiss�es adicionais listadas no
-       arquivo LICENSE na pasta principal.
+  Licensed under the MIT License.
+  See the LICENSE file in the project root for full license information.
+  ------------------------------------------------------------------------------
 }
 
 { 
@@ -56,9 +50,38 @@
 {.$DEFINE FMX}
 {.$DEFINE LOAD_DYNAMICALLY}
 {.$DEFINE DRIVERRESTFUL}
-{$DEFINE USEFDMEMTABLE}
 {.$DEFINE USECLIENTDATASET}
+{$IFNDEF USECLIENTDATASET}
+  {$DEFINE USEFDMEMTABLE}
+{$ENDIF}
 {.$DEFINE MONITORRESTFULCLIENT}
+
+{ WHICH IN-MEMORY DATASET - ONE CHOICE WITH TWO VALUES, NOT TWO SWITCHES
+
+  USEFDMEMTABLE and USECLIENTDATASET are read by exactly one unit,
+  Janus.Manager.DataSet, and defining BOTH leaves it unable to accept any
+  dataset at all - it compiles both type gates into
+  TManagerDataSet.ResolverDataSetType, and no one dataset satisfies both, so
+  every AddAdapter call raises. That unit refuses to build on that
+  combination; see #223.
+
+  USEFDMEMTABLE is therefore defined only when USECLIENTDATASET is NOT. This
+  is what makes the ClientDataSet configuration reachable the documented way.
+  A project file carries USECLIENTDATASET in DCC_Define, and a DCC_Define can
+  only ADD a symbol - it cannot take USEFDMEMTABLE away. With USEFDMEMTABLE
+  defined unconditionally, every such project landed in the dead combination
+  instead of the working one. Five Example .dproj files under
+  Examples/Delphi/Data did exactly that, and all five use TClientDataSet.
+
+  The delivered default is unchanged: with nothing defined from outside,
+  USECLIENTDATASET is off and USEFDMEMTABLE is on.
+
+  ORDER HERE IS LOAD-BEARING. JanusInstall rewrites these lines by scanning
+  for the FIRST line whose text contains the symbol name and replacing that
+  whole line (TfrmPrincipal.LigarDefineJanusInc). The toggle line for each
+  symbol must therefore come BEFORE any other line mentioning it - which is
+  why the USECLIENTDATASET toggle sits above the IFNDEF that reads it, and
+  why this note sits below both. }
 
 {$IFDEF FMX}
   {$DEFINE HAS_FMX}
@@ -66,6 +89,23 @@
 {$IFDEF VCL}
   {$IFDEF MSWINDOWS}   // Epic 25: VCL / HAS_VCL graphics (Vcl.Imaging) is Windows-only
   {$DEFINE HAS_VCL}
+  {$ENDIF}
+{$ENDIF}
+
+{ Issue #190: the toggle above (line 49-50) is a one-shot, JanusInstall-time
+  switch meant for a checkout dedicated to a single target framework - it
+  always leaves VCL/HAS_VCL on unless someone hand-flips it. The Examples
+  repo builds both VCL and FMX examples from the SAME checkout in the same
+  gate run, so an FMX example additionally passes HAS_FMX via its own
+  DCC_Define (its FrameworkType is not read by the compiler). Without this,
+  HAS_VCL and HAS_FMX end up both true for that project, and Janus.Types.Blob
+  (uses HAS_VCL to pull in Graphics/GIFImg/JPEG/PngImage) fails to compile
+  under FMX, whose DCC_Namespace has no "Vcl" entry to resolve those unit
+  names. A project that explicitly opted into HAS_FMX always means FMX;
+  let it win. }
+{$IFDEF HAS_FMX}
+  {$IFDEF HAS_VCL}
+    {$UNDEF HAS_VCL}
   {$ENDIF}
 {$ENDIF}
 

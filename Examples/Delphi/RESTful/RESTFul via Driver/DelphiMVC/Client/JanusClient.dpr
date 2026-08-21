@@ -27,9 +27,9 @@ uses
   Janus.Model.Detail in '..\Janus.Model.Detail.pas',
   Janus.Model.Lookup in '..\Janus.Model.Lookup.pas',
   Janus.Model.Master in '..\Janus.Model.Master.pas',
-  Janus.Client.DMVC in '..\..\..\..\Source\RESTful Components\Client\Janus.Client.DMVC.pas',
-  Janus.driver.rest.dmvc in '..\..\..\..\Source\RESTful Components\Client\Janus.driver.rest.dmvc.pas',
-  Janus.factory.rest.dmvc in '..\..\..\..\Source\RESTful Components\Client\Janus.factory.rest.dmvc.pas';
+  Janus.Client.DMVC in '..\..\..\..\..\..\Source\RESTful\Client\Janus.Client.DMVC.pas',
+  Janus.Client.RestDriver.DMVC in '..\..\..\..\..\..\Source\RESTful\Client\Janus.Client.RestDriver.DMVC.pas',
+  Janus.Client.RestDMVC.Factory in '..\..\..\..\..\..\Source\RESTful\Client\Janus.Client.RestDMVC.Factory.pas';
 
 {$R *.res}
 

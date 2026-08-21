@@ -95,6 +95,8 @@ type
       const AObject: TObject); overload;
     procedure _FillDataSetField(const ADataSet: TDataSet;
       const AObject: TObject); overload;
+    procedure _AddReservedField(const ADataSet: TDataSet;
+      const AFieldName: String);
   protected
     constructor Create;
   public
@@ -161,7 +163,7 @@ begin
   begin
     LProperty := LColumn.ColumnProperty;
     LField := ADataSet.FieldByName(LColumn.ColumnName);
-    // Possibilita popular o dado nos campos ReadOnly=True que s�o JoinColumn.
+    // Possibilita popular o dado nos campos ReadOnly=True que sao JoinColumn.
     LReadOnly := LField.ReadOnly;
     LField.ReadOnly := False;
     try
@@ -189,6 +191,7 @@ begin
                         LObjectList := TObjectList<TObject>(LProperty.GetValue(AObject).AsObject);
                         if LObjectList = nil then
                           Exit;
+                        LDataSet.First;
                         while not LDataSet.Eof do
                           LDataSet.Delete;
                         for LObject in LObjectList do
@@ -507,7 +510,13 @@ begin
       LField := ADataSet.Fields[LFor];
       if LField.Tag > 0 then
         Continue;
-      if (LField.FieldKind <> fkData) or (LField.FieldName = cInternalField) then
+      // A exclusao por NOME e PLURAL: alem do estado da linha, as duas colunas
+      // de proveniencia. Nenhuma delas existe no IDBDataSet de origem, e o
+      // acesso por FieldValues[<nome>] levanta excecao para coluna ausente.
+      if (LField.FieldKind <> fkData) or
+         (LField.FieldName = cInternalField) or
+         (LField.FieldName = cRowTokenField) or
+         (LField.FieldName = cOwnerTokenField) then
         Continue;
 
       LReadOnly := LField.ReadOnly;
@@ -590,7 +599,7 @@ begin
                                             LColumn.Size);
     end;
     LField := ADataSet.FieldByName(LColumn.ColumnName);
-    // Identificador que o campo � de um tipo virtual s� recebe dado em cache
+    // Identificador de campo de tipo virtual: so recebe dado em cache
     if LColumn.IsVirtualData then
       LField.Tag := 9;
 
@@ -624,8 +633,12 @@ begin
   begin
     if LPrimaryKey.AutoIncrement then
     begin
+      // The literal used to be spelled here and read, unnamed, three units
+      // away. cAutoIncNotGenerated is that value under a name - see the note on
+      // it in Janus.DataSet.Fields.
       for LFor := 0 to LPrimaryKey.Columns.Count -1 do
-        ADataSet.FieldByName(LPrimaryKey.Columns[LFor]).DefaultExpression := '-1';
+        ADataSet.FieldByName(LPrimaryKey.Columns[LFor]).DefaultExpression :=
+          IntToStr(cAutoIncNotGenerated);
     end;
   end;
   // TField para controle interno ao Dataset
@@ -637,6 +650,47 @@ begin
   _SetCalcFieldDefsObjectClass(ADataSet, AObject);
   // Adicionar Fields Aggregates
   _SetAggregateFieldDefsObjectClass(ADataSet, AObject);
+  // TFields de PROVENIENCIA DA LINHA, criados por ULTIMO e deixados no FIM da
+  // lista. A razao nao e que os copiadores aninhados escrevam sempre em
+  // N + 1 - eles NAO escrevem: _FillADTField e o ramo ADT/Mongo de
+  // _FillDataSetField copiam o campo N da origem para ATarget.Fields[N + 1],
+  // mas o ramo comum de _FillDataSetField copia N para N. A razao e mais
+  // forte e vale para os TRES lacos: todos sao limitados pelo FieldCount da
+  // ORIGEM, de modo que uma coluna acrescentada no FIM do alvo nunca e
+  // alcancada e e inocua. O que NAO seria inocuo e uma coluna interna posta
+  // ANTES das mapeadas: quebraria o + 1 dos dois primeiros e desalinharia o
+  // N para N do terceiro, e nenhuma assercao da suite notaria. Ver o
+  // comentario de cRowTokenField em Janus.DataSet.Fields.
+  _AddReservedField(ADataSet, cRowTokenField);
+  _AddReservedField(ADataSet, cOwnerTokenField);
+end;
+
+/// <summary> Cria um dos TFields de PROVENIENCIA DA LINHA, recusando-se a
+///  faze-lo em cima de uma coluna que a entidade ja mapeou com esse nome.
+///  POR QUE A GUARDA. cRowTokenField e cOwnerTokenField sao NOMES RESERVADOS a
+///  partir do momento em que passaram a ser criados aqui, e uma entidade que
+///  mapeie uma coluna chamada ROWTOKEN ou OWNERTOKEN cairia dentro do
+///  construtor do adapter com a mensagem MEDIDA "A component named RowToken
+///  already exists" - que e do TComponent, nao do TDataSet, nao nomeia a
+///  entidade e nao tem uma palavra sobre a reserva. As colunas MAPEADAS ja sao
+///  criadas sob um FindField logo acima; aqui a resposta certa nao e reusar o
+///  campo alheio - ele tem o tipo e o significado da entidade, e a cascata
+///  escreveria por cima - e sim dizer ao autor do model o que renomear.
+///  Medido por Test.Janus.AutoInc.Distribution
+///  .EntityColumnNamedLikeAReservedOne_SaysWhichNameIsReserved. </summary>
+procedure TBind._AddReservedField(const ADataSet: TDataSet;
+  const AFieldName: String);
+begin
+  if ADataSet.FindField(AFieldName) <> nil then
+    raise Exception.CreateFmt('The column name "%s" is RESERVED by Janus. ' +
+      'It is the row-provenance column the CascadeAutoInc walk uses to tell ' +
+      'which pending child row belongs to which master row, and it is ' +
+      'created on every dataset the framework opens. Rename the mapped ' +
+      'column of the entity - or its [Column] alias - to something else. ' +
+      'The two reserved names are "%s" and "%s".',
+      [AFieldName, cRowTokenField, cOwnerTokenField]);
+  TFieldSingleton.GetInstance.AddField(ADataSet, AFieldName, ftInteger);
+  ADataSet.FieldByName(AFieldName).Visible := False;
 end;
 
 procedure TBind._FillADTField(const AADTField: TADTField;
@@ -660,7 +714,7 @@ begin
     while not ASource.Eof do
     begin
       ATarget.Append;
-      // Usando Mongo com FireDAC o TField[0] � do tipo TDataSet (TDataSetField)
+      // Usando Mongo com FireDAC o TField[0] tem o tipo TDataSet (TDataSetField)
       // e esse DataSet, vem com 1 TField do tipo TADTField, nesse caso o
       // tratamento especial.
       if ASource.Fields[0] is TADTField then
@@ -799,11 +853,120 @@ begin
   end;
 end;
 
+/// <summary> The ORDINAL branch of the field-to-property bind. Issue #324.
+///
+///  TField.AsInteger IS A Longint, AND THE DISPATCHER ABOVE ROUTES tkInt64
+///  HERE. TLargeintField.GetAsInteger - read in the RTL source shipped with
+///  Studio 37.0, and anchored by METHOD - fetches the value into a LargeInt
+///  local and returns `Integer(L)`, a hard 32-bit truncation and not a
+///  conversion that anything checks. So a 64-bit key wider than 32 bits arrives
+///  in its own property truncated to its low 32 bits, silently. Measured
+///  through the REST server's own INSERT and its own FindOne: a row written
+///  with 9007199254740993 read back as 1 - and 9007199254740993 mod 2^32 IS 1.
+///
+///  THE DAMAGE IS NOT THE READ. TAppResourceBase.ParseUpdate hands the row it
+///  read to TRESTObjectSet.Modify, which files it in FObjectState under
+///  GenerateKey's rendering of its primary key. TRESTObjectSet.Update then
+///  looks the EDITED object up under ITS key, and the two keys no longer spell
+///  the same thing - so the entry is never found, no UPDATE is emitted, and the
+///  master-detail sweep at the end of that method reads whatever is LEFT in
+///  FObjectState as a detail row the caller removed and DELETES it. Measured at
+///  the base commit, through the connection's own monitor:
+///    SELECT ktbig.ktbig, ktbig.kttag FROM ktbig WHERE (ktbig.ktbig=9007199254740993)
+///    DELETE FROM ktbig WHERE ktbig = :ktbig [ktbig=1]
+///  and no UPDATE anywhere. A PUT answering 200 while deleting the row whose
+///  key is the truncation of the one it was given.
+///
+///  ONLY tkInt64 CHANGES ROUTE, and the two labels that share this branch keep
+///  theirs. tkInteger is a Longint already, and tkSet is not a number at all -
+///  a set property is written from an ordinal whose meaning is its bit pattern,
+///  and widening the TValue that carries it changes which cast the RTTI writer
+///  performs. Neither has anything to gain here and both have something to
+///  lose, so the guard names tkInt64 rather than excluding tkSet.
+///
+///  AND THAT NARROWNESS IS GROUPED BY ARGUMENT, NOT BY MEASUREMENT, WHICH HAS
+///  TO BE SAID RATHER THAN LEFT TO BE DISCOVERED. Making the guard ALWAYS TRUE
+///  - so that tkInteger and tkSet reach AsLargeInt as well - leaves every suite
+///  that compiles this unit green.
+///
+///  "EVERY SUITE" IS A POPULATION AND IT WAS ENUMERATED, because an earlier
+///  version of this sentence said "every" and then listed THREE. FIVE of the
+///  seven test projects compile this unit and two do not, measured the same way
+///  the mutation was - by whether dcc32 echoes a {$MESSAGE WARN} planted in
+///  this routine: it echoes for Units, RESTHorse, RESTfulDriver, RESTMARS and
+///  RESTOracle, and does not echo for LiveBindings or RESTWiRL.
+///
+///  Of those five, FOUR can carry a verdict: RESTHorse 149/0/0, Units 592/0/0,
+///  RESTfulDriver 130/0/0 and RESTMARS 33/0/0, each with the tripwire echoed.
+///  RESTOracle compiles the unit and cannot answer - its twelve clauses are
+///  already errored at the base commit, so nothing there can die.
+///
+///  Nothing under Test\ tells the two apart. The guard is kept because it is
+///  the conservative half of an untested pair and not because a clause defends
+///  it; the clause that would defend it needs a SET-typed column mapping, which
+///  no entity in this repository has and which is a piece of work of its own.
+///
+///  ONE MORE SURVIVOR, DECLARED AND JUDGED BENIGN. Inverting the ORDER of the
+///  chain below - testing tkInt64 BEFORE the NULL test, so a NULL 64-bit field
+///  reaches AsLargeInt instead of the zero arm - survives in all four suites
+///  that can answer: 149/0/0, 592/0/0, 130/0/0 and 33/0/0, tripwire echoed each
+///  time. It survives because the two paths agree:
+///  TLargeintField.GetAsLargeint - read in the RTL source shipped with Studio
+///  37.0, anchored by METHOD - is `if not GetValue(Result) then Result := 0`,
+///  which is the same zero the arm it skipped would have written. So the order
+///  carries no behaviour for tkInt64 and the survivor is the measurement
+///  saying so, not a hole. The order is kept for shape: of the four sibling
+///  _SetFieldToProperty* routines, the TWO that have a NULL arm at all -
+///  _SetFieldToPropertyString and _SetFieldToPropertyDouble - both lead with
+///  the same `VType <= varNull` test, and _SetFieldToPropertyRecord and
+///  _SetFieldToPropertyEnumeration have no such arm to lead with. Two out of
+///  two, not four out of four, and the sentence says which.
+///
+///  UInt64 IS tkInt64 TOO AND IT GETS NO BRANCH OF ITS OWN, WHICH IS A
+///  MEASUREMENT AND NOT A PREFERENCE. It had one for the length of one commit:
+///  an explicit `PropertyType.Handle = TypeInfo(UInt64)` arm passing
+///  TValue.From<UInt64>, argued for on the grounds that an Int64 above
+///  High(Int64) is negative and a cast to an unsigned property could trip a
+///  range check. Mutation knocked that down twice over. Disabling the arm's
+///  CONDITION - with a tripwire the compiler echoed - left the whole suite at
+///  149/0/0: the line below writes a UInt64 property from a negative Int64 and
+///  the value arrives with every bit intact. And the argument was wrong at the
+///  root as well, because that cast is performed inside System.Rtti, whose
+///  switches are not this project's to set.
+///
+///  Disabling the arm's BODY instead - AsLargeInt back to AsInteger inside it -
+///  killed exactly one clause, so the arm WAS reached; it simply had nothing
+///  the line below does not already do. What guards the unsigned case now is
+///  that clause,
+///  Test.Janus.Server.Resource.IntegerKeyWidth.UnsignedKeyAtTheSignedExtreme_MustReachItsUnsignedProperty,
+///  which dies with this line.
+///
+///  IT WAS CALLED UnsignedKeyAboveHighInt64_MustRoundTripThroughTheFramework
+///  UNTIL ISSUE #325, AND THE RENAME IS NOT COSMETIC. #325 turned the WRITE of
+///  an unsigned key above High(Int64) into a named refusal, so the clause can
+///  no longer ask the framework to write the row it then reads back: it writes
+///  the row by hand and goes on asking the only question this line answers. The
+///  READ is deliberately left alone by that refusal - Low(Int64) is a perfectly
+///  legal value of a BIGINT column, whoever put it there.
+///
+///  AND THE CITATION WAS RE-MEASURED UNDER THE NEW NAME RATHER THAN JUST
+///  RE-SPELLED, because a renamed anchor that nobody re-ran is a citation with
+///  no evidence behind it. Turning this line's AsLargeInt back into AsInteger,
+///  with a {$MESSAGE WARN} the compiler echoed in the same build, kills NINE
+///  clauses of Janus.Tests.RESTHorse. The renamed one is among them, and so are
+///  the two controls issue #325 added -
+///  UnsignedKeyAboveHighInt64_TheLocalUpdateMustStillReachItsRow and
+///  ...TheLocalDeleteMustStillReachItsRow - which reach this line through the
+///  READ that fills the unsigned property before the update and the delete are
+///  built. That is also why #325 could leave the lookup unguarded: the two
+///  directions agree because BOTH of them pass through here. </summary>
 procedure TBind._SetFieldToPropertyInteger(const LProperty: TRttiProperty;
   const AField: TField; const AObject: TObject);
 begin
   if TVarData(AField.Value).VType <= varNull then
     LProperty.SetValue(AObject, 0)
+  else if LProperty.PropertyType.TypeKind = tkInt64 then
+    LProperty.SetValue(AObject, AField.AsLargeInt)
   else
     LProperty.SetValue(AObject, AField.AsInteger);
 end;
@@ -890,8 +1053,8 @@ begin
     if not LColumn.ColumnProperty.IsWritable then
       Continue;
     // Em Banco NoSQL a estrutura de campos pode ser diferente de uma
-    // cole��o para a outra, dessa forma antes de popular a propriedade da
-    // classe, � verificado se o nome dessa propriedade existe na cole��o
+    // colecao para a outra, dessa forma antes de popular a propriedade da
+    // classe, verifica-se se o nome dessa propriedade existe na colecao
     // de dados selecionada.
     LField := ADataSet.FieldList.Find(LColumn.ColumnName);
     if LField = nil then
@@ -915,8 +1078,8 @@ begin
     if not LColumn.ColumnProperty.IsWritable then
       Continue;
     // Em Banco NoSQL a estrutura de campos pode ser diferente de uma
-    // cole��o para a outra, dessa forma antes de popular a propriedade da
-    // classe, � verificado se o nome dessa propriedade existe na cole��o
+    // colecao para a outra, dessa forma antes de popular a propriedade da
+    // classe, verifica-se se o nome dessa propriedade existe na colecao
     // de dados selecionada.
     if AADTField.Fields.FindField(LColumn.ColumnName) <> nil then
       _SetFieldToProperty(AADTField.Fields.FieldByName(LColumn.ColumnName),

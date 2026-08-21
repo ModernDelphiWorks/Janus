@@ -22,15 +22,13 @@
 
 unit Janus.Server.DataSnap;
 
-{$IFDEF JANUS_REST_DATASNAP}
-
 interface
 
 uses
   Classes,
   SysUtils,
   Janus.RestComponent,
-  /// Janus Conexão
+  /// Janus Conexao
   DataEngine.FactoryInterfaces,
   /// DataSnap
   Datasnap.DSServer,
@@ -144,10 +142,5 @@ function TSimpleServerClass.GetDSClass: TDSClass;
 begin
   Result := TDSClass.Create(FPersistentClass, False);
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

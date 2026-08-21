@@ -91,7 +91,7 @@ constructor TClientDataSetAdapter<M>.Create(AConnection: IDBConnection;
   ADataSet: TDataSet; APageSize: Integer; AMasterObject: TObject);
 begin
   inherited Create(AConnection, ADataSet, APageSize, AMasterObject);
-  // Captura o component TClientDataset da IDE passado como par�metro
+  // Captura o component TClientDataset da IDE passado como parametro
   FOrmDataSet := ADataSet as TClientDataSet;
   FClientDataSetEvents := TClientDataSetEvents.Create;
   // Captura e guarda os eventos do dataset
@@ -196,6 +196,10 @@ begin
   try
     try
       // Limpa os registro do dataset antes de garregar os novos dados
+      // Reabre antes de limpar: EmptyDataSet passa por CheckBrowseMode e, com o
+      // dataset fechado, levanta "Cannot perform this operation on a closed
+      // dataset" - ver TDataSetBaseAdapter<M>.EnsureOpen.
+      EnsureOpen;
       EmptyDataSet;
       inherited;
       FSession.OpenID(AID);
@@ -207,7 +211,7 @@ begin
     EnableDataSetEvents;
     // Define a order no dataset
     FOrmDataSet.IndexFieldNames := _GetIndexFieldNames('');
-    // Erro interno do FireDAC se no m�todo First se o dataset estiver vazio
+    // Erro interno do FireDAC se no metodo First se o dataset estiver vazio
     if not FOrmDataSet.IsEmpty then
       FOrmDataSet.First;
     FOrmDataSet.EnableControls;
@@ -228,6 +232,10 @@ begin
   try
     try
       // Limpa os registro do dataset antes de garregar os novos dados
+      // Reabre antes de limpar: EmptyDataSet passa por CheckBrowseMode e, com o
+      // dataset fechado, levanta "Cannot perform this operation on a closed
+      // dataset" - ver TDataSetBaseAdapter<M>.EnsureOpen.
+      EnsureOpen;
       EmptyDataSet;
       inherited;
       FSession.OpenSQL(ASQL);
@@ -239,7 +247,7 @@ begin
     EnableDataSetEvents;
     // Define a order no dataset
     FOrmDataSet.IndexFieldNames := _GetIndexFieldNames('');
-    // Erro interno do FireDAC se no m�todo First se o dataset estiver vazio
+    // Erro interno do FireDAC se no metodo First se o dataset estiver vazio
     if not FOrmDataSet.IsEmpty then
       FOrmDataSet.First;
     FOrmDataSet.EnableControls;
@@ -260,6 +268,10 @@ begin
   try
     try
       // Limpa os registro do dataset antes de garregar os novos dados
+      // Reabre antes de limpar: EmptyDataSet passa por CheckBrowseMode e, com o
+      // dataset fechado, levanta "Cannot perform this operation on a closed
+      // dataset" - ver TDataSetBaseAdapter<M>.EnsureOpen.
+      EnsureOpen;
       EmptyDataSet;
       inherited;
       FSession.OpenWhere(AWhere, AOrderBy);
@@ -271,7 +283,7 @@ begin
     EnableDataSetEvents;
     // Define a order no dataset
     FOrmDataSet.IndexFieldNames := _GetIndexFieldNames(AOrderBy);
-    // Erro interno do FireDAC se no m�todo First se o dataset estiver vazio
+    // Erro interno do FireDAC se no metodo First se o dataset estiver vazio
     if not FOrmDataSet.IsEmpty then
       FOrmDataSet.First;
     FOrmDataSet.EnableControls;
@@ -288,6 +300,10 @@ var
 begin
   LRecnoBook := FOrmDataSet.Bookmark;
   FOrmDataSet.DisableControls;
+  // DisableDataSetEvents is LOAD-BEARING, not cosmetic: it unhooks
+  // TDataSetBaseAdapter<M>.DoBeforePost, and ApplyUpdater does not terminate
+  // without it. See the note on cInternalField in Janus.DataSet.Fields;
+  // pinned by Test.Janus.Apply.Loops.
   DisableDataSetEvents;
   try
     ApplyInserter(MaxErros);
@@ -317,7 +333,7 @@ var
   LFor: Integer;
 begin
   inherited;
-  // Filtar somente os registros exclu�dos
+  // Filtar somente os registros excluidos
   if FSession.DeleteList.Count = 0 then
     Exit;
 
@@ -336,6 +352,11 @@ begin
   FOrmDataSet.Filtered := True;
   if not FOrmDataSet.IsEmpty then
     FOrmDataSet.First;
+  // A MESMA CONTAGEM DA OUTRA FAMILIA LOCAL, e escrita aqui em vez de herdada:
+  // esta classe carrega o seu proprio ApplyInserter, portanto o numero tem de
+  // ser estabelecido nos dois lacos ou um deles fica sem fronteira. Ver
+  // TDataSetBaseAdapter<M>.FCascadeMasterRows - issue #261.
+  FCascadeMasterRows := FOrmDataSet.RecordCount;
   try
     while FOrmDataSet.RecordCount > 0 do
     begin
@@ -366,6 +387,7 @@ begin
       end;
     end;
   finally
+    FCascadeMasterRows := 0;
     FOrmDataSet.Filtered := False;
     FOrmDataSet.Filter := '';
   end;
@@ -417,7 +439,7 @@ var
   LIsConnected: Boolean;
 begin
   inherited;
-  // Controle de transa��o externa, controlada pelo desenvolvedor
+  // Controle de transacao externa, controlada pelo desenvolvedor
   LInTransaction := FConnection.InTransaction;
   LIsConnected := FConnection.IsConnected;
   if not LIsConnected then

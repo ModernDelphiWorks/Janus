@@ -22,8 +22,6 @@
 
 unit Janus.Server.Resource.DataSnap;
 
-{$IFDEF JANUS_REST_DATASNAP}
-
 interface
 
 uses
@@ -91,7 +89,7 @@ begin
   LQueryParams := TStringList.Create;
   LQueryParams.Assign(GetInvocationMetadata().QueryParams);
   try
-    //Monta a URL com a Query Param completa, necessário no parse interno
+    //Monta a URL com a Query Param completa, necessario no parse interno
     LQueryText := resource + cDELIM_QUERY;
     for LFor := 0 to LQueryParams.Count -1 do
     begin
@@ -138,7 +136,7 @@ begin
   LQueryParams := TStringList.Create;
   LQueryParams.Assign(GetInvocationMetadata().QueryParams);
   try
-    // Monta a URL com a Query Param completa, necessário no parse interno
+    // Monta a URL com a Query Param completa, necessario no parse interno
     LQueryText := resource + cDELIM_QUERY;
     for LFor := 0 to LQueryParams.Count -1 do
     begin
@@ -161,10 +159,5 @@ begin
     LQuery.Free;
   end;
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

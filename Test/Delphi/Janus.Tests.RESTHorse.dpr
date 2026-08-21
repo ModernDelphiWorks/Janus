@@ -44,6 +44,8 @@ uses
   Janus.DML.Generator.SQLite,
   /// Models
   MetaDbDiff.Mapping.Register,
+  /// Three levels with every key column spelled once — issue #225
+  Test.Janus.Model.AsymTree in 'Common\Test.Janus.Model.AsymTree.pas',
   /// Test Infrastructure
   RestHorseTest.Models in 'RESTHorse\Support\RestHorseTest.Models.pas',
   RestHorseTest.Base   in 'RESTHorse\Support\RestHorseTest.Base.pas',
@@ -54,7 +56,39 @@ uses
   /// Integration Test Suites — ESP-006
   Test.Janus.REST.Horse.Driver      in 'RESTHorse\Test.Janus.REST.Horse.Driver.pas',
   /// Integration Test Suites — R20 method-level grant (#137)
-  Test.Janus.REST.Horse.MethodGrant      in 'RESTHorse\Test.Janus.REST.Horse.MethodGrant.pas';
+  Test.Janus.REST.Horse.MethodGrant      in 'RESTHorse\Test.Janus.REST.Horse.MethodGrant.pas',
+  /// Whose primary key the server side cascade propagates — issue #225
+  Test.Janus.Server.RestObjectSet.AutoInc in 'RESTHorse\Test.Janus.Server.RestObjectSet.AutoInc.pas',
+  /// Whether the update leg of that cascade propagates at all — issue #239
+  Test.Janus.Server.RestObjectSet.CascadeUpdate in 'RESTHorse\Test.Janus.Server.RestObjectSet.CascadeUpdate.pas',
+  /// The same question on the LIST leg, where N children are inserted — issue #242
+  Test.Janus.Server.RestObjectSet.CascadeUpdateList in 'RESTHorse\Test.Janus.Server.RestObjectSet.CascadeUpdateList.pas',
+  /// Whether the MASTER key reaches a child added on update — issue #242
+  Test.Janus.Server.RestObjectSet.UpdateMasterKey in 'RESTHorse\Test.Janus.Server.RestObjectSet.UpdateMasterKey.pas',
+  /// Key-only entity, no updatable column — issue #240
+  Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
+  /// The ORDER the server side cascade deletes a tree in — issue #240
+  Test.Janus.Server.RestObjectSet.CascadeDelete in 'RESTHorse\Test.Janus.Server.RestObjectSet.CascadeDelete.pas',
+  /// A single-object association that is nil — issue #240
+  Test.Janus.Server.RestObjectSet.NilBranch in 'RESTHorse\Test.Janus.Server.RestObjectSet.NilBranch.pas',
+  /// The ExistSequence guard around the cascade propagation — issue #240
+  Test.Janus.Server.RestObjectSet.SuppliedKey in 'RESTHorse\Test.Janus.Server.RestObjectSet.SuppliedKey.pas',
+  /// A key-only Update on the server side — issue #240
+  Test.Janus.Server.RestObjectSet.NoOpUpdate in 'RESTHorse\Test.Janus.Server.RestObjectSet.NoOpUpdate.pas',
+  /// One owner carrying TWO lazy branches, to two different child classes
+  Test.Janus.Model.LazyTwoBranch in 'Common\Test.Janus.Model.LazyTwoBranch.pas',
+  /// The server side lazy load, whose only statement was commented out
+  Test.Janus.Server.RestObjectSet.LoadLazy in 'RESTHorse\Test.Janus.Server.RestObjectSet.LoadLazy.pas',
+  /// One entity per PRIMARY KEY FIELD TYPE — issue #311
+  Test.Janus.Model.KeyTypes in 'Common\Test.Janus.Model.KeyTypes.pas',
+  /// The one shape that reaches an EMPTY Variant — issue #311
+  Test.Janus.Model.KeyTypeDecoy in 'Common\Test.Janus.Model.KeyTypeDecoy.pas',
+  /// Whether the insert response quotes the key it carries back — issue #311
+  Test.Janus.Server.Resource.KeyQuoting in 'RESTHorse\Test.Janus.Server.Resource.KeyQuoting.pas',
+  /// Whether a PUT can locate the row its key names — issue #320
+  Test.Janus.Server.Resource.UpdateWhere in 'RESTHorse\Test.Janus.Server.Resource.UpdateWhere.pas',
+  /// The WIDTH of an integer primary key — issues #324 and #325
+  Test.Janus.Server.Resource.IntegerKeyWidth in 'RESTHorse\Test.Janus.Server.Resource.IntegerKeyWidth.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

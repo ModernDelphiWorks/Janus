@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ @abstract(Janus Binder — R22.4: BindList + BindGridColumn metadata + FListLinks)
+{ @abstract(Janus Binder - R22.4: BindList + BindGridColumn metadata + FListLinks)
   @created(23 Apr 2026)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
 }
@@ -44,7 +44,7 @@ type
   TJanusChildListFunc<M: class; D: class> =
     reference to function(const AMaster: M): TObjectList<D>;
 
-  // Bridge object — wraps the scroll-propagation callback as an of-object method.
+  // Bridge object - wraps the scroll-propagation callback as an of-object method.
   // Stored in FGridListAdapters to tie its lifetime to the binder.
   TJanusScrollBridge<M: class; D: class> = class
   private

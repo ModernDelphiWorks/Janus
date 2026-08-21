@@ -22,16 +22,14 @@
 
 unit Janus.Server.DMVC;
 
-{$IFDEF JANUS_REST_DMVC}
-
 interface
 
 uses
   Classes,
   SysUtils,
   Janus.RestComponent,
-  /// Janus Conexão
-  Janus.Factory.Interfaces,
+  /// Janus Conexao
+  DataEngine.FactoryInterfaces,
   /// WiRL
   MVCFramework;
 
@@ -95,10 +93,5 @@ begin
   /// <summary> Adiciona a App REST no Delphi MVC </summary>
   AddResource;
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

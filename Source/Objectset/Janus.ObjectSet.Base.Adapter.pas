@@ -18,7 +18,7 @@
   @abstract(Website : http://www.Janus.com.br)
   @abstract(Telagram : https://t.me/Janus)
 
-  ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi.
+  ORM Brasil: um ORM simples e descomplicado para quem utiliza Delphi.
 }
 
 {$INCLUDE ..\Janus.inc}
@@ -109,7 +109,7 @@ begin
     Exit;
   // Cria novo objeto para guarda-lo na lista com o estado atual do ASourceObject.
   LStateObject := ASourceObject.ClassType.Create;
-  // Gera uma chave de identifica��o unica para cada item da lista
+  // Gera uma chave de identificacao unica para cada item da lista
   LKey := GenerateKey(ASourceObject);
   // Guarda o novo objeto na lista, identificado pela chave
   FObjectState.Add(LKey, LStateObject);
@@ -270,7 +270,9 @@ begin
     if ACascadeAction = TCascadeAction.CascadeInsert then // Insert
     begin
       FSession.Insert(LObject);
-      // Popula as propriedades de relacionamento com os valores do master
+      // Popula as propriedades de relacionamento com a chave do proprio item
+      // recem inserido - e a chave DELE que os filhos DELE esperam, e nao a do
+      // master. O carimbo roda dentro do laco, para cada item.
       LPrimaryKey := TMappingExplorer
                        .GetMappingPrimaryKeyColumns(LObject.ClassType);
       if LPrimaryKey = nil then
@@ -297,7 +299,23 @@ begin
         FObjectState.TrimExcess;
       end
       else
+      begin
         FSession.Insert(LObject);
+        // Item ausente do estado guardado por Modify: entra como INSERT, e
+        // acaba de ganhar sua propria chave. Quem espera essa chave sao os
+        // filhos DELE, gravados logo abaixo pelo CascadeActionsExecute - o que
+        // nao for carimbado aqui chega ao banco em zero, sem levantar nada.
+        // Mesma leitura do ramo de insert: a chave e lida de LObject, e o
+        // carimbo roda DENTRO do laco, para cada item, porque cada item da
+        // lista ganhou uma chave diferente da do anterior.
+        LPrimaryKey := TMappingExplorer
+                         .GetMappingPrimaryKeyColumns(LObject.ClassType);
+        if LPrimaryKey = nil then
+          raise Exception.Create(cMESSAGEPKNOTFOUND);
+
+        for LColumn in LPrimaryKey.Columns do
+          SetAutoIncValueChilds(LObject, LColumn);
+      end;
     end;
     // Executa comando em cascade de cada objeto da lista
     if not (ACascadeAction = TCascadeAction.CascadeDelete) then
@@ -325,7 +343,11 @@ begin
   if ACascadeAction = TCascadeAction.CascadeInsert then // Insert
   begin
     FSession.Insert(LObject);
-    // Popula as propriedades de relacionamento com os valores do master
+    // Popula as propriedades de relacionamento com a chave do proprio ramo
+    // recem inserido - nao com a do master. A chave lida e a de LObject, e
+    // SetAutoIncValueChilds percorre os filhos DELE. Medido no #238: procurar
+    // um nome de coluna do master contra o mapeamento do filho devolve
+    // IndexOf = -1, o walker sai sem escrever, e nada e levantado.
     LPrimaryKey := TMappingExplorer
                      .GetMappingPrimaryKeyColumns(LObject.ClassType);
     if LPrimaryKey = nil then
@@ -354,7 +376,12 @@ begin
     else
     begin
       FSession.Insert(LObject);
-      // Popula as propriedades de relacionamento com os valores do master
+      // Objeto ausente do estado guardado por Modify: entra como INSERT, e
+      // acaba de ganhar sua propria chave. Quem espera essa chave sao os
+      // filhos DELE, gravados logo abaixo pelo CascadeActionsExecute - o que
+      // nao for carimbado aqui chega ao banco em zero, sem levantar nada.
+      // Mesma leitura do ramo de insert: a chave e lida de LObject, nao do
+      // master.
       LPrimaryKey := TMappingExplorer
                        .GetMappingPrimaryKeyColumns(LObject.ClassType);
       if LPrimaryKey = nil then

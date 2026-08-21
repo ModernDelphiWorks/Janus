@@ -63,7 +63,7 @@ var
 begin
   if not FDriver.ContainsKey(ADriverName) then
     raise Exception
-            .Create('O driver ' + TStrDriverName[ADriverName] + ' n�o est� registrado, adicione a unit "Janus.DML.Generator.???.pas" onde ??? nome do driver, na cl�usula USES do seu projeto!');
+            .Create('O driver ' + TStrDriverName[ADriverName] + ' n'#$00E3'o est'#$00E1' registrado, adicione a unit "Janus.DML.Generator.???.pas" onde ??? nome do driver, na cl'#$00E1'usula USES do seu projeto!');
 
   LFactory := FDriver[ADriverName];
   Result := LFactory();

@@ -41,6 +41,10 @@ uses
 type
   // Classe de banco de dados ADS
   TDMLGeneratorADS = class(TDMLGeneratorAbstract)
+  protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
   public
     constructor Create; override;
     destructor Destroy; override;
@@ -61,7 +65,21 @@ implementation
 constructor TDMLGeneratorADS.Create;
 begin
   inherited;
-  FDateFormat := 'DD/MM/CCYY';
+  // 'CC' nao e especificador do FormatDateTime do Delphi. O 'C' da RTL e data
+  // curta + hora longa, e a RTL consome os 'c' consecutivos numa unica
+  // expansao, entao 'DD/MM/CCYY' com 15/03/2027 14:07:53 produzia (medido)
+  // '15/03/15/03/2027 14:07:5327' -- toda literal de data gerada para o
+  // dialeto ADS saia malformada.
+  // De onde saiu esse 'CCYY' e DESCONHECIDO. Nao e mascara da RTL, e tambem
+  // nao e mascara do Advantage: a referencia da ACE API para AdsSetDateFormat
+  // diz que o formato "must contain two or more occurrences of the letters D,
+  // M, and Y respectively (e.g. "MMDDYYYY")", com default "MM/DD/YYYY" -- o
+  // alfabeto e D/M/Y, nunca C. Nao ha etiologia comprovada aqui.
+  // 'yyyy-MM-dd' e o formato ANSI (ccyy-mm-dd, prosa do Developer's Guide para
+  // o layout da literal) que o Advantage aceita independentemente do formato
+  // de data configurado no cliente por AdsSetDateFormat / TAdsSettings.
+  // DateFormat.
+  FDateFormat := 'yyyy-MM-dd';
   FTimeFormat := 'HH:MM:SS';
 end;
 
@@ -161,6 +179,22 @@ begin
   Result := ExecuteSequence(Format('SELECT GEN_ID(%s, %s) FROM RDB$DATABASE;',
                                    [AAutoInc.Sequence.Name,
                            IntToStr(AAutoInc.Sequence.Increment)]));
+end;
+
+/// <summary> NAO MEDIDO CONTRA DOCUMENTACAO OFICIAL. O Advantage Database
+///  Server nao serve mais documentacao: devzone.advantagedatabase.com faz 301
+///  para community.sap.com em toda URL de webhelp. Snippets de busca afirmam
+///  que o ADS 11+ tem tipo GUID de 16 bytes e funcao NewID(), mas nenhuma
+///  pagina oficial abriu e isso NAO fica registrado como fato. ARMADILHA: a doc
+///  de `newid` que esta' no ar em help.sap.com e' do SAP ASE, produto
+///  DIFERENTE, e nao serve de citacao para o ADS. A doc do ADS hoje so' existe
+///  como CHM local (Advantage 12.0\Help\advantage.chm).
+///  Nao ha' arquivo de metadata para ADS em Source/Drivers.
+///  Fica a forma canonica, conservadora e marcada: hoje este dialeto devolve
+///  '1 = 0' em silencio e qualquer literal ja e' melhora. </summary>
+function TDMLGeneratorADS.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 initialization

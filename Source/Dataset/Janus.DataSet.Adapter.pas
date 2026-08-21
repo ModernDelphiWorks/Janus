@@ -53,6 +53,7 @@ type
     FConnection: IDBConnection;
     procedure OpenDataSetChilds; override;
     procedure RefreshDataSetOneToOneChilds(AFieldName: String); override;
+    procedure DoBeforeScroll(DataSet: TDataSet); override;
     procedure DoAfterScroll(DataSet: TDataSet); override;
     procedure DoBeforePost(DataSet: TDataSet); override;
     procedure DoBeforeDelete(DataSet: TDataSet); override;
@@ -90,12 +91,65 @@ begin
   inherited;
 end;
 
+/// <summary> The scroll contract lives HERE and not in the base class because
+///  this is the family whose DoAfterScroll calls OpenDataSetChilds, which
+///  re-reads every child from the database and therefore throws away rows that
+///  were typed and not saved. TRESTDataSetAdapter<M> descends straight from the
+///  base and its OpenDataSetChilds has an empty body, so it loses nothing and
+///  has nothing to ask about - firing there would be a false alarm.
+///  inherited runs FIRST: the consumer's own BeforeScroll keeps the position in
+///  the chain it always had, and the new question is appended after it. </summary>
+procedure TDataSetAdapter<M>.DoBeforeScroll(DataSet: TDataSet);
+begin
+  inherited;
+  DoBeforeScrollPendingChilds;
+end;
+
+/// <summary> ISSUE #276. OpenDataSetChilds re-opens every child dataset from
+///  the database, and OpenSQLInternal starts with EmptyDataSet - so it throws
+///  away whatever the operator typed into the grandchildren and did not save.
+///  That is the SHIPPED CONTRACT when the operator moves the master
+///  (Test.Janus.Scroll.PendingChilds), and it is a defect when the mover is the
+///  framework's own read walk - _ExecuteOneToMany and _ExecuteOneToOne, both of
+///  which advance this cursor from the first row to Eof and put it back only to
+///  build objects.
+///  FChildReopenSuppressed tells the two apart. It suppresses THIS CALL ONLY,
+///  and the two things that must survive it are measured, one each:
+///
+///    * the consumer's own AfterScroll, reached through the `inherited` on the
+///      last line. That one runs on EVERY scroll of the walk, because the
+///      `inherited` sits OUTSIDE the state guard - measured by
+///      TheSuppressedWalk_StillFiresTheConsumersOwnAfterScroll, which names the
+///      rows the walk passed through and the row it came back to;
+///    * _InjectLazyProxiesOnScroll below, which is NOT swallowed with the
+///      re-open - measured by
+///      TheSuppressedWalk_StillInjectsTheLazyProxiesOnScroll.
+///
+///  A full DisableDataSetEvents around the walk would have taken both down.
+///
+///  HOW OFTEN THE INJECTION RUNS IS NOT PINNED, AND DO NOT READ IT AS "EVERY
+///  ROW" - it is not. This call is inside the dsBrowse guard, and every
+///  intermediate move of the walk happens in dsBlockRead, which is the
+///  suppression mechanism's own doing. It is therefore REACHED on two scrolls
+///  only - the First and the bookmark restore - and does work on one of them,
+///  because of the LCurrentPK = FLastPKValue early exit. Nothing here holds
+///  the frequency: making the injection happen once in the whole life of the
+///  adapter leaves the suite at 529 green - a run MEASURED AT COMMIT 3079877,
+///  where that was the whole of Janus.Tests.Units. The suite has grown since,
+///  so read the figure as the size of that run and not as today's baseline;
+///  re-run the mutation rather than scaling it. What the test above fixes is that
+///  the suppression does not swallow the call, and nothing more.
+///
+///  NOT MEASURED: the paging leg (NextPacket) rides on that same `inherited`
+///  and is covered only through it - no test here drives a paged cursor.
+///  </summary>
 procedure TDataSetAdapter<M>.DoAfterScroll(DataSet: TDataSet);
 begin
   if DataSet.State in [dsBrowse] then
     if not FOrmDataSet.Eof then
     begin
-      OpenDataSetChilds;
+      if FChildReopenSuppressed = 0 then
+        OpenDataSetChilds;
       _InjectLazyProxiesOnScroll;
     end;
   inherited;
@@ -121,9 +175,26 @@ begin
     LDataSet.DisableControls;
     LDataSet.First;
     try
-      repeat
-        LDataSet.Delete;
-      until LDataSet.Eof;
+      /// <summary> A nested dataset with no row has nothing to clear, and
+      ///  asking anyway is not harmless: TDataSet.Delete opens with
+      ///  `if FRecordCount = 0 then DatabaseError(SDataSetEmpty)`, and the body
+      ///  of a `repeat` always runs once - so the FIRST Delete on an empty
+      ///  nested dataset raised EDatabaseError and took the whole owner delete
+      ///  down with it. TDataSet.IsEmpty is `FActiveRecord >= FRecordCount`,
+      ///  not FRecordCount alone - but the First on the line above pins
+      ///  FActiveRecord to 0, so here it collapses to the very field Delete
+      ///  tests. That First is what makes this guard the exact complement of
+      ///  the raise rather than an approximation of it; move the guard away
+      ///  from the First and the claim stops holding. It guards only that:
+      ///  First still runs, so a nested dataset that is CLOSED still fails
+      ///  where it always did.
+      ///  Pinned by Test.Janus.Nested.Delete, which measures the populated case
+      ///  too - a guard that skipped more than the empty dataset would quietly
+      ///  stop clearing anything. </summary>
+      if not LDataSet.IsEmpty then
+        repeat
+          LDataSet.Delete;
+        until LDataSet.Eof;
     finally
       LDataSet.EnableControls;
     end;
@@ -133,7 +204,7 @@ end;
 procedure TDataSetAdapter<M>.DoBeforePost(DataSet: TDataSet);
 begin
   inherited DoBeforePost(DataSet);
-  // Rotina de valida��o se o campo foi deixado null
+  // Rotina de validacao se o campo foi deixado null
   _ExecuteCheckNotNull;
 end;
 
@@ -201,7 +272,7 @@ begin
     Exit;
   if FOrmDataSet.RecordCount = 0 then
     Exit;
-  // Se Count > 0, identifica-se que � o objeto � o Master
+  // Se Count > 0, identifica-se o objeto como o Master
   if FMasterObject.Count = 0 then
     Exit;
 
@@ -214,7 +285,7 @@ begin
     Bind.SetFieldToProperty(FOrmDataSet, LObject);
     for LChildKey in FMasterObject.Keys do
     begin
-      // Verifica se a associa��o correspondente ao child � lazy
+      // Verifica se a associacao correspondente ao child usa lazy
       LIsLazy := False;
       if LAssociations <> nil then
       begin
@@ -227,7 +298,7 @@ begin
           end;
         end;
       end;
-      // Pula filhos lazy — ser�o resolvidos via proxy transparente
+      // Pula filhos lazy - serao resolvidos via proxy transparente
       if LIsLazy then
         Continue;
 
@@ -319,8 +390,8 @@ begin
   begin
     if not (LAssociation.Multiplicity in [TMultiplicity.OneToOne, TMultiplicity.ManyToOne]) then
       Continue;
-    // Checa se o campo que recebeu a altera��o, � um campo de associa��o
-    // Se for � feito um novo select para atualizar a propriedade associada.
+    // Checa se o campo que recebeu a alteracao pertence a uma associacao
+    // Se for, faz-se um novo select para atualizar a propriedade associada.
     if LAssociation.ColumnsName.IndexOf(AFieldName) = -1 then
       Continue;
     if not FMasterObject.ContainsKey(LAssociation.ClassNameRef) then
@@ -344,7 +415,7 @@ end;
 
 procedure TDataSetAdapter<M>.DoNewRecord(DataSet: TDataSet);
 begin
-  // Limpa registros do dataset em mem�ria antes de receber os novos registros
+  // Limpa registros do dataset em memoria antes de receber os novos registros
   EmptyDataSetChilds;
   inherited DoNewRecord(DataSet);
 end;

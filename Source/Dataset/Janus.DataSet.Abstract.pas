@@ -105,9 +105,20 @@ begin
     Exit;
   if Field.Tag > 0 then
     Exit;
+  // NAO se acrescentou aqui a exclusao por nome de cRowTokenField e
+  // cOwnerTokenField, ao contrario de TBind.SetFieldToField, e a razao e
+  // medida: nada deste metodo alcanca uma coluna que nao esta no MAPEAMENTO. A
+  // insercao em ModifiedFields so acontece dentro do laco sobre
+  // TMappingExplorer.GetMappingColumn(M), com `LColumn.ColumnName =
+  // Field.FieldName` como condicao, e RefreshDataSetOneToOneChilds so age
+  // quando o nome pertence as ColumnsName de uma associacao. As duas colunas de
+  // proveniencia nao estao em nenhum dos dois lugares. Acrescentar a exclusao
+  // aqui nao muda uma unica execucao - medido: com ela e sem ela os quatro
+  // projetos dao o mesmo verde - e mudanca que nenhum teste consegue defender
+  // nao entra.
   if (Field.FieldKind <> fkData) or (Field.FieldName = cInternalField) then
     Exit;
-  // S� adiciona a lista se for edi��o
+  // So adiciona a lista se for edicao
   if FOrmDataSet.State in [dsEdit] then
   begin
     LValues := FSession.ModifiedFields.Items[M.ClassName];

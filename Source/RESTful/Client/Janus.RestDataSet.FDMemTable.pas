@@ -19,7 +19,7 @@
   @abstract(Website : http://www.Janus.com.br)
   @abstract(Telagram : https://t.me/Janus)
 
-  ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi.
+  ORM Brasil: um ORM simples e descomplicado para quem utiliza Delphi.
 }
 
 {$INCLUDE ..\..\Janus.inc}
@@ -107,7 +107,7 @@ constructor TRESTFDMemTableAdapter<M>.Create(const AConnection: IRESTConnection;
   ADataSet: TDataSet; APageSize: Integer; AMasterObject: TObject);
 begin
   inherited Create(AConnection, ADataSet, APageSize, AMasterObject);
-  // Captura o component TFDMemTable da IDE passado como par�metro
+  // Captura o component TFDMemTable da IDE passado como parametro
   FOrmDataSet := ADataSet as TFDMemTable;
   FMemTableEvents := TFDMemTableEvents.Create;
   // Captura e guarda os eventos do dataset
@@ -244,6 +244,11 @@ begin
   DisableDataSetEvents;
   try
     /// <summary> Limpa os registro do dataset antes de garregar os novos dados </summary>
+    /// <summary> Reabre antes de limpar: EmptyDataSet passa por
+    ///  CheckBrowseMode e, com o dataset fechado, levanta "Cannot perform this
+    ///  operation on a closed dataset" - ver
+    ///  TDataSetBaseAdapter<M>.EnsureOpen. </summary>
+    EnsureOpen;
     EmptyDataSet;
     inherited;
     LObject := FSession.Find(AID.ToString);
@@ -276,6 +281,11 @@ begin
   DisableDataSetEvents;
   try
     // Limpa registro do dataset antes de buscar os novos
+    /// <summary> Reabre antes de limpar: EmptyDataSet passa por
+    ///  CheckBrowseMode e, com o dataset fechado, levanta "Cannot perform this
+    ///  operation on a closed dataset" - ver
+    ///  TDataSetBaseAdapter<M>.EnsureOpen. </summary>
+    EnsureOpen;
     EmptyDataSet;
     inherited;
     LObjectList := FSession.Find;
@@ -310,6 +320,11 @@ begin
   DisableDataSetEvents;
   try
     /// <summary> Limpa os registro do dataset antes de garregar os novos dados </summary>
+    /// <summary> Reabre antes de limpar: EmptyDataSet passa por
+    ///  CheckBrowseMode e, com o dataset fechado, levanta "Cannot perform this
+    ///  operation on a closed dataset" - ver
+    ///  TDataSetBaseAdapter<M>.EnsureOpen. </summary>
+    EnsureOpen;
     EmptyDataSet;
     inherited;
     LObjectList := FSession.FindWhere(AWhere, AOrderBy);
@@ -361,7 +376,7 @@ begin
     end;
     LKeyFields := Copy(LKeyFields, 1, Length(LKeyFields) -2);
     LKeyValues := Copy(LKeyValues, 1, Length(LKeyValues) -2);
-    // Evitar duplicidade de registro em mem�ria
+    // Evitar duplicidade de registro em memoria
     if not LChild.FOrmDataSet.Locate(LKeyFields, LKeyValues, [loCaseInsensitive]) then
     begin
       LChild.FOrmDataSet.Append;
@@ -383,6 +398,10 @@ begin
   LRecnoBook := FOrmDataSet.GetBookmark;
   FOrmDataSet.DisableControls;
   FOrmDataSet.DisableConstraints;
+  // DisableDataSetEvents is LOAD-BEARING, not cosmetic: it unhooks
+  // TDataSetBaseAdapter<M>.DoBeforePost, and ApplyUpdater does not terminate
+  // without it. See the note on cInternalField in Janus.DataSet.Fields;
+  // pinned by Test.Janus.Apply.Loops.
   DisableDataSetEvents;
   try
     ApplyInserter(MaxErros);

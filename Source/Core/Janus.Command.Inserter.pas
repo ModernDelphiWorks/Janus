@@ -33,6 +33,7 @@ uses
   Types,
   Janus.Command.Abstract,
   Janus.DML.Commands,
+  Janus.DML.Insert.Columns,
   Janus.Core.Consts,
   Janus.Types.Blob,
   Janus.Objects.Helper,
@@ -77,7 +78,7 @@ end;
 
 function TCommandInserter.GenerateInsert(AObject: TObject): String;
 var
-  LColumns: TColumnMappingList;
+  LPlan: TInsertColumnPlan;
   LColumn: TColumnMapping;
   LCurrentValue: Variant;
   LPrimaryKey: TPrimaryKeyMapping;
@@ -89,26 +90,24 @@ begin
     FResultCommand := FGeneratorCommand.GeneratorInsert(AObject);
     Result := FResultCommand;
     FParams.Clear;
-    LColumns := TMappingExplorer.GetMappingColumn(AObject.ClassType);
-    if LColumns = nil then
+    /// Issue #352. THE SAME CALL THE GENERATOR MADE. This loop used to repeat
+    /// the generator's four skip tests and add a fifth of its own
+    /// (IsJoinColumn), so the statement above and the params below could - and
+    /// did - describe different column sets. A param the statement has no
+    /// marker for is dropped in silence; a marker this loop leaves unbound is
+    /// filled BY POSITION with the next param's value, which puts a value in
+    /// the wrong column. One function now decides for both.
+    ///
+    /// The order is deliberate: GeneratorInsert runs FIRST, exactly as before,
+    /// so an unmapped class still fails there with its own DIAG message rather
+    /// than here.
+    if not TInsertColumns.Plan(AObject, LPlan) then
       raise Exception.CreateFmt(cMESSAGECOLUMNNOTFOUND, [AObject.ClassName]);
 
     LPrimaryKey := TMappingExplorer.GetMappingPrimaryKey(AObject.ClassType);
-    for LColumn in LColumns do
+    for LColumn in LPlan.Columns do
     begin
       try
-        if not Assigned(LColumn.ColumnProperty) then
-          Continue;
-        if LColumn.ColumnProperty.IsNullValue(AObject) then
-          Continue;
-        if (LColumn.FieldType in [ftBlob, ftGraphic, ftOraBlob, ftOraClob]) and
-           (Length(LColumn.ColumnProperty.GetNullableValue(AObject).AsType<TBlob>.ToBytes) = 0) then
-          Continue;
-        if LColumn.IsNoInsert then
-          Continue;
-        if LColumn.IsJoinColumn then
-          Continue;
-
         if LPrimaryKey <> nil then
         begin
           if LPrimaryKey.AutoIncrement then
@@ -175,6 +174,13 @@ begin
           Value := _GetParamValue(AObject,
                                  LColumn.ColumnProperty,
                                  LColumn.FieldType);
+          /// Issue #325. The reason is written out over
+          /// TDMLCommandAbstract._RefuseUnsignedValueTheColumnCannotCarry.
+          Self._RefuseUnsignedValueTheColumnCannotCarry(AObject,
+                                                        LColumn.ColumnName,
+                                                        LColumn.ColumnProperty,
+                                                        LColumn.FieldType,
+                                                        Value);
           if FConnection.GetDriver = TDriverName.dnPostgreSQL then
             Continue;
           if DataType in [ftBoolean] then

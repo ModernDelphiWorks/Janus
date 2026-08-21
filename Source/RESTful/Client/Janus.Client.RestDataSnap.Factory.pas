@@ -22,8 +22,6 @@
 
 unit Janus.Client.RestDataSnap.Factory;
 
-{$IFDEF JANUS_REST_DATASNAP}
-
 interface
 
 uses
@@ -35,7 +33,7 @@ uses
 
 type
   /// <summary>
-  /// Fábrica de conexões abstratas
+  /// Fabrica de conexoes abstratas
   /// </summary>
   TRESTFactoryDatasnap = class (TRESTFactoryConnection)
   public
@@ -67,10 +65,5 @@ begin
   Result := FDriverConnection
               .Execute(AResource, ASubResource, ARequestMethod, AParams);
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

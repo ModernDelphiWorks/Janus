@@ -76,7 +76,7 @@ type
     function _FindCommaTokenIdx(const AArgTokens: TArray<TFilterToken>): Integer;
     function _JoinTokenSlice(const AArgTokens: TArray<TFilterToken>;
       const AFrom, ATo: Integer): String;
-    // Reverse: SQL → OData word-boundary safe replacement
+    // Reverse: SQL -> OData word-boundary safe replacement
     function _TokenizeSQL(const ASQL: String): TArray<TFilterToken>;
     function _EmitOData(const ATokens: TArray<TFilterToken>): String;
   protected
@@ -411,7 +411,7 @@ begin
 end;
 
 // Transforms OData function call (arg tokens) to SQL equivalent.
-// Handles: contains, startswith, endswith → LIKE patterns; tolower, toupper → SQL functions.
+// Handles: contains, startswith, endswith -> LIKE patterns; tolower, toupper -> SQL functions.
 function TRESTQueryParse._EmitFunctionSQL(const AFuncName: String;
   const AArgTokens: TArray<TFilterToken>): String;
 var

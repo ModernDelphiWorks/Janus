@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ @abstract(Janus Binder Attributes — R22.4)
+{ @abstract(Janus Binder Attributes - R22.4)
   @created(23 Apr 2026)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
 }

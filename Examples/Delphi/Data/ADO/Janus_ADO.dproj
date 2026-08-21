@@ -35,6 +35,7 @@
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <SanitizedProjectName>Janus_ADO</SanitizedProjectName>
         <VerInfo_Locale>1046</VerInfo_Locale>
+        <DCC_Define>DATAENGINE_DRIVER_ADO;$(DCC_Define)</DCC_Define>
         <DCC_Namespace>Vcl;Vcl.Imaging;Vcl.Touch;Vcl.Samples;Vcl.Shell;System;Xml;Data;Datasnap;Web;Soap;Winapi;Data.Win;$(DCC_Namespace)</DCC_Namespace>
         <VerInfo_Keys>CompanyName=;FileDescription=;FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=;ProductVersion=1.0.0.0;Comments=</VerInfo_Keys>
         <DCC_DependencyCheckOutputName>JanusADO.exe</DCC_DependencyCheckOutputName>

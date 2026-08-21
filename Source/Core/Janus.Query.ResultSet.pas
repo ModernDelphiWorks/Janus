@@ -99,6 +99,9 @@ begin
       LObject := M.Create;
       TBind.Instance.SetFieldToProperty(LResultSet, LObject);
       Result.Add(LObject);
+      // Avanca o cursor: sem isso o laco nunca atinge Eof e adiciona a mesma
+      // linha infinitamente (loop infinito / OOM).
+      LResultSet.Next;
     end;
   finally
     LResultSet.Close;

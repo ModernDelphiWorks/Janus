@@ -56,9 +56,9 @@ type
   protected
     FConnection: IDBConnection;
     FFetchingRecords: Boolean;
-    // F�brica de comandos a serem executados
+    // Fabrica de comandos a serem executados
     FDMLCommandFactory: TDMLCommandFactoryAbstract;
-    // Controle de pagina��o vindo do banco de dados
+    // Controle de paginacao vindo do banco de dados
     FPageSize: Integer;
     procedure ExecuteOneToOne(AObject: TObject; AProperty: TRttiProperty;
       AAssociation: TAssociationMapping);
@@ -122,7 +122,7 @@ begin
   FPageSize := APageSize;
   if not (AOwner is TRESTObjectSetSession) then
     raise Exception
-            .Create('O Object Manager n�o deve ser inst�nciada diretamente, use as classes TRESTObjectSetSession');
+            .Create('O Object Manager n'#$00E3'o deve ser inst'#$00E2'nciada diretamente, use as classes TRESTObjectSetSession');
   FConnection := AConnection;
   FObjectInternal := AClassType.Create;
   // Fabrica de comandos SQL
@@ -245,7 +245,7 @@ begin
       LObjectValue := AProperty.GetNullableValue(AObject).AsObject;
       // Preenche o objeto com os dados do ResultSet
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectValue);
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(LObjectValue);
       LResultSet.Next;
     end;
@@ -276,7 +276,7 @@ begin
       LObjectCreate.MethodCall('Create', []);
       // Popula o objeto com os dados do ResultSet
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectCreate);
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(LObjectCreate);
       // Adiciona o objeto a lista
       LObjectList := AProperty.GetNullableValue(AObject).AsObject;
@@ -330,7 +330,7 @@ begin
       LObject.MethodCall('Create', []);
       LObjectList.Add(LObject);
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectList.Last);
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(LObjectList.Last);
       LResultSet.Next;
     end;
@@ -370,7 +370,7 @@ begin
       LObject.MethodCall('Create', []);
       LObjectList.Add(LObject);
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectList.Last);
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(LObjectList.Last);
       LResultSet.Next;
     end;
@@ -394,7 +394,7 @@ begin
       LObject.MethodCall('Create', []);
       AObjectList.Add(LObject);
       TBind.Instance.SetFieldToProperty(LResultSet, AObjectList.Last);
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(AObjectList.Last);
       LResultSet.Next;
     end;
@@ -417,7 +417,7 @@ begin
       LObject.MethodCall('Create', []);
       AObjectList.Add(LObject);
       TBind.Instance.SetFieldToProperty(LResultSet, AObjectList.Last);
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(AObjectList.Last);
       LResultSet.Next;
     end;
@@ -442,7 +442,7 @@ begin
       LObject.MethodCall('Create', []);
       LObjectList.Add(LObject);
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectList.Last);
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(LObjectList.Last);
       LResultSet.Next;
     end;
@@ -550,7 +550,7 @@ begin
       LObject := FObjectInternal.ClassType.Create;
       LObject.MethodCall('Create', []);
       TBind.Instance.SetFieldToProperty(LResultSet, Result.Items[Result.Add(LObject)]);
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(Result.Items[Result.Count -1]);
       LResultSet.Next;
     end;
@@ -575,7 +575,7 @@ begin
       Result := FObjectInternal.ClassType.Create;
       Result.MethodCall('Create', []);
       TBind.Instance.SetFieldToProperty(LResultSet, Result);
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(Result);
     end
     else
@@ -597,7 +597,7 @@ begin
       LObject := FObjectInternal.ClassType.Create;
       LObject.MethodCall('Create', []);
       TBind.Instance.SetFieldToProperty(LResultSet, LObject);
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FillAssociation(LObject);
       Result := LObject;
     end

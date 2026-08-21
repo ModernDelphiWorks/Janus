@@ -22,8 +22,6 @@
 
 unit Janus.Client.RestDriver.DMVC;
 
-{$IFDEF JANUS_REST_DMVC}
-
 interface
 
 uses
@@ -31,11 +29,11 @@ uses
   SysUtils,
   Janus.Client.DMVC,
   Janus.Client.Methods,
-  Janus.Driver.REST;
+  Janus.Client.RestDriver;
 
 type
   /// <summary>
-  /// Classe de conexão concreta com Delphi MVC
+  /// Classe de conexao concreta com Delphi MVC
   /// </summary>
   TRESTDriverDMVC = class(TRESTDriver)
   protected
@@ -156,10 +154,5 @@ procedure TRESTDriverDMVC.SetClassNotServerUse(const Value: Boolean);
 begin
   FConnection.SetClassNotServerUse(Value);
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

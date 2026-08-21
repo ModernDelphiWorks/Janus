@@ -22,8 +22,6 @@
 
 unit Janus.Server.Resource.WiRL;
 
-{$IFDEF JANUS_REST_WIRL}
-
 interface
 
 uses
@@ -122,20 +120,22 @@ end;
 
 function TAppResource.insert(resource: string; value: string): string;
 begin
-  Result := inherited;
+  /// <summary> Chamada explicita: o "inherited" pelado resolve o nome contra
+  ///   o intrinseco System.Insert e nao contra o ancestral. </summary>
+  Result := inherited insert(resource, value);
 end;
 
 function TAppResource.update(resource: string; value: string): string;
 begin
-  Result := inherited;
+  Result := inherited update(resource, value);
 end;
 
 function TAppResource.delete(resource: string;
                              filter: string): string;
 var
-  LQuery: TRESTQuery;
+  LQuery: TRESTQueryParse;
 begin
-  LQuery := TRESTQuery.Create;
+  LQuery := TRESTQueryParse.Create;
   try
     // Parse da Query passada na URI
     LQuery.ParseQuery(resource);
@@ -154,10 +154,5 @@ end;
 
 initialization
   TWiRLResourceRegistry.Instance.RegisterResource<TAppResource>;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

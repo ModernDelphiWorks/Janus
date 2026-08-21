@@ -142,12 +142,19 @@ function TRESTClientHorse.DoDELETE(const AResource, ASubResource: String): Strin
 begin
   FRequestMethod := 'DELETE';
   FRESTRequest.Method := TRESTRequestMethod.rmDELETE;
-  // Define valores dos par�metros
+  // Define valores dos parametros
   SetParamValues;
   // DELETE
   try
     FRESTRequest.Execute;
-    Result := FRESTRequest.Response.JSONValue.ToString;
+    // ISSUE #323 - the value can be absent, and this line dereferenced it.
+    // TRESTResponse answers nil for an empty body, a non-JSON body or an
+    // absent root element; measured over a live server, all four verbs here
+    // answered "Access violation ... Read of address 00000000". ResponseValue
+    // raises a named reason INSIDE this try, so the handler below reports it
+    // with the server body attached. The RENDERING is untouched on purpose -
+    // see the doc of ResponseValue for why DoDELETE keeps ToString.
+    Result := ResponseValue(FRESTRequest.Response.JSONValue).ToString;
   except
     on E: Exception do
     begin
@@ -175,12 +182,19 @@ function TRESTClientHorse.DoGET(const AResource, ASubResource: String): String;
 begin
   FRequestMethod := 'GET';
   FRESTRequest.Method := TRESTRequestMethod.rmGET;
-  // Define valores dos par�metros
+  // Define valores dos parametros
   SetParamValues;
   // GET
   try
     FRESTRequest.Execute;
-    Result := FRESTRequest.Response.JSONValue.ToJSON;
+    // ISSUE #323 - the value can be absent, and this line dereferenced it.
+    // TRESTResponse answers nil for an empty body, a non-JSON body or an
+    // absent root element; measured over a live server, all four verbs here
+    // answered "Access violation ... Read of address 00000000". ResponseValue
+    // raises a named reason INSIDE this try, so the handler below reports it
+    // with the server body attached. The RENDERING is untouched on purpose -
+    // see the doc of ResponseValue for why DoDELETE keeps ToString.
+    Result := ResponseValue(FRESTRequest.Response.JSONValue).ToJSON;
   except
     on E: Exception do
     begin
@@ -209,12 +223,19 @@ function TRESTClientHorse.DoPOST(const AResource, ASubResource: String): String;
 begin
   FRequestMethod := 'POST';
   FRESTRequest.Method := TRESTRequestMethod.rmPOST;
-  // Define valores dos par�metros
+  // Define valores dos parametros
   SetParamsBodyValue;
   // POST
   try
     FRESTRequest.Execute;
-    Result := FRESTRequest.Response.JSONValue.ToJSON;
+    // ISSUE #323 - the value can be absent, and this line dereferenced it.
+    // TRESTResponse answers nil for an empty body, a non-JSON body or an
+    // absent root element; measured over a live server, all four verbs here
+    // answered "Access violation ... Read of address 00000000". ResponseValue
+    // raises a named reason INSIDE this try, so the handler below reports it
+    // with the server body attached. The RENDERING is untouched on purpose -
+    // see the doc of ResponseValue for why DoDELETE keeps ToString.
+    Result := ResponseValue(FRESTRequest.Response.JSONValue).ToJSON;
   except
     on E: Exception do
     begin
@@ -243,12 +264,19 @@ begin
   Result := '';
   FRequestMethod := 'PUT';
   FRESTRequest.Method := TRESTRequestMethod.rmPUT;
-  // Define valores dos par�metros
+  // Define valores dos parametros
   SetParamsBodyValue;
   // PUT
   try
     FRESTRequest.Execute;
-    Result := FRESTRequest.Response.JSONValue.ToJSON;
+    // ISSUE #323 - the value can be absent, and this line dereferenced it.
+    // TRESTResponse answers nil for an empty body, a non-JSON body or an
+    // absent root element; measured over a live server, all four verbs here
+    // answered "Access violation ... Read of address 00000000". ResponseValue
+    // raises a named reason INSIDE this try, so the handler below reports it
+    // with the server body attached. The RENDERING is untouched on purpose -
+    // see the doc of ResponseValue for why DoDELETE keeps ToString.
+    Result := ResponseValue(FRESTRequest.Response.JSONValue).ToJSON;
   except
     on E: Exception do
     begin
@@ -288,14 +316,14 @@ var
 
 begin
   Result := '';
-  // Executa a procedure de adi��o dos par�metros
+  // Executa a procedure de adicao dos parametros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autentica��o
+  // Define valores de autenticacao
   SetAuthenticatorTypeValues;
 
   for LFor := 0 to FParams.Count -1 do
@@ -324,11 +352,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poder� ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que podera ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou n�o no evento AfterCommand
+    // Pega de volta o JSON manipulado ou nao no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -348,7 +376,7 @@ var
   begin
     FRESTClient.BaseURL := GetBaseURL;
     // Trata a URL Base caso o componente esteja para usar o servidor,
-    // mas a classe n�o.
+    // mas a classe nao.
     if (FServerUse) and (FClassNotServerUse) then
       FRESTClient.BaseURL := RemoveContextServerUse(FRESTClient.BaseURL);
 
@@ -360,14 +388,14 @@ var
 
 begin
   Result := '';
-  // Executa a procedure de adi��o dos par�metros
+  // Executa a procedure de adicao dos parametros
   if Assigned(AParamsProc) then
     AParamsProc();
   // Define valor da URL
   SetURLValue;
   // Define dados do proxy
   SetProxyParamsClientValue;
-  // Define valores de autentica��o
+  // Define valores de autenticacao
   SetAuthenticatorTypeValues;
 
   for LFor := 0 to FParams.Count -1 do
@@ -396,11 +424,11 @@ begin
         end;
       TRESTRequestMethodType.rtPATCH: ;
     end;
-    // Passao JSON para a VAR que poder� ser manipulada no evento AfterCommand
+    // Passao JSON para a VAR que podera ser manipulada no evento AfterCommand
     FResponseString := Result;
     // DoAfterCommand
     DoAfterCommand;
-    // Pega de volta o JSON manipulado ou n�o no evento AfterCommand
+    // Pega de volta o JSON manipulado ou nao no evento AfterCommand
     Result := FResponseString;
   finally
     FResponseString := '';
@@ -471,7 +499,7 @@ var
   LFor: Integer;
 begin
   if FBodyParams.Count = 0 then
-    raise Exception.Create('N�o foi passado o par�metro com os dados do insert!');
+    raise Exception.Create('N'#$00E3'o foi passado o par'#$00E2'metro com os dados do insert!');
 
   for LFor := 0 to FBodyParams.Count -1 do
     FRESTRequest.Body.Add(FBodyParams.Items[LFor].AsString, ContentTypeFromString('application/json'));

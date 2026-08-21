@@ -52,6 +52,8 @@ type
     [Test]
     procedure GetDriver_RaisesWhenMissing;
     [Test]
+    procedure GetDriver_MessageCarriesItsAccentsAsCodepoints;
+    [Test]
     procedure GetDriver_InvokesFactoryEachCall;
     [Test]
     procedure Registry_PreservesProductionRegistrationsAfterTeardown;
@@ -60,7 +62,7 @@ type
 implementation
 
 const
-  // Enum value never registered by production code in Janus.Tests.Unit.dpr
+  // Enum value never registered by production code in Janus.Tests.Units.dpr
   // (no Janus.DML.Generator.DB2.pas exists). Used as the "missing" key.
   CMissingDriver: TDriverName = dnDB2;
 
@@ -106,7 +108,7 @@ end;
 
 procedure TTestJanusDriverRegister.RegisterDriver_AddsToRegistry;
 begin
-  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA);
+  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA());
 
   TDriverRegister.GetDriver(CScratchDriver);
 
@@ -115,8 +117,8 @@ end;
 
 procedure TTestJanusDriverRegister.RegisterDriver_OverwritesExisting;
 begin
-  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA);
-  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryB);
+  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA());
+  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryB());
 
   TDriverRegister.GetDriver(CScratchDriver);
 
@@ -147,11 +149,59 @@ begin
     'GetDriver must raise with PT-BR contract message containing "não está registrado"');
 end;
 
+{ The source of this message is pure ASCII: its three accented letters are
+  written as Delphi #$XXXX escapes (see CONTRIBUTING.md, "Source file
+  encoding"). This asserts on the ORDINALS the compiled string actually
+  carries, so it answers the question the byte-level guard cannot - whether the
+  character the user reads survived the trip into the binary. Comparing against
+  another escape-built literal would prove nothing, because both sides would
+  come from the same mechanism. }
+procedure TTestJanusDriverRegister.GetDriver_MessageCarriesItsAccentsAsCodepoints;
+var
+  LMessage: string;
+  LFor: Integer;
+  LOrdinals: TArray<Integer>;
+begin
+  LMessage := '';
+  try
+    TDriverRegister.GetDriver(CMissingDriver);
+  except
+    on E: Exception do
+      LMessage := E.Message;
+  end;
+
+  Assert.IsTrue(LMessage <> '',
+    'GetDriver must raise for an unregistered driver');
+
+  LOrdinals := nil;
+  for LFor := 1 to Length(LMessage) do
+    if Ord(LMessage[LFor]) > 127 then
+    begin
+      SetLength(LOrdinals, Length(LOrdinals) + 1);
+      LOrdinals[High(LOrdinals)] := Ord(LMessage[LFor]);
+    end;
+
+  Assert.AreEqual(3, Length(LOrdinals),
+    Format('The message must carry exactly three non-ASCII characters; ' +
+           'found %d. A U+FFFD ($FFFD) here would mean the accent was lost ' +
+           'again. Message: %s', [Length(LOrdinals), LMessage]));
+
+  // "nao" -> LATIN SMALL LETTER A WITH TILDE
+  Assert.AreEqual($00E3, LOrdinals[0],
+    'First accented character must be U+00E3 (a with tilde), from "nao"');
+  // "esta" -> LATIN SMALL LETTER A WITH ACUTE
+  Assert.AreEqual($00E1, LOrdinals[1],
+    'Second accented character must be U+00E1 (a with acute), from "esta"');
+  // "clausula" -> LATIN SMALL LETTER A WITH ACUTE
+  Assert.AreEqual($00E1, LOrdinals[2],
+    'Third accented character must be U+00E1 (a with acute), from "clausula"');
+end;
+
 procedure TTestJanusDriverRegister.GetDriver_InvokesFactoryEachCall;
 var
   LFor: Integer;
 begin
-  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA);
+  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA());
 
   for LFor := 1 to 3 do
     TDriverRegister.GetDriver(CScratchDriver);
@@ -166,8 +216,8 @@ var
 begin
   LBefore := TDriverRegister.GetDriver(CProductionDriver);
 
-  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA);
-  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryB);
+  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryA());
+  TDriverRegister.RegisterDriver(CScratchDriver, _MakeCountingFactoryB());
   TDriverRegister.GetDriver(CScratchDriver);
 
   LAfter := TDriverRegister.GetDriver(CProductionDriver);

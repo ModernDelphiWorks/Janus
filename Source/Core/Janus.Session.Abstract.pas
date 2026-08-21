@@ -73,7 +73,7 @@ type
     procedure Update(const AObject: M; const AKey: String); overload; virtual;
     procedure Update(const AObjectList: TObjectList<M>); overload; virtual; abstract;
     procedure Delete(const AObject: M); overload; virtual;
-    procedure Delete(const AID: Integer); overload; virtual; abstract;
+    procedure Delete(const AID: Int64); overload; virtual; abstract;
     procedure LoadLazy(const AOwner, AObject: TObject); virtual;
     procedure InjectLazyProxies(const AObject: TObject); virtual;
     procedure NextPacketList(const AObjectList: TObjectList<M>); overload; virtual;
@@ -98,6 +98,27 @@ type
     function Find: TObjectList<M>; overload; virtual;
     function Find(const AID: Int64): M; overload; virtual;
     function Find(const AID: String): M; overload; virtual;
+    /// <summary> FIND BY A COMPOSITE KEY - ONE VALUE PER KEY COLUMN. Issue
+    ///  #326.
+    ///
+    ///  TDMLGeneratorAbstract.GetGeneratorWhere used to discard every key
+    ///  column after the first, so an entity whose key is `k1;k2` was looked
+    ///  up by k1 alone. Where that first column happens to be UNIQUE the
+    ///  result was CORRECT, which is why nothing here refuses a composite key
+    ///  and why the scalar overloads above are untouched: they still build the
+    ///  single-column predicate they always built.
+    ///
+    ///  THE VALUES TRAVEL AS ONE TValue CARRYING A TArray&lt;TValue&gt;, which is
+    ///  what lets the whole chain below - FCommandExecutor.Find(TValue) and
+    ///  everything under it - stay exactly as it is. The predicate names one
+    ///  column per value SUPPLIED, so handing a single-element array is the
+    ///  same question as handing a scalar.
+    ///
+    ///  REST DOES NOT INHERIT THIS ANSWER. TSessionRestFul&lt;M&gt; overrides it and
+    ///  refuses, because a composite key has no defined spelling in the URL
+    ///  this client builds and inventing one is not this issue's to take.
+    ///  </summary>
+    function Find(const AIDs: TArray<TValue>): M; overload; virtual;
     {$IFDEF DRIVERRESTFUL}
     function Find(const AMethodName: String;
       const AParams: array of String): TObjectList<M>; overload; virtual; abstract;
@@ -206,6 +227,16 @@ begin
   Result := FCommandExecutor.Find(AID);
 end;
 
+function TSessionAbstract<M>.Find(const AIDs: TArray<TValue>): M;
+begin
+  FFindWhereUsed := False;
+  FFetchingRecords := False;
+  // One TValue carrying the whole array: FCommandExecutor.Find already takes
+  // a TValue, so nothing between here and TDMLGeneratorAbstract._KeyValues
+  // needed a wider signature. Issue #326.
+  Result := FCommandExecutor.Find(TValue.From<TArray<TValue>>(AIDs));
+end;
+
 function TSessionAbstract<M>.Find: TObjectList<M>;
 var
   LDBResultSet: IDBDataSet;
@@ -253,7 +284,7 @@ begin
     if not FModifiedFields.ContainsKey(AKey) then
       FModifiedFields.Add(AKey, TDictionary<String, String>.Create);
     // Se o tipo da property for tkRecord provavelmente tem Nullable nela
-    // Se n�o for tkRecord entra no ELSE e pega o valor de forma direta
+    // Se nao for tkRecord entra no ELSE e pega o valor de forma direta
     if LProperty.PropertyType.TypeKind in [tkRecord] then // Nullable ou TBlob
     begin
       if LProperty.IsBlob then
@@ -374,10 +405,10 @@ begin
     begin
       Result.Add(M.Create);
       Bind.SetFieldToProperty(ADBResultSet, TObject(Result.Last));
-      // Alimenta registros das associa��es existentes 1:1 ou 1:N
+      // Alimenta registros das associacoes existentes 1:1 ou 1:N
       FCommandExecutor.FillAssociation(Result.Last);
-      // Avan�a o cursor: sem isso o la�o nunca atinge Eof e popula a mesma
-      // linha infinitamente at� esgotar a heap (EOutOfMemory no binding).
+      // Avanca o cursor: sem isso o laco nunca atinge Eof e popula a mesma
+      // linha infinitamente ate esgotar a heap (EOutOfMemory no binding).
       ADBResultSet.Next;
     end;
     if Result.Count > 0 then

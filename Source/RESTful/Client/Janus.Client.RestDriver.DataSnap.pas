@@ -22,8 +22,6 @@
 
 unit Janus.Client.RestDriver.DataSnap;
 
-{$IFDEF JANUS_REST_DATASNAP}
-
 interface
 
 uses
@@ -35,7 +33,7 @@ uses
 
 type
   /// <summary>
-  /// Classe de conexão concreta com dbExpress
+  /// Classe de conexao concreta com dbExpress
   /// </summary>
   TRESTDriverDatasnap = class(TRESTDriver)
   protected
@@ -157,10 +155,5 @@ procedure TRESTDriverDatasnap.SetClassNotServerUse(const Value: Boolean);
 begin
   FConnection.SetClassNotServerUse(Value);
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

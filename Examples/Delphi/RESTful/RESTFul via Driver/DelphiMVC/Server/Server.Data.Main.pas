@@ -31,8 +31,9 @@ uses
   MVCFramework,
   MVCFramework.Commons,
 
-  Janus.Factory.Interfaces,
-  Janus.Factory.FireDAC,
+  /// Janus - camada de acesso a dados extraida para o framework DataEngine
+  DataEngine.FactoryInterfaces,
+  DataEngine.FactoryFireDac,
   Janus.Server.DMVC,
   Janus.DML.Generator.SQLite,
   Janus.DML.Generator.Firebird,

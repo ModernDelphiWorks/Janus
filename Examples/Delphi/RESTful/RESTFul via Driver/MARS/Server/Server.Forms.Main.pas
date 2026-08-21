@@ -26,8 +26,9 @@ uses
   {$ENDIF}
   MARS.Core.Application,
 
-  Janus.Factory.Interfaces,
-  Janus.Factory.FireDAC,
+  /// Janus - camada de acesso a dados extraida para o framework DataEngine
+  DataEngine.FactoryInterfaces,
+  DataEngine.FactoryFireDac,
   Janus.Server.MARS;
 
 type
@@ -101,11 +102,14 @@ end;
 
 procedure TMainForm.StartServerActionExecute(Sender: TObject);
 begin
-  FEngine.Port := StrToInt(PortNumberEdit.Text);
+  /// A propriedade Port de TMARSEngine esta comentada no MARS atual
+  /// (MARS.Core.Engine.pas:80-93); sobrou so o par GetPort/SetPort, que e o
+  /// mesmo padrao ja usado em Janus.Server.MARS.pas:72 para GetApplications.
+  FEngine.SetPort(StrToInt(PortNumberEdit.Text));
   // http server implementation
   FServer := TMARShttpServerIndy.Create(FEngine);
   try
-    FServer.DefaultPort := FEngine.Port;
+    FServer.DefaultPort := FEngine.GetPort;
     FServer.Active := True;
   except
     FServer.Free;

@@ -33,7 +33,7 @@ uses
 
 type
   /// <summary>
-  /// Classe de conex�o concreta com dbExpress
+  /// Classe de conexao concreta com dbExpress
   /// </summary>
   TRESTDriverWS = class(TRESTDriver)
   protected

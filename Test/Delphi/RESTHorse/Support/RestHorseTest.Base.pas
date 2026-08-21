@@ -45,7 +45,8 @@ uses
   MetaDbDiff.Mapping.Register,
   Janus.Server.Horse,
   // Horse
-  Horse;
+  Horse,
+  Horse.Core.Router.Contract;
 
 const
   cTEST_DB_PATH = 'janus_rest_horse_test.db';
@@ -244,14 +245,13 @@ end;
 
 procedure TRestHorseTestBase.TearDownFixture;
 var
-  LOldRoutes: THorseRouterTree;
-  LNewRoutes: THorseRouterTree;
+  LNewRoutes: IHorseRouter;
 begin
   _StopHorse;
-  LOldRoutes := THorse.Routes;
+  // Horse 4.x: THorse.Routes is an IHorseRouter; assigning a fresh router
+  // releases the previous one by reference counting (no explicit Free).
   LNewRoutes := THorseRouterTree.Create;
   THorse.Routes := LNewRoutes;
-  LOldRoutes.Free;
   FHorseConnection := nil;
   FHorseDConnection.Connected := False;
   FreeAndNil(FHorseDConnection);

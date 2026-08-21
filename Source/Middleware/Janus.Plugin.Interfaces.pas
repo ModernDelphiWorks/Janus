@@ -11,7 +11,7 @@
   ------------------------------------------------------------------------------
 }
 
-{ @abstract(Janus Framework — Plugin Interfaces.)
+{ @abstract(Janus Framework - Plugin Interfaces.)
   @created(04 Apr 2026)
   @author(Isaque Pinheiro <isaquepsp@gmail.com>)
   @abstract(Website : http://www.Janus.com.br)

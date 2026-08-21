@@ -63,7 +63,7 @@ type
     destructor Destroy; override;
     procedure Insert(const AObject: M); overload; override;
     procedure Update(const AObjectList: TObjectList<M>); overload; override;
-    procedure Delete(const AID: Integer); overload; override;
+    procedure Delete(const AID: Int64); overload; override;
     procedure Delete(const AObject: M); overload; override;
     procedure RefreshRecord(const AColumns: TParams); override;
     procedure NextPacketList(const AObjectList: TObjectList<M>); overload; override;
@@ -71,6 +71,17 @@ type
     function Find: TObjectList<M>; overload; override;
     function Find(const AID: Int64): M; overload; override;
     function Find(const AID: String): M; overload; override;
+    /// <summary> REFUSED, AND THE REFUSAL IS THE POINT. Issue #326 widened the
+    ///  LOCAL by-id entry point to carry one value per key column, because the
+    ///  SQL generator can spell a composite predicate. This client cannot: it
+    ///  builds `resource(ID)` or `$value=ID`, and neither has a defined
+    ///  spelling for N values. Inheriting the ancestor's SQL implementation
+    ///  would send a request that means nothing to the server, so this refuses
+    ///  loudly instead. NOTHING THAT COMPILES TODAY CALLS IT - the overload is
+    ///  new in this commit - so the refusal breaks no consumer, which is the
+    ///  distinction from refusing a composite key on the local path (that
+    ///  WOULD have broken code that works). </summary>
+    function Find(const AIDs: TArray<TValue>): M; overload; override;
     function FindWhere(const AWhere: String; const AOrderBy: String = ''): TObjectList<M>; override;
     function ExistSequence: Boolean; override;
     {$IFDEF DRIVERRESTFUL}
@@ -116,7 +127,7 @@ begin
   try
     if FConnection.ServerUse then
     begin
-      // Valida se tem o atributo NotServerUse para n�o usar o server
+      // Valida se tem o atributo NotServerUse para nao usar o server
       LNotServerUse := LObject.GetNotServerUse;
       if LNotServerUse <> nil then
       begin
@@ -181,10 +192,10 @@ begin
     raise Exception.Create(cMESSAGEPKNOTFOUND);
 
   LColumn := LPrimaryKey.Columns.Items[0];
-  Delete(LColumn.ColumnProperty.GetValue(TObject(AObject)).AsInteger);
+  Delete(LColumn.ColumnProperty.GetValue(TObject(AObject)).AsInt64);
 end;
 
-procedure TSessionRestFul<M>.Delete(const AID: Integer);
+procedure TSessionRestFul<M>.Delete(const AID: Int64);
 var
   LSubResource: String;
   LURL: String;
@@ -192,8 +203,8 @@ var
   LResource: String;
 begin
   LResource := FResource;
-  // S� concatena o ID na URI se a propriedade ServerUse for igual a True,
-  // caso contr�rio ser� passado como par�metro
+  // So concatena o ID na URI se a propriedade ServerUse for igual a True,
+  // caso contrario sera passado como parametro
   if FServerUse then
     LResource := LResource + '(' + IntToStr(AID) + ')';
   LSubResource := ifThen(Length(FConnection.MethodDELETE) > 0, FConnection.MethodDELETE, FSubResource);
@@ -213,7 +224,7 @@ begin
       LURL := FConnection.FullURL;
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
                                          'ID     : ' + IntToStr(AID) + sLineBreak +
-                                         'M�todo : DELETE' + sLineBreak +
+                                         'M'#$00E9'todo : DELETE' + sLineBreak +
                                          'Result : ' + LResult, nil);
     end;
   end;
@@ -229,7 +240,7 @@ begin
   FFetchingRecords := False;
   FWhere := AWhere;
   FOrderBy := AOrderBy;
-  // S� busca por pagina��o se n�o for um RefreshRecord
+  // So busca por paginacao se nao for um RefreshRecord
   if not FFindWhereRefreshUsed then
   begin
     if FPageSize > -1 then
@@ -253,7 +264,7 @@ begin
                                    if Length(FOrderBy) > 0 then
                                      FConnection.AddQueryParam('$orderby=' + FOrderBy);
                                  end);
-    // Caso o JSON retornado n�o seja um array, � tranformado em um.
+    // Caso o JSON retornado nao seja um array, tranforma-se em um.
     if {$IFDEF NEXTGEN}LJSON[0]{$ELSE}LJSON[1]{$ENDIF} = '{' then
       LJSON := '[' + LJSON + ']';
 
@@ -267,7 +278,7 @@ begin
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
                                          'Where  : ' + AWhere + sLineBreak +
                                          'OrderBy: ' + AOrderBy + sLineBreak +
-                                         'M�todo : GET' + sLineBreak +
+                                         'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
   end;
@@ -279,6 +290,20 @@ begin
   FFindWhereUsed := False;
   FFetchingRecords := False;
   Result := Find(IntToStr(AID));
+end;
+
+function TSessionRestFul<M>.Find(const AIDs: TArray<TValue>): M;
+begin
+  Result := nil;
+  // ISSUE #326. The ancestor answers this from the SQL generator, which can
+  // spell `k1 = a AND k2 = b`. This client builds a URL and has no spelling
+  // for N values, so inheriting that answer would put a meaningless request
+  // on the wire. Refusing here is safe precisely because the overload did not
+  // exist before this commit.
+  raise Exception.Create('Find by a COMPOSITE key is not available over the ' +
+    'RESTful client: a URL built as resource(ID) or $value=ID has no defined ' +
+    'spelling for more than one key value. Use FindWhere with an explicit ' +
+    'predicate, or the local (non-REST) container.');
 end;
 
 function TSessionRestFul<M>.Find(const AID: String): M;
@@ -316,7 +341,7 @@ begin
       LURL := FConnection.FullURL;
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
                                          'ID     : ' + AID  + sLineBreak +
-                                         'M�todo : GET' + sLineBreak +
+                                         'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
   end;
@@ -341,7 +366,7 @@ begin
     LSubResource := ifThen(Length(FConnection.MethodGET) > 0, FConnection.MethodGET, FSubResource);
   try
     LJSON := FConnection.Execute(FResource, LSubResource, TRESTRequestMethodType.rtGET);
-    // Caso o JSON retornado n�o seja um array, � tranformado em um.
+    // Caso o JSON retornado nao seja um array, tranforma-se em um.
     if {$IFDEF NEXTGEN}LJSON[0]{$ELSE}LJSON[1]{$ENDIF} = '{' then
       LJSON := '[' + LJSON + ']';
 
@@ -353,7 +378,7 @@ begin
     begin
       LURL := FConnection.FullURL;
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
-                                         'M�todo : GET' + sLineBreak +
+                                         'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
   end;
@@ -371,6 +396,43 @@ var
   LFor: Integer;
   LPar: Integer;
 begin
+  // ISSUE #313 - O `finally` LIA ESTE LOCAL SEM ELE TER SIDO ATRIBUIDO.
+  // TJSONObject e tipo NAO GERENCIADO, e Delphi nao zera local desses. A
+  // primeira atribuicao esta DENTRO do try aberto logo abaixo - referida pela
+  // estrutura e nao por numero de linha, que este proprio comentario move - e o
+  // FConnection.Execute que a antecede pode levantar - servidor fora, timeout,
+  // 500 virando EJanusRESTException no cliente concreto. Nesse caminho o
+  // `if LParamsObject <> nil` do finally le o que a pilha tinha, e libera lixo:
+  // a violacao de acesso SUBSTITUI o erro de rede enquanto ele desempilha, e
+  // quem chamou recebe "access violation" no lugar de "o servidor respondeu
+  // 500". O `<> nil` nao protege porque lixo de pilha raramente e zero.
+  //
+  // O QUE FOI MEDIDO, E O QUE A ISSUE ALEGAVA E NAO SE CONFIRMOU. Medido em
+  // ea0208f, Studio 37.0, Debug/Win32, RESTfulDriver: a AV NAO acontece hoje.
+  // Test.Janus.Rest.InsertAnswerRobustness suja 64KB de pilha com $CD na
+  // MESMA profundidade que o frame de Insert vai ocupar, e o slot ainda le
+  // 00000000 - com os enderecos batendo (slot em 012FF3E4, faixa raspada
+  // 012EF408..012FF407), ou seja o prologo do proprio Insert zera o frame.
+  // Tres formas escritas a mao com a MESMA lista de locais - rotina simples,
+  // rotina com metodo anonimo capturando locais, e metodo de classe generica
+  // instanciada - NAO sao zeradas e dao EAccessViolation "Read of address
+  // CDCDCDCD" trocando o erro de rede, todas medidas no mesmo commit e no
+  // mesmo compilador. POR QUE o Insert real e zerado e a revisao independente
+  // desta branch quem leu, nos bytes do .exe: o prologo dele e
+  // `mov ecx,$11 / push 0 ; push 0 / dec ecx ; jnz` - um laco que zera 34
+  // dwords, porque o compilador escolheu ALOCAR o frame com `push 0` em laco
+  // em vez de um `add esp,-N`. As catorze instanciacoes de Insert no binario
+  // tem o mesmo prologo. Ou seja: o defeito e real, e o unico anteparo hoje e
+  // uma escolha de alocacao de frame que ninguem controla nem pede.
+  //
+  // O QUE E CONTRATO E O PROPRIO COMPILADOR DIZER. dcc32 emite em ea0208f
+  // "W1036 Variable 'LParamsObject' might not have been initialized" apontando
+  // a linha do `finally` deste metodo - `:446` na numeracao de ea0208f, que e
+  // do proprio compilador e nao minha. Esta atribuicao e o que faz esse aviso
+  // sumir, e o aviso e a medida de que ela e necessaria. Ele e ORACULO, nao
+  // portao: nao ha `DCC_WarningsAsErrors` em .dproj nenhum deste repositorio,
+  // entao nada impede que o aviso volte sem quebrar o build.
+  LParamsObject := nil;
   LSubResource := ifThen(Length(FConnection.MethodPOST) > 0, FConnection.MethodPOST, FSubResource);
   LJSON := TJanusJson.ObjectToJsonString(AObject);
   try
@@ -387,20 +449,128 @@ begin
     if LParamsObject = nil then
       Exit;
 
-    LParamsArray := LParamsObject.Values['params'] as TJSONArray;
-    if LParamsArray = nil then
+    // ISSUE #315 - O `as` LEVANTAVA ANTES DA GUARDA SER AVALIADA. Escrito
+    // `Values['params'] as TJSONArray` seguido de `if = nil then Exit`, isto
+    // parece um cast guardado e nao e: `nil as TJSONArray` de fato e nil, entao
+    // a guarda cobria a chave AUSENTE - e so ela. Com a chave PRESENTE e de
+    // tipo errado o `as` levanta EInvalidCast cru, com uma mensagem que nao
+    // menciona HTTP, nem servidor, nem resposta. Medido em ea0208f, cinco
+    // formas, todas escapando do Insert: params objeto, params string, params
+    // numero, params NULL e params array-de-nao-objetos (esta ultima no cast de
+    // baixo). A forma NULL nao estava na issue e e a mais provavel em campo:
+    // servidor sem chave a informar escreve null, nao omite a chave; TJSONNull
+    // e um TJSONValue como outro qualquer e chega ate aqui.
+    //
+    // POR QUE `Exit` E NAO EXCECAO NOMEADA. A casa ja responde esta pergunta
+    // duas vezes neste mesmo metodo - no `if LParamsObject = nil then Exit`
+    // logo acima, quando o corpo nao vira objeto, e na propria guarda abaixo,
+    // quando `params` nao existe - e uma vez logo adiante com o motivo
+    // escrito: RefreshRecord, issue #297, "NENHUMA LINHA E
+    // UMA RESPOSTA, e nao um erro ... a excecao passaria a interromper a
+    // gravacao DEPOIS de o servidor ja ter escrito". Vale identico aqui: quando
+    // esta resposta e lida a LINHA JA FOI INSERIDA. `params` e o eco da chave
+    // gerada - util quando vem, e a ausencia dele ja e resposta suportada. Um
+    // `params` malformado nao carrega mais informacao que um ausente, entao
+    // recebe a mesma resposta. Duas respostas para a mesma pergunta dentro de
+    // um framework e defeito por si so, e este conserto nao inventa a terceira.
+    //
+    // `nil is TJSONArray` e False, entao a chave ausente continua saindo por
+    // aqui exatamente como antes: a guarda foi TROCADA, nao estreitada.
+    //
+    // As duas guardas vizinhas citadas acima sao referidas pelo CODIGO delas e
+    // nao por numero de linha, de proposito: citacao para dentro do proprio
+    // arquivo apodrece sozinha, porque o comentario que a carrega e o que
+    // empurra a linha citada. Foi o que aconteceu com a versao anterior desta
+    // frase - dizia `:387-388`, certo em ea0208f e errado assim que este
+    // comentario entrou.
+    //
+    // E A FORMA AFIADA DISSO, que pegou tres vezes nesta branch e uma delas
+    // dentro do proprio commit que consertava as outras duas: numero medido
+    // ANTES da edicao que viaja junto com ele e numero de uma arvore que nunca
+    // existiu. So vale medir depois de escrever a ultima linha.
+    //
+    // Citacao para OUTRO arquivo continua por `file:linha`, com o commit em
+    // que foi lida - e ainda assim so sobrevive se aquele arquivo estiver
+    // parado.
+    if not (LParamsObject.Values['params'] is TJSONArray) then
       Exit;
+    LParamsArray := TJSONArray(LParamsObject.Values['params']);
 
+    // ISSUE #300 - UM TParam POR PAR, NAO POR OBJETO. O servidor emite a chave
+    // primaria INTEIRA num unico objeto: TAppResourceBase.ParseInsert percorre
+    // `LPrimaryKey.Columns` e poe uma entrada por coluna da chave dentro do
+    // unico objeto que a constante cRESOURCEINSERT reserva.
+    //
+    // ESTAS TRES CITACOES ERAM POR LINHA E JA CHEGARAM PODRES NESTA BRANCH.
+    // Diziam `Janus.Server.Resource.pas:304-307` (duas vezes) e `(:57)`, certas
+    // em c608bad e erradas em ea0208f, que e a base daqui: a #311/#322
+    // reescreveu aquele arquivo e cRESOURCEINSERT foi para :60 e o laco das
+    // colunas para :423. Nao foi este conserto que as moveu, e por isso estao
+    // agora por SIMBOLO - aquele arquivo e a frente da #320 e esta mudando
+    // agora, entao qualquer numero novo apodrece de novo.
+    //
+    // E A FRASE ACIMA TAMBEM ENVELHECEU NO MECANISMO, nao so na linha: em
+    // c608bad a constante era `"params":[{%s}]` e o servidor CONCATENAVA
+    // `"nome":valor,` em texto; em ea0208f ela e `"params":[%s]` e o `%s` ja
+    // chega como objeto JSON serializado inteiro - o assunto da #311. O que o
+    // cliente le na resposta nao mudou, e por isso a analise abaixo continua
+    // valendo; o COMO o servidor a produz mudou.
+    //
+    // Com o `with FResultParams.Add` do lado
+    // de FORA deste laco interno, Name e Value eram sobrescritos a cada par e
+    // so o ULTIMO sobrevivia - uma entidade REST de chave composta voltava do
+    // insert com uma coluna da chave preenchida e as demais no placeholder, sem
+    // excecao e sem log. O laco EXTERNO continua: a resposta tambem pode trazer
+    // um objeto por coluna, e as duas formas sao lidas.
+    //
+    // ISTO ALARGA O QUE UMA RESPOSTA PODE ESCREVER NA LINHA, e o alargamento
+    // esta declarado aqui porque nao esta escrito em nenhum outro lugar. O
+    // consumidor (TRESTDataSetAdapter<M>.ApplyInserter,
+    // Janus.RestDataSet.Adapter.pas:241-246, relido em ea0208f) percorre
+    // 0..Count-1 e escreve
+    // TODA coluna que o dataset tenha e a resposta nomeie - nao so as da chave.
+    // Antes deste conserto o objeto rendia UM param, logo no maximo UMA coluna
+    // por objeto podia ser escrita; agora sao todas. Medido em 0f13601 com uma
+    // sonda descartavel sobre TCkRoot e sem filho (para o re-ler da #297 nao
+    // disparar e reescrever a linha), resposta
+    // {"tag":"fromserver","ck1":7,"ck2":9}:
+    //   com este conserto        : GetCount 0, tag=fromserver ck1=7  ck2=9
+    //   com este trecho revertido: GetCount 0, tag=root       ck1=-1 ck2=9
+    // Ou seja: de UMA escrita (o ultimo par) para TRES, uma delas numa coluna
+    // que NAO e da chave. Hoje isso e limitado porque o servidor so percorre
+    // colunas de PK (o `for LColumn in LPrimaryKey.Columns` de ParseInsert) -
+    // o limite mora no SERVIDOR, e o cliente nao o impoe.
+    //
+    // ISSO MUDA QUANDO O RE-LER DA #297 DISPARA, e o numero esta medido em
+    // Test.Janus.Rest.CompositeKeyReReadGate: o portao de
+    // TRESTDataSetAdapter<M>.ApplyInserter e _RowKeyIsUngenerated, que le
+    // a chave da linha COLUNA A COLUNA - a #305 dividiu o `if` em que ele estava
+    // para que o ramo da recusa pudesse AVISAR, mas o predicado e a decisao sao
+    // os mesmos. Com a chave composta pela metade ele
+    // recusava - e recusava certo, porque nao havia por que perguntar. Sobre o
+    // mesmo modelo e a mesma resposta: antes deste conserto GetCount = 0, com
+    // ele GetCount = 1. REMEDIDO em 0f13601, RESTfulDriver Debug/Win32: com o
+    // conserto no lugar a suite fecha 102/0 e
+    // CompositeKey_TheGateOpensAndExactlyOneGetIsIssued exige GetCount = 1;
+    // com ESTE trecho revertido em cima do mesmo commit a suite da 102/8 e a
+    // mesma clausula devolve GetCount = 0.
     for LFor := 0 to LParamsArray.Count -1 do
     begin
-      LValuesObject := LParamsArray.Items[LFor] as TJSONObject;
-      with FResultParams.Add as TParam do
+      // ISSUE #315, O SEGUNDO CAST. Aqui a resposta e `Continue` e nao `Exit`
+      // porque os elementos sao INDEPENDENTES: o laco de fora existe justamente
+      // porque a resposta pode trazer um objeto por coluna, e um elemento
+      // malformado nao diz nada sobre os irmaos dele. Pular o ruim e ler os
+      // bons entrega mais chave do que abortar a resposta inteira.
+      if not (LParamsArray.Items[LFor] is TJSONObject) then
+        Continue;
+      LValuesObject := TJSONObject(LParamsArray.Items[LFor]);
+      for LPar := 0 to LValuesObject.Count -1 do
       begin
-        for LPar := 0 to LValuesObject.Count -1 do
+        with FResultParams.Add as TParam do
         begin
           Name := LValuesObject.Pairs[LPar].JsonString.Value;
           DataType := ftString;
-          Value := LValuesObject.Pairs[LPar].JsonValue.Value
+          Value := LValuesObject.Pairs[LPar].JsonValue.Value;
         end;
       end;
     end;
@@ -412,7 +582,7 @@ begin
     begin
       LURL := FConnection.FullURL;
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
-                                         'M�todo : POST' + sLineBreak +
+                                         'M'#$00E9'todo : POST' + sLineBreak +
                                          'Result : ' + LResult + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
@@ -492,7 +662,7 @@ begin
         LURL := LURL + '/' + LSubResource;
 
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
-                                         'M�todo : GET' + sLineBreak +
+                                         'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
   end;
@@ -527,9 +697,9 @@ begin
       if Length(LSubResource) > 0 then
         LURL := LURL + '/' + LSubResource;
 
-      // Gera Lentid�o se tiver campo TBlob no JSON
+      // Gera Lentidao se tiver campo TBlob no JSON
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
-                                         'M�todo : GET' + sLineBreak +
+                                         'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
   end;
@@ -565,7 +735,7 @@ begin
     begin
       LURL := FConnection.FullURL;
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
-                                         'M�todo : PUT' + sLineBreak +
+                                         'M'#$00E9'todo : PUT' + sLineBreak +
                                          'Result : ' + LResult + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
@@ -595,6 +765,16 @@ begin
     if LObjectList = nil then
       Exit;
     try
+      // NENHUMA LINHA E UMA RESPOSTA, e nao um erro - issue #297. Uma consulta
+      // por chave primaria pode nao casar nada: a linha foi apagada por outro,
+      // ou o servidor nao a devolve. First numa lista vazia levanta
+      // EArgumentOutOfRange, e ate a #297 este caminho so era alcancado por
+      // pedido EXPLICITO do consumidor; agora ele roda sozinho depois de todo
+      // insert cujo grafo ficou defasado, de modo que a excecao passaria a
+      // interromper a gravacao DEPOIS de o servidor ja ter escrito. Sem linha
+      // nao ha o que reescrever, e o cliente fica como estava.
+      if LObjectList.Count = 0 then
+        Exit;
       FOwner.RefreshRecordInternal(LObjectList.First);
     finally
       LObjectList.Clear;
@@ -646,7 +826,7 @@ begin
     begin
       LURL := FConnection.FullURL;
       FConnection.CommandMonitor.Command('URI    : ' + LURL + sLineBreak +
-                                         'M�todo : GET' + sLineBreak +
+                                         'M'#$00E9'todo : GET' + sLineBreak +
                                          'Json   : ' + LJSON, nil);
     end;
   end;

@@ -17,8 +17,8 @@ uses
   Janus.Model.Lookup in '..\Janus.Model.Lookup.pas',
   Janus.Model.Master in '..\Janus.Model.Master.pas',
   Server.Datamodule in 'Server.Datamodule.pas' {ServerDataModule: TDataModule},
-  Janus.Server.Resource.WiRL in '..\..\..\..\Source\RESTful Components\Server\Janus.Server.Resource.WiRL.pas',
-  Janus.Server.WiRL in '..\..\..\..\Source\RESTful Components\Server\Janus.Server.WiRL.pas',
+  Janus.Server.Resource.WiRL in '..\..\..\..\..\..\Source\RESTful\Server\Janus.Server.Resource.WiRL.pas',
+  Janus.Server.WiRL in '..\..\..\..\..\..\Source\RESTful\Server\Janus.Server.WiRL.pas',
   Server.Resources in 'Server.Resources.pas';
 
 {$R *.res}

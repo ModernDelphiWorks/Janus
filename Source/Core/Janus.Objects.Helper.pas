@@ -18,7 +18,7 @@
   @abstract(Website : http://www.Janus.com.br)
   @abstract(Telagram : https://t.me/Janus)
 
-  ORM Brasil � um ORM simples e descomplicado para quem utiliza Delphi.
+  ORM Brasil: um ORM simples e descomplicado para quem utiliza Delphi.
 }
 
 unit Janus.Objects.Helper;

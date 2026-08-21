@@ -40,6 +40,10 @@ uses
 
 type
   TDMLGeneratorAbsoluteDB = class(TDMLGeneratorAbstract)
+  protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
   public
     constructor Create; override;
     destructor Destroy; override;
@@ -161,6 +165,22 @@ function TDMLGeneratorAbsoluteDB.GeneratorAutoIncNextValue(AObject: TObject;
 begin
   Result := GeneratorAutoIncCurrentValue(AObject, AAutoInc)
           + AAutoInc.Sequence.Increment;
+end;
+
+/// <summary> O AbsoluteDB TEM tipo `GUID` de 16 bytes - a tabela de tipos traz
+///  a linha verbatim `GUID | ftGUID | aftGuid | GUID | 16-byte GUID`
+///  (https://www.componentace.com/help/absdb_manual/supporteddatatypes.htm), e
+///  MetaDbDiff.Metadata.AbsoluteDB.pas:343 mapeia aftGuid de volta para ftGuid
+///  com TypeName 'GUID'.
+///  NAO MEDIDO: a FORMA DO LITERAL. O manual online nao tem topico de literais
+///  - checados e silentes o sumario, Formats, Data Conversion Functions e
+///  Comparison Operators (que nomeia "character, numeric, or date/time" e nao
+///  nomeia GUID). A via documentada e' PARAMETRO, nao literal.
+///  Fica a forma canonica, conservadora: hoje este dialeto devolve '1 = 0' em
+///  silencio e qualquer literal ja e' melhora. </summary>
+function TDMLGeneratorAbsoluteDB.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 initialization

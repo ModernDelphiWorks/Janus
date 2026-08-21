@@ -31,7 +31,7 @@ uses
   Janus.RestFactory.Interfaces;
 
 type
-  // F�brica de conex�es abstratas
+  // Fabrica de conexoes abstratas
   TRESTFactoryConnection = class abstract(TInterfacedObject, IRESTConnection)
   private
     function GetBaseURL: String;
@@ -63,8 +63,16 @@ type
     function Execute(const AResource, ASubResource: String;
       const ARequestMethod: TRESTRequestMethodType;
       const AParams: TProc = nil): String; overload; virtual; abstract;
+    /// <summary> UM recurso, sem sub-recurso. Deixou de ser abstrata: nenhuma
+    ///   das seis fabricas concretas a sobrescrevia, e a classe e instanciada
+    ///   no construtor de cada componente cliente - entao quem chamasse esta
+    ///   sobrecarga por IRESTConnection, que a publica, levava EAbstractError.
+    ///
+    ///   Definida em termos da sobrecarga de dois recursos, que e virtual: um
+    ///   recurso e o par (recurso, ''). Se uma fabrica concreta sobrescrever a
+    ///   de dois recursos, esta a respeita. </summary>
     function Execute(const AResource: String; const ARequestMethod: TRESTRequestMethodType;
-      const AParams: TProc = nil): String; overload; virtual; abstract;
+      const AParams: TProc = nil): String; overload; virtual;
     property BaseURL: String read GetBaseURL;
     property FullURL: String read GetFullURL;
     property Username: String read GetUsername;
@@ -77,7 +85,7 @@ type
     property MethodDELETE: String read GetMethodDELETE;
     property MethodGETNextPacket: String read GetMethodGETNextPacket;
     property MethodGETNextPacketWhere: String read GetMethodGETNextPacketWhere;
-    property MethodToken: String read GetMethodGETNextPacketWhere;
+    property MethodToken: String read GetMethodToken;
     property ServerUse: Boolean read GetServerUse;
   end;
 
@@ -115,6 +123,12 @@ end;
 function TRESTFactoryConnection.CommandMonitor: ICommandMonitor;
 begin
   Result := FCommandMonitor;
+end;
+
+function TRESTFactoryConnection.Execute(const AResource: String;
+  const ARequestMethod: TRESTRequestMethodType; const AParams: TProc): String;
+begin
+  Result := Execute(AResource, '', ARequestMethod, AParams);
 end;
 
 function TRESTFactoryConnection.GetBaseURL: String;

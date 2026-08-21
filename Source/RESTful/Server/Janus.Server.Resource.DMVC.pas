@@ -22,8 +22,6 @@
 
 unit Janus.Server.Resource.DMVC;
 
-{$IFDEF JANUS_REST_DMVC}
-
 interface
 
 uses
@@ -126,10 +124,10 @@ end;
 procedure TAppResource.delete(Context: TWebContext);
 var
   LAppResource: TAppResourceBase;
-  LQuery: TRESTQuery;
+  LQuery: TRESTQueryParse;
   LResult: string;
 begin
-  LQuery := TRESTQuery.Create;
+  LQuery := TRESTQueryParse.Create;
   LAppResource := TAppResourceBase.Create(TRESTServerDMVC.GetConnection);
   try
     // Parse da Query passada na URI
@@ -149,10 +147,5 @@ begin
     LQuery.Free;
   end;
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

@@ -65,7 +65,7 @@ type
     procedure Update(const AObject: TObject; const AKey: String); overload; virtual;
     procedure Update(const AObjectList: TObjectList<TObject>); overload; virtual; abstract;
     procedure Delete(const AObject: TObject); overload; virtual;
-    procedure Delete(const AID: Integer); overload; virtual; abstract;
+    procedure Delete(const AID: Int64); overload; virtual; abstract;
     procedure LoadLazy(const AOwner, AObject: TObject); virtual;
     procedure NextPacketList(const AObjectList: TObjectList<TObject>); overload; virtual;
     function NextPacketList: TObjectList<TObject>; overload; virtual;
@@ -76,7 +76,7 @@ type
     procedure ModifyFieldsCompare(const AKey: String; const AObjectSource,
       AObjectUpdate: TObject); virtual;
     function Find: TObjectList<TObject>; overload; virtual;
-    function Find(const AID: Integer): TObject; overload; virtual;
+    function Find(const AID: Int64): TObject; overload; virtual;
     function Find(const AID: String): TObject; overload; virtual;
     function FindWhere(const AWhere: String; const AOrderBy: String): TObjectList<TObject>; virtual;
     function FindOne(const AWhere: String): TObject;
@@ -160,7 +160,7 @@ begin
   Result := FManager.FindWhere(FWhere, FOrderBy);
 end;
 
-function TRESTObjectSetSession.Find(const AID: Integer): TObject;
+function TRESTObjectSetSession.Find(const AID: Int64): TObject;
 begin
   FFindWhereUsed := False;
   Result := FManager.Find(AID);
@@ -196,7 +196,7 @@ begin
     if not FModifiedFields.ContainsKey(AKey) then
       FModifiedFields.Add(AKey, TDictionary<String, String>.Create);
     // Se o tipo da property for tkRecord provavelmente tem Nullable nela
-    // Se n�o for tkRecord entra no ELSE e pega o valor de forma direta
+    // Se nao for tkRecord entra no ELSE e pega o valor de forma direta
     if LProperty.PropertyType.TypeKind in [tkRecord] then // Nullable ou TBlob
     begin
       if LProperty.IsBlob then
@@ -270,9 +270,41 @@ begin
   FManager.UpdateInternal(AObject, FModifiedFields.Items[AKey]);
 end;
 
+/// <summary> Delega a carga lazy ao manager, como todos os outros metodos
+///  desta classe delegam.
+///
+///  O CORPO ERA A CHAMADA COMENTADA, e ela e' a unica saida que existe. Quem
+///  chega aqui e' TRESTObjectSet.LoadLazy, e o unico caminho adiante e'
+///  TRESTObjectManager.LoadLazy -> FillAssociationLazy, que monta o SELECT do
+///  filho a partir do mapeamento da associacao. A familia local faz o mesmo
+///  em TSessionObjectSet<M>.LoadLazy, chamando FCommandExecutor.LoadLazy com
+///  os mesmos dois argumentos.
+///
+///  NAO E' HERANCA, E ISSO FOI CONFERIDO: TRESTObjectManager e' `class` sem
+///  ancestral declarado, uma classe paralela. O LoadLazy /
+///  FillAssociationLazy abstratos de TSQLCommandExecutorAbstract<M> sao
+///  sobrescritos por TSQLCommandExecutor<M>, a familia local - nao por este
+///  manager. As duas familias tem o mesmo desenho e nenhum codigo em comum.
+///
+///  O QUE FOI MEDIDO ANTES DE DESCOMENTAR:
+///  - a assinatura casa: TRESTObjectManager.LoadLazy(const AOwner, AObject:
+///    TObject), os dois parametros na mesma ordem;
+///  - o alvo esta implementado, nao e' stub;
+///  - FManager e' atribuido no construtor desta classe, antes de qualquer
+///    chamada publica, e so' e' liberado no destrutor;
+///  - nao ha recursao: FillAssociationLazy chama ExecuteOneToOne /
+///    ExecuteOneToMany, e o FillAssociation que essas duas rodam sobre o
+///    filho nao volta para LoadLazy;
+///  - o git nao registra motivo: a linha ja' nasceu comentada no commit de
+///    importacao, e os commits posteriores no arquivo so' mexeram em cabecalho
+///    e encoding.
+///
+///  ANTES DISSO o metodo era um `begin end`: pedir a carga de um filho lazy e
+///  nao pedir nada davam a mesma resposta - nada, sem excecao e sem aviso.
+/// </summary>
 procedure TRESTObjectSetSession.LoadLazy(const AOwner, AObject: TObject);
 begin
-//  FManager.LoadLazy(AOwner, AObject);
+  FManager.LoadLazy(AOwner, AObject);
 end;
 
 function TRESTObjectSetSession.NextPacketList(const APageSize,

@@ -187,6 +187,9 @@ begin
                                   AProcessingObjects,
                                   AProcessLoadedObject);
           Result := LObjectValue;
+          // Avanca o cursor: sem isso o laco nunca atinge Eof e recria o mesmo
+          // objeto infinitamente (loop infinito / OOM).
+          LResultSet.Next;
         end;
       finally
         LResultSet.Close;
@@ -210,14 +213,80 @@ begin
       LPropertyType: TRttiType;
       LObjectCreate: TObject;
       LObjectList: TObject;
-      LListClass: TClass;
+      LListType: TRttiType;
+      LListCtor: TRttiMethod;
       LResultSet: IDBDataSet;
     begin
       LPropertyType := LProperty.PropertyType;
       LPropertyType := LProperty.GetTypeValue(LPropertyType);
-      LListClass := LProperty.PropertyType.AsInstance.MetaclassType;
-      LObjectList := LListClass.Create;
-      LObjectList.MethodCall('Create', [True]);
+      // A lista NAO pode ser instanciada com TClass.Create seguido de
+      // MethodCall('Create', [True]). TClass.Create resolve para o TObject
+      // .Create, que nao e virtual, e o MethodCall invoca o construtor que
+      // GetMethod('Create') devolve - num TObjectList<T> esse e o de ZERO
+      // argumentos (medido: os quatro construtores proprios da classe saem em
+      // GetMethods na ordem declarada, e o primeiro e o sem parametros).
+      // Passar um argumento para ele levanta 'Parameter count mismatch' antes
+      // de o cursor ser tocado, o que matava o caminho lazy OneToMany inteiro.
+      // Invocar o construtor sobre a METACLASSE constroi de verdade, e o
+      // numero de argumentos passa a seguir o construtor que o RTTI devolveu.
+      //
+      // A GUARDA ABAIXO NAO E A DE Lazy<T>.CreateDefaultValue, E E DE
+      // PROPOSITO. O irmao, em Janus.Types.Lazy, exige tambem LRttiType
+      // .IsList; aqui o IsList foi OMITIDO. TRttiTypeHelper.IsList
+      // (MetaDbDiff.RTTI.Helper.pas:799-808) e um teste de SUBSTRING no NOME
+      // da classe: devolve True quando o nome contem 'TObjectList<' ou
+      // 'TList<'. Isso NAO e o mesmo que "e uma lista da RTL" - e False para o
+      // descendente cujo nome nao casa a substring, mas e TRUE para um
+      // descendente batizado TMyTList<T> ou TBaseTObjectList<T>, porque o
+      // proprio batismo carrega a substring. MEDIDO em Studio 37 sobre sete
+      // formatos, com os tipos declarados numa UNIT de verdade - num .dpr o
+      // FindType falha para todos e falsearia a ultima coluna:
+      //
+      //   nome                      IsList param [True] []    GetTypeValue
+      //   TObjectList<T> .......... True   0     erro   OK    resolve
+      //   TList<T> ................ True   0     erro   OK    resolve
+      //   descendente sem ctor .... False  0     erro   OK    nil
+      //   desc. Create(String) .... False  1     erro   erro  nil
+      //   desc. Create(Boolean) ... False  1     OK     erro  nil
+      //   TMyTList<T> ............. True   1     OK     erro  nil
+      //   TBaseTObjectList<T> ..... True   1     OK     erro  nil
+      //
+      // Somar 'and IsList' NAO consertaria o descendente de Create(String) -
+      // esse ja falha ALTO hoje, com EInvalidCast -, so trocaria uma excecao
+      // alta por outra; e QUEBRARIA o descendente de Create(Boolean), que hoje
+      // constroi certo e passaria a levantar 'Parameter count mismatch'. E as
+      // duas ultimas linhas da tabela dao a razao de fundo: TMyTList<T> tem A
+      // MESMA FORMA do descendente de Create(Boolean) - descendente, ctor
+      // proprio de um booleano, [True] constroi certo -, e com o IsList somado
+      // os dois receberiam tratamento OPOSTO, um [True] e outro [], decidido
+      // unicamente pelo NOME da classe. Guarda que muda de valor por
+      // RENOMEACAO nao e guarda. E por isso que o IsList fica FORA.
+      //
+      // O RAMO [True] NAO ESTA COBERTO PELA SUITE, e ainda nao da para
+      // cobri-lo: os tres formatos que o executam sao TODOS descendentes, e
+      // todo descendente morre duas linhas abaixo, em LPropertyType.AsInstance,
+      // porque GetTypeValue devolve nil para nome que nao case com o strip
+      // textual - coluna medida acima (upstream ModernDelphiWorks/MetaDbDiff
+      // #18). MEDIDO em 6f67607: matar o ramo e invocar sempre [] deixa a
+      // suite 501/501 verde - uma execucao daquele commit, quando essa era
+      // toda a Janus.Tests.Units. A suite cresceu desde entao; leia o
+      // numero como o tamanho daquela execucao e nao como o baseline de
+      // hoje, e re-rode a mutacao em vez de escala-lo. Ele fica como defesa
+      // para o dia em que aquele upstream for consertado e o descendente
+      // virar caminho vivo.
+      LListType := RttiSingleton.GetRttiType(
+                     LProperty.PropertyType.AsInstance.MetaclassType);
+      LListCtor := LListType.GetMethod('Create');
+      if LListCtor = nil then
+        raise ELazyLoadException.CreateFmt(
+          'Lazy load failed: no "Create" constructor was found for the list ' +
+          'type "%s" of property "%s".', [LListType.ToString, LProperty.Name]);
+      if Length(LListCtor.GetParameters) = 1 then
+        LObjectList := LListCtor.Invoke(LListType.AsInstance.MetaclassType,
+                                        [True]).AsObject
+      else
+        LObjectList := LListCtor.Invoke(LListType.AsInstance.MetaclassType,
+                                        []).AsObject;
       LResultSet := AFactory.GeneratorSelectOneToMany(AOwnerObject,
                                                       LPropertyType.AsInstance.MetaclassType,
                                                       AAssociation);
@@ -231,6 +300,9 @@ begin
                                   AProcessingObjects,
                                   AProcessLoadedObject);
           LObjectList.MethodCall('Add', [LObjectCreate]);
+          // Avanca o cursor: sem isso o laco nunca atinge Eof e adiciona a mesma
+          // linha infinitamente (loop infinito / OOM).
+          LResultSet.Next;
         end;
       finally
         LResultSet.Close;

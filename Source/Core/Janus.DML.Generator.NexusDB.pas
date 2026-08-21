@@ -41,6 +41,10 @@ uses
 type
   // Classe de banco de dados NexusDB
   TDMLGeneratorNexusDB = class(TDMLGeneratorAbstract)
+  protected
+    /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
+    /// para que um dialeto novo nao herde em silencio o literal de outro.
+    function GuidLiteral(const AGuid: TGUID): String; override;
   public
     constructor Create; override;
     destructor Destroy; override;
@@ -174,6 +178,22 @@ function TDMLGeneratorNexusDB.GeneratorAutoIncNextValue(AObject: TObject;
 begin
   Result := GeneratorAutoIncCurrentValue(AObject, AAutoInc)
           + AAutoInc.Sequence.Increment;
+end;
+
+/// <summary> NAO MEDIDO CONTRA DOCUMENTACAO OFICIAL. nexusdb.com responde HTTP
+///  403 a fetch programatico em todo caminho, inclusive sqldatatypes.htm,
+///  valueexpressions.htm e o wiki de GUIDs. As paginas existem e estao
+///  indexadas; um navegador as alcancaria. Ha' espelho verbatim em terceiro,
+///  deliberadamente NAO usado por nao ser fonte oficial.
+///  Nao ha' sequer arquivo de metadata para NexusDB em Source/Drivers, entao
+///  nem o DDL desta casa diz o que a coluna vira.
+///  Fica a forma canonica, conservadora e marcada: hoje este dialeto devolve
+///  '1 = 0' em silencio e qualquer literal ja e' melhora. Sem excecao - trocar
+///  um silencio por um crash em quem hoje ao menos nao estoura seria piorar
+///  antes de medir. </summary>
+function TDMLGeneratorNexusDB.GuidLiteral(const AGuid: TGUID): String;
+begin
+  Result := CanonicalGuidLiteral(AGuid);
 end;
 
 initialization

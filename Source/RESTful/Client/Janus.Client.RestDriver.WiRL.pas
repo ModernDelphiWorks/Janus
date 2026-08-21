@@ -22,8 +22,6 @@
 
 unit Janus.Client.RestDriver.WiRL;
 
-{$IFDEF JANUS_REST_WIRL}
-
 interface
 
 uses
@@ -31,7 +29,7 @@ uses
   SysUtils,
   Janus.Client.WiRL,
   Janus.Client.Methods,
-  Janus.Driver.REST;
+  Janus.Client.RestDriver;
 
 type
   TRESTDriverWiRL = class(TRESTDriver)
@@ -41,6 +39,20 @@ type
     constructor Create(AConnection: TComponent); override;
     destructor Destroy; override;
     function GetBaseURL: string; override;
+    /// <summary> Faltava. TRESTDriver.GetFullURL e `virtual; abstract` e so o
+    ///   driver Horse a sobrescrevia, entao ler IRESTConnection.FullURL neste
+    ///   driver caia em EAbstractError. Diferente do Execute de um recurso, o
+    ///   compilador DENUNCIAVA esta: com o Janus.Tests.RESTWiRL compilando a
+    ///   fabrica, saia W1020 "Constructing instance of 'TRESTDriverWiRL'
+    ///   containing abstract method 'TRESTDriver.GetFullURL'".
+    ///
+    ///   LIMITE, medido: TRESTClientWiRL nao sobrescreve GetFullURL, entao
+    ///   herda TJanusClient.GetFullURL, que devolve FBaseURL. Para o WiRL de
+    ///   hoje FullURL e BaseURL sao o MESMO armazenamento - so o
+    ///   TRESTClientHorse devolve a URI da resposta. Este delegate esta certo
+    ///   quanto ao contrato; o dia em que o cliente WiRL souber a URI real,
+    ///   ele passa a valer sem mudar nada aqui. </summary>
+    function GetFullURL: string; override;
     function GetMethodGET: string; override;
     function GetMethodGETId: string; override;
     function GetMethodGETWhere: string; override;
@@ -108,6 +120,11 @@ begin
   Result := FConnection.BaseURL;
 end;
 
+function TRESTDriverWiRL.GetFullURL: string;
+begin
+  Result := FConnection.FullURL;
+end;
+
 function TRESTDriverWiRL.GetMethodDELETE: string;
 begin
   Result := FConnection.MethodDelete;
@@ -150,12 +167,21 @@ end;
 
 function TRESTDriverWiRL.GetMethodToken: string;
 begin
-
+  /// <summary> NAO e Authenticator.Token direto, como no driver Horse
+  ///   (Janus.Client.RestDriver.Horse.pas, GetMethodToken).
+  ///
+  ///   Depois do #228 o caminho WiRL adquire o token por requisicao de login
+  ///   (TRESTClientWiRL.AcquireAccessToken) e o guarda em FAccessToken, SEM
+  ///   devolve-lo ao Authenticator. Copiar o Horse aqui devolveria vazio
+  ///   exatamente no fluxo usuario/senha - o mesmo defeito da #213 mudando de
+  ///   lugar. AccessToken responde o token efetivo, na precedencia com que
+  ///   SetAuthenticatorTypeValues monta o cabecalho Bearer. </summary>
+  Result := FConnection.AccessToken;
 end;
 
 function TRESTDriverWiRL.GetPassword: string;
 begin
-
+  Result := FConnection.Authenticator.Password;
 end;
 
 function TRESTDriverWiRL.GetServerUse: Boolean;
@@ -165,17 +191,12 @@ end;
 
 function TRESTDriverWiRL.GetUsername: string;
 begin
-
+  Result := FConnection.Authenticator.Username;
 end;
 
 procedure TRESTDriverWiRL.SetClassNotServerUse(const Value: Boolean);
 begin
   FConnection.SetClassNotServerUse(Value);
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

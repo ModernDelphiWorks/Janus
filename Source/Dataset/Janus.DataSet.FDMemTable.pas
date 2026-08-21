@@ -104,7 +104,7 @@ constructor TFDMemTableAdapter<M>.Create(AConnection: IDBConnection; ADataSet: T
   APageSize: Integer; AMasterObject: TObject);
 begin
   inherited Create(AConnection, ADataSet, APageSize, AMasterObject);
-  // Captura o component TFDMemTable da IDE passado como par�metro
+  // Captura o component TFDMemTable da IDE passado como parametro
   FOrmDataSet := ADataSet as TFDMemTable;
   FMemTableEvents := TFDMemTableEvents.Create;
   // Captura e guarda os eventos do dataset
@@ -219,6 +219,10 @@ begin
   LRecnoBook := FOrmDataSet.GetBookmark;
   FOrmDataSet.DisableControls;
   FOrmDataSet.DisableConstraints;
+  // DisableDataSetEvents is LOAD-BEARING, not cosmetic: it unhooks
+  // TDataSetBaseAdapter<M>.DoBeforePost, and ApplyUpdater does not terminate
+  // without it. See the note on cInternalField in Janus.DataSet.Fields;
+  // pinned by Test.Janus.Apply.Loops.
   DisableDataSetEvents;
   try
     ApplyInserter(MaxErros);
@@ -250,7 +254,7 @@ var
   LFor: Integer;
 begin
   inherited;
-  // Filtar somente os registros exclu�dos
+  // Filtar somente os registros excluidos
   if FSession.DeleteList.Count = 0 then
     Exit;
 
@@ -269,6 +273,13 @@ begin
   FOrmDataSet.Filtered := True;
   if not FOrmDataSet.IsEmpty then
     FOrmDataSet.First;
+  // QUANTAS LINHAS DE MASTER ESTA PASSAGEM VAI PERCORRER - issue #261. Lido
+  // AQUI, e nao la dentro, porque o laco abaixo CONSOME o filtro: cada linha
+  // perde o marcador de pendente ao terminar e sai da vista, de modo que o
+  // mesmo RecordCount lido de dentro da cascata cairia de P ate 1 e a ultima
+  // linha de master voltaria a ser a dona de tudo que nao tem dono. Ver
+  // TDataSetBaseAdapter<M>.FCascadeMasterRows e _IsOwnedByMasterRow.
+  FCascadeMasterRows := FOrmDataSet.RecordCount;
   try
     while FOrmDataSet.RecordCount > 0 do
     begin
@@ -299,6 +310,7 @@ begin
        end;
     end;
   finally
+    FCascadeMasterRows := 0;
     FOrmDataSet.Filtered := False;
     FOrmDataSet.Filter := '';
   end;
@@ -349,7 +361,7 @@ var
   LIsConnected: Boolean;
 begin
   inherited;
-  // Controle de transa��o externa, controlada pelo desenvolvedor
+  // Controle de transacao externa, controlada pelo desenvolvedor
   LInTransaction := FConnection.InTransaction;
   LIsConnected := FConnection.IsConnected;
   if not LIsConnected then
@@ -395,6 +407,10 @@ begin
     FConnection.Connect;
   try
     try
+      // Reabre antes de limpar: EmptyDataSet passa por CheckBrowseMode e, com o
+      // dataset fechado, levanta "Cannot perform this operation on a closed
+      // dataset" - ver TDataSetBaseAdapter<M>.EnsureOpen.
+      EnsureOpen;
       EmptyDataSet;
       inherited;
       FSession.OpenID(AID);
@@ -406,7 +422,7 @@ begin
     EnableDataSetEvents;
     // Define a order no dataset
     FOrmDataSet.IndexFieldNames := _GetIndexFieldNames('');
-    // Erro interno do FireDAC se no m�todo First se o dataset estiver vazio
+    // Erro interno do FireDAC se no metodo First se o dataset estiver vazio
     if not FOrmDataSet.IsEmpty then
       FOrmDataSet.First;
     FOrmDataSet.EnableConstraints;
@@ -428,6 +444,10 @@ begin
     FConnection.Connect;
   try
     try
+      // Reabre antes de limpar: EmptyDataSet passa por CheckBrowseMode e, com o
+      // dataset fechado, levanta "Cannot perform this operation on a closed
+      // dataset" - ver TDataSetBaseAdapter<M>.EnsureOpen.
+      EnsureOpen;
       // Limpa os registro do dataset antes de garregar os novos dados
       EmptyDataSet;
       inherited;
@@ -440,7 +460,7 @@ begin
     EnableDataSetEvents;
     // Define a order no dataset
     FOrmDataSet.IndexFieldNames := _GetIndexFieldNames('');
-    // Erro interno do FireDAC se no m�todo First se o dataset estiver vazio
+    // Erro interno do FireDAC se no metodo First se o dataset estiver vazio
     if not FOrmDataSet.IsEmpty then
       FOrmDataSet.First;
     FOrmDataSet.EnableConstraints;
@@ -464,6 +484,10 @@ begin
     FConnection.Connect;
   try
     try
+      // Reabre antes de limpar: EmptyDataSet passa por CheckBrowseMode e, com o
+      // dataset fechado, levanta "Cannot perform this operation on a closed
+      // dataset" - ver TDataSetBaseAdapter<M>.EnsureOpen.
+      EnsureOpen;
       EmptyDataSet;
       inherited;
       FSession.OpenWhere(AWhere, AOrderBy);
@@ -475,7 +499,7 @@ begin
     EnableDataSetEvents;
     // Define a order no dataset
     FOrmDataSet.IndexFieldNames := _GetIndexFieldNames(AOrderBy);
-    // Erro interno do FireDAC se no m�todo First se o dataset estiver vazio
+    // Erro interno do FireDAC se no metodo First se o dataset estiver vazio
     if not FOrmDataSet.IsEmpty then
       FOrmDataSet.First;
     FOrmDataSet.EnableConstraints;

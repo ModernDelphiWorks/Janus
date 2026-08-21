@@ -22,8 +22,6 @@
 
 unit Janus.Client.RestWiRL.Factory;
 
-{$IFDEF JANUS_REST_WIRL}
-
 interface
 
 uses
@@ -35,7 +33,7 @@ uses
 
 type
   /// <summary>
-  ///   Fábrica de conexões abstratas
+  ///   Fabrica de conexoes abstratas
   /// </summary>
   TRESTFactoryWiRL = class (TRESTFactoryConnection)
   public
@@ -66,10 +64,5 @@ begin
   Result := FDriverConnection
               .Execute(AResource, ASubResource, ARequestMethod, AParams);
 end;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

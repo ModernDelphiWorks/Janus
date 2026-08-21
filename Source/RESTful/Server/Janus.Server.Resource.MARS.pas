@@ -22,8 +22,6 @@
 
 unit Janus.Server.Resource.MARS;
 
-{$IFDEF JANUS_REST_MARS}
-
 interface
 
 uses
@@ -141,9 +139,9 @@ end;
 function TAppResource.delete(resource: string;
                              filter: string): TJSONValue;
 var
-  LQuery: TRESTQuery;
+  LQuery: TRESTQueryParse;
 begin
-  LQuery := TRESTQuery.Create;
+  LQuery := TRESTQueryParse.Create;
   try
     // Parse da Query passada na URI
     LQuery.ParseQuery(resource);
@@ -163,10 +161,5 @@ end;
 
 initialization
   TMARSResourceRegistry.Instance.RegisterResource<TAppResource>;
-
-{$ELSE}
-interface
-implementation
-{$ENDIF}
 
 end.

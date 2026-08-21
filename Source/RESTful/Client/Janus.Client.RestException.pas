@@ -36,6 +36,20 @@ type
       const AStatusCode: Integer); overload;
   end;
 
+  /// <summary>
+  ///   ISSUE #323 - THE ANSWER IS NOT IN THE AGREED SHAPE.
+  ///
+  ///   Raised by TJanusClient.ResponsePayload, INSIDE the try of the Do* method
+  ///   that asked for the round trip, so the handler already written there is
+  ///   the one that reports it - either through FErrorCommand or wrapped in an
+  ///   EJanusRESTException naming URL, resource, method, status and the response
+  ///   body. This class is not meant to reach the consumer of a Do* method; it
+  ///   exists so the malformed shapes stop arriving as an EInvalidCast, an
+  ///   EArgumentOutOfRangeException or - worst of the three - an access
+  ///   violation, none of which say anything about HTTP.
+  /// </summary>
+  EJanusRESTResponseShape = class(Exception);
+
 implementation
 
 { EJanusRESTException }

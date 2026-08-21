@@ -29,8 +29,8 @@ uses
   Janus.Model.Detail in '..\Janus.Model.Detail.pas',
   Janus.Model.Lookup in '..\Janus.Model.Lookup.pas',
   Janus.Model.Master in '..\Janus.Model.Master.pas',
-  Janus.Server.MARS in '..\..\..\..\Source\RESTful Components\Server\Janus.Server.MARS.pas',
-  Janus.Server.Resource.MARS in '..\..\..\..\Source\RESTful Components\Server\Janus.Server.Resource.MARS.pas';
+  Janus.Server.MARS in '..\..\..\..\..\..\Source\RESTful\Server\Janus.Server.MARS.pas',
+  Janus.Server.Resource.MARS in '..\..\..\..\..\..\Source\RESTful\Server\Janus.Server.Resource.MARS.pas';
 
 {$R *.res}
 
