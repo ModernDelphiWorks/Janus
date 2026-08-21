@@ -277,8 +277,11 @@ begin
             ///  read out of a dataset, so both READERS land on one
             ///  StringToGUID - which accepts only the braced 38-character form
             ///  DoGetValue emits. Only the readers: the write direction parses
-            ///  too, at Janus.Command.Inserter.pas:172, where the text built
+            ///  too, in TCommandInserter.GenerateInsert, where the text built
             ///  from the property is turned back into a TGUID for the param.
+            ///  ANCHORED BY METHOD SINCE #352: this citation carried a line
+            ///  number, and that line number was stale before anyone edited
+            ///  the file for this issue.
             ///  A JSON null, or a member absent from the payload, is not a
             ///  GUID and must not raise: it leaves the property at TGUID.Empty,
             ///  the same value a freshly constructed object already carries.

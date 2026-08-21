@@ -113,35 +113,41 @@ type
     ///
     ///  WHY THE MARKER HAS TO COME BACK NAMED AND NOT BE CONSUMED POSITIONALLY.
     ///  Janus binds by NAME: TCommandInserter.GenerateInsert names each TParam
-    ///  after its column (Janus.Command.Inserter.pas:161), and the dataset
-    ///  matches marker to param by that name. Two facts make the positional
-    ///  reading unsafe, and both are measurable in this tree:
-    ///    (a) THE TWO LOOPS DO NOT EMIT THE SAME SET. GeneratorInsert skips a
-    ///        column on four tests; the inserter's loop skips on those four AND
-    ///        on IsJoinColumn (Janus.Command.Inserter.pas:111-112). An ordinal
-    ///        agreed between them would shift every value after the first join
-    ///        column into the wrong slot - silently, since the types usually
-    ///        still fit.
-    ///    (b) THE SQL IS CACHED PER CLASS, THE SKIP SET IS PER INSTANCE.
-    ///        FQueryCache keys on ClassName + '-INSERT' (GeneratorInsert), while
-    ///        IsNullValue is asked of the INSTANCE. A second instance with a
-    ///        different null pattern reuses the first instance's statement.
-    ///  DO NOT READ (b) AS "BY NAME IT IS HARMLESS". By name it is still wrong,
-    ///  in BOTH directions, and an earlier version of this paragraph said "at
-    ///  worst a spare param", which is an understatement of one of the two:
-    ///        wide first, then narrow -> the cached statement names a marker the
-    ///          narrow instance never binds: a MARKER WITH NO BIND;
-    ///        narrow first, then wide  -> the cached statement has no slot for a
-    ///          column the wide instance does bind: A COLUMN SILENTLY LOST.
-    ///  What (b) establishes is only the COMPARISON: by name the damage is one
-    ///  of those two and it is visible at the marker; by ordinal it is the
-    ///  wrong column quietly receiving another column's value, which nothing
-    ///  downstream can notice.
-    ///  THE CACHE-VERSUS-NULLS DEFECT IS PRE-EXISTING AND IS NOT REPAIRED HERE.
-    ///  It predates this rewrite and is untouched by it: the cache hit returns
-    ///  before any of this runs (GeneratorInsert, the TryGetValue/Exit pair),
-    ///  so the restore is not even on that path. Registered as a finding for
-    ///  the owner to rule on, not fixed in passing.
+    ///  after its column, and the dataset matches marker to param by that name.
+    ///
+    ///  THE PARAGRAPH THAT USED TO STAND HERE IS REPLACED RATHER THAN DELETED,
+    ///  BECAUSE IT WAS MEASURED FALSE - issue #352. It gave two reasons the
+    ///  positional reading was unsafe, and it ranked the damage wrongly:
+    ///    (a) it said THE TWO LOOPS DO NOT EMIT THE SAME SET - the generator
+    ///        skipping on four tests and the inserter on those four AND on
+    ///        IsJoinColumn - and treated the resulting slot shift as something
+    ///        only an ORDINAL reading could cause. It happens TODAY, by name,
+    ///        and it needs no cache: see below.
+    ///    (b) it said the SQL is cached per class while the skip set is per
+    ///        instance, which was true and is now closed.
+    ///  It then said that BY NAME the wide-first case is "a MARKER WITH NO
+    ///  BIND", and that the wrong column quietly receiving another column's
+    ///  value was what an ORDINAL reading would cost. THAT IS THE FALSE HALF.
+    ///  Measured against SQLite through the public container API:
+    ///    TDriverFireDAC._InternalExecuteDirect sets SQL.Text and then calls
+    ///    Params.Assign, and Assign REPLACES the collection FireDAC built from
+    ///    the text. So a statement carrying MORE markers than the params handed
+    ///    to it does not leave the extras unbound - the survivors are filled BY
+    ///    POSITION, one column's value lands in ANOTHER COLUMN, and nothing
+    ///    raises. "A marker with no bind" was the benign reading of a silent
+    ///    corruption. The opposite mismatch - more params than markers - is
+    ///    matched by name and the surplus is dropped without a word.
+    ///  Both were reproduced on a COLD cache, on a SINGLE object, by a
+    ///  [JoinColumn] that was not also NoInsert; the cache only widened the
+    ///  population that could reach them.
+    ///
+    ///  BOTH ARE NOW CLOSED, AND BY THE SAME CHANGE. TInsertColumns.Plan is the
+    ///  one function that decides which columns an INSERT carries, and both
+    ///  GeneratorInsert and TCommandInserter.GenerateInsert call it, so (a)
+    ///  cannot recur; the signature it returns is cached beside the SQL, so (b)
+    ///  cannot recur. See Janus.DML.Insert.Columns. What remains true and load
+    ///  bearing for THIS method is only the first sentence: the bind is matched
+    ///  by NAME, so the marker has to come back named.
     ///  So the adoption is: let FluentSQL allocate the bind, then put OUR name
     ///  back over it. The emitted text is byte-for-byte what this generator
     ///  emitted before FluentSQL changed, which is why no consumer downstream

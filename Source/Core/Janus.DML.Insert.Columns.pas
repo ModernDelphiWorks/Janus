@@ -53,6 +53,23 @@
 ///  would cost the names. It is also readable in a debugger, which is what you
 ///  want from the value that decides whether a statement gets reused.
 ///
+///  WHAT IT COSTS, MEASURED, AND WHY THE NUMBER IS A RATIO AND NOT A DURATION.
+///  Over 20000 renders of a four-column entity against SQLite, on the tree at
+///  723812a: Plan alone 0.0031 ms, a cache hit including Plan 0.0045 ms, a full
+///  render with a fresh generator 0.0481 ms. So the repair costs roughly 0.0042
+///  ms per insert over the old bare-key hit - about a fifteenth of what not
+///  caching would cost, and far below any round trip a real database charges.
+///
+///  READ THE RATIO, NOT THE MILLISECONDS. The same harness on the same machine
+///  put a full render at 0.0716 ms in one run and 0.0325 ms in another, so the
+///  absolute figures move by a factor of two between runs and only numbers
+///  taken in ONE run may be compared. The investigation predicted 0.0021 ms for
+///  this work from a standalone IsNullValue sweep; the honest report is that
+///  Plan measured 0.0031 ms here, which is HIGHER than that prediction - and
+///  that the same standalone sweep measured 0.0049 ms in this run, which puts
+///  Plan below the thing it replaces. The prediction was not wrong about the
+///  work; the run it came from was faster.
+///
 ///  IT IS NOT A CACHE KEY. The key stays ClassName + '-INSERT', one entry per
 ///  class, and the signature rides INSIDE the entry. Making it part of the key
 ///  would have made the dictionary grow with the number of null patterns a

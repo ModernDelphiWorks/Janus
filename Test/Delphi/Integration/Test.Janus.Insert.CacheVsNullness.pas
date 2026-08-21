@@ -236,15 +236,19 @@ type
     property childs: TObjectList<TCacheNullChild> read Fchilds write Fchilds;
   end;
 
-  /// THE NEIGHBOUR. Not the cache at all: GeneratorInsert skips a column on
-  /// four tests, and TCommandInserter.GenerateInsert skips on those four AND
-  /// on IsJoinColumn. A join column that is NOT also NoInsert therefore gets a
-  /// marker nobody binds, on a COLD cache, on the FIRST insert.
+  /// THE NEIGHBOUR. Not the cache at all. GeneratorInsert used to skip a
+  /// column on four tests while TCommandInserter.GenerateInsert skipped on
+  /// those four AND on IsJoinColumn, so a join column that was NOT also
+  /// NoInsert got a marker nobody bound - on a COLD cache, on the FIRST
+  /// insert of a SINGLE object - and the driver then filled that marker BY
+  /// POSITION with the next column's value. Both now call
+  /// TInsertColumns.Plan, which is what this entity exists to keep true.
   ///
   /// EVERY [JoinColumn] this repository ships under Examples - thirteen of
-  /// them - also carries NoInsert, which the generator does honour. So the
-  /// disagreement is latent there. This entity is what a consumer who did not
-  /// copy that pairing gets.
+  /// them - also carries NoInsert, which the generator honoured even then. So
+  /// the disagreement was latent there and no shipped model could show it.
+  /// This entity is what a consumer who did not copy that pairing gets, and
+  /// it is the only thing in the tree that holds the unification honest.
   [Entity]
   [Table('cnjoin', '')]
   [PrimaryKey('k01', TAutoIncType.NotInc,
