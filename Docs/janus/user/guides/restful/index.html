@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.1">
 <title data-rh="true">Guia - Driver RESTful | Janus Docs</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://example.com/janus/user/guides/restful"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Guia - Driver RESTful | Janus Docs"><meta data-rh="true" name="description" content="O driver RESTful do Janus permite persistir entidades via API HTTP em vez de banco de dados direto. O cliente Janus se comunica com um servidor que expõe endpoints do próprio Janus."><meta data-rh="true" property="og:description" content="O driver RESTful do Janus permite persistir entidades via API HTTP em vez de banco de dados direto. O cliente Janus se comunica com um servidor que expõe endpoints do próprio Janus."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://example.com/janus/user/guides/restful"><link data-rh="true" rel="alternate" href="https://example.com/janus/user/guides/restful" hreflang="en"><link data-rh="true" rel="alternate" href="https://example.com/janus/user/guides/restful" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Janus","item":"https://example.com/janus/"},{"@type":"ListItem","position":2,"name":"Guia - Driver RESTful","item":"https://example.com/janus/user/guides/restful"}]}</script><link rel="stylesheet" href="/assets/css/styles.78e6bda1.css">
-<script src="/assets/js/runtime~main.be8c7d16.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.97b9ddbb.js" defer="defer"></script>
 <script src="/assets/js/main.567e2257.js" defer="defer"></script>
 </head>
 <body>
@@ -41,10 +41,12 @@ um é localizado por uma propriedade de diretório no <code>.dproj</code> e foi 
 contra uma revisão concreta. Quem for mexer num driver deve conferir a revisão
 abaixo antes: essas bibliotecas renomeiam tipos entre versões e a quebra
 aparece só na compilação.</p>
-<table><thead><tr><th>Driver</th><th>Repositório</th><th>Revisão fixada</th><th>Data</th><th>Propriedade de diretório</th></tr></thead><tbody><tr><td>WiRL</td><td><a href="https://github.com/delphi-blocks/WiRL" target="_blank" rel="noopener noreferrer" class="">delphi-blocks/WiRL</a></td><td><code>aac8562c810b98fef590f3035f56bdf9ea3bad76</code></td><td>2026-07-13</td><td><code>$(WIRLDIR)</code> (convenção; nenhum <code>.dproj</code> a usa ainda)</td></tr><tr><td>MARS</td><td><a href="https://github.com/andrea-magni/MARS" target="_blank" rel="noopener noreferrer" class="">andrea-magni/MARS</a></td><td>não registrada</td><td>—</td><td><code>$(MARSDIR)</code> (usada por <code>Janus.Tests.RESTMARS.dproj</code>)</td></tr></tbody></table>
-<p>Search path esperado para <code>$(WIRLDIR)</code>: <code>Source\Core</code>, <code>Source\Client</code>,
-<code>Source\Data</code>, <code>Source\Data\FireDAC</code>, <code>Libs\Neon\Source</code>,
-<code>Libs\JWT\Source\Common</code>, <code>Libs\JWT\Source\JOSE</code>, <code>Libs\OpenAPI\Source</code>.</p>
+<table><thead><tr><th>Driver</th><th>Repositório</th><th>Revisão fixada</th><th>Data</th><th>Propriedade de diretório</th></tr></thead><tbody><tr><td>WiRL</td><td><a href="https://github.com/delphi-blocks/WiRL" target="_blank" rel="noopener noreferrer" class="">delphi-blocks/WiRL</a></td><td><code>aac8562c810b98fef590f3035f56bdf9ea3bad76</code></td><td>2026-07-13</td><td><code>$(WIRLDIR)</code> (usada por <code>Janus.Tests.RESTWiRL.dproj</code>)</td></tr><tr><td>MARS</td><td><a href="https://github.com/andrea-magni/MARS" target="_blank" rel="noopener noreferrer" class="">andrea-magni/MARS</a></td><td>não registrada</td><td>—</td><td><code>$(MARSDIR)</code> (usada por <code>Janus.Tests.RESTMARS.dproj</code>)</td></tr></tbody></table>
+<p>Search path de <code>$(WIRLDIR)</code> — o que <code>Janus.Tests.RESTWiRL.dproj</code> realmente
+carrega e com o qual o cliente compila: <code>Source\Core</code>, <code>Source\Client</code>,
+<code>Source\Data</code>, <code>Source\Extensions</code>, <code>Libs\Neon\Source</code>,
+<code>Libs\JWT\Source\Common</code>, <code>Libs\JWT\Source\JOSE</code>, <code>Libs\OpenAPI\Source</code>.
+<code>Source\Data\FireDAC</code> existe no pin mas o caminho do cliente não precisa dele.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="aviso-o-pin-é-master-sem-tag-e-a-última-release-não-serve">AVISO: o pin é master sem tag, e a última release NÃO serve<a href="#aviso-o-pin-é-master-sem-tag-e-a-última-release-não-serve" class="hash-link" aria-label="Direct link to AVISO: o pin é master sem tag, e a última release NÃO serve" title="Direct link to AVISO: o pin é master sem tag, e a última release NÃO serve" translate="no">​</a></h3>
 <p><code>aac8562</code> é um snapshot do <code>master</code>, <strong>à frente de todas as releases</strong>. Quem
 instalar WiRL por release recebe outra coisa e <strong>este driver não compila</strong>.</p>
@@ -114,16 +116,32 @@ falava com o <code>TWiRLAuthFormResource</code>. O <code>AcquireAccessToken</cod
 ou seja fala com o <code>TWiRLAuthBasicResource</code> — <strong>endpoints diferentes</strong>. O
 upstream tem três sabores (Form, Basic e Body, em <code>WiRL.Core.Auth.Resource</code>).</p>
 <p>Portanto isto é <strong>capacidade nova, num sabor de autenticação diferente do
-componente extinto, e não exercitada em execução por nada deste repositório</strong>.
-Não houve regressão porque o componente antigo era casca: em <code>f6d6c50</code> o
-<code>FRESTToken</code> era declarado, criado, ligado à aplicação e recebia credenciais,
-mas nunca era chamado para fazer o POST.</p>
+componente extinto</strong>. Não houve regressão porque o componente antigo era casca:
+em <code>f6d6c50</code> o <code>FRESTToken</code> era declarado, criado, ligado à aplicação e recebia
+credenciais, mas nunca era chamado para fazer o POST.</p>
+<blockquote>
+<p>Quando a #228 foi escrita, este caminho <strong>não era exercitado em execução por
+nada deste repositório</strong>. Passou a ser: <code>Janus.Tests.RESTWiRL</code> faz o login
+contra um servidor de empréstimo no loopback e confere o token que volta.</p>
+</blockquote>
+<h4 class="anchor anchorTargetStickyNavbar_Vzrq" id="onde-o-token-vive-e-o-que-o-driver-responde-213">Onde o token vive, e o que o driver responde (#213)<a href="#onde-o-token-vive-e-o-que-o-driver-responde-213" class="hash-link" aria-label="Direct link to Onde o token vive, e o que o driver responde (#213)" title="Direct link to Onde o token vive, e o que o driver responde (#213)" translate="no">​</a></h4>
+<p>O token adquirido <strong>não volta para o <code>Authenticator</code></strong> — ele fica no
+<code>FAccessToken</code> privado do <code>TRESTClientWiRL</code>. A precedência que o cabeçalho usa
+é: token explícito do <code>Authenticator</code> primeiro; na falta dele, o que o login
+trouxe.</p>
+<p><code>TRESTClientWiRL.AccessToken</code> responde esse token efetivo, com a mesma
+precedência, e é o que <code>TRESTDriverWiRL.GetMethodToken</code> devolve.
+<strong>Deliberadamente diferente do driver Horse</strong>, cujo <code>GetMethodToken</code> lê
+<code>Authenticator.Token</code> direto: no WiRL isso devolveria vazio justamente no fluxo
+usuário/senha, que é o único fluxo de autenticação que o cliente implementa.</p>
+<p>Antes da #213 os três getters <code>GetMethodToken</code>, <code>GetUsername</code> e <code>GetPassword</code>
+do <code>TRESTDriverWiRL</code> tinham <strong>corpo vazio</strong> e devolviam string vazia em
+silêncio.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="compatibilidade-com-wirl-antigo">Compatibilidade com WiRL antigo<a href="#compatibilidade-com-wirl-antigo" class="hash-link" aria-label="Direct link to Compatibilidade com WiRL antigo" title="Direct link to Compatibilidade com WiRL antigo" translate="no">​</a></h3>
 <p>Não há. O driver faz corte limpo no pin acima. Compilação condicional foi
 considerada e descartada: os tipos mudaram de unit <strong>e</strong> de nome, o
 <code>TWiRLClientToken</code> não tem equivalente, e manter os dois lados exigiria uma
-matriz de compilação que ninguém executa — nenhum projeto de teste deste
-repositório compila o driver WiRL hoje.</p>
+matriz de compilação que ninguém executa.</p>
 <h3 class="anchor anchorTargetStickyNavbar_Vzrq" id="defeitos-pré-existentes-registrados-aqui-para-não-se-perderem">Defeitos pré-existentes registrados aqui para não se perderem<a href="#defeitos-pré-existentes-registrados-aqui-para-não-se-perderem" class="hash-link" aria-label="Direct link to Defeitos pré-existentes registrados aqui para não se perderem" title="Direct link to Defeitos pré-existentes registrados aqui para não se perderem" translate="no">​</a></h3>
 <p>Nenhum dos dois é da issue #228 e nenhum foi corrigido:</p>
 <ul>
