@@ -26,7 +26,13 @@
     senao .dcu de uma medicao anterior seria contado como cobertura.
 
   CONTROLES (o censo nao vale sem eles - o script os imprime e falha se quebrarem)
-    positivo: Janus.Bind DEVE aparecer (e compilada por 5 dos 7).
+    positivo: Janus.Bind DEVE aparecer. Quantos projetos a compilam e um numero
+              que MUDA: era 5 dos 7 em 0546a51 e passou a 6 na frente da #341,
+              porque linkar o par servidor WiRL puxou a cadeia inteira do
+              Janus.Server.* para dentro do Janus.Tests.RESTWiRL. A prosa dizia
+              "5 dos 7" e ficou FALSA sem que nada reclamasse - por isso o
+              numero agora vive em $CExpectedBindProjects, e o script avisa
+              quando derivar em vez de deixar a documentacao apodrecer calada.
     negativo: Janus.Client.DMVC e Janus.Server.DMVC NAO devem aparecer em
               nenhum dos 7. Nao e escolha de conveniencia: o DMVC desta maquina
               (D:\Delphi Tools\delphimvcframework-master, 3.4.0-neon-beta) NAO
@@ -68,7 +74,17 @@ param(
   #  esta ligado quando o param block e avaliado.)
   [string]$Root = '',
 
-  # Pin do FluentSQL, RELATIVO a Test\Delphi. Sem ele o build quebra.
+  # Pin do FluentSQL, RELATIVO a Test\Delphi.
+  #
+  # MEDIDO na frente da #341, e NAO e o que este comentario dizia antes ("sem
+  # ele o build quebra"): sem o pin os SETE projetos COMPILAM (exit 0, 7/7).
+  # O pin e load-bearing em TEMPO DE EXECUCAO, nao de compilacao - rodando sem
+  # ele, Janus.Tests.Units cai 10 e Janus.Tests.RESTHorse cai 51 (49 failures +
+  # 2 errors), 61 clausulas verdes que ficam vermelhas. A causa medida: o
+  # FluentSQL de main emite placeholder POSICIONAL onde o Janus espera NOMEADO
+  # ("insert into client (...) values (:p1, :p2)" onde a clausula exige
+  # ":client_name"). Trocar o pin pelo main e uma decisao de RUNTIME, e o censo
+  # so mede compilacao - nao use este script como argumento para largar o pin.
   [string]$PinRel = '..\..\..\_wt-fluentsql-pin265\Source',
 
   [string]$RsVars  = 'C:\Program Files (x86)\Embarcadero\Studio\37.0\bin\rsvars.bat',
@@ -189,12 +205,27 @@ function Get-Hits([string]$unit, [hashtable]$table) {
 
 # ------------------------------------------------------------------ controles
 $ok = $true
+# Quantos projetos compilam Janus.Bind HOJE. Medido em 6f19242 (frente da #341);
+# era 5 em 0546a51. Ao mudar de propósito, atualize esta constante NO MESMO
+# commit que muda a cobertura - o aviso abaixo existe para que o numero nunca
+# mais fique errado em silencio.
+$CExpectedBindProjects = 6
+
 $posMap = Get-Hits 'Janus.Bind' $byMap
 $posDcu = Get-Hits 'Janus.Bind' $byDcu
 "=== CONTROLE POSITIVO - Janus.Bind ==="
 "  MAP: " + ($posMap -join ', ')
 "  DCU: " + ($posDcu -join ', ')
-if ($posDcu.Count -eq 0) { $ok = $false; Write-Warning 'CONTROLE POSITIVO FALHOU: Janus.Bind nao aparece em projeto nenhum. O metodo esta errado.' }
+"  esperado: {0} projetos   medido: {1}" -f $CExpectedBindProjects, $posDcu.Count
+if ($posDcu.Count -eq 0) {
+  $ok = $false
+  Write-Warning 'CONTROLE POSITIVO FALHOU: Janus.Bind nao aparece em projeto nenhum. O metodo esta errado.'
+}
+elseif ($posDcu.Count -ne $CExpectedBindProjects) {
+  # NAO e falha: cobertura mudar e o objetivo do repositorio. E um pedido de
+  # releitura - a presenca sozinha ("-eq 0") deixou "5 dos 7" apodrecer.
+  Write-Warning ("DERIVA NO CONTROLE POSITIVO: Janus.Bind agora e compilada por {0} projeto(s), nao {1}. Se a mudanca foi deliberada, atualize `$CExpectedBindProjects (e a prosa do cabecalho) neste mesmo commit." -f $posDcu.Count, $CExpectedBindProjects)
+}
 
 "=== CONTROLE NEGATIVO - a familia DMVC (esperado: nenhum; o DMVC nao compila no Studio 37) ==="
 foreach ($u in @('Janus.Client.DMVC','Janus.Server.DMVC')) {

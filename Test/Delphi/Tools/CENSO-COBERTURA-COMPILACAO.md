@@ -66,20 +66,83 @@
 > apenas o nome do produto no cabeçalho de licença (e uma linha em branco em
 > `SQLite3.pas`). Decisão do dono — ver o dossiê da #341.
 >
+> ### O PIN DO FluentSQL — o censo NÃO autoriza largá-lo
+>
+> **Esta seção existe porque a primeira redação desta frente errou.** Ela mediu
+> que os sete projetos **compilam sem o pin** (exit 0, 7/7) e concluiu que o pin
+> estava obsoleto. A conclusão é **FALSA**, e o erro é de método: o censo mede
+> COMPILAÇÃO, e o pin é load-bearing em **EXECUÇÃO**.
+>
+> Re-medido rodando as suítes sem o pin:
+>
+> | | com pin | **sem pin** |
+> |---|---:|---:|
+> | `Janus.Tests.Units` | 669/669 verdes | **10 failures** |
+> | `Janus.Tests.RESTHorse` | 158/158 verdes | **49 failures + 2 errors** |
+>
+> **61 cláusulas verdes ficam vermelhas.** A causa está na mensagem das falhas:
+>
+> ```
+> [insert into client (client_id, client_name) values (:p1, :p2)]
+>     does not contain [:client_name]
+> ```
+>
+> O FluentSQL de `main` emite placeholder **POSICIONAL** (`:p1, :p2`) onde o
+> Janus espera **NOMEADO** (`:client_name`) — é a frente de *parameterization*
+> deles. As falhas de cascata/árvore (`DeletingTheRootMustEmptyEveryLevel`,
+> `TheMasterKeyMustReachTheBranchRowAddedOnUpdate`) são consequência: parâmetro
+> que não casa por nome não leva valor ao banco.
+>
+> **E o enum não é o assunto.** `TFluentSQLDriver` em `main`
+> (`FluentSQL.Interfaces.pas:57-59`) é **idêntico** ao do pin — 15 membros, mesma
+> ordem, `dbnADS`/`dbnAbsoluteDB`/`dbnElevateDB`/`dbnNexusDB` incluídos,
+> restaurados pelo PR #180 deles. O que **não** voltou foi o **REGISTRO**:
+> `FluentSQL.Register.pas` do pin registra **15** serializers, o de `main`
+> registra **9** — faltam `dbnInformix`, `dbnADS`, `dbnASA`, `dbnAbsoluteDB`,
+> `dbnElevateDB`, `dbnNexusDB`. Pedir um desses de `main` levanta
+> `EFluentSQLDriverNotRegistered`. E o mapeamento do Janus
+> (`Janus.DML.Generator.pas:1143-1170`, `ResolveFluentSQLDriver`) é um `case`
+> **incondicional, zero `IFDEF`**, que mapeia os quatro.
+>
+> **Fronteira honesta:** as 26 cláusulas novas desta frente passam **com e sem**
+> o pin (medido) — elas não alcançam o caminho do serializer. Portanto esta
+> frente **não** prova que `dnADS`/`dnAbsoluteDB`/`dnElevateDB`/`dnNexusDB`
+> serializam contra `main`; isso segue **NÃO MEDIDO**.
+>
+> **Resumo reancorado:** o pin é **dispensável em tempo de COMPILAÇÃO** nos sete
+> projetos, e **load-bearing em tempo de EXECUÇÃO** para `Units` e `RESTHorse`.
+> Trocá-lo por `main` é decisão de runtime, e este censo não é argumento para ela.
+>
 > **Decisão do dono — 5.** O "Nível 3" da issue:
 > `Horse.Janus`, `Janus.DML.Generator.Firebird3`, `Janus.Metadata.Classe.Factory`,
 > `Janus.OneToMany`, `Janus.Server.Swagger.Horse`. Esta frente NÃO os cobriu e
 > NÃO os removeu, de propósito: cobrir prejulgaria a remoção. O que ela mediu
 > sobre eles está no dossiê da #341.
+>
+> Sobre `JANUS_SWAGGER`, com o escopo dito: `grep -rn JANUS_SWAGGER` na árvore
+> inteira dá **5** ocorrências — **1 fora deste documento** (o próprio
+> `{$IFDEF}` em `Janus.Server.Swagger.Horse.pas:16`) e 4 aqui, falando dele.
+> Ou seja: o símbolo é **citado uma única vez e nunca DEFINIDO** — nenhum
+> `.dproj`, `.dpr`, `.inc` ou workflow o define. A unit é inalcançável, não
+> apenas descoberta. (Uma redação anterior disse "exatamente 1 ocorrência no
+> repositório", o que era falso: contava só a de `Source/`.)
 
-**Isto é medição, não conserto.** Nada em `Source/`, `.dpr` ou `.dproj` foi alterado.
+**Isto é medição, não conserto — e isso vale para `0546a51`, o commit desta seção.**
+Nada em `Source/`, `.dpr` ou `.dproj` foi alterado **por aquela medição**.
+
+> ⚠️ **NÃO vale para o estado atual da árvore.** A frente da #341 (caixa acima)
+> alterou **4** arquivos de projeto — `Janus.Tests.Units.dpr`/`.dproj` e
+> `Janus.Tests.RESTWiRL.dpr`/`.dproj` — para linkar as 13 units que ela passou a
+> cobrir. O que continua intacto, aí sim no HEAD de hoje, é `Source/` e
+> `Components/`: **byte a byte idênticos a `origin/develop`**, verificado com
+> `git diff --stat origin/develop -- Source Components` (saída vazia).
 
 | | |
 |---|---|
 | **Commit medido** | `0546a51b42eb97d3f882c9725ac98288e4420d78` (`0546a51`, merge do PR #336) |
 | **Data da medição** | 12 ago 2026 |
 | **Compilador** | RAD Studio 37.0, `Win32` / `Debug` |
-| **Pin obrigatório** | FluentSQL em `..\..\..\_wt-fluentsql-pin265\Source\{Core,Drivers}` |
+| **Pin obrigatório** | FluentSQL em `..\..\..\_wt-fluentsql-pin265\Source\{Core,Drivers}` — **por quê, medido na #341: ver a caixa da segunda medição.** Não é "senão não compila" |
 | **Script que regenera tudo** | `Test/Delphi/Tools/compile-coverage-census.ps1` |
 | **Matriz completa 136 × 7** | `Test/Delphi/Tools/census-matrix-0546a51.csv` |
 
@@ -208,6 +271,10 @@ Get-ChildItem <repo> -Recurse -Filter *.pas |
 
 - **Positivo.** `Janus.Bind` aparece em **5 dos 7** (`Units`, `RESTfulDriver`, `RESTHorse`,
   `RESTMARS`, `RESTOracle`), e **MAP e DCU concordam** nos cinco.
+  ⚠️ **Este número já mudou: hoje são 6** — a #341 linkou o par servidor WiRL e
+  puxou `Janus.Bind` para o `RESTWiRL` também. O "5" vale para `0546a51` e para
+  mais nada; o valor corrente vive em `$CExpectedBindProjects`, no script, que
+  avisa quando derivar.
 - **Negativo.** `Janus.Client.DataSnap` e `Janus.Client.WS` aparecem em **ZERO dos 7**, tanto
   por MAP quanto por DCU. Reproduz a #323 pelo caminho do compilador, sem *tripwire*.
   ⚠️ A frente da #323 está em voo e vai mudar isso — este número vale para `0546a51`.
