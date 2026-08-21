@@ -121,6 +121,8 @@ uses
   /// The ADS date literal: 'CC' is not a FormatDateTime specifier
   Test.Janus.DML.Generator.ADS in 'Unit\Core\Test.Janus.DML.Generator.ADS.pas',
   Test.Janus.DML.Dialect.Wiring in 'Unit\Core\Test.Janus.DML.Dialect.Wiring.pas',
+  /// The SECOND dialect map - the REST view one - issue #357
+  Test.Janus.RestView.Dialect.Map in 'Unit\Core\Test.Janus.RestView.Dialect.Map.pas',
   /// The seven distributed generators - issue #341, Level 1
   Test.Janus.DML.Generator.Distributed in 'Unit\Core\Test.Janus.DML.Generator.Distributed.pas',
   Test.Janus.Server.DataSnapResource in 'Unit\RESTful\Test.Janus.Server.DataSnapResource.pas',

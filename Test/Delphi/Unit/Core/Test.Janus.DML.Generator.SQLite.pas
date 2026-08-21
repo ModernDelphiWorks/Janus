@@ -62,7 +62,15 @@ type
   private
     FDriver: TDriverName;
     FOptions: IOptions;
+    FExecutedDDL: String;
   public
+    /// <summary> EVERY ExecuteDirect THIS DOUBLE RECEIVED, IN ORDER, ONE PER
+    ///  LINE. Issue #357. TRESTViewManager.EnsureView does not return the DDL it
+    ///  built - it hands it to the connection - so a clause about WHICH DIALECT
+    ///  WROTE THE VIEW has no other way to read the answer. A String and not a
+    ///  TStringList deliberately: it is managed, so this double still needs no
+    ///  destructor even though hundreds of tests construct it. </summary>
+    function ExecutedDDL: String;
     constructor Create(ADriver: TDriverName); overload;
     /// Options is nil for every other test on purpose - a generator must
     /// survive a connection that answers nothing, and that nil-safety is what
@@ -567,10 +575,16 @@ end;
 
 procedure TFakeConnection.ExecuteDirect(const ASQL: String);
 begin
+  FExecutedDDL := FExecutedDDL + ASQL + sLineBreak;
 end;
 
 procedure TFakeConnection.ExecuteDirect(const ASQL: String; const AParams: TParams);
 begin
+end;
+
+function TFakeConnection.ExecutedDDL: String;
+begin
+  Result := FExecutedDDL;
 end;
 
 procedure TFakeConnection.ExecuteScript(const AScript: String);
