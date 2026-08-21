@@ -1039,13 +1039,40 @@ end;
 ///
 ///  THE REPAIR IS NOT A DIFFERENT MAGIC NUMBER. Any integer chosen to mean
 ///  "no id" can be reached by an id, so the marker is moved OUT OF BAND: "no
-///  id" is now an EMPTY TValue, and an empty TValue is not a value a caller
-///  supplying an id can produce. Every path that carries an id from outside -
-///  the REST path segment (Janus.Server.Resource.pas:514 and :802 hand
-///  AQuery.ID.ToString to TRESTObjectSet.Find), IContainerObjectSet<M>.Find,
-///  IContainerDataSet<M>.Find/Open - arrives holding a typed value, so none of
-///  them can ever be read as "no filter" again. -1 goes back to being an
-///  ordinary key value and builds the predicate any other key would.
+///  id" is now a TYPELESS TValue, and a caller that actually supplies an id
+///  hands over a value that carries a type. Every path that carries an id from
+///  outside - the REST path segment (Janus.Server.Resource.pas:514 and :802
+///  hand AQuery.ID.ToString to TRESTObjectSet.Find), IContainerObjectSet<M>
+///  .Find, IContainerDataSet<M>.Find/Open - arrives holding a typed value, so
+///  none of them can ever be read as "no filter" again. -1 goes back to being
+///  an ordinary key value and builds the predicate any other key would.
+///
+///  AND THIS REPAIR IS AN INVERSION FOR ONE SHAPE, WHICH IS DECLARED HERE
+///  RATHER THAN LEFT TO BE DISCOVERED. A TValue that carries NO TYPE used to
+///  be REFUSED and is now served the WHOLE TABLE. Measured base x HEAD through
+///  TCommandSelecter.GenerateSelectID, twelve shapes, and only these moved:
+///    * typeless TValue (TValue.Empty, Default(TValue)):
+///        0103408 RAISED "an id was supplied carrying no values"
+///        -> here  SELECT ... FROM keyonly, no predicate
+///    * Integer -1 / Int64 -1 / String '-1': whole table -> real predicate
+///    * UInt64 High(UInt64):                 whole table -> real predicate
+///  The first is the cost, the rest are the repair. The reason the old code
+///  refused a typeless value is incidental and worth knowing: TValue.IsType<T>
+///  answers True for one, so _KeyValues took the TArray<TValue> arm and handed
+///  back an EMPTY array, which the #326 guard then caught.
+///  Two things keep the exposure small, and neither is a guard: the REST route
+///  always arrives as AQuery.ID.ToString, a typed String and never a typeless
+///  value; and this method is reached only from the SELECT family - DELETE
+///  does not pass through GetGeneratorWhere at all. It is pinned by
+///  Test.Janus.DML.KeyPredicate's TypelessTValue_MeansEveryRow_AndThatIs-
+///  Deliberate so it cannot drift back in silence.
+///
+///  ONE MINE THE OLD DESIGN CARRIED AND THIS ONE DOES NOT. Because the test
+///  was BY VALUE, a legitimate 64-bit key could be swallowed: the UInt64 arm
+///  asked TryAsType<Int64> = -1, so High(UInt64) - every bit set, an ordinary
+///  key - was read as "no id" and returned the whole table. MEASURED on
+///  0103408, shape 05 of the board above. With no value test left, the shape
+///  cannot recur.
 ///
 ///  THE TWO CALLERS THAT REALLY MEAN "EVERYTHING" WERE ENUMERATED AND MOVED,
 ///  and they are the only two in this repository: TCommandSelecter's

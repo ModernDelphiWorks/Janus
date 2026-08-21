@@ -88,6 +88,7 @@ uses
   Generics.Collections,
   DB,
   DUnitX.TestFramework,
+  JSON,
   Net.HTTPClient,
   Net.URLClient,
   FireDAC.Stan.Intf,
@@ -198,6 +199,21 @@ type
     /// CONTROL - the repair must not turn "everything" into "nothing".
     [Test]
     procedure TheCollection_StillAnswersEveryRow;
+
+    /// THE CONTROL THAT ACTUALLY COUNTS, AND THE REASON IT EXISTS. Its
+    /// neighbour above reads the body for two tag substrings, and a substring
+    /// test is not a row count: it dies when the collection comes back EMPTY,
+    /// but it says nothing about how many rows arrived and it can be satisfied
+    /// by a body that is not even an array. MEASURED on 2c75690, BEFORE this
+    /// clause: forcing every collection read to `WHERE 1 = 0` inside
+    /// GetGeneratorWhere - the branch every "no id" caller passes through -
+    /// left Units 712/712 and RESTHorse 166/166 GREEN. Nothing in either suite
+    /// certified that a collection read BRINGS ROWS. That matters in this very
+    /// delta, because the repair MOVED both "everything" callers to
+    /// TValue.Empty and the only thing watching that move was a clause about
+    /// SQL text.
+    [Test]
+    procedure TheCollection_AnswersAsManyRowsAsWereWritten;
 
     /// CONTROL - a real id still reads its own row.
     [Test]
@@ -419,6 +435,40 @@ begin
     'the row whose key is -1 must be reachable BY that key - refusing -1 '
     + 'outright would be a product decision about a value the database '
     + 'accepts, and this branch does not take it. Body: ' + LBody);
+end;
+
+procedure TTestServerIdSentinelCollision.
+  TheCollection_AnswersAsManyRowsAsWereWritten;
+const
+  cROWS = 3;
+var
+  LBody: String;
+  LValue: TJSONValue;
+  LFor: Integer;
+begin
+  for LFor := 1 to cROWS do
+    ExecuteSQL(Format('INSERT INTO idsmid (imtag) VALUES (''row%d'')', [LFor]));
+  Assert.AreEqual(cROWS, _Count('idsmid'),
+    'premise: the rows this clause counts are really in the table');
+  LBody := _Get('idsmid').ContentAsString(TEncoding.UTF8);
+  LValue := TJSONObject.ParseJSONValue(LBody);
+  try
+    Assert.IsNotNull(LValue,
+      'the collection read did not answer parseable JSON at all. Body: '
+      + LBody);
+    Assert.IsTrue(LValue is TJSONArray,
+      'a collection read must answer a JSON ARRAY. Got '
+      + LValue.ClassName + ': ' + LBody);
+    Assert.AreEqual(cROWS, TJSONArray(LValue).Count,
+      'THE COLLECTION READ DID NOT BRING BACK THE ROWS THAT WERE WRITTEN. '
+      + 'This is the clause that dies when the "no id" path stops meaning '
+      + '"every row" - which is exactly what the repair moved, from the '
+      + 'integer -1 to a typeless TValue. Counting is what makes it die: a '
+      + 'substring assertion over the body survives a partial answer. Body: '
+      + LBody);
+  finally
+    LValue.Free;
+  end;
 end;
 
 initialization

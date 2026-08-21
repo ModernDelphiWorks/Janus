@@ -362,6 +362,20 @@ type
     /// ONLY clause in Units or RESTHorse that dies.
     [Test]
     procedure IdAgainstAClassWithNoPrimaryKeyMapping_IsRefusedNotAWholeTableRead;
+    /// ISSUE #361 - THE INVERSION THE REPAIR INTRODUCED, PINNED SO IT CANNOT
+    /// DRIFT BACK IN SILENCE. A TYPELESS TValue now means "every row", and
+    /// that is deliberate: it is the out-of-band spelling of "no id" that
+    /// replaced -1. It is also a REVERSAL - on 0103408 a typeless TValue was
+    /// REFUSED by the #326 empty-values guard, because TValue.IsType<T>
+    /// answers True for a typeless value and _KeyValues therefore handed back
+    /// an EMPTY array. Measured base x HEAD through this very helper.
+    [Test]
+    procedure TypelessTValue_MeansEveryRow_AndThatIsDeliberate;
+    /// ...and the shapes that only LOOK typeless must NOT mean "everything".
+    /// TValue.IsEmpty is True for an empty dynamic array and for an empty
+    /// string as well, which is exactly why the test is TypeInfo = nil.
+    [Test]
+    procedure ShapesThatOnlyLookTypeless_DoNotMeanEveryRow;
   end;
 
 implementation
@@ -905,6 +919,62 @@ begin
     'SELECT or a DELETE over every row of the table, answered as though it ' +
     'had located one. Refusing by name is the form the neighbouring guards ' +
     'already use.');
+end;
+
+procedure TTestDMLKeyPredicate.
+  TypelessTValue_MeansEveryRow_AndThatIsDeliberate;
+var
+  LSql: String;
+begin
+  /// TValue.Empty and Default(TValue) are the SAME value - a TValue whose
+  /// FTypeInfo is nil - and both are asserted because the repair's contract is
+  /// about the SHAPE, not about which spelling produced it.
+  LSql := SelectIdSql(dnSQLite, TKeyOnly, TValue.Empty);
+  Assert.DoesNotContain(LSql, ' WHERE ', True,
+    'ISSUE #361: a typeless TValue is the out-of-band spelling of "no id" ' +
+    'that replaced -1, so it must produce a statement with NO key predicate. ' +
+    'Emitted: ' + LSql);
+  LSql := SelectIdSql(dnSQLite, TKeyOnly, Default(TValue));
+  Assert.DoesNotContain(LSql, ' WHERE ', True,
+    'Default(TValue) IS TValue.Empty and must answer identically. ' +
+    'Emitted: ' + LSql);
+  /// AND THE DECLARED COST OF THAT CHOICE. On 0103408 this same shape RAISED
+  /// - the #326 empty-values guard caught it, because TValue.IsType<T> is
+  /// True for a typeless value and _KeyValues answered an empty array. So a
+  /// caller who reaches GenerateSelectID holding a TValue that carries no
+  /// type used to be refused and is now served the whole table. It is a
+  /// REVERSAL and it is deliberate, and this clause is where it is written
+  /// down rather than discovered.
+  Assert.Pass('the reversal above is declared, not incidental');
+end;
+
+procedure TTestDMLKeyPredicate.
+  ShapesThatOnlyLookTypeless_DoNotMeanEveryRow;
+var
+  LSql: String;
+  LEmpty: TArray<TValue>;
+begin
+  SetLength(LEmpty, 0);
+  /// AN EMPTY STRING IS AN ID, NOT AN ABSENT ONE. TValue.IsEmpty answers True
+  /// for it; TypeInfo = nil does not. Measured base x HEAD: unchanged by the
+  /// repair, which is the point.
+  LSql := SelectIdSql(dnSQLite, TKeyOnly, TValue.From<String>(''));
+  Assert.Contains(LSql, 'keyonly.k1 = ' + QuotedStr(''), True,
+    'an empty STRING is a supplied id that names nothing findable, and it ' +
+    'must still build its predicate. If this reads as "no id", the test in ' +
+    '_NoIdSupplied has drifted from TypeInfo = nil back to IsEmpty. ' +
+    'Emitted: ' + LSql);
+  /// AN EMPTY VALUE ARRAY IS ALSO IsEmpty, AND IT MUST STILL BE REFUSED -
+  /// this is the #326 guard, and it is the clause that caught the first draft
+  /// of this repair when it asked IsEmpty instead of TypeInfo = nil.
+  Assert.WillRaise(
+    procedure
+    begin
+      SelectIdSql(dnSQLite, TKeyOnly, TValue.From<TArray<TValue>>(LEmpty));
+    end,
+    Exception,
+    'an EMPTY TArray<TValue> is IsEmpty too. If _NoIdSupplied asks IsEmpty ' +
+    'it swallows this shape as "no id" and the #326 refusal never runs.');
 end;
 
 initialization

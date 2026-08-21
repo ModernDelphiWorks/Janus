@@ -286,11 +286,24 @@ begin
     // not by the report, and it carried the same defect: -1 is also
     // cAutoIncNotGenerated (Janus.DataSet.Fields.pas:51), so a stale
     // placeholder asking for ONE document produced a criteria with NO filter,
-    // which is every document in the collection. "No id" is now an EMPTY
-    // TValue - out of band, so no id can spell it - and the test is the same
-    // question TDMLGeneratorAbstract._NoIdSupplied asks. THIS ARM IS NOT
-    // COVERED BY ANY CLAUSE IN THIS REPOSITORY: no fixture stands up a Mongo
-    // connection, so the change is compiled and reasoned, NOT MEASURED.
+    // which is every document in the collection. "No id" is now a TYPELESS
+    // TValue - out of band, so a caller that supplies an id cannot spell it -
+    // and the test is the same question TDMLGeneratorAbstract._NoIdSupplied
+    // asks. THIS ARM IS NOT COVERED BY ANY CLAUSE IN THIS REPOSITORY: no
+    // fixture stands up a Mongo connection, so the change is compiled and
+    // reasoned, NOT MEASURED.
+    //
+    // IT CARRIES THE SAME DECLARED INVERSION AS ITS SQL SIBLING, and here by
+    // reasoning rather than by measurement. A TValue that carries no type
+    // answers '' from ToString, which is <> '-1', so this line used to build a
+    // filter out of that empty value - `filter={"k":""}`, a document that
+    // almost certainly matches nothing. It now produces a criteria with NO
+    // filter, which is EVERY document. That is the same trade the SQL side
+    // takes deliberately - see the board of twelve shapes in
+    // TDMLGeneratorAbstract._NoIdSupplied - and it is written down here so
+    // the Mongo arm is not read as an accident of the port. It is also the
+    // WIDER of the two, because nothing on this path holds a RecordCount = 1
+    // guard.
     if AID.TypeInfo <> nil then
     begin
       LPrimaryKey := TMappingExplorer.GetMappingPrimaryKey(AClass);
