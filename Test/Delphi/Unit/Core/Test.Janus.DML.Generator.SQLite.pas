@@ -431,6 +431,19 @@ type
     procedure TestSplice_AValueRegionThatIsAPrefix_CarriesTheTailOverUntouched;
     [Test]
     procedure TestGenerateNextPacket_UsesSqlitePagination;
+    /// ISSUE #361 - THE OTHER HALF OF THE MIGRATION, AND IT WAS REACHED BUT
+    /// NOT CERTIFIED. GenerateNextPacket is the second of the two callers that
+    /// ask the generator for a statement with NO key predicate, and the repair
+    /// moved it from the integer -1 to a typeless TValue. Measured on 7227497:
+    /// a bare raise there killed 4 clauses, so the method IS exercised - but
+    /// swapping its "everything" argument for a TYPED value killed ZERO. Its
+    /// neighbour above asserts only the LIMIT/OFFSET text, and the three
+    /// NextPacketList_PageOnly_* clauses count rows a connection double hands
+    /// back regardless of the SQL, so a key predicate could appear in that
+    /// statement and nothing in either suite would say a word. This clause is
+    /// the one that says it.
+    [Test]
+    procedure TestGenerateNextPacket_CarriesNoKeyPredicate;
     [Test]
     procedure TestGenerateSelectOneToOne_UsesAssociationColumns;
     [Test]
@@ -1584,6 +1597,39 @@ begin
       LSQL := LowerCase(LSelecter.GenerateNextPacket(Tclient, 10, 20));
       Assert.Contains(LSQL, 'limit 10');
       Assert.Contains(LSQL, 'offset 20');
+    finally
+      LSelecter.Free;
+    end;
+  finally
+    LClient.Free;
+  end;
+end;
+
+procedure TTestDMLGenerator.TestGenerateNextPacket_CarriesNoKeyPredicate;
+var
+  LClient: Tclient;
+  LSelecter: TCommandSelecter;
+  LSQL: String;
+begin
+  LClient := CreateClient;
+  try
+    LSelecter := TCommandSelecter.Create(FConnection, dnSQLite, LClient);
+    try
+      LSQL := LowerCase(LSelecter.GenerateNextPacket(Tclient, 10, 20));
+      /// THE KEY COLUMN BY NAME, NOT ' WHERE ' - a query scope is entitled to
+      /// put a WHERE in this statement, and only the KEY predicate is the
+      /// thing "give me everything" must never carry.
+      Assert.DoesNotContain(LSQL, 'client.client_id =', True,
+        'ISSUE #361: a paged read of EVERY row must not carry a key ' +
+        'predicate. This is the clause that dies if the typeless TValue at ' +
+        'the GenerateNextPacket call site is replaced by a typed value - the ' +
+        'exact half of the migration that was compiled and uncertified. ' +
+        'Emitted: ' + LSQL);
+      /// AND THE PREMISE, so a repair that empties the statement altogether
+      /// cannot turn this clause green by accident.
+      Assert.Contains(LSQL, 'from client', True,
+        'premise: this is still a select over the client table. Emitted: ' +
+        LSQL);
     finally
       LSelecter.Free;
     end;

@@ -140,7 +140,16 @@ end;
 ///  DELETE for one row emptied the table. See
 ///  TDMLGeneratorAbstract._NoIdSupplied for the measurement.
 ///  GenerateSelectID, three methods down, still passes -1 - as the PAGE SIZE -
-///  and is deliberately untouched. </summary>
+///  and is deliberately untouched.
+///
+///  WHAT CERTIFIES THE ARGUMENT BELOW, MEASURED ON 7227497 AND NOT ASSUMED. A
+///  bare raise in this method kills 52 clauses in Units and 4 in RESTHorse, so
+///  it is heavily exercised; and replacing TValue.Empty with a TYPED value
+///  kills TheCollection_StillAnswersEveryRow and
+///  TheCollection_AnswersAsManyRowsAsWereWritten, both in
+///  Test.Janus.Server.IdSentinelCollision. UNITS ALONE DOES NOT CATCH IT -
+///  that same swap leaves Units entirely green - so the cover for this line
+///  lives in RESTHorse and nowhere else. ANCHORED BY SYMBOL. </summary>
 function TCommandSelecter.GenerateSelectAll(const AClass: TClass): String;
 begin
   FPageNext := 0;
@@ -193,6 +202,16 @@ function TCommandSelecter.GenerateNextPacket(const AClass: TClass;
 begin
   // ISSUE #361 - the second and last "no key predicate" caller; see
   // GenerateSelectAll above.
+  //
+  // THIS ARGUMENT WAS REACHED AND UNCERTIFIED, AND THE TWO ARE NOT THE SAME
+  // THING. Measured on 7227497: a bare raise here killed 4 clauses, so the
+  // method IS exercised - but replacing TValue.Empty with a TYPED value killed
+  // ZERO. The neighbouring clause asserts only the LIMIT/OFFSET text, and the
+  // three NextPacketList_PageOnly_* clauses count rows a connection double
+  // hands back regardless of the SQL, so a key predicate could have appeared
+  // in this statement in silence. Test.Janus.DML.Generator.SQLite's
+  // TestGenerateNextPacket_CarriesNoKeyPredicate is the clause that now dies
+  // for it. ANCHORED BY SYMBOL.
   FSelectCommand := FGeneratorCommand.GeneratorSelectAll(AClass, APageSize,
                                                          TValue.Empty);
   FResultCommand := FGeneratorCommand.GeneratorPageNext(FSelectCommand, APageSize, APageNext);
