@@ -280,7 +280,18 @@ begin
       .Append('command=find& ')
         .Append('collection=' + LTable.Name);
     // PrimaryKey
-    if AID.ToString <> '-1' then
+    // ISSUE #361 - THIS LINE READ `if AID.ToString <> '-1' then`, AN
+    // INDEPENDENT COPY OF THE SENTINEL THE ISSUE ONLY NAMED IN THE SQL
+    // GENERATOR. It was found by enumerating the repository for the value and
+    // not by the report, and it carried the same defect: -1 is also
+    // cAutoIncNotGenerated (Janus.DataSet.Fields.pas:51), so a stale
+    // placeholder asking for ONE document produced a criteria with NO filter,
+    // which is every document in the collection. "No id" is now an EMPTY
+    // TValue - out of band, so no id can spell it - and the test is the same
+    // question TDMLGeneratorAbstract._NoIdSupplied asks. THIS ARM IS NOT
+    // COVERED BY ANY CLAUSE IN THIS REPOSITORY: no fixture stands up a Mongo
+    // connection, so the change is compiled and reasoned, NOT MEASURED.
+    if AID.TypeInfo <> nil then
     begin
       LPrimaryKey := TMappingExplorer.GetMappingPrimaryKey(AClass);
       if LPrimaryKey <> nil then

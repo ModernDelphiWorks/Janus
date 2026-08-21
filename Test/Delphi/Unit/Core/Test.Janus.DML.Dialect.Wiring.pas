@@ -194,7 +194,9 @@ var
 begin
   LGenerator := NewGenerator(AClass);
   try
-    Result := LGenerator.GeneratorSelectAll(Tmaster, -1, -1);
+    // ISSUE #361 - the SECOND -1 used to be the "no key predicate" sentinel and
+    // is now TValue.Empty; the FIRST is still the page size and stays.
+    Result := LGenerator.GeneratorSelectAll(Tmaster, -1, TValue.Empty);
   finally
     LGenerator.Free;
   end;

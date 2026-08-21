@@ -123,10 +123,22 @@ begin
   FPageSize := APageSize;
 end;
 
+/// <summary> ISSUE #361 - "EVERYTHING" IS NOW SPELT WITH AN EMPTY TValue AND
+///  NOT WITH -1. This method and the GenerateNextPacket overload below are the
+///  only two places in this repository that ask the generator for a statement
+///  with NO key predicate, and they used to say so by handing it the integer
+///  -1. That is also cAutoIncNotGenerated (Janus.DataSet.Fields.pas:51), the
+///  placeholder an AutoInc key carries until the database answers, so a stale
+///  placeholder arriving as a REST id was read here as "no filter" and a
+///  DELETE for one row emptied the table. See
+///  TDMLGeneratorAbstract._NoIdSupplied for the measurement.
+///  GenerateSelectID, three methods down, still passes -1 - as the PAGE SIZE -
+///  and is deliberately untouched. </summary>
 function TCommandSelecter.GenerateSelectAll(const AClass: TClass): String;
 begin
   FPageNext := 0;
-  FSelectCommand := FGeneratorCommand.GeneratorSelectAll(AClass, FPageSize, -1);
+  FSelectCommand := FGeneratorCommand.GeneratorSelectAll(AClass, FPageSize,
+                                                         TValue.Empty);
   FResultCommand := FGeneratorCommand.GeneratorPageNext(FSelectCommand, FPageSize, FPageNext);
   FResultCommand := NormalizeFirebirdPagination(FResultCommand);
   Result := FResultCommand;
@@ -172,7 +184,10 @@ end;
 function TCommandSelecter.GenerateNextPacket(const AClass: TClass;
   const APageSize, APageNext: Integer): String;
 begin
-  FSelectCommand := FGeneratorCommand.GeneratorSelectAll(AClass, APageSize, -1);
+  // ISSUE #361 - the second and last "no key predicate" caller; see
+  // GenerateSelectAll above.
+  FSelectCommand := FGeneratorCommand.GeneratorSelectAll(AClass, APageSize,
+                                                         TValue.Empty);
   FResultCommand := FGeneratorCommand.GeneratorPageNext(FSelectCommand, APageSize, APageNext);
   Result := FResultCommand;
 end;
