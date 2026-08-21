@@ -169,8 +169,9 @@ begin
     ///
     /// ENotSupportedException AND NOT ERegistryMissingException, decided by
     /// measurement, not by taste. (a) Grepped repo-wide: ERegistryMissingException
-    /// has exactly two occurrences, its own declaration at :39 and its own raise
-    /// at :175, and none of the five adapters
+    /// has exactly two occurrences OUTSIDE this comment - its own declaration in
+    /// the type block above and its own raise inside EnsureViewLazy below, both
+    /// in this unit - and none of the five adapters
     /// (Janus.Server.Resource.{Horse,WiRL,MARS,DMVC,DataSnap}.pas) contains a
     /// single 'except' - so no handler in this tree distinguishes the classes and
     /// the choice is about which condition the class already stands for.
