@@ -120,6 +120,7 @@ uses
   Test.Janus.DML.Generator.SQLite in 'Unit\Core\Test.Janus.DML.Generator.SQLite.pas',
   /// The ADS date literal: 'CC' is not a FormatDateTime specifier
   Test.Janus.DML.Generator.ADS in 'Unit\Core\Test.Janus.DML.Generator.ADS.pas',
+  Test.Janus.DML.Dialect.Wiring in 'Unit\Core\Test.Janus.DML.Dialect.Wiring.pas',
   /// The seven distributed generators - issue #341, Level 1
   Test.Janus.DML.Generator.Distributed in 'Unit\Core\Test.Janus.DML.Generator.Distributed.pas',
   Test.Janus.Server.DataSnapResource in 'Unit\RESTful\Test.Janus.Server.DataSnapResource.pas',
