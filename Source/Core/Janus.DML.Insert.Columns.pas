@@ -70,6 +70,17 @@
 ///  Plan below the thing it replaces. The prediction was not wrong about the
 ///  work; the run it came from was faster.
 ///
+///  WHY THIS UNIT IS IN NEITHER Janus.Tests.Units.dpr NOR ITS .dproj, AND WHY
+///  THAT IS NOT THE SAME RULE SOMEONE WILL ASSUME. It is NOT "units under
+///  Source are never listed" - measured at 320e244, FIFTEEN of them are, and
+///  they are all units that nothing USES: the per-dialect generators, the
+///  DataSnap server pair, the monitor form, the ModelDB comparer. Those
+///  register themselves from `initialization` and would be dropped by the
+///  linker without an explicit entry, so they are listed in BOTH files. This
+///  unit is reached through the uses graph instead - Janus.DML.Generator and
+///  Janus.Command.Inserter both name it - so the linker keeps it and an entry
+///  would add nothing. Force-link means list it; used means do not.
+///
 ///  NOT MEASURED: WHAT THIS COSTS UNDER CONCURRENCY. Plan calls
 ///  TMappingExplorer.GetMappingColumn, and every mapping getter in
 ///  TMappingExplorer serialises on ONE process-wide TCriticalSection

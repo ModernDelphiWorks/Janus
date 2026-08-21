@@ -55,6 +55,21 @@
   from "the fixture never wrote anything interesting", and the two-container
   case is what showed the defect was the CACHE and not the save path.
 
+  ELEVEN TESTS: 3 controls, 6 that were RED before the repair - the two
+  directions in each of the two families, the single-call cascade, and the
+  join-column neighbour - and 2 pins on the driver that were green throughout
+  and must stay green, because they are the reason the two directions damage a
+  row differently.
+
+  THIS UNIT IS LISTED IN BOTH Janus.Tests.Units.dpr AND ITS .dproj. Being in
+  only the .dpr compiles and runs under msbuild, so the suite count stays
+  honest, but the IDE does not show the unit and a save from the Project
+  Manager can drop it. Measured at 320e244, FIVE other test units are in that
+  state - Test.Janus.Association.BcdColumn, Test.Janus.DML.KeyPredicate,
+  Test.Janus.KeyWidth.ByIdApi, Test.Janus.Manager.AutoNextPacket and
+  Test.Janus.RefreshRecord.KeyLiteral. They are not this issue's to repair and
+  are recorded here rather than fixed in passing.
+
   THE SHAPE OF THE ROW
 
   Four columns. k01 is the client-supplied key and is NotNull, so it is never
