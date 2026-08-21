@@ -222,6 +222,50 @@ type
     property childs: TObjectList<TNullableGuidChild> read Fchilds write Fchilds;
   end;
 
+  /// <summary> TWELVE COLUMNS, AND THE COUNT IS THE POINT. Issue #337.
+  ///
+  ///  Since FluentSQL parameterised the value slot, the marker this generator
+  ///  asks for is handed back as ':pN' and TDMLGeneratorAbstract
+  ///  ._RestoreNamedPlaceholders writes the column name over it. Every other
+  ///  entity in this suite emits FEWER THAN TEN columns, and under ten every
+  ///  wrong way of doing that rewrite still looks right:
+  ///
+  ///    - a ReplaceStr sweep in ascending order is correct up to :p9 and
+  ///      CORRUPTS from :p10 on, because ':p1' is a prefix of ':p10' - the
+  ///      sweep rewrites the head and leaves the '0', so the tenth marker
+  ///      comes out as the FIRST column's name with a stray digit glued on;
+  ///    - the widest existing fixture is Tdetail with five columns, so that
+  ///      corruption cannot be reached by anything already written here.
+  ///
+  ///  Hence twelve. The clause below asserts the WHOLE statement, in order,
+  ///  rather than Contains() per column: Contains() is blind to a permutation,
+  ///  and the ordinal is exactly what a marker rewrite can get wrong.
+  ///
+  ///  It is deliberately flat - no key generator, no association, no nullable.
+  ///  Anything else here would be a second reason for it to go red. </summary>
+  [Entity]
+  [Table('wideslot', '')]
+  [PrimaryKey('w01', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'Primary key')]
+  TWideSlot = class
+  private
+    Fw01, Fw02, Fw03, Fw04, Fw05, Fw06: Integer;
+    Fw07, Fw08, Fw09, Fw10, Fw11, Fw12: Integer;
+  public
+    [Column('w01', ftInteger)] property w01: Integer read Fw01 write Fw01;
+    [Column('w02', ftInteger)] property w02: Integer read Fw02 write Fw02;
+    [Column('w03', ftInteger)] property w03: Integer read Fw03 write Fw03;
+    [Column('w04', ftInteger)] property w04: Integer read Fw04 write Fw04;
+    [Column('w05', ftInteger)] property w05: Integer read Fw05 write Fw05;
+    [Column('w06', ftInteger)] property w06: Integer read Fw06 write Fw06;
+    [Column('w07', ftInteger)] property w07: Integer read Fw07 write Fw07;
+    [Column('w08', ftInteger)] property w08: Integer read Fw08 write Fw08;
+    [Column('w09', ftInteger)] property w09: Integer read Fw09 write Fw09;
+    [Column('w10', ftInteger)] property w10: Integer read Fw10 write Fw10;
+    [Column('w11', ftInteger)] property w11: Integer read Fw11 write Fw11;
+    [Column('w12', ftInteger)] property w12: Integer read Fw12 write Fw12;
+  end;
+
   [TestFixture]
   TTestDMLGenerator = class
   private
@@ -233,6 +277,14 @@ type
     function NullableGuidSelect(const ASet: Boolean): String;
     function OctetSelect(const AOctet: Boolean): String;
     function FindAssociation(AClass: TClass; const AClassNameRef: String): TAssociationMapping;
+    /// <summary> EVERY VALUE OF AN INSERT IS THE MARKER OF THE COLUMN IN ITS
+    ///  OWN POSITION. Issue #337. It reads the two parenthesised lists out of
+    ///  the statement and pairs them by ORDINAL, which is the invariant a
+    ///  marker rewrite can break; it does NOT assert a fixed column order, so
+    ///  the clause stays about the rewrite and not about the order RTTI hands
+    ///  the properties over in. </summary>
+    procedure _AssertEachValueIsItsOwnColumnsMarker(const ASQL: String;
+      const AExpectedCount: Integer);
   public
     [Setup]
     procedure Setup;
@@ -286,6 +338,12 @@ type
     procedure TestGenerateInsert_MultiColumn_PreservesAllPlaceholders;
     [Test]
     procedure TestGenerateUpdate_MultiField_AllPlaceholdersWithoutQuotes;
+    // Issue #337 - see the TWideSlot summary for why twelve columns and why
+    // the whole statement is asserted instead of Contains() per column.
+    [Test]
+    procedure TestGenerateInsert_TwelveColumns_EveryMarkerLandsInItsOwnSlot;
+    [Test]
+    procedure TestGenerateUpdate_TwelveFields_EveryMarkerLandsInItsOwnSlot;
     [Test]
     procedure TestGenerateNextPacket_UsesSqlitePagination;
     [Test]
@@ -1158,6 +1216,118 @@ begin
   end;
 end;
 
+procedure TTestDMLGenerator._AssertEachValueIsItsOwnColumnsMarker(
+  const ASQL: String; const AExpectedCount: Integer);
+var
+  LOpenCols, LCloseCols, LOpenVals, LCloseVals: Integer;
+  LColumns: TArray<String>;
+  LValues: TArray<String>;
+  LFor: Integer;
+begin
+  LOpenCols  := Pos('(', ASQL);
+  LCloseCols := PosEx(')', ASQL, LOpenCols);
+  LOpenVals  := PosEx('(', ASQL, LCloseCols);
+  LCloseVals := PosEx(')', ASQL, LOpenVals);
+  Assert.IsTrue((LOpenCols > 0) and (LCloseCols > LOpenCols) and
+                (LOpenVals > LCloseCols) and (LCloseVals > LOpenVals),
+    'the statement does not carry a column list and a value list: [' + ASQL + ']');
+
+  LColumns := SplitString(Copy(ASQL, LOpenCols + 1, LCloseCols - LOpenCols - 1), ',');
+  LValues  := SplitString(Copy(ASQL, LOpenVals + 1, LCloseVals - LOpenVals - 1), ',');
+
+  Assert.AreEqual(AExpectedCount, Length(LColumns),
+    'column count of [' + ASQL + ']');
+  Assert.AreEqual(Length(LColumns), Length(LValues),
+    'one value per column in [' + ASQL + ']');
+
+  for LFor := 0 to High(LColumns) do
+    Assert.AreEqual(':' + Trim(LColumns[LFor]), Trim(LValues[LFor]),
+      Format('value %d must be the marker of the column in slot %d, in [%s]',
+             [LFor + 1, LFor + 1, ASQL]));
+end;
+
+procedure TTestDMLGenerator.TestGenerateInsert_TwelveColumns_EveryMarkerLandsInItsOwnSlot;
+var
+  LWide: TWideSlot;
+  LInserter: TCommandInserter;
+  LSQL: String;
+  LFor: Integer;
+begin
+  LWide := TWideSlot.Create;
+  try
+    /// Every column has to carry a value, or GeneratorInsert skips it on
+    /// IsNullValue and the statement stops being twelve wide - which is the
+    /// one property this clause is here to exercise.
+    LWide.w01 := 1;  LWide.w02 := 2;  LWide.w03 := 3;  LWide.w04 := 4;
+    LWide.w05 := 5;  LWide.w06 := 6;  LWide.w07 := 7;  LWide.w08 := 8;
+    LWide.w09 := 9;  LWide.w10 := 10; LWide.w11 := 11; LWide.w12 := 12;
+
+    LInserter := TCommandInserter.Create(FConnection, dnSQLite, LWide);
+    try
+      LSQL := LowerCase(LInserter.GenerateInsert(LWide));
+      _AssertEachValueIsItsOwnColumnsMarker(LSQL, 12);
+
+      /// The tenth marker onwards is where an ascending ReplaceStr sweep
+      /// corrupts, and it corrupts by leaving the SURVIVING digits behind.
+      for LFor := 1 to 12 do
+        Assert.Contains(LSQL, Format(':w%.2d', [LFor]),
+          Format('marker %d must survive the rewrite whole', [LFor]));
+      Assert.DoesNotContain(LSQL, ':p',
+        'no positional placeholder may survive into the emitted statement');
+    finally
+      LInserter.Free;
+    end;
+  finally
+    LWide.Free;
+  end;
+end;
+
+procedure TTestDMLGenerator.TestGenerateUpdate_TwelveFields_EveryMarkerLandsInItsOwnSlot;
+var
+  LChanges: TDictionary<String, String>;
+  LWide: TWideSlot;
+  LUpdater: TCommandUpdater;
+  LSQL: String;
+  LFor: Integer;
+  LColumn: String;
+begin
+  LChanges := TDictionary<String, String>.Create;
+  LWide := TWideSlot.Create;
+  try
+    LWide.w01 := 1;  LWide.w02 := 2;  LWide.w03 := 3;  LWide.w04 := 4;
+    LWide.w05 := 5;  LWide.w06 := 6;  LWide.w07 := 7;  LWide.w08 := 8;
+    LWide.w09 := 9;  LWide.w10 := 10; LWide.w11 := 11; LWide.w12 := 12;
+    /// w01 is the key and stays out of SET; the other eleven are the change
+    /// set, which is past :p9 and therefore past where the prefix bites.
+    for LFor := 2 to 12 do
+    begin
+      LColumn := Format('w%.2d', [LFor]);
+      LChanges.Add(LColumn, LColumn);
+    end;
+
+    LUpdater := TCommandUpdater.Create(FConnection, dnSQLite, LWide);
+    try
+      LSQL := LowerCase(LUpdater.GenerateUpdate(LWide, LChanges));
+      /// PAIRWISE, not Contains() per name: a TDictionary does not promise an
+      /// enumeration order, so the SET order is not the subject here - that
+      /// each column sits next to ITS OWN marker is.
+      for LFor := 2 to 12 do
+      begin
+        LColumn := Format('w%.2d', [LFor]);
+        Assert.Contains(LSQL, LColumn + ' = :' + LColumn,
+          'the SET slot of ' + LColumn + ' must carry its own marker');
+      end;
+      Assert.DoesNotContain(LSQL, ':p',
+        'no positional placeholder may survive into the emitted statement');
+    finally
+      LUpdater.Free;
+    end;
+  finally
+    LWide.Free;
+    LChanges.Free;
+  end;
+end;
+
 procedure TTestDMLGenerator.TestGenerateNextPacket_UsesSqlitePagination;
 var
   LClient: Tclient;
@@ -1803,5 +1973,6 @@ initialization
   TRegisterClass.RegisterEntity(TGuidOverStringMaster);
   TRegisterClass.RegisterEntity(TNullableGuidChild);
   TRegisterClass.RegisterEntity(TNullableGuidMaster);
+  TRegisterClass.RegisterEntity(TWideSlot);
 
 end.
