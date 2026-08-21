@@ -189,29 +189,29 @@ type
         const AGeneratorDriver: TDriverName): TFluentSQLDriver; static;
       procedure ConfigureFluentSQLDriver(const AGeneratorDriver: TDriverName);
       function CreateFluentSQL: IFluentSQL;
-    /// <summary> THE RESTORED VALUE REGION, WITH THE VERBATIM TAIL CARRIED OVER
-    ///  UNTOUCHED. Issue #337.
-    ///
-    ///  AValueRegion is the statement as FluentSQL rendered it BEFORE any
-    ///  verbatim clause of ours was added, and AWholeStatement is the finished
-    ///  one. Everything past the region is text this generator wrote itself -
-    ///  today, the key predicate of GeneratorUpdate - and the rewrite must
-    ///  never see it: a key column named `p1` is textually indistinguishable
-    ///  from the bind FluentSQL allocated. For an INSERT there is no verbatim
-    ///  tail and the two arguments are the same string.
-    ///
-    ///  PROTECTED SO THE REFUSAL CAN BE MEASURED. The prefix property belongs
-    ///  to THEIR serializer, and is pinned separately by
-    ///  FluentSQLRendersTheValueRegionAsAPrefixOfTheWholeUpdate. What is pinned
-    ///  HERE is that this method REFUSES when the property does not hold -
-    ///  which no statement Janus builds can produce, so the only way to reach
-    ///  it is to hand it a pair directly. That is what the test descendant in
-    ///  Test.Janus.DML.Generator.SQLite does. A guard presented as an active
-    ///  net has to have its own clause; an inverted condition or a wrong
-    ///  message would otherwise ship unnoticed. </summary>
-    function _SpliceRestoredValueRegion(const AValueRegion,
-      AWholeStatement: String; const AParams: IFluentSQLParams;
-      const AMarkers: TArray<String>): String;
+      /// <summary> THE RESTORED VALUE REGION, WITH THE VERBATIM TAIL CARRIED OVER
+      ///  UNTOUCHED. Issue #337.
+      ///
+      ///  AValueRegion is the statement as FluentSQL rendered it BEFORE any
+      ///  verbatim clause of ours was added, and AWholeStatement is the finished
+      ///  one. Everything past the region is text this generator wrote itself -
+      ///  today, the key predicate of GeneratorUpdate - and the rewrite must
+      ///  never see it: a key column named `p1` is textually indistinguishable
+      ///  from the bind FluentSQL allocated. For an INSERT there is no verbatim
+      ///  tail and the two arguments are the same string.
+      ///
+      ///  PROTECTED SO THE REFUSAL CAN BE MEASURED. The prefix property belongs
+      ///  to THEIR serializer, and is pinned separately by
+      ///  FluentSQLRendersTheValueRegionAsAPrefixOfTheWholeUpdate. What is pinned
+      ///  HERE is that this method REFUSES when the property does not hold -
+      ///  which no statement Janus builds can produce, so the only way to reach
+      ///  it is to hand it a pair directly. That is what the test descendant in
+      ///  Test.Janus.DML.Generator.SQLite does. A guard presented as an active
+      ///  net has to have its own clause; an inverted condition or a wrong
+      ///  message would otherwise ship unnoticed. </summary>
+      function _SpliceRestoredValueRegion(const AValueRegion,
+        AWholeStatement: String; const AParams: IFluentSQLParams;
+        const AMarkers: TArray<String>): String;
       function _BuildSelectSQL(AClass: TClass; AID: TValue): IFluentSQL; virtual;
       function GetGeneratorSelect(const ASQL: String;
         const AOrderBy: String = ''): String; virtual;
