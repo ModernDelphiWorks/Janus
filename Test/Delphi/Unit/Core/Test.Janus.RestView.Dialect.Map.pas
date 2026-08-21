@@ -229,7 +229,24 @@ end;
 ///  by silently falling into the SQLite default, which is the other bug.
 ///
 ///  NOT MEASURED: acceptance by a live InterBase server. There is none here.
-///  What is measured is the text, one frame below the call the route makes. </summary>
+///  What is measured is the text, one frame below the call the route makes -
+///  and the second assertion below is the half most likely to be rejected by a
+///  real server. Enumerating all eight Drop* verbs of
+///  FluentSQL.DDL.Serialize.Firebird.pas (FluentSQL @ 9476416): THREE refuse
+///  IF EXISTS by declared measurement - DROP TABLE (:158-160), DROP INDEX
+///  (:267-269, measured on firebirdsql/firebird:5.0.4, "-104 Token unknown -
+///  EXISTS") and DROP SEQUENCE (:319-320, ADR-054) - while FOUR emit it,
+///  DROP VIEW (:302-303) among them, so DROP VIEW is in the larger half and
+///  this is a signal, not a proven defect. IF EXISTS only arrived in Firebird
+///  5.0 and InterBase is the more conservative engine.
+///
+///  THE CLAUSE PINS THAT TEXT ANYWAY, AND ON PURPOSE. It records what Janus
+///  emits today, which is what a bug report from a real InterBase site would
+///  have to be compared against. It is NOT a claim that the server accepts it.
+///  If the DROP branch is ever changed - here or in FluentSQL - this clause is
+///  where the change announces itself instead of slipping through. The exposure
+///  is older than this issue and shared with dnFirebird/dnFirebird3, which take
+///  the same branch and were untouched by this repair. </summary>
 procedure TTestRestViewDialectMap.InterbaseGetsItsViewWrittenInFirebirdQuotingInsteadOfRaising;
 var
   LDDL: String;
@@ -238,7 +255,8 @@ begin
   Assert.Contains(LDDL, 'CREATE VIEW "client" AS',
     'InterBase must get a view written in the double quoting it accepts');
   Assert.Contains(LDDL, 'DROP VIEW IF EXISTS "client"',
-    'InterBase has no CREATE OR REPLACE VIEW, so the DROP must come first');
+    'InterBase has no CREATE OR REPLACE VIEW, so the DROP must come first - ' +
+    'this pins what Janus emits, NOT that a live InterBase accepts IF EXISTS');
   Assert.DoesNotContain(LDDL, '`client`',
     'InterBase must not be handed the SQLite backticks the old else supplied');
 end;

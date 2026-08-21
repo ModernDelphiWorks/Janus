@@ -143,8 +143,33 @@ begin
     /// (Janus.DML.Generator.InterBase.pas:61-64), and measured here it emits
     /// 'DROP VIEW IF EXISTS "client"' + 'CREATE VIEW "client" AS ...' - the
     /// SQL-standard double quoting InterBase shares with Firebird, which is
-    /// where Firebird inherited it from. NOT MEASURED: acceptance by a live
-    /// InterBase server - there is none on this machine.
+    /// where Firebird inherited it from.
+    ///
+    /// NOT MEASURED - AND THE REPO ITSELF SUPPLIES A REASON TO DOUBT THE DROP
+    /// HALF. There is no InterBase server on this machine, so acceptance was
+    /// never measured. But the Firebird DDL serializer treats IF EXISTS as
+    /// unsafe in three neighbouring verbs, by declared measurement, and emits it
+    /// here anyway. Enumerating all eight Drop* verbs of
+    /// FluentSQL.DDL.Serialize.Firebird.pas (FluentSQL @ 9476416): THREE REFUSE
+    /// the modifier - DROP TABLE (:158-160), DROP INDEX (:267-269, "Firebird 5.0
+    /// rejects it (-104 Token unknown - EXISTS)", measured on
+    /// firebirdsql/firebird:5.0.4 per the note at :260-266) and DROP SEQUENCE
+    /// (:319-320, ADR-054); FOUR EMIT it - DROP VIEW (:302-303), DROP PROCEDURE
+    /// (:356-357), DROP TRIGGER (:389-390), DROP FUNCTION (:427-428); and DROP
+    /// SCHEMA (:438-440) refuses the whole verb. So DROP VIEW is not the lone
+    /// exception - it is in the larger half - which makes this a signal to
+    /// declare, not a defect proven. IF EXISTS only arrived in Firebird 5.0 and
+    /// InterBase is the more conservative engine of the two, so a live InterBase
+    /// may reject the DROP. dnInterbase is NOT in _SupportsCreateOrReplace
+    /// below, so this path takes exactly that DROP VIEW IF EXISTS branch.
+    ///
+    /// DELIBERATELY NOT FIXED HERE, AND NOT A REGRESSION OF THIS REPAIR. Before
+    /// it, dnInterbase raised and NO view was ever created for an InterBase
+    /// connection; now it emits DDL a server may or may not accept, and the
+    /// CREATE VIEW "client" half is right either way. dnFirebird and dnFirebird3
+    /// have been taking that same DROP branch since long before this issue and
+    /// are untouched by it. What was wrong was this boundary being
+    /// under-declared, not the mapping.
     dnInterbase:             Result := dbnFirebird;
     dnSQLite:                Result := dbnSQLite;
     dnMSSQL:                 Result := dbnMSSQL;
@@ -197,10 +222,23 @@ begin
     /// operator configured. MongoDB has no SQL views to create either way. The
     /// silent SQLite DDL is removed as the design intended, by the route the
     /// design's own point 3 already provides.
+    ///
+    /// AND THAT IS WHY THE MESSAGE BELOW DOES NOT SAY "REGISTERS A DDL
+    /// SERIALIZER". It said exactly that at first, and the criterion was the
+    /// same inference the paragraph above disproves: an operator who followed it
+    /// literally would pick a registered dialect, get EAbstractError, and land in
+    /// the defect this comment documents. The criterion that decides the outcome
+    /// is whether the serializer OVERRIDES CreateView and DropView -
+    /// registration only gets past FluentSQL.Register's own gate. Do not shorten
+    /// the message back; the short form is the wrong test. It names no dialect on
+    /// purpose, so that it stays true whichever serializers gain or lose those
+    /// two overrides later.
     raise ENotSupportedException.CreateFmt(
       'Driver %s has no FluentSQL DDL dialect, so TRESTViewManager cannot ' +
-      'build the CREATE VIEW for it. Map %s to a dialect that registers a DDL ' +
-      'serializer, or drop the [View] attribute for this connection.',
+      'build the CREATE VIEW for it. Map %s to a dialect whose DDL serializer ' +
+      'OVERRIDES CreateView and DropView - a serializer merely being registered ' +
+      'is not enough, since one that does not override them raises ' +
+      'EAbstractError - or drop the [View] attribute for this connection.',
       [GetEnumName(TypeInfo(TDriverName), Ord(ADriver)),
        GetEnumName(TypeInfo(TDriverName), Ord(ADriver))]);
   end;
