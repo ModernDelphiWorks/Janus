@@ -91,14 +91,17 @@ param(
   #     proprio nele - ver _RestoreNamedPlaceholders em Janus.DML.Generator.pas.
   #     Medido em 21 ago 2026 no HEAD da frente, sem pin, contra o FluentSQL
   #     main 9476416:
-  #       Units 673/0  LiveBindings 31/0  RESTfulDriver 248/0  RESTHorse 158/0
+  #       Units 676/0  LiveBindings 31/0  RESTfulDriver 248/0  RESTHorse 158/0
   #       RESTWiRL 30/0  RESTMARS 33/0    RESTOracle 12 errored (OCI ausente,
   #                                       ambiente, igual ao basal)
   #     O TOTAL DE Units NAO E' O BASAL 669 DE PROPOSITO: a propria #337 somou
-  #     quatro clausulas (duas do limite de dez marcadores, uma da chave
-  #     chamada p1, uma da propriedade de prefixo do serializer deles). Um
-  #     numero escrito aqui envelhece a cada clausula nova - se este nao bater
-  #     com a execucao, e' este texto que esta velho, nao a suite.
+  #     SETE clausulas - duas do limite de dez marcadores, uma da chave chamada
+  #     p1, uma da propriedade de prefixo do serializer deles, e tres das duas
+  #     recusas (dialeto que come os marcadores; splice sem prefixo; e o
+  #     controle positivo do splice). ESTE NUMERO JA ENVELHECEU DUAS VEZES
+  #     dentro da propria frente - 669 -> 673 -> 676. Um total de suite escrito
+  #     em prosa envelhece a cada clausula nova; se este nao bater com a
+  #     execucao, e' ESTE TEXTO que esta velho, nao a suite.
   #
   # E O PIN AGORA QUEBRA. Medido na mesma frente: compilando CONTRA o pin
   # (a47f036), Janus.Tests.Units fica vermelho, porque aquele FluentSQL deixa o
