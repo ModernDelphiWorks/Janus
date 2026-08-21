@@ -167,7 +167,11 @@ begin
   LSQL := LQuery.AsString;
   Assert.Contains(LSQL, 'GROUP BY');
   Assert.Contains(LSQL, 'cidade');
-  Assert.Contains(LSQL, 'Count(*)');
+  // Issue #293: was 'Count(*)' - FluentSQL renders function names upper-case
+  // ('COUNT('), consistent with GROUP BY/SELECT above. Confirmed by running
+  // this fixture: actual output is
+  // 'SELECT COUNT(*) FROM clientes GROUP BY cidade'.
+  Assert.Contains(LSQL, 'COUNT(*)');
 end;
 
 procedure TTestCriteriaAdvanced.TestCriteria_Where_NullCheck;
