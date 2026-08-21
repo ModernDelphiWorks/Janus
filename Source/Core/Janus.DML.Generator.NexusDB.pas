@@ -42,6 +42,11 @@ type
   // Classe de banco de dados NexusDB
   TDMLGeneratorNexusDB = class(TDMLGeneratorAbstract)
   protected
+    /// <summary> Issue #355. dbnNexusDB is in the enum and unimplemented -
+    ///  same measurement as the ADS sibling. Answers dbnMSSQL, which is what
+    ///  this generator was already emitting through the enum's zero value, now
+    ///  said out loud. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
     /// para que um dialeto novo nao herde em silencio o literal de outro.
     function GuidLiteral(const AGuid: TGUID): String; override;
@@ -63,6 +68,11 @@ type
 implementation
 
 { TDMLGeneratorNexusDB }
+
+class function TDMLGeneratorNexusDB.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnMSSQL;
+end;
 
 constructor TDMLGeneratorNexusDB.Create;
 begin

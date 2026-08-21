@@ -23,6 +23,7 @@ uses
   Variants,
   StrUtils,
   Generics.Collections,
+  FluentSQL.Interfaces,
   Janus.DML.Generator,
   Janus.Json,
   Janus.DML.Commands,
@@ -33,6 +34,17 @@ uses
 type
   TDMLGeneratorNoSQL = class(TDMLGeneratorAbstract)
   protected
+    /// <summary> Issue #355. This generator writes its own SELECT as a MongoDB
+    ///  criteria string and never goes near FluentSQL for it - but INSERT,
+    ///  UPDATE and DELETE are inherited from TDMLGeneratorAbstract and DO go
+    ///  through FluentSQL, so it needs a dialect like everybody else.
+    ///
+    ///  Answers dbnMSSQL, which is the value it has been carrying through the
+    ///  enum's zero. dbnMongoDB IS registered, and pointing this at it would
+    ///  make those three statements come back as MQL instead of SQL - a change
+    ///  of KIND, not of dialect, and NOT MEASURED against any Mongo consumer.
+    ///  That is a separate decision and it is not made here. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
     /// para que um dialeto novo nao herde em silencio o literal de outro.
     function GuidLiteral(const AGuid: TGUID): String; override;
@@ -68,6 +80,11 @@ uses
   MetaDbDiff.mapping.attributes;
 
 { TDMLGeneratorNoSQL }
+
+class function TDMLGeneratorNoSQL.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnMSSQL;
+end;
 
 constructor TDMLGeneratorNoSQL.Create;
 begin

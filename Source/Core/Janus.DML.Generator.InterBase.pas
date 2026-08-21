@@ -29,12 +29,23 @@ uses
   Janus.Driver.Register,
   Janus.DML.Interfaces,
   DataEngine.FactoryInterfaces,
-  FluentSQL;
+  FluentSQL,
+  FluentSQL.Interfaces;
 
 type
   // Classe de banco de dados Interbase
   TDMLGeneratorInterbase = class(TDMLGeneratorFirebird)
   protected
+    /// <summary> Issue #355. dbnInterbase EXISTS in TFluentSQLDriver and its
+    ///  INTERBASE define is switched OFF in FluentSQL.inc, so it is as
+    ///  unregistered as dbnADS: measured, naming it here raises
+    ///  EFluentSQLDriverNotRegistered on all four statements.
+    ///
+    ///  Answers dbnFirebird, which is what this generator has been answering
+    ///  since it was written - by INHERITANCE from TDMLGeneratorFirebird, not
+    ///  by choice. Declared here so that the inheritance stops being the
+    ///  reason. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
     /// para que um dialeto novo nao herde em silencio o literal de outro.
     function GuidLiteral(const AGuid: TGUID): String; override;
@@ -46,6 +57,11 @@ type
 implementation
 
 { TDMLGeneratorInterbase }
+
+class function TDMLGeneratorInterbase.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnFirebird;
+end;
 
 constructor TDMLGeneratorInterbase.Create;
 begin

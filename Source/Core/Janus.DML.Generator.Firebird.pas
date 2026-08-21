@@ -43,6 +43,16 @@ type
   // Classe de banco de dados Firebird
   TDMLGeneratorFirebird = class(TDMLGeneratorAbstract)
   protected
+    /// <summary> Issue #355. The other generator that already got this right,
+    ///  by a ConfigureFluentSQLDriver call in its constructor, now declared
+    ///  here like every sibling.
+    ///
+    ///  Inherited by TDMLGeneratorFirebird3 and TDMLGeneratorInterbase, which
+    ///  is why the issue's count of ten silent generators was two too high -
+    ///  those two were answering dbnFirebird through this constructor all
+    ///  along. Both override it in their own units anyway, so that moving this
+    ///  line cannot move them in silence. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
     /// para que um dialeto novo nao herde em silencio o literal de outro.
     function GuidLiteral(const AGuid: TGUID): String; override;
@@ -63,10 +73,14 @@ implementation
 
 { TDMLGeneratorFirebird }
 
+class function TDMLGeneratorFirebird.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnFirebird;
+end;
+
 constructor TDMLGeneratorFirebird.Create;
 begin
   inherited;
-  ConfigureFluentSQLDriver(dnFirebird);
   FDateFormat := 'MM/dd/yyyy';
   FTimeFormat := 'HH:MM:SS';
 end;
@@ -82,7 +96,6 @@ const
   SELECT_CLAUSE = 'SELECT ';
 var
   LSQL: IFluentSQL;
-  LPreviousDriver: TFluentSQLDriver;
   LTable: TTableMapping;
   LKey: string;
   LPos: Integer;
@@ -92,13 +105,7 @@ begin
     LKey := LKey + '-PAGINATE';
   if not FQueryCache.TryGetValue(LKey, Result) then
   begin
-    LPreviousDriver := FFluentSQLDriver;
-    FFluentSQLDriver := dbnSQLite;
-    try
-      LSQL := _BuildSelectSQL(AClass, AID);
-    finally
-      FFluentSQLDriver := LPreviousDriver;
-    end;
+    LSQL := _BuildSelectSQL(AClass, AID);
     Result := LSQL.AsString;
     if APageSize > -1 then
     begin
@@ -119,7 +126,6 @@ const
   SELECT_CLAUSE = 'SELECT ';
 var
   LSQL: IFluentSQL;
-  LPreviousDriver: TFluentSQLDriver;
   LScopeWhere: String;
   LScopeOrderBy: String;
   LKey: string;
@@ -130,13 +136,7 @@ begin
     LKey := LKey + '-PAGINATE';
   if not FQueryCache.TryGetValue(LKey, Result) then
   begin
-    LPreviousDriver := FFluentSQLDriver;
-    FFluentSQLDriver := dbnSQLite;
-    try
-      LSQL := _BuildSelectSQL(AClass, '-1');
-    finally
-      FFluentSQLDriver := LPreviousDriver;
-    end;
+    LSQL := _BuildSelectSQL(AClass, '-1');
     Result := LSQL.AsString;
     if APageSize > -1 then
     begin
