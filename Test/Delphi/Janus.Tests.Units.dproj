@@ -169,6 +169,7 @@
         <DCCReference Include="..\..\Source\RESTful\Server\Janus.Server.DataSnap.pas"/>
         <DCCReference Include="..\..\Source\RESTful\Server\Janus.Server.Resource.DataSnap.pas"/>
         <DCCReference Include="..\..\Source\Metadata\Janus.ModelDB.Compare.pas"/>
+        <DCCReference Include="..\..\Source\Monitor\Janus.Form.Monitor.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Driver.Register.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Mapping.Cache.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.RTTI.Singleton.pas"/>
@@ -193,6 +194,7 @@
         <DCCReference Include="Unit\Core\Test.Janus.DML.Generator.Distributed.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Server.DataSnapResource.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.ModelDB.Compare.pas"/>
+        <DCCReference Include="Unit\Core\Test.Janus.Form.Monitor.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Command.UnregisteredDriver.pas"/>
         <DCCReference Include="Unit\Criteria\Test.Janus.FluentSQL.Integration.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.REST.QueryParse.pas"/>

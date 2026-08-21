@@ -36,8 +36,11 @@
   RegisterResource). Rename the class, move it to another unit, or drop the
   initialization section, and the two halves stop agreeing IN SILENCE: the
   engine mounts an application with no resources and every request 404s. No
-  compiler diagnoses it. Resource_TheNameTheServerMountsIsTheNameTheRegistry-
-  Knows is that agreement, asserted.
+  compiler diagnoses it. Server_MountsTheResourceOnTheEngineItIsGiven is that
+  agreement, asserted the only way it can be - by running AddResource against a
+  REAL engine and asking the application what mounted. Reading the two names
+  side by side is NOT enough; the mutation that proves it is recorded above
+  that method.
 
   The verb map is the second clause. #338 was a DataSnap verb swap - the same
   shape of defect this resource is wide open to, since each verb is a bare
@@ -55,6 +58,9 @@ uses
   WiRL.Core.Registry,
   WiRL.Core.Attributes,
   WiRL.Core.MessageBodyWriter,
+  WiRL.Configuration.Core,
+  WiRL.Core.Application,
+  WiRL.Engine.REST,
   // Janus - the two units under test
   Janus.Server.WiRL,
   Janus.Server.Resource.WiRL;
@@ -96,6 +102,8 @@ type
     procedure Server_LinkingSeedsTheGlobalWriterRegistry;
     [Test]
     procedure Server_IsAComponentWithAnEngineProperty;
+    [Test]
+    procedure Server_MountsTheResourceOnTheEngineItIsGiven;
   end;
 
 implementation
@@ -292,6 +300,57 @@ begin
       'TRESTServerWiRL.GetConnection');
   finally
     LContext.Free;
+  end;
+end;
+
+{ THE CLAUSE THAT ACTUALLY READS THE SERVER'S OWN LITERAL.
+
+  MEASURED, AND IT COST A REWRITE: the first version of this fixture claimed
+  that Resource_TheNameTheServerMountsIsTheNameTheRegistryKnows would catch a
+  stale name in AddResource. IT DOES NOT, AND THE MUTATION PROVED IT - changing
+  the literal in Janus.Server.WiRL to '...TAppResourceOld' left all ten clauses
+  green, because that clause compares a literal typed HERE against
+  TAppResource.QualifiedClassName and never touches the server's string at all.
+
+  This one does. It hands TRESTServerWiRL a real engine with a real
+  application, which is what makes AddResource run, and then asks the
+  APPLICATION's registry whether anything mounted. A name the global registry
+  does not know silently adds nothing - TWiRLApplication.AddResource just
+  returns False - and the application comes up empty. }
+procedure TTestJanusServerWiRLResource.Server_MountsTheResourceOnTheEngineItIsGiven;
+var
+  LEngine: TWiRLRESTEngine;
+  LServer: TRESTServerWiRL;
+  LApplication: IWiRLApplication;
+begin
+  LEngine := TWiRLRESTEngine.Create(nil);
+  try
+    LApplication := LEngine.AddApplication('/rest');
+
+    Assert.AreEqual(0, (LApplication as TWiRLApplication).Resources.Count,
+      'Guard against a false green: the application must start with NO ' +
+      'resources, otherwise the assertion below would pass on something the ' +
+      'server did not do');
+
+    LServer := TRESTServerWiRL.Create(nil);
+    try
+      /// Assigning the engine is what calls AddResource, and AddResource is
+      /// where the qualified-name literal lives.
+      LServer.WiRLEngine := LEngine;
+
+      Assert.AreEqual(1, (LApplication as TWiRLApplication).Resources.Count,
+        'Assigning the engine must mount exactly the Janus resource on the ' +
+        'application. Zero here means TRESTServerWiRL.AddResource named a ' +
+        'class the global registry does not know - which adds nothing, ' +
+        'returns False, and leaves every route 404 with no diagnostic');
+      Assert.IsTrue((LApplication as TWiRLApplication).Resources.ContainsKey('Janus'),
+        'and it must be mounted under the resource path of TAppResource - ' +
+        'the application registry is keyed by [Path], not by class name');
+    finally
+      LServer.Free;
+    end;
+  finally
+    LEngine.Free;
   end;
 end;
 

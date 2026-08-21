@@ -95,6 +95,7 @@ uses
   /// The embedded schema comparator - issue #341, Level 2. One class whose
   /// only content is a safety default, compiled by none of the seven.
   Janus.ModelDB.Compare in '..\..\Source\Metadata\Janus.ModelDB.Compare.pas',
+  Janus.Form.Monitor in '..\..\Source\Monitor\Janus.Form.Monitor.pas',
   /// Tests
   Test.Janus.Driver.Register in 'Unit\Core\Test.Janus.Driver.Register.pas',
   Test.Janus.Mapping.Cache   in 'Unit\Core\Test.Janus.Mapping.Cache.pas',
@@ -123,6 +124,7 @@ uses
   Test.Janus.DML.Generator.Distributed in 'Unit\Core\Test.Janus.DML.Generator.Distributed.pas',
   Test.Janus.Server.DataSnapResource in 'Unit\RESTful\Test.Janus.Server.DataSnapResource.pas',
   Test.Janus.ModelDB.Compare in 'Unit\Core\Test.Janus.ModelDB.Compare.pas',
+  Test.Janus.Form.Monitor in 'Unit\Core\Test.Janus.Form.Monitor.pas',
   /// An unregistered driver must reach the user as the registry message
   Test.Janus.Command.UnregisteredDriver in 'Unit\Core\Test.Janus.Command.UnregisteredDriver.pas',
   Test.Janus.FluentSQL.Integration in 'Unit\Criteria\Test.Janus.FluentSQL.Integration.pas',
