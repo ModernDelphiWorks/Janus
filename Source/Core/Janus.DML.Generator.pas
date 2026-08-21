@@ -39,6 +39,7 @@ uses
   Janus.DML.Interfaces,
   Janus.DML.Commands,
   Janus.DML.Cache,
+  Janus.DML.Insert.Columns,
   Janus.Types.Blob,
   Janus.Register.Middleware,
   DataEngine.FactoryInterfaces,
@@ -516,34 +517,41 @@ function TDMLGeneratorAbstract.GeneratorInsert(AObject: TObject): String;
 var
   LTable: TTableMapping;
   LColumn: TColumnMapping;
-  LColumns: TColumnMappingList;
+  LPlan: TInsertColumnPlan;
   LSQL: IFluentSQL;
   LKey: String;
   LMarker: String;
   LMarkers: TArray<String>;
   LRendered: String;
+  LPacked: String;
+  LCachedSignature: String;
+  LCachedSQL: String;
 begin
   Result := '';
   try
+    /// Issue #352. THE PLAN IS BUILT BEFORE THE CACHE IS CONSULTED, and that
+    /// order is the repair. What is cacheable about an INSERT is not the class
+    /// - it is the class TOGETHER WITH the set of columns THIS object
+    /// contributes, and the only way to know that set is to ask the object.
+    /// The previous version returned on the key alone and handed the second
+    /// object the first object's statement.
+    if not TInsertColumns.Plan(AObject, LPlan) then
+      LPlan.Signature := '';
     LKey := AObject.ClassType.ClassName + '-INSERT';
-    if FQueryCache.TryGetValue(LKey, Result) then
-      Exit;
+    if FQueryCache.TryGetValue(LKey, LPacked) then
+      if TInsertColumns.Unpack(LPacked, LCachedSignature, LCachedSQL) then
+        if LCachedSignature = LPlan.Signature then
+          Exit(LCachedSQL);
     LTable := TMappingExplorer.GetMappingTable(AObject.ClassType);
-    LColumns := TMappingExplorer.GetMappingColumn(AObject.ClassType);
     LSQL := CreateFluentSQL.Insert.Into(LTable.Name);
     LMarkers := nil;
-    for LColumn in LColumns do
+    /// The list is TInsertColumns.Plan's, and TCommandInserter.GenerateInsert
+    /// builds its params from the SAME call. That is what keeps the markers and
+    /// the binds in step; before #352 each side ran its own loop and the two
+    /// did not agree on IsJoinColumn.
+    for LColumn in LPlan.Columns do
     begin
       try
-        if not Assigned(LColumn.ColumnProperty) then
-          Continue;
-        if LColumn.ColumnProperty.IsNullValue(AObject) then
-          Continue;
-        if (LColumn.FieldType in [ftBlob, ftGraphic, ftOraBlob, ftOraClob]) and
-           (Length(LColumn.ColumnProperty.GetNullableValue(AObject).AsType<TBlob>.ToBytes) = 0) then
-          Continue;
-        if LColumn.IsNoInsert then
-          Continue;
         LMarker := ':' + LColumn.ColumnName;
         LSQL.Values(LColumn.ColumnName, [LMarker]);
         LMarkers := LMarkers + [LMarker];
@@ -562,7 +570,10 @@ begin
     /// both carry the same guards rather than two spellings of them.
     LRendered := LSQL.AsString;
     Result := _SpliceRestoredValueRegion(LRendered, LRendered, LSQL.Params, LMarkers);
-    FQueryCache.AddOrSetValue(LKey, Result);
+    /// Signature and statement go in together. One entry per class still - the
+    /// pattern rides inside the value, not in the key, so the growth note in
+    /// Janus.DML.Cache stays true.
+    FQueryCache.AddOrSetValue(LKey, TInsertColumns.Pack(LPlan.Signature, Result));
   except
     on E: Exception do
       raise Exception.CreateFmt('DIAG GeneratorInsert class=%s msg=%s',

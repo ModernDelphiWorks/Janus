@@ -866,13 +866,31 @@ begin
   finally
     LRow.Free;
   end;
-  Assert.AreEqual('9|NAME|D',
+  /// WHAT IS ASSERTED, AND WHAT IS DELIBERATELY NOT.
+  ///
+  /// ASSERTED: no OTHER column is harmed. k04 must carry its own value. Before
+  /// #352 it came back <NULL> while other_name carried 'D' - k04's value, put
+  /// there by the driver filling an unbound marker BY POSITION. That silent
+  /// swap is the defect, and it needed no cache and no second object.
+  ///
+  /// NOT ASSERTED: that other_name reaches the row. It comes back NULL, because
+  /// the unified selector skips a join column exactly as
+  /// TCommandInserter.GenerateInsert always has - no param for it was ever
+  /// built, so no value for it was ever written, and nothing that used to work
+  /// stopped working. Whether a [JoinColumn] that is NOT also NoInsert OUGHT to
+  /// be inserted is a question about what the attribute means to a consumer,
+  /// not about this defect. It is the owner's to answer, and answering it here
+  /// by asserting 'NAME' would have written a product decision into a
+  /// regression test.
+  Assert.AreEqual('9|<NULL>|D',
     _ScalarStr('SELECT other_id FROM cnjoin WHERE k01 = 1') + '|' +
     _ScalarStr('SELECT other_name FROM cnjoin WHERE k01 = 1') + '|' +
     _ScalarStr('SELECT k04 FROM cnjoin WHERE k01 = 1'),
-    'COLD CACHE, ONE OBJECT: a join column without NoInsert. The generator ' +
-    'emits a marker for it and the inserter binds no param, so the markers ' +
-    'outnumber the params on the very first statement.');
+    'COLD CACHE, ONE OBJECT: a join column without NoInsert. The two column ' +
+    'loops must select the same set, or the markers outnumber the params on ' +
+    'the very first statement and a value lands in the wrong column. k04 ' +
+    'holding its own value is the assertion; other_name being NULL is the ' +
+    'unchanged fact that no param for a join column is ever built.');
 end;
 
 initialization
