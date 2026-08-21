@@ -86,8 +86,8 @@ type
     // KNOWN DEFECT, see the implementation of both: these two consecrate the
     // CURRENT (broken) EXISTS serialization. They must be DELETED, not repaired,
     // by whoever fixes FluentSQL.
-    [Test] procedure TestWhereExists_CurrentlyBindsSubqueryAsParameter_KNOWN_DEFECT;
-    [Test] procedure TestWhereNotExists_CurrentlyBindsSubqueryAsParameter_KNOWN_DEFECT;
+    [Test] procedure TestWhereExists_InlinesTheSubqueryVerbatim;
+    [Test] procedure TestWhereNotExists_InlinesTheSubqueryVerbatim;
     [Test] procedure TestInsertValuesString_SerializesStatement;
     [Test] procedure TestInsertValuesArray_SerializesStatement;
     [Test] procedure TestUpdateSetValueString_SerializesStatement;
@@ -465,29 +465,27 @@ begin
 end;
 
 // ============================================================================
-// KNOWN DEFECT -- DELETE THIS TEST WHEN FluentSQL IS FIXED. DO NOT "REPAIR" IT.
+// THIS PAIR REPLACES TestWhereExists/NotExists_CurrentlyBindsSubqueryAsParameter
+// _KNOWN_DEFECT, WHICH CATALOGUED A FluentSQL DEFECT THAT IS NOW CLOSED.
 //
-// FluentSQL binds the EXISTS subquery as a STRING PARAMETER instead of inlining
-// it in the SQL text. What it generates today, and what SQLite (the dialect this
-// very test asks for) answers when the statement is executed:
+// Those two tests asserted, faithfully, that FluentSQL bound the EXISTS operand
+// as a STRING PARAMETER -- "WHERE (exists :p1)" with p1 = 'SELECT 1 FROM
+// pedidos' -- which SQLite rejects with a syntax error. They carried their own
+// disposal instruction: delete when FluentSQL is fixed, do not repair in place,
+// and write a real one asserting the inlined subquery.
 //
-//   generated : SELECT * FROM clientes WHERE (exists :p1)
-//               with p1 = 'SELECT 1 FROM pedidos'
-//               -> SQLite: syntax error near ":p1"   (rejected by the parser)
-//
-//   correct   : SELECT * FROM clientes WHERE (exists (SELECT 1 FROM pedidos))
-//               -> SQLite: OK
-//
-// The assertions below are FAITHFUL to today's behaviour, which is why this test
-// is green -- green here means "the defect is still exactly as catalogued", NOT
-// "EXISTS works". The name says so out loud so the scoreboard cannot be misread.
-//
-// When FluentSQL starts inlining the subquery, this test WILL go red. That red is
-// the FIX landing, not a regression: whoever fixes FluentSQL must DELETE this
-// test (and its NOT EXISTS twin) and write a real one asserting the inlined
-// subquery. Repairing the assertions in place would re-consecrate the defect.
+// FluentSQL fixed it. Exists/NotExists are now the EXPRESSION slot: the operand
+// is a SUBQUERY and goes in verbatim between parentheses, with no bind -- the
+// contract written out at FluentSQL.Interfaces.pas:528-548 for Exists and
+// :549-554 for NotExists (HEAD 9476416). An earlier draft of this box cited
+// :526-537; :526-527 close the doc of NotIn(String) and declare it, so that
+// citation opened two lines inside the WRONG member.
+// The old assertions were red against that HEAD before this pair was written:
+//   [SELECT * FROM clientes WHERE (exists (SELECT 1 FROM pedidos))]
+//     does not contain [exists :p1]
+// so this is the disposal the old comment asked for, not a repair of it.
 // ============================================================================
-procedure TTestFluentSQLIntegration.TestWhereExists_CurrentlyBindsSubqueryAsParameter_KNOWN_DEFECT;
+procedure TTestFluentSQLIntegration.TestWhereExists_InlinesTheSubqueryVerbatim;
 var
   LCQ: IFluentSQL;
   LSQL: string;
@@ -495,32 +493,18 @@ begin
   LCQ := TCQ(dbnSQLite).Select('*').From('clientes').Where.Exists('SELECT 1 FROM pedidos');
   LSQL := LCQ.AsString;
 
-  Assert.Contains(LSQL, 'EXISTS');
-  Assert.Contains(LSQL, 'exists :p1',
-    'the EXISTS operand is bound as a parameter by the current FluentSQL AST');
-  Assert.DoesNotContain(LSQL, 'FROM pedidos',
-    'the operand must not be inlined into the SQL text');
+  Assert.Contains(LSQL, 'exists (SELECT 1 FROM pedidos)',
+    'the EXISTS operand is a subquery and must reach the SQL text verbatim');
+  Assert.DoesNotContain(LSQL, ':p1',
+    'the subquery must not be bound as a parameter - SQLite rejects "exists :p1"');
 
-  _AssertParamCount(LCQ.Params, 1);
-  _AssertParamStr(LCQ.Params, 0, 'p1', 'SELECT 1 FROM pedidos');
+  _AssertParamCount(LCQ.Params, 0);
 end;
 
 // ============================================================================
-// KNOWN DEFECT -- DELETE THIS TEST WHEN FluentSQL IS FIXED. DO NOT "REPAIR" IT.
-// Twin of the EXISTS case above; same root cause, same disposal instruction.
-//
-//   generated : SELECT * FROM clientes WHERE (not exists :p1)
-//               with p1 = 'SELECT 1 FROM pedidos'
-//               -> SQLite: syntax error near ":p1"   (rejected by the parser)
-//
-//   correct   : SELECT * FROM clientes WHERE (not exists (SELECT 1 FROM pedidos))
-//               -> SQLite: OK
-//
-// Green here means "the defect is still exactly as catalogued", NOT "NOT EXISTS
-// works". When FluentSQL inlines the subquery this test goes red -- that red is
-// the fix landing. Delete it then; do not adjust the assertions.
+// Twin of the EXISTS case above; same closed defect, same disposal.
 // ============================================================================
-procedure TTestFluentSQLIntegration.TestWhereNotExists_CurrentlyBindsSubqueryAsParameter_KNOWN_DEFECT;
+procedure TTestFluentSQLIntegration.TestWhereNotExists_InlinesTheSubqueryVerbatim;
 var
   LCQ: IFluentSQL;
   LSQL: string;
@@ -528,14 +512,12 @@ begin
   LCQ := TCQ(dbnSQLite).Select('*').From('clientes').Where.NotExists('SELECT 1 FROM pedidos');
   LSQL := LCQ.AsString;
 
-  Assert.Contains(LSQL, 'NOT EXISTS');
-  Assert.Contains(LSQL, 'not exists :p1',
-    'the NOT EXISTS operand is bound as a parameter by the current FluentSQL AST');
-  Assert.DoesNotContain(LSQL, 'FROM pedidos',
-    'the operand must not be inlined into the SQL text');
+  Assert.Contains(LSQL, 'not exists (SELECT 1 FROM pedidos)',
+    'the NOT EXISTS operand is a subquery and must reach the SQL text verbatim');
+  Assert.DoesNotContain(LSQL, ':p1',
+    'the subquery must not be bound as a parameter - SQLite rejects "not exists :p1"');
 
-  _AssertParamCount(LCQ.Params, 1);
-  _AssertParamStr(LCQ.Params, 0, 'p1', 'SELECT 1 FROM pedidos');
+  _AssertParamCount(LCQ.Params, 0);
 end;
 
 procedure TTestFluentSQLIntegration.TestInsertValuesString_SerializesStatement;

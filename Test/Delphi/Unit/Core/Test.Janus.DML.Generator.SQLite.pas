@@ -30,6 +30,8 @@ uses
   StrUtils,
   Generics.Collections,
   DUnitX.TestFramework,
+  FluentSQL,
+  FluentSQL.Interfaces,
   DataEngine.FactoryInterfaces,
   MetaDbDiff.Mapping.Attributes,
   MetaDbDiff.Mapping.Classes,
@@ -222,6 +224,97 @@ type
     property childs: TObjectList<TNullableGuidChild> read Fchilds write Fchilds;
   end;
 
+  /// <summary> TWELVE COLUMNS, AND THE COUNT IS THE POINT. Issue #337.
+  ///
+  ///  Since FluentSQL parameterised the value slot, the marker this generator
+  ///  asks for is handed back as ':pN' and TDMLGeneratorAbstract
+  ///  ._RestoreNamedPlaceholders writes the column name over it. Every other
+  ///  entity in this suite emits FEWER THAN TEN columns, and under ten every
+  ///  wrong way of doing that rewrite still looks right:
+  ///
+  ///    - a ReplaceStr sweep in ascending order is correct up to :p9 and
+  ///      CORRUPTS from :p10 on, because ':p1' is a prefix of ':p10' - the
+  ///      sweep rewrites the head and leaves the '0', so the tenth marker
+  ///      comes out as the FIRST column's name with a stray digit glued on;
+  ///    - the widest existing fixture is Tdetail with five columns, so that
+  ///      corruption cannot be reached by anything already written here.
+  ///
+  ///  Hence twelve. The clause below asserts the WHOLE statement, in order,
+  ///  rather than Contains() per column: Contains() is blind to a permutation,
+  ///  and the ordinal is exactly what a marker rewrite can get wrong.
+  ///
+  ///  It is deliberately flat - no key generator, no association, no nullable.
+  ///  Anything else here would be a second reason for it to go red. </summary>
+  [Entity]
+  [Table('wideslot', '')]
+  [PrimaryKey('w01', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'Primary key')]
+  TWideSlot = class
+  private
+    Fw01, Fw02, Fw03, Fw04, Fw05, Fw06: Integer;
+    Fw07, Fw08, Fw09, Fw10, Fw11, Fw12: Integer;
+  public
+    [Column('w01', ftInteger)] property w01: Integer read Fw01 write Fw01;
+    [Column('w02', ftInteger)] property w02: Integer read Fw02 write Fw02;
+    [Column('w03', ftInteger)] property w03: Integer read Fw03 write Fw03;
+    [Column('w04', ftInteger)] property w04: Integer read Fw04 write Fw04;
+    [Column('w05', ftInteger)] property w05: Integer read Fw05 write Fw05;
+    [Column('w06', ftInteger)] property w06: Integer read Fw06 write Fw06;
+    [Column('w07', ftInteger)] property w07: Integer read Fw07 write Fw07;
+    [Column('w08', ftInteger)] property w08: Integer read Fw08 write Fw08;
+    [Column('w09', ftInteger)] property w09: Integer read Fw09 write Fw09;
+    [Column('w10', ftInteger)] property w10: Integer read Fw10 write Fw10;
+    [Column('w11', ftInteger)] property w11: Integer read Fw11 write Fw11;
+    [Column('w12', ftInteger)] property w12: Integer read Fw12 write Fw12;
+  end;
+
+  /// <summary> A KEY COLUMN NAMED LIKE A FLUENTSQL PLACEHOLDER. Issue #337.
+  ///
+  ///  The SET slot is parameterised and comes back as ':p1'; the key predicate
+  ///  is written VERBATIM by GeneratorUpdate through the Where(String)
+  ///  overload, so a key column called `p1` puts a SECOND ':p1' into the very
+  ///  same statement - and the two are indistinguishable as text.
+  ///
+  ///  There is nothing exotic about the name: p1 is a legal identifier in
+  ///  every engine Janus speaks, and this entity is otherwise the plainest one
+  ///  that can be written. The trigger is a lowercase key named p&lt;N&gt; with
+  ///  N no greater than the number of columns in the SET. </summary>
+  [Entity]
+  [Table('r337pk', '')]
+  [PrimaryKey('p1', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'Primary key')]
+  TPlaceholderNamedKey = class
+  private
+    Fp1: Integer;
+    Fnm: String;
+  public
+    [Column('p1', ftInteger)]
+    property p1: Integer read Fp1 write Fp1;
+    [Column('nm', ftString, 20)]
+    property nm: String read Fnm write Fnm;
+  end;
+
+  /// <summary> A GENERATOR THAT LETS A CLAUSE REACH THE TWO REFUSALS. #337.
+  ///
+  ///  Neither refusal can be produced by any statement Janus builds today, and
+  ///  both are presented in the code as ACTIVE nets rather than as declared
+  ///  survivors - so each needs a clause of its own, or an inverted condition
+  ///  and a wrong message would ship unnoticed.
+  ///
+  ///  UseDialect reaches ConfigureFluentSQLDriver, which only the SQLite and
+  ///  Firebird generators call for real; asking for MySQL makes FluentSQL
+  ///  serialize as MySQL, and their MySQL serializer rewrites every ':pN' to
+  ///  '?' (FluentSQL.SerializeMySQL.pas:52), so NOTHING is left to restore.
+  ///  SpliceWith reaches the splice with a hand-made pair that is not a
+  ///  prefix, which their serializer never produces. Descending from the
+  ///  SQLite generator rather than from the abstract keeps the probe down to
+  ///  the two lines that are actually the subject. </summary>
+  TDMLGeneratorDialectProbe = class(TDMLGeneratorSQLite)
+  public
+    procedure UseDialect(const ADriver: TDriverName);
+    function SpliceWith(const AValueRegion, AWholeStatement: String): String;
+  end;
+
   [TestFixture]
   TTestDMLGenerator = class
   private
@@ -233,6 +326,14 @@ type
     function NullableGuidSelect(const ASet: Boolean): String;
     function OctetSelect(const AOctet: Boolean): String;
     function FindAssociation(AClass: TClass; const AClassNameRef: String): TAssociationMapping;
+    /// <summary> EVERY VALUE OF AN INSERT IS THE MARKER OF THE COLUMN IN ITS
+    ///  OWN POSITION. Issue #337. It reads the two parenthesised lists out of
+    ///  the statement and pairs them by ORDINAL, which is the invariant a
+    ///  marker rewrite can break; it does NOT assert a fixed column order, so
+    ///  the clause stays about the rewrite and not about the order RTTI hands
+    ///  the properties over in. </summary>
+    procedure _AssertEachValueIsItsOwnColumnsMarker(const ASQL: String;
+      const AExpectedCount: Integer);
   public
     [Setup]
     procedure Setup;
@@ -286,6 +387,24 @@ type
     procedure TestGenerateInsert_MultiColumn_PreservesAllPlaceholders;
     [Test]
     procedure TestGenerateUpdate_MultiField_AllPlaceholdersWithoutQuotes;
+    // Issue #337 - see the TWideSlot summary for why twelve columns and why
+    // the whole statement is asserted instead of Contains() per column.
+    [Test]
+    procedure TestGenerateInsert_TwelveColumns_EveryMarkerLandsInItsOwnSlot;
+    [Test]
+    procedure TestGenerateUpdate_TwelveFields_EveryMarkerLandsInItsOwnSlot;
+    // Issue #337 - see the TPlaceholderNamedKey summary.
+    [Test]
+    procedure TestGenerateUpdate_AKeyNamedLikeAPlaceholder_KeepsItsOwnMarker;
+    [Test]
+    procedure FluentSQLRendersTheValueRegionAsAPrefixOfTheWholeUpdate;
+    // Issue #337 - the two refusals, reached through TDMLGeneratorDialectProbe.
+    [Test]
+    procedure TestGenerateInsert_ADialectThatEatsThePlaceholders_RefusesByName;
+    [Test]
+    procedure TestSplice_AValueRegionThatIsNotAPrefix_RefusesByName;
+    [Test]
+    procedure TestSplice_AValueRegionThatIsAPrefix_CarriesTheTailOverUntouched;
     [Test]
     procedure TestGenerateNextPacket_UsesSqlitePagination;
     [Test]
@@ -1158,6 +1277,270 @@ begin
   end;
 end;
 
+procedure TTestDMLGenerator._AssertEachValueIsItsOwnColumnsMarker(
+  const ASQL: String; const AExpectedCount: Integer);
+var
+  LOpenCols, LCloseCols, LOpenVals, LCloseVals: Integer;
+  LColumns: TArray<String>;
+  LValues: TArray<String>;
+  LFor: Integer;
+begin
+  LOpenCols  := Pos('(', ASQL);
+  LCloseCols := PosEx(')', ASQL, LOpenCols);
+  LOpenVals  := PosEx('(', ASQL, LCloseCols);
+  LCloseVals := PosEx(')', ASQL, LOpenVals);
+  Assert.IsTrue((LOpenCols > 0) and (LCloseCols > LOpenCols) and
+                (LOpenVals > LCloseCols) and (LCloseVals > LOpenVals),
+    'the statement does not carry a column list and a value list: [' + ASQL + ']');
+
+  LColumns := SplitString(Copy(ASQL, LOpenCols + 1, LCloseCols - LOpenCols - 1), ',');
+  LValues  := SplitString(Copy(ASQL, LOpenVals + 1, LCloseVals - LOpenVals - 1), ',');
+
+  Assert.AreEqual(AExpectedCount, Length(LColumns),
+    'column count of [' + ASQL + ']');
+  Assert.AreEqual(Length(LColumns), Length(LValues),
+    'one value per column in [' + ASQL + ']');
+
+  for LFor := 0 to High(LColumns) do
+    Assert.AreEqual(':' + Trim(LColumns[LFor]), Trim(LValues[LFor]),
+      Format('value %d must be the marker of the column in slot %d, in [%s]',
+             [LFor + 1, LFor + 1, ASQL]));
+end;
+
+procedure TTestDMLGenerator.TestGenerateInsert_TwelveColumns_EveryMarkerLandsInItsOwnSlot;
+var
+  LWide: TWideSlot;
+  LInserter: TCommandInserter;
+  LSQL: String;
+  LFor: Integer;
+begin
+  LWide := TWideSlot.Create;
+  try
+    /// Every column has to carry a value, or GeneratorInsert skips it on
+    /// IsNullValue and the statement stops being twelve wide - which is the
+    /// one property this clause is here to exercise.
+    LWide.w01 := 1;  LWide.w02 := 2;  LWide.w03 := 3;  LWide.w04 := 4;
+    LWide.w05 := 5;  LWide.w06 := 6;  LWide.w07 := 7;  LWide.w08 := 8;
+    LWide.w09 := 9;  LWide.w10 := 10; LWide.w11 := 11; LWide.w12 := 12;
+
+    LInserter := TCommandInserter.Create(FConnection, dnSQLite, LWide);
+    try
+      LSQL := LowerCase(LInserter.GenerateInsert(LWide));
+      _AssertEachValueIsItsOwnColumnsMarker(LSQL, 12);
+
+      /// The tenth marker onwards is where an ascending ReplaceStr sweep
+      /// corrupts, and it corrupts by leaving the SURVIVING digits behind.
+      for LFor := 1 to 12 do
+        Assert.Contains(LSQL, Format(':w%.2d', [LFor]),
+          Format('marker %d must survive the rewrite whole', [LFor]));
+      Assert.DoesNotContain(LSQL, ':p',
+        'no positional placeholder may survive into the emitted statement');
+    finally
+      LInserter.Free;
+    end;
+  finally
+    LWide.Free;
+  end;
+end;
+
+procedure TTestDMLGenerator.TestGenerateUpdate_TwelveFields_EveryMarkerLandsInItsOwnSlot;
+var
+  LChanges: TDictionary<String, String>;
+  LWide: TWideSlot;
+  LUpdater: TCommandUpdater;
+  LSQL: String;
+  LFor: Integer;
+  LColumn: String;
+begin
+  LChanges := TDictionary<String, String>.Create;
+  LWide := TWideSlot.Create;
+  try
+    LWide.w01 := 1;  LWide.w02 := 2;  LWide.w03 := 3;  LWide.w04 := 4;
+    LWide.w05 := 5;  LWide.w06 := 6;  LWide.w07 := 7;  LWide.w08 := 8;
+    LWide.w09 := 9;  LWide.w10 := 10; LWide.w11 := 11; LWide.w12 := 12;
+    /// w01 is the key and stays out of SET; the other eleven are the change
+    /// set, which is past :p9 and therefore past where the prefix bites.
+    for LFor := 2 to 12 do
+    begin
+      LColumn := Format('w%.2d', [LFor]);
+      LChanges.Add(LColumn, LColumn);
+    end;
+
+    LUpdater := TCommandUpdater.Create(FConnection, dnSQLite, LWide);
+    try
+      LSQL := LowerCase(LUpdater.GenerateUpdate(LWide, LChanges));
+      /// PAIRWISE, not Contains() per name: a TDictionary does not promise an
+      /// enumeration order, so the SET order is not the subject here - that
+      /// each column sits next to ITS OWN marker is.
+      for LFor := 2 to 12 do
+      begin
+        LColumn := Format('w%.2d', [LFor]);
+        Assert.Contains(LSQL, LColumn + ' = :' + LColumn,
+          'the SET slot of ' + LColumn + ' must carry its own marker');
+      end;
+      Assert.DoesNotContain(LSQL, ':p',
+        'no positional placeholder may survive into the emitted statement');
+    finally
+      LUpdater.Free;
+    end;
+  finally
+    LWide.Free;
+    LChanges.Free;
+  end;
+end;
+
+procedure TTestDMLGenerator.TestGenerateUpdate_AKeyNamedLikeAPlaceholder_KeepsItsOwnMarker;
+var
+  LChanges: TDictionary<String, String>;
+  LRow: TPlaceholderNamedKey;
+  LUpdater: TCommandUpdater;
+  LSQL: String;
+begin
+  LChanges := TDictionary<String, String>.Create;
+  LRow := TPlaceholderNamedKey.Create;
+  try
+    LRow.p1 := 7;
+    LRow.nm := 'NEWNAME';
+    LChanges.Add('nm', 'nm');
+    LUpdater := TCommandUpdater.Create(FConnection, dnSQLite, LRow);
+    try
+      LSQL := LowerCase(LUpdater.GenerateUpdate(LRow, LChanges));
+      /// The SET slot took bind p1, so the statement carries TWO ':p1' before
+      /// the rewrite. The key predicate is Janus's own verbatim text and must
+      /// come out untouched; rewriting it points the lookup at the new NAME.
+      Assert.Contains(LSQL, 'where p1 = :p1',
+        'the key predicate is verbatim text and must keep its own marker');
+      Assert.DoesNotContain(LSQL, 'where p1 = :nm',
+        'the key would be compared against the new value of another column');
+      Assert.Contains(LSQL, 'nm = :nm',
+        'the SET slot still carries the marker of its own column');
+    finally
+      LUpdater.Free;
+    end;
+  finally
+    LRow.Free;
+    LChanges.Free;
+  end;
+end;
+
+/// <summary> THE PROPERTY OF THEIR SERIALIZER THAT GeneratorUpdate LEANS ON.
+///  Issue #337. The generator renders the UPDATE once BEFORE the key predicate
+///  exists, to get the value region with no SQL parsing and no guess about
+///  where SET ends, and then carries the tail of the finished statement over
+///  untouched. That splice is only sound while the first render is a PREFIX of
+///  the second - which is FluentSQL's behaviour, not ours, so it is pinned here
+///  instead of assumed in a comment. The generator also re-checks it on every
+///  call and refuses by name if it breaks; this clause is what makes the break
+///  show up as one red test rather than as every UPDATE in the suite. </summary>
+procedure TTestDMLGenerator.FluentSQLRendersTheValueRegionAsAPrefixOfTheWholeUpdate;
+var
+  LCQ: IFluentSQL;
+  LBefore, LAfter: String;
+begin
+  LCQ := TCQ(dbnSQLite).Update('r337pk');
+  LCQ.SetValue('nm', [':nm']);
+  LBefore := LCQ.AsString;
+  LCQ.Where('p1 = :p1');
+  LAfter := LCQ.AsString;
+  Assert.AreEqual(LBefore, Copy(LAfter, 1, Length(LBefore)),
+    Format('the value region must be a prefix of the whole statement: ' +
+           'before=[%s] whole=[%s]', [LBefore, LAfter]));
+end;
+
+{ TDMLGeneratorDialectProbe }
+
+procedure TDMLGeneratorDialectProbe.UseDialect(const ADriver: TDriverName);
+begin
+  ConfigureFluentSQLDriver(ADriver);
+end;
+
+function TDMLGeneratorDialectProbe.SpliceWith(const AValueRegion,
+  AWholeStatement: String): String;
+begin
+  /// No binds and no markers on purpose: the prefix refusal is decided before
+  /// either is looked at, and the positive control must come back byte for
+  /// byte so that a rewrite creeping into this path would show up as a diff.
+  Result := _SpliceRestoredValueRegion(AValueRegion, AWholeStatement, nil, nil);
+end;
+
+procedure TTestDMLGenerator.TestGenerateInsert_ADialectThatEatsThePlaceholders_RefusesByName;
+var
+  LProbe: TDMLGeneratorDialectProbe;
+  LRow: TPlaceholderNamedKey;
+  LRaised: String;
+begin
+  LRow := TPlaceholderNamedKey.Create;
+  LProbe := TDMLGeneratorDialectProbe.Create;
+  try
+    LRow.p1 := 7;
+    LRow.nm := 'NEWNAME';
+    /// MySQL turns every ':pN' into '?' on the way out, so the statement comes
+    /// back with the value slots emptied of anything a consumer could bind to.
+    /// Counting the BINDS would not notice - they were allocated, and they
+    /// carry what this generator put there. Counting the SUBSTITUTIONS does.
+    LProbe.UseDialect(dnMySQL);
+    LRaised := '';
+    try
+      LProbe.GeneratorInsert(LRow);
+    except
+      on E: Exception do
+        LRaised := E.Message;
+    end;
+    Assert.IsTrue(LRaised <> '',
+      'a statement whose value slots carry no bindable marker must not be returned');
+    Assert.Contains(LRaised, 'only 0 marker(s) could be put back',
+      'the refusal must say how many of the expected markers survived');
+    Assert.Contains(LRaised, 'Issue #337', 'the refusal must name its issue');
+  finally
+    LProbe.Free;
+    LRow.Free;
+  end;
+end;
+
+procedure TTestDMLGenerator.TestSplice_AValueRegionThatIsNotAPrefix_RefusesByName;
+var
+  LProbe: TDMLGeneratorDialectProbe;
+  LRaised: String;
+begin
+  LProbe := TDMLGeneratorDialectProbe.Create;
+  try
+    LRaised := '';
+    try
+      LProbe.SpliceWith('UPDATE r337pk SET nm = :p1',
+                        'DELETE FROM r337pk WHERE p1 = :p1');
+    except
+      on E: Exception do
+        LRaised := E.Message;
+    end;
+    Assert.IsTrue(LRaised <> '',
+      'splicing two strings that do not line up must not be done silently');
+    Assert.Contains(LRaised, 'cannot be told',
+      'the refusal must say that the two regions cannot be told apart');
+    Assert.Contains(LRaised, 'Issue #337', 'the refusal must name its issue');
+  finally
+    LProbe.Free;
+  end;
+end;
+
+procedure TTestDMLGenerator.TestSplice_AValueRegionThatIsAPrefix_CarriesTheTailOverUntouched;
+const
+  cREGION = 'UPDATE r337pk SET nm = :nm';
+  cWHOLE  = 'UPDATE r337pk SET nm = :nm WHERE p1 = :p1';
+var
+  LProbe: TDMLGeneratorDialectProbe;
+begin
+  /// The control for the clause above: with a real prefix the splice must NOT
+  /// refuse, and the verbatim tail - ':p1' being exactly the token a rewrite
+  /// would be tempted by - has to come back untouched.
+  LProbe := TDMLGeneratorDialectProbe.Create;
+  try
+    Assert.AreEqual(cWHOLE, LProbe.SpliceWith(cREGION, cWHOLE),
+      'a prefix must splice back to the statement it came from, byte for byte');
+  finally
+    LProbe.Free;
+  end;
+end;
+
 procedure TTestDMLGenerator.TestGenerateNextPacket_UsesSqlitePagination;
 var
   LClient: Tclient;
@@ -1803,5 +2186,7 @@ initialization
   TRegisterClass.RegisterEntity(TGuidOverStringMaster);
   TRegisterClass.RegisterEntity(TNullableGuidChild);
   TRegisterClass.RegisterEntity(TNullableGuidMaster);
+  TRegisterClass.RegisterEntity(TWideSlot);
+  TRegisterClass.RegisterEntity(TPlaceholderNamedKey);
 
 end.

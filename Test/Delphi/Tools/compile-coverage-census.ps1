@@ -74,18 +74,42 @@ param(
   #  esta ligado quando o param block e avaliado.)
   [string]$Root = '',
 
-  # Pin do FluentSQL, RELATIVO a Test\Delphi.
+  # Pin do FluentSQL, RELATIVO a Test\Delphi. VAZIO = sem pin, que e o default
+  # desde a issue #337.
   #
-  # MEDIDO na frente da #341, e NAO e o que este comentario dizia antes ("sem
-  # ele o build quebra"): sem o pin os SETE projetos COMPILAM (exit 0, 7/7).
-  # O pin e load-bearing em TEMPO DE EXECUCAO, nao de compilacao - rodando sem
-  # ele, Janus.Tests.Units cai 10 e Janus.Tests.RESTHorse cai 51 (49 failures +
-  # 2 errors), 61 clausulas verdes que ficam vermelhas. A causa medida: o
-  # FluentSQL de main emite placeholder POSICIONAL onde o Janus espera NOMEADO
-  # ("insert into client (...) values (:p1, :p2)" onde a clausula exige
-  # ":client_name"). Trocar o pin pelo main e uma decisao de RUNTIME, e o censo
-  # so mede compilacao - nao use este script como argumento para largar o pin.
-  [string]$PinRel = '..\..\..\_wt-fluentsql-pin265\Source',
+  # O PIN ESTA APOSENTADO. Nao e mais preciso, e nao funciona mais.
+  #
+  # A redacao anterior desta caixa era verdadeira quando foi escrita e as duas
+  # metades JA CAIRAM, uma de cada vez:
+  #   - "sem ele o build quebra" caiu na #341: sem o pin os SETE projetos
+  #     COMPILAM (exit 0, 7/7), porque o enum TFluentSQLDriver de main voltou a
+  #     ter os 15 membros (FluentSQL.Interfaces.pas:57-59, HEAD 9476416).
+  #   - "o pin e load-bearing em TEMPO DE EXECUCAO - sem ele Units cai 10 e
+  #     RESTHorse cai 51, 61 clausulas verdes que ficam vermelhas" caiu na #337,
+  #     que e' onde essas 61 foram consertadas. O Janus passou a CONSUMIR a
+  #     parametrizacao do slot de valor do FluentSQL em vez de injetar marcador
+  #     proprio nele - ver _RestoreNamedPlaceholders em Janus.DML.Generator.pas.
+  #     Medido em 21 ago 2026 no HEAD da frente, sem pin, contra o FluentSQL
+  #     main 9476416:
+  #       Units 676/0  LiveBindings 31/0  RESTfulDriver 248/0  RESTHorse 158/0
+  #       RESTWiRL 30/0  RESTMARS 33/0    RESTOracle 12 errored (OCI ausente,
+  #                                       ambiente, igual ao basal)
+  #     O TOTAL DE Units NAO E' O BASAL 669 DE PROPOSITO: a propria #337 somou
+  #     SETE clausulas - duas do limite de dez marcadores, uma da chave chamada
+  #     p1, uma da propriedade de prefixo do serializer deles, e tres das duas
+  #     recusas (dialeto que come os marcadores; splice sem prefixo; e o
+  #     controle positivo do splice). ESTE NUMERO JA ENVELHECEU DUAS VEZES
+  #     dentro da propria frente - 669 -> 673 -> 676. Um total de suite escrito
+  #     em prosa envelhece a cada clausula nova; se este nao bater com a
+  #     execucao, e' ESTE TEXTO que esta velho, nao a suite.
+  #
+  # E O PIN AGORA QUEBRA. Medido na mesma frente: compilando CONTRA o pin
+  # (a47f036), Janus.Tests.Units fica vermelho, porque aquele FluentSQL deixa o
+  # fragmento passar reto e aloca ZERO binds no slot de valor, e o
+  # _RestoreNamedPlaceholders recusa em vez de adivinhar
+  # ("Janus asked the FluentSQL value slot for 3 bind(s) and it allocated 0").
+  # Passar -PinRel de novo NAO reproduz o estado antigo; produz esse vermelho.
+  [string]$PinRel = '',
 
   [string]$RsVars  = 'C:\Program Files (x86)\Embarcadero\Studio\37.0\bin\rsvars.bat',
   [string]$BdsLib  = 'C:\Program Files (x86)\Embarcadero\Studio\37.0\lib',
@@ -126,8 +150,11 @@ function Get-UnitSearchPath([string]$dprojPath) {
   $acc = $acc.Replace('$(Platform)','Win32')
   $acc = $acc.Replace('$(Config)',  'Debug')
 
-  # Pin do FluentSQL na FRENTE, para vencer o FluentSQL do repo.
-  $entries = @("$PinRel\Core", "$PinRel\Drivers") + ($acc -split ';')
+  # Pin do FluentSQL na FRENTE, para vencer o FluentSQL do repo. Vazio (o
+  # default desde a #337) = o FluentSQL de .modules resolve pelas entradas que o
+  # proprio .dproj ja tem. Ver a caixa do parametro $PinRel.
+  if ($PinRel -eq '') { $entries = ($acc -split ';') }
+  else                { $entries = @("$PinRel\Core", "$PinRel\Drivers") + ($acc -split ';') }
 
   $seen = New-Object 'System.Collections.Generic.HashSet[string]'
   $kept = New-Object System.Collections.ArrayList

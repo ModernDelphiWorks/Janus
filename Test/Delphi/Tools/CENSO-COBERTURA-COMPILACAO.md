@@ -66,14 +66,25 @@
 > apenas o nome do produto no cabeçalho de licença (e uma linha em branco em
 > `SQLite3.pas`). Decisão do dono — ver o dossiê da #341.
 >
-> ### O PIN DO FluentSQL — o censo NÃO autoriza largá-lo
+> ### O PIN DO FluentSQL — o censo NÃO autorizava largá-lo; a #337 largou
+>
+> **⚠️ ESTA SEÇÃO É HISTÓRICA. Ela descreve o estado ANTES da issue #337, e a
+> tabela abaixo NÃO reproduz mais.** Rodando as suítes sem o pin no HEAD de
+> hoje, `Janus.Tests.Units` e `Janus.Tests.RESTHorse` são **verdes** — as 61
+> cláusulas foram consertadas na #337, que fez o Janus **consumir** a
+> parametrização do slot de valor em vez de injetar marcador próprio nele
+> (`_RestoreNamedPlaceholders` em `Janus.DML.Generator.pas`). O pin está
+> **APOSENTADO** e hoje é o pin que deixa `Units` vermelho. Números atuais na
+> caixa de `$PinRel` em `compile-coverage-census.ps1`. O texto abaixo fica de pé
+> porque o **método** que ele ensina continua válido — censo mede compilação,
+> não execução — e porque apagar a medição apagaria a lição.
 >
 > **Esta seção existe porque a primeira redação desta frente errou.** Ela mediu
 > que os sete projetos **compilam sem o pin** (exit 0, 7/7) e concluiu que o pin
-> estava obsoleto. A conclusão é **FALSA**, e o erro é de método: o censo mede
-> COMPILAÇÃO, e o pin é load-bearing em **EXECUÇÃO**.
+> estava obsoleto. A conclusão era **FALSA quando foi tirada**, e o erro é de
+> método: o censo mede COMPILAÇÃO, e o pin era load-bearing em **EXECUÇÃO**.
 >
-> Re-medido rodando as suítes sem o pin:
+> Re-medido rodando as suítes sem o pin (12 ago 2026, **antes** da #337):
 >
 > | | com pin | **sem pin** |
 > |---|---:|---:|
@@ -101,8 +112,11 @@
 > registra **9** — faltam `dbnInformix`, `dbnADS`, `dbnASA`, `dbnAbsoluteDB`,
 > `dbnElevateDB`, `dbnNexusDB`. Pedir um desses de `main` levanta
 > `EFluentSQLDriverNotRegistered`. E o mapeamento do Janus
-> (`Janus.DML.Generator.pas:1143-1170`, `ResolveFluentSQLDriver`) é um `case`
-> **incondicional, zero `IFDEF`**, que mapeia os quatro.
+> (`ResolveFluentSQLDriver`, em `Janus.DML.Generator.pas` — **ancorado pelo
+> símbolo**: a #337 inseriu linhas acima e o antigo `:1143-1170` andou) é um
+> `case` **incondicional, zero `IFDEF`**, que mapeia os quatro. Reconferido na
+> #337 e **continua verdadeiro**; nenhuma suíte alcança esses quatro por esse
+> caminho, e por isso as sete ficam verdes apesar do buraco.
 >
 > **Fronteira honesta:** as 26 cláusulas novas desta frente passam **com e sem**
 > o pin (medido) — elas não alcançam o caminho do serializer. Portanto esta
@@ -142,7 +156,7 @@ Nada em `Source/`, `.dpr` ou `.dproj` foi alterado **por aquela medição**.
 | **Commit medido** | `0546a51b42eb97d3f882c9725ac98288e4420d78` (`0546a51`, merge do PR #336) |
 | **Data da medição** | 12 ago 2026 |
 | **Compilador** | RAD Studio 37.0, `Win32` / `Debug` |
-| **Pin obrigatório** | FluentSQL em `..\..\..\_wt-fluentsql-pin265\Source\{Core,Drivers}` — **por quê, medido na #341: ver a caixa da segunda medição.** Não é "senão não compila" |
+| **Pin ~~obrigatório~~ — APOSENTADO** | Esta medição usou FluentSQL em `..\..\..\_wt-fluentsql-pin265\Source\{Core,Drivers}`. **O pin não é mais necessário e não funciona mais**: a issue **#337** o aposentou e o default de `$PinRel` no script passou a ser vazio. As duas justificativas dele caíram uma de cada vez — "senão não compila" na #341, "load-bearing em runtime, 61 verdes viram vermelhas" na #337, que é onde essas 61 foram consertadas. Números e mecanismo na caixa de `$PinRel` em `compile-coverage-census.ps1` |
 | **Script que regenera tudo** | `Test/Delphi/Tools/compile-coverage-census.ps1` |
 | **Matriz completa 136 × 7** | `Test/Delphi/Tools/census-matrix-0546a51.csv` |
 

@@ -96,6 +96,72 @@ type
     function _GetGuidValue(AObject: TObject; AProperty: TRttiProperty): TGUID;
     function _StoreGUIDAsOctet: Boolean;
     procedure _GuardStoreGUIDAsOctet(AProperty: TRttiProperty);
+    /// <summary> THE NAMED BIND MARKER THIS GENERATOR ASKED FOR, PUT BACK OVER
+    ///  THE POSITIONAL :pN THAT THE FLUENTSQL VALUE SLOT ALLOCATES. Issue #337.
+    ///
+    ///  WHAT CHANGED UNDER US. Every SetValue/Values overload of FluentSQL now
+    ///  routes the right-hand side of "COLUMN = ..." through
+    ///  IFluentSQLParams.Add - FluentSQL.pas:827-849 and
+    ///  FluentSQL.Params.pas:109-115 - which names the bind 'p' + ordinal and
+    ///  writes ':pN' into the SQL. That was their repair for an injection they
+    ///  measured in the value slot, and NO overload of theirs carries a
+    ///  fragment through any more. So the two calls this unit makes -
+    ///  Values(col, [':'+col]) and SetValue(col, [':'+col]) - stopped
+    ///  producing "values (:CLIENT_ID, :CLIENT_NAME)" and started producing
+    ///  "values (:p1, :p2)", with the marker TEXT parked as the bind's VALUE.
+    ///
+    ///  WHY THE MARKER HAS TO COME BACK NAMED AND NOT BE CONSUMED POSITIONALLY.
+    ///  Janus binds by NAME: TCommandInserter.GenerateInsert names each TParam
+    ///  after its column (Janus.Command.Inserter.pas:161), and the dataset
+    ///  matches marker to param by that name. Two facts make the positional
+    ///  reading unsafe, and both are measurable in this tree:
+    ///    (a) THE TWO LOOPS DO NOT EMIT THE SAME SET. GeneratorInsert skips a
+    ///        column on four tests; the inserter's loop skips on those four AND
+    ///        on IsJoinColumn (Janus.Command.Inserter.pas:111-112). An ordinal
+    ///        agreed between them would shift every value after the first join
+    ///        column into the wrong slot - silently, since the types usually
+    ///        still fit.
+    ///    (b) THE SQL IS CACHED PER CLASS, THE SKIP SET IS PER INSTANCE.
+    ///        FQueryCache keys on ClassName + '-INSERT' (GeneratorInsert), while
+    ///        IsNullValue is asked of the INSTANCE. A second instance with a
+    ///        different null pattern reuses the first instance's statement.
+    ///  DO NOT READ (b) AS "BY NAME IT IS HARMLESS". By name it is still wrong,
+    ///  in BOTH directions, and an earlier version of this paragraph said "at
+    ///  worst a spare param", which is an understatement of one of the two:
+    ///        wide first, then narrow -> the cached statement names a marker the
+    ///          narrow instance never binds: a MARKER WITH NO BIND;
+    ///        narrow first, then wide  -> the cached statement has no slot for a
+    ///          column the wide instance does bind: A COLUMN SILENTLY LOST.
+    ///  What (b) establishes is only the COMPARISON: by name the damage is one
+    ///  of those two and it is visible at the marker; by ordinal it is the
+    ///  wrong column quietly receiving another column's value, which nothing
+    ///  downstream can notice.
+    ///  THE CACHE-VERSUS-NULLS DEFECT IS PRE-EXISTING AND IS NOT REPAIRED HERE.
+    ///  It predates this rewrite and is untouched by it: the cache hit returns
+    ///  before any of this runs (GeneratorInsert, the TryGetValue/Exit pair),
+    ///  so the restore is not even on that path. Registered as a finding for
+    ///  the owner to rule on, not fixed in passing.
+    ///  So the adoption is: let FluentSQL allocate the bind, then put OUR name
+    ///  back over it. The emitted text is byte-for-byte what this generator
+    ///  emitted before FluentSQL changed, which is why no consumer downstream
+    ///  had to move.
+    ///
+    ///  ASQL IS THE VALUE REGION ONLY - NEVER A WHOLE UPDATE. Only ':pN' may
+    ///  appear in what this scans, because the value slot takes the marker as a
+    ///  bind VALUE and never as text. A whole UPDATE also carries the key
+    ///  predicate, which GeneratorUpdate writes VERBATIM, and a key column
+    ///  named `p1` is then textually indistinguishable from the bind FluentSQL
+    ///  allocated - see the box in GeneratorUpdate for the measured corruption
+    ///  and for how the two regions are told apart.
+    ///
+    ///  IT REFUSES RATHER THAN GUESSES. AMarkers is what this unit handed to the
+    ///  value slot, in call order. If the count does not match, or a bind is
+    ///  carrying something this unit did not put there, the rewrite raises: a
+    ///  bind holding REAL data must keep its :pN, because inlining it into the
+    ///  SQL text is the very injection FluentSQL just closed. </summary>
+    function _RestoreNamedPlaceholders(const ASQL: String;
+      const AParams: IFluentSQLParams;
+      const AMarkers: TArray<String>): String;
   protected
     FConnection: IDBConnection;
     FQueryCache: TQueryCache;
@@ -123,6 +189,29 @@ type
         const AGeneratorDriver: TDriverName): TFluentSQLDriver; static;
       procedure ConfigureFluentSQLDriver(const AGeneratorDriver: TDriverName);
       function CreateFluentSQL: IFluentSQL;
+      /// <summary> THE RESTORED VALUE REGION, WITH THE VERBATIM TAIL CARRIED OVER
+      ///  UNTOUCHED. Issue #337.
+      ///
+      ///  AValueRegion is the statement as FluentSQL rendered it BEFORE any
+      ///  verbatim clause of ours was added, and AWholeStatement is the finished
+      ///  one. Everything past the region is text this generator wrote itself -
+      ///  today, the key predicate of GeneratorUpdate - and the rewrite must
+      ///  never see it: a key column named `p1` is textually indistinguishable
+      ///  from the bind FluentSQL allocated. For an INSERT there is no verbatim
+      ///  tail and the two arguments are the same string.
+      ///
+      ///  PROTECTED SO THE REFUSAL CAN BE MEASURED. The prefix property belongs
+      ///  to THEIR serializer, and is pinned separately by
+      ///  FluentSQLRendersTheValueRegionAsAPrefixOfTheWholeUpdate. What is pinned
+      ///  HERE is that this method REFUSES when the property does not hold -
+      ///  which no statement Janus builds can produce, so the only way to reach
+      ///  it is to hand it a pair directly. That is what the test descendant in
+      ///  Test.Janus.DML.Generator.SQLite does. A guard presented as an active
+      ///  net has to have its own clause; an inverted condition or a wrong
+      ///  message would otherwise ship unnoticed. </summary>
+      function _SpliceRestoredValueRegion(const AValueRegion,
+        AWholeStatement: String; const AParams: IFluentSQLParams;
+        const AMarkers: TArray<String>): String;
       function _BuildSelectSQL(AClass: TClass; AID: TValue): IFluentSQL; virtual;
       function GetGeneratorSelect(const ASQL: String;
         const AOrderBy: String = ''): String; virtual;
@@ -430,6 +519,9 @@ var
   LColumns: TColumnMappingList;
   LSQL: IFluentSQL;
   LKey: String;
+  LMarker: String;
+  LMarkers: TArray<String>;
+  LRendered: String;
 begin
   Result := '';
   try
@@ -439,6 +531,7 @@ begin
     LTable := TMappingExplorer.GetMappingTable(AObject.ClassType);
     LColumns := TMappingExplorer.GetMappingColumn(AObject.ClassType);
     LSQL := CreateFluentSQL.Insert.Into(LTable.Name);
+    LMarkers := nil;
     for LColumn in LColumns do
     begin
       try
@@ -451,7 +544,9 @@ begin
           Continue;
         if LColumn.IsNoInsert then
           Continue;
-        LSQL.Values(LColumn.ColumnName, [':' + LColumn.ColumnName]);
+        LMarker := ':' + LColumn.ColumnName;
+        LSQL.Values(LColumn.ColumnName, [LMarker]);
+        LMarkers := LMarkers + [LMarker];
       except
         on E: Exception do
           raise Exception.CreateFmt(
@@ -459,7 +554,14 @@ begin
             [LColumn.ColumnName, AObject.ClassName, E.Message]);
       end;
     end;
-    Result := LSQL.AsString;
+    /// Issue #337. The FluentSQL value slot parameterises; the marker this
+    /// generator asked for is put back over the :pN it allocated. See
+    /// _RestoreNamedPlaceholders for why the ordinal cannot be read directly.
+    /// An INSERT has no verbatim clause of ours, so the value region IS the
+    /// whole statement - it goes through the same splice as the UPDATE so that
+    /// both carry the same guards rather than two spellings of them.
+    LRendered := LSQL.AsString;
+    Result := _SpliceRestoredValueRegion(LRendered, LRendered, LSQL.Params, LMarkers);
     FQueryCache.AddOrSetValue(LKey, Result);
   except
     on E: Exception do
@@ -1122,6 +1224,10 @@ var
   LTable: TTableMapping;
   LSQL: IFluentSQL;
   LColumnName: String;
+  LMarker: String;
+  LMarkers: TArray<String>;
+  LValueRegion: String;
+  LWhole: String;
 begin
   Result := '';
   if AModifiedFields.Count = 0 then
@@ -1129,15 +1235,173 @@ begin
   // Varre a lista de campos alterados para montar o UPDATE
   LTable := TMappingExplorer.GetMappingTable(AObject.ClassType);
   LSQL := CreateFluentSQL.Update(LTable.Name);
+  LMarkers := nil;
   for LColumnName in AModifiedFields.Values do
   begin
     // SET Field=Value alterado
     // <exception cref="oTable.Name + '.'"></exception>
-    LSQL.SetValue(LColumnName, [':' + LColumnName]);
+    LMarker := ':' + LColumnName;
+    LSQL.SetValue(LColumnName, [LMarker]);
+    LMarkers := LMarkers + [LMarker];
   end;
+  /// THE STATEMENT IS RENDERED HERE, BEFORE THE KEY PREDICATE EXISTS, AND THAT
+  /// IS THE WHOLE POINT. Issue #337.
+  ///
+  /// Where(String) is the EXPRESSION overload: it allocates no bind and the
+  /// text reaches the SQL verbatim - which is right, because the key predicate
+  /// is Janus's own marker and has to stay named. But it means the finished
+  /// statement carries TWO KINDS of ':' token that are indistinguishable as
+  /// text: the ':pN' FluentSQL allocated for the SET slot, and whatever
+  /// ':column' this loop wrote. A key column called `p1` collides head-on -
+  /// measured, before this split existed:
+  ///     UPDATE r337pk SET nm = :nm WHERE p1 = :nm
+  /// The key was compared against the NEW VALUE OF ANOTHER COLUMN, the p1 bind
+  /// was left orphaned, and nothing raised: the update reaches zero rows, or
+  /// the wrong ones. `p1` is a legal identifier in every engine Janus speaks.
+  ///
+  /// So the rewrite is never allowed to see the predicate. Rendering before
+  /// the Where gives the value region EXACTLY as FluentSQL spells it, with no
+  /// SQL parsing and no guess about where SET ends: only ':pN' can appear in
+  /// it, because SetValue puts the marker in as a bind VALUE and never as
+  /// text. The tail is then carried over untouched.
+  ///
+  /// THAT THE FIRST RENDER IS A PREFIX OF THE SECOND IS MEASURED, NOT ASSUMED
+  /// - by FluentSQLRendersTheValueRegionAsAPrefixOfTheWholeUpdate in
+  /// Test.Janus.DML.Generator.SQLite - and it is CHECKED again below on every
+  /// call, because it is a property of THEIR serializer and not of ours. If it
+  /// ever stops holding, this refuses by name rather than splicing two strings
+  /// that no longer line up.
+  LValueRegion := LSQL.AsString;
   for LFor := 0 to AParams.Count -1 do
     LSQL.Where(AParams.Items[LFor].Name + ' = :' + AParams.Items[LFor].Name);
-  Result := LSQL.AsString;
+  LWhole := LSQL.AsString;
+  Result := _SpliceRestoredValueRegion(LValueRegion, LWhole, LSQL.Params, LMarkers);
+end;
+
+function TDMLGeneratorAbstract._RestoreNamedPlaceholders(const ASQL: String;
+  const AParams: IFluentSQLParams;
+  const AMarkers: TArray<String>): String;
+var
+  LMap: TDictionary<String, String>;
+  LFor: Integer;
+  LWritten: Integer;
+  LBound: String;
+  LPos: Integer;
+  LStart: Integer;
+  LStop: Integer;
+  LLength: Integer;
+  LName: String;
+  LMarker: String;
+  LBuilder: TStringBuilder;
+begin
+  Result := ASQL;
+  if Length(AMarkers) = 0 then
+    Exit;
+  if AParams = nil then
+    LFor := -1
+  else
+    LFor := AParams.Count;
+  if LFor <> Length(AMarkers) then
+    raise Exception.CreateFmt(
+      'Janus asked the FluentSQL value slot for %d bind(s) and it allocated %d. ' +
+      'Issue #337: the named marker can only be restored over binds this ' +
+      'generator itself created. SQL=[%s]',
+      [Length(AMarkers), LFor, ASQL]);
+  LMap := TDictionary<String, String>.Create;
+  try
+    for LFor := 0 to AParams.Count - 1 do
+    begin
+      LBound := VarToStr(AParams[LFor].Value);
+      if LBound <> AMarkers[LFor] then
+        raise Exception.CreateFmt(
+          'Bind [%s] of the FluentSQL value slot carries [%s] and this ' +
+          'generator put [%s] there. Issue #337: a bind holding REAL data keeps ' +
+          'its :pN - inlining it into the SQL text is the injection FluentSQL ' +
+          'closed. SQL=[%s]',
+          [AParams[LFor].Name, LBound, AMarkers[LFor], ASQL]);
+      LMap.AddOrSetValue(AParams[LFor].Name, AMarkers[LFor]);
+    end;
+    /// ONE left-to-right pass, never a ReplaceStr sweep. A sweep of ':p1' would
+    /// also eat the head of ':p10', and a marker written back could itself be
+    /// re-read by a later pass if a column happened to be called P1. Emitting
+    /// into a builder means what is written is never scanned again.
+    LBuilder := TStringBuilder.Create;
+    try
+      LLength := Length(ASQL);
+      LPos := 1;
+      LWritten := 0;
+      while LPos <= LLength do
+      begin
+        if ASQL[LPos] <> ':' then
+        begin
+          LBuilder.Append(ASQL[LPos]);
+          Inc(LPos);
+          Continue;
+        end;
+        LStart := LPos + 1;
+        LStop := LStart;
+        while (LStop <= LLength) and
+              CharInSet(ASQL[LStop], ['A'..'Z', 'a'..'z', '0'..'9', '_']) do
+          Inc(LStop);
+        LName := Copy(ASQL, LStart, LStop - LStart);
+        if (LName <> '') and LMap.TryGetValue(LName, LMarker) then
+        begin
+          LBuilder.Append(LMarker);
+          Inc(LWritten);
+        end
+        else
+          LBuilder.Append(Copy(ASQL, LPos, LStop - LPos));
+        LPos := LStop;
+      end;
+      /// THE REWRITE HAS TO HAVE HAPPENED. Issue #337.
+      ///
+      /// Counting the binds is not the same as counting the SUBSTITUTIONS, and
+      /// the difference is a silent one: if the rendered text carries no ':pN'
+      /// at all, every check above still passes - the binds were allocated,
+      /// they carry what this generator put there - and the SQL is returned
+      /// with no marker any consumer can bind to. The DML would go out with the
+      /// value slots empty and nothing would say so.
+      ///
+      /// THAT IS NOT HYPOTHETICAL, IT IS ONE `IF` AWAY. FluentSQL's MySQL
+      /// serializer rewrites every ':pN' to '?' before returning
+      /// (FluentSQL.SerializeMySQL.pas:52, a StringReplace over the whole
+      /// string), and their UNION merge renumbers ':pN' to ':pM'
+      /// (FluentSQL.Serialize.pas:58-62). Neither reaches Janus TODAY, and the
+      /// reason is itself a defect rather than a design: only two of the twelve
+      /// dialect generators call ConfigureFluentSQLDriver - SQLite and Firebird
+      /// - so every other one renders through the enum's zero value, dbnMSSQL,
+      /// which leaves ':pN' alone. The day somebody repairs THAT, the MySQL
+      /// generator starts serializing as MySQL, and without this count the DML
+      /// of MySQL and MariaDB breaks WITHOUT A WORD. The count has to land
+      /// before the repair, not after it.
+      if LWritten <> Length(AMarkers) then
+        raise Exception.CreateFmt(
+          'The FluentSQL value slot allocated %d bind(s) but only %d marker(s) ' +
+          'could be put back: the rendered SQL does not carry the ":pN" this ' +
+          'generator was told to expect. Issue #337: a statement whose value ' +
+          'slots no consumer can bind to must not be returned. SQL=[%s]',
+          [Length(AMarkers), LWritten, ASQL]);
+      Result := LBuilder.ToString;
+    finally
+      LBuilder.Free;
+    end;
+  finally
+    LMap.Free;
+  end;
+end;
+
+function TDMLGeneratorAbstract._SpliceRestoredValueRegion(const AValueRegion,
+  AWholeStatement: String; const AParams: IFluentSQLParams;
+  const AMarkers: TArray<String>): String;
+begin
+  if Copy(AWholeStatement, 1, Length(AValueRegion)) <> AValueRegion then
+    raise Exception.CreateFmt(
+      'The FluentSQL statement no longer starts with what it rendered before ' +
+      'the verbatim clauses were added, so the value region cannot be told ' +
+      'from the verbatim one. Issue #337. region=[%s] whole=[%s]',
+      [AValueRegion, AWholeStatement]);
+  Result := _RestoreNamedPlaceholders(AValueRegion, AParams, AMarkers) +
+            Copy(AWholeStatement, Length(AValueRegion) + 1, MaxInt);
 end;
 
 class function TDMLGeneratorAbstract.ResolveFluentSQLDriver(
