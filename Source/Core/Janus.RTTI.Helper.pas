@@ -248,9 +248,12 @@ begin
   ///  TJanusJson's read side routes its bare-TGUID case here instead of
   ///  repeating the parse. Only on the way in - the INSERT parses too, in
   ///  TCommandInserter.GenerateInsert, turning the text it just built back into
-  ///  a TGUID for the param. ANCHORED BY METHOD SINCE #352, for the reason the
-  ///  twin note in Janus.Json gives. StringToGUID accepts only the braced
-  ///  38-character form, which is what the write side emits.
+  ///  a TGUID for the param. ANCHORED BY METHOD SINCE #352: the citation used
+  ///  to read `Janus.Command.Inserter.pas:172`, which was CORRECT at 349407e -
+  ///  that line was exactly `AsGuid := StringToGUID(LGuidString);` - and the
+  ///  #352 repair is what moved it to 171. Not rot; a neighbour's edit. The
+  ///  twin note in Janus.Json carries the full version. StringToGUID accepts
+  ///  only the braced 38-character form, which is what the write side emits.
   ///
   ///  A BARE TGUID CANNOT BE ABSENT, so a null has to land somewhere: it lands
   ///  on TGUID.Empty, the value a freshly constructed object already carries.

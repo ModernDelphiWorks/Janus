@@ -70,6 +70,20 @@
 ///  Plan below the thing it replaces. The prediction was not wrong about the
 ///  work; the run it came from was faster.
 ///
+///  NOT MEASURED: WHAT THIS COSTS UNDER CONCURRENCY. Plan calls
+///  TMappingExplorer.GetMappingColumn, and every mapping getter in
+///  TMappingExplorer serialises on ONE process-wide TCriticalSection
+///  (MetaDbDiff.Mapping.Explorer.pas:51, entered by GetMappingColumn itself).
+///  Before #352 an insert on the CACHE-HIT path took that lock TWICE; it now
+///  takes it THREE times, because the generator asks for the column mapping as
+///  well instead of returning on the key alone. The benchmark above is
+///  single-threaded and CANNOT SEE THIS - a lock nobody contends costs almost
+///  nothing. Where it could matter is a REST server answering concurrent
+///  inserts, and nothing here measures that. Written down so the next reader
+///  finds a known gap instead of an implied all-clear: the numbers above do
+///  not cover it, and no optimisation was attempted on the strength of a
+///  guess.
+///
 ///  IT IS NOT A CACHE KEY. The key stays ClassName + '-INSERT', one entry per
 ///  class, and the signature rides INSIDE the entry. Making it part of the key
 ///  would have made the dictionary grow with the number of null patterns a

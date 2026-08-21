@@ -218,6 +218,7 @@
         <DCCReference Include="Integration\Test.Janus.ObjectSet.CascadeUpdateList.pas"/>
         <DCCReference Include="Integration\Test.Janus.ObjectSet.UpdateMasterKey.pas"/>
         <DCCReference Include="Integration\Test.Janus.ObjectSet.CascadeDeleteOrder.pas"/>
+        <DCCReference Include="Integration\Test.Janus.Insert.CacheVsNullness.pas"/>
         <DCCReference Include="Unit\Container\Test.Janus.Close.VsEmpty.pas"/>
         <DCCReference Include="Unit\Container\Test.Janus.Reopen.Lazy.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Manager.AddAdapter.pas"/>
