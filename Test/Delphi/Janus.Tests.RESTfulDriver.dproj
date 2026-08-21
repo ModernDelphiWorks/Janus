@@ -93,6 +93,7 @@
         <DCCReference Include="Common\Janus.Test.Runner.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AsymKey.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AutoIncTree.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.ClientKeyRoot.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.CompositeAutoInc.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.KeyOnly.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.RestLazyKeys.pas"/>

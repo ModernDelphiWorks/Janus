@@ -63,6 +63,42 @@
   LATER repair that depends on an answer, while the write that guard refuses
   happens before any answer exists.
 
+  AND SINCE ISSUE #305 THIS FIXTURE ALSO MEASURES THE VOICE
+
+  #297 left SEVEN doors out of a save that end with the client's graph stale,
+  and they collapse into SIX cases because two of them are the same silence.
+  Enumerated, and enumerated because an earlier version of this paragraph said
+  FIVE and was made false by the review of #305:
+
+    ApplyInserter, the root HAS a sequence
+      1. the answer carried no `params`                  -> sgcNoKeyToAskBy
+      2. `params` named no column of this row            -> sgcNoKeyToAskBy
+    ApplyInserter, the root has NO sequence
+      3. the re-read was never attempted                 -> sgcReReadNeverAttempted
+    _ReReadStaleRoots
+      4. more than one root in this save                 -> sgcMultiRootNotReRead
+    the re-read was issued and refused
+      5. no row came back                                -> sgcAnswerHadNoRow
+      6. the row that came back was another one          -> sgcAnswerWasAnotherRow
+      7. the answer was shallower than the client        -> sgcAnswerWasShallower
+
+  #305 named four of those seven. Door 3 and door 7 it did not: door 7 is the
+  depth guard, which a Lazy sibling branch produces on the SHIPPED server, and
+  door 3 needs a root with no [Sequence], which no model in this repository
+  pointed at a REST adapter until Test.Janus.Model.ClientKeyRoot was written for
+  it.
+
+  Every door except 3 already had a clause here pinning WHAT THE CLIENT DID; the
+  Voice_ block at the bottom pins WHAT THE CLIENT WAS TOLD, over the same doubles
+  and the same seeds. The two halves are kept apart on purpose: not one of the
+  twenty-five clauses that predate the voice was edited, so if the voice had cost
+  behaviour they would be the red ones.
+
+  RAISING WAS REFUSED BY MEASUREMENT AND STAYS REFUSED - see
+  Detector_AllThreePhasesRunInsideTheSameCall, which pins that all three phases
+  run inside one call, so an exception at the end of the insert phase costs the
+  operator the update AND the delete of that same save.
+
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
 
@@ -90,11 +126,33 @@ uses
   Janus.RestFactory.Interfaces,
   Janus.DataSet.Base.Adapter,
   Janus.DataSet.Fields,
+  Janus.RestDataSet.Adapter,
   Janus.RestDataSet.ClientDataSet,
   Janus.RestDataSet.FDMemTable,
-  Test.Janus.Model.AutoIncTree;
+  Test.Janus.Model.AutoIncTree,
+  Test.Janus.Model.ClientKeyRoot;
 
 type
+  /// <summary> An ICommandMonitor that keeps every line it is handed - issue
+  ///  #305. TReplayRestConnection answered nil to CommandMonitor and every
+  ///  monitor branch in the family is guarded by `<> nil`, so before this class
+  ///  existed not one of those branches was reached by this fixture at all.
+  ///
+  ///  IT IS HANDED IN PER CLAUSE AND NEVER BY DEFAULT. Attaching it in Setup
+  ///  would switch on the monitor branch of every verb of TSessionRestFul<M> for
+  ///  the twenty-five clauses that predate #305, which is a change none of them
+  ///  asked for. </summary>
+  TMonitorSpy = class(TInterfacedObject, ICommandMonitor)
+  private
+    FLines: TStringList;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    procedure Command(const ASQL: String; AParams: TParams);
+    procedure Show;
+    function Text: String;
+    property Lines: TStringList read FLines;
+  end;
   /// <summary> An IRESTConnection that answers the POST and the GET with
   ///  DIFFERENT documents, and remembers both what it was handed and how many
   ///  times each verb was used.
@@ -121,6 +179,8 @@ type
     FPostAnswers: TStringList;
     FGetAnswer: String;
     FGetAnswers: TStringList;
+    /// nil unless a clause hands one in - see TMonitorSpy.
+    FMonitor: ICommandMonitor;
     function DoExecute(const ARequestMethod: TRESTRequestMethodType;
       const AParams: TProc): String;
   public
@@ -211,6 +271,30 @@ type
     FLone: TRESTFDMemTableAdapter<TAitLeaf>;
     FOtherMem: TFDMemTable;
     FOther: TRESTFDMemTableAdapter<TAitNoCascade>;
+    /// The client-key tree - issue #305, the third door. A root with NO
+    /// [Sequence] over a child that HAS one: the only shape in the repository
+    /// where FSession.ExistSequence answers False on a REST adapter.
+    FCkRootMem: TFDMemTable;
+    FCkChildMem: TFDMemTable;
+    FCkRoot: TRESTFDMemTableAdapter<TCkrRoot>;
+    FCkChild: TRESTFDMemTableAdapter<TCkrChild>;
+    // -- issue #305, the voice ------------------------------------------------
+    FSpy: TMonitorSpy;
+    /// The spy is a TInterfacedObject: something has to hold the interface or it
+    /// is freed the moment the connection lets go of it.
+    FSpyRef: ICommandMonitor;
+    FHeard: TList<TStaleGraphCase>;
+    FHeardEntity: String;
+    FHeardSender: TObject;
+    /// The handler a clause assigns to OnStaleGraph. Writes down what it was
+    /// told, and nothing else - the voice is not allowed to depend on what the
+    /// consumer does with it.
+    procedure OnStale(const ASender: TObject; const ACase: TStaleGraphCase;
+      const AEntity: String);
+    procedure AttachMonitor;
+    function StaleLines: String;
+    procedure BuildClientKeyTree;
+    procedure SeedClientKeyTree;
     procedure BuildMemTree;
     procedure BuildCdsTree;
     procedure SeedRoot(const ADataSet: TDataSet; const ATag: String);
@@ -302,8 +386,13 @@ type
     [Test]
     procedure Cost_AStaleGrandchildAloneStillBuysTheGet;
     /// Every level already carries a key of its own. Nothing is stale, so there
-    /// is nothing to ask about - the fifth and last case that pays nothing, and
-    /// the only one that had no clause of its own.
+    /// is nothing to ask about - the last of the Cost_ shapes that pay nothing,
+    /// and the only one that had no clause of its own.
+    /// COUNTED BY NAME AND NOT BY ORDINAL ANY MORE. This line used to call it
+    /// "the fifth", which #305 made false without touching it: the no-sequence
+    /// root of Voice_TheNoSequenceRootReallyReachesThatDoor is one more shape
+    /// that buys no GET. An ordinal in a comment is a claim about a population,
+    /// and populations grow.
     [Test]
     procedure Cost_AGraphThatAlreadyCarriesEveryKeyBuysNoGet;
     /// `params` came back, but named no column this row has - so the stamp
@@ -400,6 +489,103 @@ type
     /// adapter's RefreshRecord wrapper.
     [Test]
     procedure Design_TheEventSwitchIsASwapAndNotACounter;
+
+    // -----------------------------------------------------------------------
+    // ISSUE #305 - THE VOICE. Every clause below drives one of the exits above
+    // and asks what the client was TOLD, never what it did. The exits
+    // themselves are already pinned by the clauses above, and none of them was
+    // edited: if the voice had changed behaviour, those would be the red ones.
+    // -----------------------------------------------------------------------
+
+    /// Case (1), the grave one. No `params` came back, so no key came back, so
+    /// no re-read is possible - and the aggregate the server WROTE is now
+    /// reachable by a key this client will never learn. The clause right above
+    /// this block, Cost_WithoutResultParamsNoGetIsIssued, pins that no GET is
+    /// bought; this one pins that the client is no longer silent about it.
+    [Test]
+    procedure Voice_NoKeyToAskByIsAnnounced;
+    /// The same case reached through the OTHER door: `params` did come back but
+    /// named no column of this row, so the stamp wrote nothing and the root is
+    /// still on the placeholder. Same silence, same consequence, so the same
+    /// case - and this clause is what says so out loud rather than leaving it
+    /// to be inferred from the code.
+    [Test]
+    procedure Voice_ParamsThatNameNoColumnAnnounceTheSameCase;
+    /// Case (2). Two roots in one save: the re-read is off ON PURPOSE and every
+    /// row the operator typed survives, so this must NOT be announced as the
+    /// orphan case.
+    [Test]
+    procedure Voice_MultiRootIsAnnouncedAsItsOwnCase;
+    /// Case (3). The GET found nothing. The client's own data is intact, which
+    /// is precisely why it must be distinguishable from case (1).
+    [Test]
+    procedure Voice_AnEmptyAnswerIsAnnouncedAndIsNotTheOrphanCase;
+    /// Case (4). The GET answered somebody else's row and the identity guard
+    /// refused it. Again intact, again not case (1).
+    [Test]
+    procedure Voice_AForeignAnswerIsAnnouncedAndIsNotTheOrphanCase;
+    /// The depth-guard exit - labelled (5) in the issue's numbering, door 7 in
+    /// the header table - which #305 did not name: the guard refused an answer
+    /// shallower than the graph the client holds. It is the exit a Lazy branch
+    /// produces on the shipped server, so it is the one a consumer meets most
+    /// often. Its own case, not folded into any of the four.
+    [Test]
+    procedure Voice_AShallowAnswerIsAnnouncedUnderItsOwnCase;
+    /// THE CONTROL. A save whose graph really was reconciled announces NOTHING.
+    /// Without this, a voice wired to fire unconditionally would pass every
+    /// clause above.
+    [Test]
+    procedure Voice_ACleanSaveAnnouncesNothingAtAll;
+    /// And the state is of THIS save, not of the last one: a stale save
+    /// followed by a clean one comes out empty.
+    [Test]
+    procedure Voice_TheStateIsClearedAtTheStartOfTheNextSave;
+    /// The handler hears the same case the property records, and hears WHICH
+    /// entity and from WHICH adapter - a screen with several aggregates open
+    /// cannot act on "something went stale".
+    [Test]
+    procedure Voice_TheHandlerHearsTheCaseTheEntityAndTheSender;
+    /// The handler is nil until a consumer assigns one. This is the half that
+    /// makes "additive" a measurement rather than a claim: the clauses above
+    /// that assign nothing drive the very same exits and see the very same
+    /// client state.
+    [Test]
+    procedure Voice_NoHandlerIsAssignedByDefault;
+    /// The monitor gets a line, in the format the rest of the family already
+    /// writes - and the line names the CASE, not merely that something is
+    /// stale.
+    [Test]
+    procedure Voice_TheMonitorGetsALineNamingTheCase;
+    /// And the monitor stays quiet when the save was clean. The monitor is
+    /// attached in both clauses, so the difference is the save and not the
+    /// wiring.
+    [Test]
+    procedure Voice_TheMonitorIsSilentOnACleanSave;
+    /// The two families converge here too - neither overrides ApplyInserter -
+    /// and this clause is what keeps that a measurement instead of the
+    /// "identical to its sibling" argument.
+    [Test]
+    procedure Voice_Cds_TheOrphanCaseIsAnnouncedThereToo;
+
+    /// THE THIRD DOOR of ApplyInserter, and the one that had no fixture at all
+    /// until Test.Janus.Model.ClientKeyRoot was written for it. The root's key
+    /// came from the OPERATOR - TAutoIncType.NotInc, no [Sequence] - so
+    /// FSession.ExistSequence answers False, the stamping block is skipped
+    /// whole, no bookmark is taken and the re-read is never attempted. The
+    /// child, which DOES have a sequence, is left on its placeholder.
+    /// WHY IT IS ITS OWN CASE. A GET on the key the operator typed would work,
+    /// so nothing is orphaned and nothing is lost - the exact opposite of what
+    /// the sgcNoKeyToAskBy sentence tells the reader. This clause pins the case
+    /// AND the sentence, because a case that carried a false sentence would be
+    /// the same defect wearing a nicer name.
+    [Test]
+    procedure Voice_ARootWithNoSequenceIsItsOwnCaseAndNotTheOrphanOne;
+    /// And the premise the clause above rests on, measured separately so a
+    /// green result there can never be an accident of a save that did nothing:
+    /// the aggregate really was POSTed, no GET was bought, and the child really
+    /// is sitting on the placeholder.
+    [Test]
+    procedure Voice_TheNoSequenceRootReallyReachesThatDoor;
   end;
 
 implementation
@@ -411,6 +597,14 @@ const
   cOTHERKEY = 'other_id';
   cTAG     = 'tag';
   cPLACEHOLDER = -1;
+  /// The client-key pair - issue #305, the third door.
+  cCKROOTKEY  = 'ckrroot_id';
+  cCKCHILDKEY = 'ckrchild_id';
+  /// The key the OPERATOR typed into the root. Distinct from every server key
+  /// below and from the placeholder, so "the client already knew this" can
+  /// never be confused with "the answer supplied it" - no answer in this
+  /// fixture ever names it.
+  cTYPEDKEY = 4242;
   /// The three numbers the server generated. They are DIFFERENT from each other
   /// and from the placeholder on purpose: a repair that copied the root's key
   /// downwards would look green if they were equal.
@@ -545,11 +739,40 @@ end;
 
 function TReplayRestConnection.CommandMonitor: ICommandMonitor;
 begin
-  Result := nil;
+  Result := FMonitor;
 end;
 
 procedure TReplayRestConnection.SetCommandMonitor(AMonitor: ICommandMonitor);
 begin
+  FMonitor := AMonitor;
+end;
+
+{ TMonitorSpy }
+
+constructor TMonitorSpy.Create;
+begin
+  inherited Create;
+  FLines := TStringList.Create;
+end;
+
+destructor TMonitorSpy.Destroy;
+begin
+  FLines.Free;
+  inherited;
+end;
+
+procedure TMonitorSpy.Command(const ASQL: String; AParams: TParams);
+begin
+  FLines.Add(ASQL);
+end;
+
+procedure TMonitorSpy.Show;
+begin
+end;
+
+function TMonitorSpy.Text: String;
+begin
+  Result := FLines.Text;
 end;
 
 procedure TReplayRestConnection.SetClassNotServerUse(const Value: Boolean);
@@ -658,6 +881,41 @@ procedure TTestRestReReadAfterInsert.Setup;
 begin
   FRep := TReplayRestConnection.Create;
   FConn := FRep;
+  FHeard := TList<TStaleGraphCase>.Create;
+  FHeardEntity := '';
+  FHeardSender := nil;
+  FSpy := nil;
+  FSpyRef := nil;
+end;
+
+procedure TTestRestReReadAfterInsert.OnStale(const ASender: TObject;
+  const ACase: TStaleGraphCase; const AEntity: String);
+begin
+  FHeard.Add(ACase);
+  FHeardEntity := AEntity;
+  FHeardSender := ASender;
+end;
+
+procedure TTestRestReReadAfterInsert.AttachMonitor;
+begin
+  FSpy := TMonitorSpy.Create;
+  FSpyRef := FSpy;
+  FRep.SetCommandMonitor(FSpyRef);
+end;
+
+/// Only the lines the VOICE wrote. The session writes a line per verb onto the
+/// same monitor, so counting everything would measure the traffic and not the
+/// warning.
+function TTestRestReReadAfterInsert.StaleLines: String;
+var
+  LFor: Integer;
+begin
+  Result := '';
+  if FSpy = nil then
+    Exit;
+  for LFor := 0 to FSpy.Lines.Count -1 do
+    if Pos(cSTALEGRAPHWARNING, FSpy.Lines[LFor]) > 0 then
+      Result := Result + FSpy.Lines[LFor] + sLineBreak;
 end;
 
 procedure TTestRestReReadAfterInsert.TearDown;
@@ -678,8 +936,15 @@ begin
   FreeAndNil(FLeafMem);
   FreeAndNil(FMidMem);
   FreeAndNil(FRootMem);
+  FreeAndNil(FCkChild);
+  FreeAndNil(FCkChildMem);
+  FreeAndNil(FCkRoot);
+  FreeAndNil(FCkRootMem);
   FConn := nil;
   FRep := nil;
+  FSpy := nil;
+  FSpyRef := nil;
+  FreeAndNil(FHeard);
 end;
 
 procedure TTestRestReReadAfterInsert.BuildMemTree;
@@ -690,6 +955,35 @@ begin
   FMemMid := TRESTFDMemTableAdapter<TAitMid>.Create(FConn, FMidMem, -1, FMemRoot);
   FLeafMem := TFDMemTable.Create(nil);
   FMemLeaf := TRESTFDMemTableAdapter<TAitLeaf>.Create(FConn, FLeafMem, -1, FMemMid);
+end;
+
+/// The same two-adapter wiring BuildMemTree uses, over the client-key pair -
+/// issue #305. REST fixtures need no central registration: the adapter is
+/// instantiated directly, exactly as Cost_AnAggregateWithNoChildrenCostsNoGet
+/// stands one up for TAitLeaf.
+procedure TTestRestReReadAfterInsert.BuildClientKeyTree;
+begin
+  FCkRootMem := TFDMemTable.Create(nil);
+  FCkRoot := TRESTFDMemTableAdapter<TCkrRoot>.Create(FConn, FCkRootMem, -1, nil);
+  FCkChildMem := TFDMemTable.Create(nil);
+  FCkChild := TRESTFDMemTableAdapter<TCkrChild>.Create(FConn, FCkChildMem, -1,
+                FCkRoot);
+end;
+
+/// The root carries a key the OPERATOR typed - that is the whole difference
+/// from SeedTree - and the child carries the AutoInc placeholder, which is what
+/// makes the graph below stale.
+procedure TTestRestReReadAfterInsert.SeedClientKeyTree;
+begin
+  FCkRootMem.Append;
+  FCkRootMem.FieldByName(cCKROOTKEY).AsInteger := cTYPEDKEY;
+  FCkRootMem.FieldByName(cTAG).AsString := 'typed by the operator';
+  FCkRootMem.Post;
+  FCkChildMem.Append;
+  FCkChildMem.FieldByName(cCKCHILDKEY).AsInteger := cPLACEHOLDER;
+  FCkChildMem.FieldByName(cCKROOTKEY).AsInteger := cTYPEDKEY;
+  FCkChildMem.FieldByName(cTAG).AsString := 'child';
+  FCkChildMem.Post;
 end;
 
 procedure TTestRestReReadAfterInsert.BuildCdsTree;
@@ -1176,6 +1470,299 @@ begin
     'outer caller still believes events are off. That is why the re-read may ' +
     'not go through the adapter RefreshRecord wrapper: inside ApplyInternal ' +
     'it would re-arm DoBeforePost and ApplyUpdater would not terminate');
+end;
+
+// ---------------------------------------------------------------------------
+// ISSUE #305 - THE VOICE
+// ---------------------------------------------------------------------------
+
+/// Renders a set so a failure message can say what was heard instead of
+/// `[True/False]`. Named by ENUM MEMBER and not by ordinal: an ordinal in a
+/// message goes stale the first time a case is inserted in the middle.
+function CasesToText(const ACases: TStaleGraphCases): String;
+const
+  cNAME: array[TStaleGraphCase] of String = ('sgcNoKeyToAskBy',
+    'sgcMultiRootNotReRead', 'sgcReReadNeverAttempted', 'sgcAnswerHadNoRow',
+    'sgcAnswerWasAnotherRow', 'sgcAnswerWasShallower');
+var
+  LCase: TStaleGraphCase;
+begin
+  Result := '[';
+  for LCase := Low(TStaleGraphCase) to High(TStaleGraphCase) do
+    if LCase in ACases then
+    begin
+      if Length(Result) > 1 then
+        Result := Result + ', ';
+      Result := Result + cNAME[LCase];
+    end;
+  Result := Result + ']';
+end;
+
+procedure TTestRestReReadAfterInsert.Voice_NoKeyToAskByIsAnnounced;
+begin
+  FRep.PostAnswer := cPOSTNOPARAMS;
+  RunMem;
+  Assert.AreEqual(cPLACEHOLDER, KeyOf(FRootMem, cROOTKEY),
+    'premise: without params the root was not stamped, so there is no key to ' +
+    'ask by');
+  Assert.AreEqual(0, FRep.GetCount,
+    'premise: and no re-read was issued - this is the mute gate itself');
+  Assert.IsTrue(sgcNoKeyToAskBy in FMemRoot.StaleGraphCases,
+    'the aggregate is on the server under a key this client will never know, ' +
+    'and until #305 nothing said so. Heard: ' +
+    CasesToText(FMemRoot.StaleGraphCases));
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Voice_ParamsThatNameNoColumnAnnounceTheSameCase;
+begin
+  FRep.PostAnswer := '{"result":"ok","params":[{"nosuchcolumn":"9"}]}';
+  RunMem;
+  Assert.AreEqual(cPLACEHOLDER, KeyOf(FRootMem, cROOTKEY),
+    'premise: params came back and stamped nothing, so the root is still on ' +
+    'the placeholder');
+  Assert.AreEqual(0, FRep.GetCount, 'premise: and no re-read was issued');
+  Assert.IsTrue(sgcNoKeyToAskBy in FMemRoot.StaleGraphCases,
+    'an answer that names no column of this row leaves the client in exactly ' +
+    'the state an answer with no params does, so it is the same case and not ' +
+    'a milder one. Heard: ' + CasesToText(FMemRoot.StaleGraphCases));
+end;
+
+procedure TTestRestReReadAfterInsert.Voice_MultiRootIsAnnouncedAsItsOwnCase;
+begin
+  FRep.QueuePostAnswer('{"result":"ok","params":[{"root_id":777}]}');
+  FRep.QueuePostAnswer('{"result":"ok","params":[{"root_id":888}]}');
+  BuildMemTree;
+  SeedRoot(FRootMem, 'rootA');
+  SeedMid(FMidMem, 'midA');
+  SeedRoot(FRootMem, 'rootB');
+  SeedMid(FMidMem, 'midB');
+  TMemApply<TAitRoot>.Apply(FMemRoot);
+  Assert.AreEqual(2, FRep.PostCount, 'premise: both roots really were sent');
+  Assert.AreEqual(0, FRep.GetCount,
+    'premise: the re-read is off for more than one root, and stays off');
+  Assert.IsTrue(sgcMultiRootNotReRead in FMemRoot.StaleGraphCases,
+    'a deliberate skip is still a stale graph the operator is looking at. ' +
+    'Heard: ' + CasesToText(FMemRoot.StaleGraphCases));
+  Assert.IsFalse(sgcNoKeyToAskBy in FMemRoot.StaleGraphCases,
+    'and it is NOT the orphan case: both keys came back, both roots are ' +
+    'reachable, and nothing was lost on either side. Heard: ' +
+    CasesToText(FMemRoot.StaleGraphCases));
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Voice_AnEmptyAnswerIsAnnouncedAndIsNotTheOrphanCase;
+begin
+  FRep.GetAnswer := '[]';
+  RunMem;
+  Assert.AreEqual(1, FRep.GetCount, 'premise: the re-read really was issued');
+  Assert.IsTrue(sgcAnswerHadNoRow in FMemRoot.StaleGraphCases,
+    'the GET found nothing, so the graph stayed on its placeholders and the ' +
+    'operator has to be able to find that out before reopening the screen. ' +
+    'Heard: ' + CasesToText(FMemRoot.StaleGraphCases));
+  Assert.IsFalse(sgcNoKeyToAskBy in FMemRoot.StaleGraphCases,
+    'and NOT as the orphan case: the key is known, the client data is intact, ' +
+    'and a screen that shouts the same way at both is a screen nobody will ' +
+    'believe. Heard: ' + CasesToText(FMemRoot.StaleGraphCases));
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Voice_AForeignAnswerIsAnnouncedAndIsNotTheOrphanCase;
+begin
+  // The same stranger the guard clause above uses: complete to every level the
+  // client holds, so the DEPTH guard has nothing to object to and only identity
+  // can refuse it. Anything shallower and this clause would be measuring
+  // sgcAnswerWasShallower instead of sgcAnswerWasAnotherRow - named, because
+  // this line used to say "the fifth case instead of the fourth" and #305 put a
+  // sixth member in the middle of the enum.
+  FRep.GetAnswer :=
+    '[{"root_id":901,"tag":"someone else","others":[],"mids":[' +
+      '{"mid_id":902,"root_id":901,"tag":"theirs","leafs":[' +
+        '{"leaf_id":903,"mid_id":902,"root_id":901,"tag":"theirs"}]}]}]';
+  RunMem;
+  Assert.AreEqual(1, FRep.GetCount, 'premise: the re-read really was issued');
+  Assert.IsTrue(sgcAnswerWasAnotherRow in FMemRoot.StaleGraphCases,
+    'the identity guard refused the answer and the graph stayed stale. Heard: ' +
+    CasesToText(FMemRoot.StaleGraphCases));
+  Assert.IsFalse(sgcAnswerWasShallower in FMemRoot.StaleGraphCases,
+    'and it was refused by IDENTITY and not by depth - the stranger reaches ' +
+    'every level, so a voice that read the two guards as one would announce ' +
+    'the wrong one here. Heard: ' + CasesToText(FMemRoot.StaleGraphCases));
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Voice_AShallowAnswerIsAnnouncedUnderItsOwnCase;
+begin
+  // Exactly what the shipped server answers when `leafs` is Lazy.
+  FRep.GetAnswer :=
+    '[{"root_id":777,"tag":"root","others":[],"mids":[' +
+      '{"mid_id":555,"root_id":777,"tag":"mid"}]}]';
+  RunMem;
+  Assert.AreEqual(1, FRep.GetCount, 'premise: the re-read really was issued');
+  Assert.AreEqual(cPLACEHOLDER, KeyOf(FMidMem, cMIDKEY),
+    'premise: the answer was refused whole, so the graph really did stay stale');
+  Assert.IsTrue(sgcAnswerWasShallower in FMemRoot.StaleGraphCases,
+    'a Lazy sibling branch produces this on the SHIPPED server, so it is the ' +
+    'exit a consumer meets most often and the one #305 did not name. Heard: ' +
+    CasesToText(FMemRoot.StaleGraphCases));
+  Assert.IsFalse(sgcAnswerWasAnotherRow in FMemRoot.StaleGraphCases,
+    'and it is the DEPTH guard and not the identity guard: this answer IS ' +
+    'this row. Heard: ' + CasesToText(FMemRoot.StaleGraphCases));
+end;
+
+procedure TTestRestReReadAfterInsert.Voice_ACleanSaveAnnouncesNothingAtAll;
+begin
+  RunMem;
+  Assert.AreEqual(cSRVMID, KeyOf(FMidMem, cMIDKEY),
+    'premise: this is the ordinary save, and it really was reconciled');
+  Assert.IsTrue(FMemRoot.StaleGraphCases = [],
+    'a save that reconciled the graph has nothing to announce. This is the ' +
+    'control every clause above depends on: a voice wired to fire ' +
+    'unconditionally passes all of them and dies here. Heard: ' +
+    CasesToText(FMemRoot.StaleGraphCases));
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Voice_TheStateIsClearedAtTheStartOfTheNextSave;
+begin
+  FRep.PostAnswer := cPOSTNOPARAMS;
+  RunMem;
+  Assert.IsTrue(sgcNoKeyToAskBy in FMemRoot.StaleGraphCases,
+    'premise: the first save really did go stale');
+  // A second save over the same adapter. Every row is marked saved by now, so
+  // this one inserts nothing - which is the point: the state must describe THIS
+  // save, and a save that did nothing has nothing to say.
+  TMemApply<TAitRoot>.Apply(FMemRoot);
+  Assert.AreEqual(1, FRep.PostCount,
+    'premise: the second save really had nothing to send');
+  Assert.IsTrue(FMemRoot.StaleGraphCases = [],
+    'the state is of the LAST save, not an accumulation. Left to accumulate, ' +
+    'a screen that once went stale would keep shouting forever. Heard: ' +
+    CasesToText(FMemRoot.StaleGraphCases));
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Voice_TheHandlerHearsTheCaseTheEntityAndTheSender;
+begin
+  FRep.PostAnswer := cPOSTNOPARAMS;
+  BuildMemTree;
+  FMemRoot.OnStaleGraph := OnStale;
+  SeedTree(FRootMem, FMidMem, FLeafMem);
+  TMemApply<TAitRoot>.Apply(FMemRoot);
+  Assert.AreEqual(1, FHeard.Count,
+    'the handler is called ONCE for the one root that went stale - not once ' +
+    'per level and not once per child row');
+  Assert.IsTrue(FHeard[0] = sgcNoKeyToAskBy,
+    'and it hears the same case the property records');
+  Assert.AreEqual('TAitRoot', FHeardEntity, False,
+    'it hears WHICH aggregate. A screen with several open cannot act on ' +
+    '"something went stale"');
+  Assert.IsTrue(FHeardSender = TObject(FMemRoot),
+    'and from which adapter, so a handler shared by several can tell them ' +
+    'apart');
+end;
+
+procedure TTestRestReReadAfterInsert.Voice_NoHandlerIsAssignedByDefault;
+begin
+  FRep.PostAnswer := cPOSTNOPARAMS;
+  RunMem;
+  Assert.IsTrue(sgcNoKeyToAskBy in FMemRoot.StaleGraphCases,
+    'premise: the case really did happen on this save');
+  Assert.IsFalse(Assigned(FMemRoot.OnStaleGraph),
+    'nothing assigns a handler but the consumer - the voice is additive, and ' +
+    'this is the half that makes that a measurement');
+  Assert.AreEqual(0, FHeard.Count,
+    'and with none assigned nothing of this fixture was called');
+end;
+
+procedure TTestRestReReadAfterInsert.Voice_TheMonitorGetsALineNamingTheCase;
+begin
+  AttachMonitor;
+  FRep.PostAnswer := cPOSTNOPARAMS;
+  RunMem;
+  Assert.IsTrue(Pos(cSTALEGRAPHCASE[sgcNoKeyToAskBy], StaleLines) > 0,
+    'the monitor line has to name WHICH silence this was. A line that only ' +
+    'said "stale" would leave the reader to guess between an orphan on the ' +
+    'server and a refusal that cost nothing. Stale lines seen: ' + StaleLines);
+  Assert.IsTrue(Pos('TAitRoot', StaleLines) > 0,
+    'and which class it was about, in the labelled format the rest of the ' +
+    'family already writes. Stale lines seen: ' + StaleLines);
+end;
+
+procedure TTestRestReReadAfterInsert.Voice_TheMonitorIsSilentOnACleanSave;
+begin
+  AttachMonitor;
+  RunMem;
+  Assert.AreEqual(1, FRep.GetCount,
+    'premise: the ordinary save, re-read issued and applied');
+  Assert.IsTrue(FSpy.Lines.Count > 0,
+    'premise: the monitor really is attached - TSessionRestFul<M> writes a ' +
+    'line per verb onto it, so an empty spy would mean the wiring failed and ' +
+    'the clause below would pass for the wrong reason');
+  Assert.AreEqual('', Trim(StaleLines),
+    'and not one of those lines is a stale-graph warning. Stale lines seen: ' +
+    StaleLines);
+end;
+
+procedure TTestRestReReadAfterInsert.Voice_Cds_TheOrphanCaseIsAnnouncedThereToo;
+begin
+  FRep.PostAnswer := cPOSTNOPARAMS;
+  RunCds;
+  Assert.AreEqual(cPLACEHOLDER, KeyOf(FRootCds, cROOTKEY),
+    'premise: the ClientDataSet family reaches the same mute gate');
+  Assert.IsTrue(sgcNoKeyToAskBy in FCdsRoot.StaleGraphCases,
+    'both families inherit ApplyInserter from TRESTDataSetAdapter<M> and ' +
+    'neither overrides it - and this clause is what keeps that a measurement ' +
+    'rather than the "identical to its sibling" argument. Heard: ' +
+    CasesToText(FCdsRoot.StaleGraphCases));
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Voice_TheNoSequenceRootReallyReachesThatDoor;
+begin
+  AttachMonitor;
+  BuildClientKeyTree;
+  SeedClientKeyTree;
+  TMemApply<TCkrRoot>.Apply(FCkRoot);
+  Assert.AreEqual(1, FRep.PostCount,
+    'the aggregate really was sent - a clause about what a save announced is ' +
+    'worth nothing if the save did not happen');
+  Assert.AreEqual(0, FRep.GetCount,
+    'and NO re-read was bought: this door never reaches the block that takes ' +
+    'the bookmark, which is exactly why the graph below stays stale');
+  Assert.AreEqual(cTYPEDKEY, KeyOf(FCkRootMem, cCKROOTKEY),
+    'the root still carries the key the OPERATOR typed - nothing stamped it, ' +
+    'and nothing had to');
+  Assert.AreEqual(cPLACEHOLDER, KeyOf(FCkChildMem, cCKCHILDKEY),
+    'while the child, which DOES have a sequence, is still on the AutoInc ' +
+    'placeholder - the server generated a key for it and the client never ' +
+    'heard which');
+end;
+
+procedure TTestRestReReadAfterInsert
+  .Voice_ARootWithNoSequenceIsItsOwnCaseAndNotTheOrphanOne;
+begin
+  AttachMonitor;
+  BuildClientKeyTree;
+  SeedClientKeyTree;
+  TMemApply<TCkrRoot>.Apply(FCkRoot);
+  Assert.IsTrue(sgcReReadNeverAttempted in FCkRoot.StaleGraphCases,
+    'the third door has to speak, and to speak as ITSELF. Heard: ' +
+    CasesToText(FCkRoot.StaleGraphCases));
+  Assert.IsFalse(sgcNoKeyToAskBy in FCkRoot.StaleGraphCases,
+    'and it must NOT come out as the orphan case, which is where it went ' +
+    'before this member existed: nothing here is orphaned - a GET on ' +
+    'ckrroot_id=4242 would work, because the operator typed that key. Heard: ' +
+    CasesToText(FCkRoot.StaleGraphCases));
+  // THE SENTENCE, AND NOT ONLY THE CASE. A case relabelled while the monitor
+  // kept telling the reader the key was lost forever would be the same defect
+  // with a nicer name on it.
+  Assert.IsTrue(Pos(cSTALEGRAPHCASE[sgcReReadNeverAttempted], StaleLines) > 0,
+    'the monitor line has to carry the sentence of THIS case. Stale lines ' +
+    'seen: ' + StaleLines);
+  Assert.IsTrue(Pos('nunca vai saber', StaleLines) = 0,
+    'and must NOT carry the orphan sentence: the client knows this key, it ' +
+    'typed it. Stale lines seen: ' + StaleLines);
 end;
 
 initialization

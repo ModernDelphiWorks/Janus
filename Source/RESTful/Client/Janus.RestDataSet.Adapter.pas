@@ -67,6 +67,129 @@ const
   cISOTIME     = 'hh":"nn":"ss';
 
 type
+  /// <summary> The ways a save can end with the client KNOWING its own graph is
+  ///  out of step with the server - issue #305.
+  ///
+  ///  WHY AN ENUM AND NOT A BOOLEAN. The cases are not equally bad and the
+  ///  consumer has to be able to tell them apart. sgcNoKeyToAskBy is the only one
+  ///  where the SERVER holds a row whose key this client will never learn - an
+  ///  orphan nothing can reach afterwards. Every other member leaves the client's
+  ///  own data INTACT: the re-read was refused, or never attempted, and the
+  ///  client is exactly where #297 found it - a defect, not a loss. Collapsing
+  ///  them into one flag would make a screen that wants to shout only about the
+  ///  orphan unable to. Worse, it would put the orphan SENTENCE on the monitor
+  ///  for a save where nothing is orphaned, and a warning that overstates once is
+  ///  a warning nobody reads twice.
+  ///
+  ///  THE (n) LABELS BELOW ARE THE ISSUE'S NUMBERING, NOT THE ORDINAL OF THE
+  ///  MEMBER, and they are deliberately not renumbered: #305 enumerated FOUR
+  ///  silent exits and this enum has SIX members, because reading the code found
+  ///  two the issue did not name.
+  ///    - sgcAnswerWasShallower, labelled (5): the depth guard
+  ///      _AnswerReachesEveryLoadedLevel refuses the answer for the same reason
+  ///      the identity guard does and leaves the same silence. It is the ordinary
+  ///      outcome for an aggregate with a Lazy sibling branch on the SHIPPED
+  ///      server, so it is the one a consumer is MOST likely to meet. Measured by
+  ///      Voice_AShallowAnswerIsAnnouncedUnderItsOwnCase.
+  ///    - sgcReReadNeverAttempted, labelled (2b): the third door of
+  ///      ApplyInserter, found by the review of #305. Measured by
+  ///      Voice_ARootWithNoSequenceIsItsOwnCaseAndNotTheOrphanOne.
+  ///  Test.Janus.Rest.ReReadAfterInsert's header carries the full door-by-door
+  ///  enumeration, seven doors onto these six cases.
+  ///
+  ///  RAISING WAS REFUSED BY MEASUREMENT AND THIS DOES NOT REOPEN IT. ApplyInserter
+  ///  is the first of three phases inside one try and ApplyUpdates clears
+  ///  FSession.DeleteList in its own finally, so an exception here costs the
+  ///  operator the update AND the delete of the same save - `posts=1 puts=0
+  ///  deletes=0`, pinned by Detector_AllThreePhasesRunInsideTheSameCall. Every
+  ///  member of this enum is announced, never raised. </summary>
+  TStaleGraphCase = (
+    /// (1) The insert answer named no key for this row, so there is nothing to
+    ///  ask BY, no re-read is possible, and the row sits on the server under a
+    ///  key the client will never know. THE ONLY case that leaves something
+    ///  orphaned on the far side.
+    ///  TWO DOORS REACH IT, and they are the two where the root DOES have a
+    ///  sequence and the answer still failed to name its key: the answer carried
+    ///  no `params` at all, or it carried `params` naming no column this row has.
+    ///  A THIRD door used to arrive here and no longer does - a root with no
+    ///  sequence goes to sgcReReadNeverAttempted, because over that shape the
+    ///  sentence this case puts on the monitor is FALSE.
+    sgcNoKeyToAskBy,
+    /// (2) More than one root was saved in the same call, so the re-read was
+    ///  skipped ON PURPOSE - see _ReReadStaleRoots. The client keeps every row it
+    ///  typed, on placeholders.
+    sgcMultiRootNotReRead,
+    /// (2b) The root has NO SEQUENCE - TAutoIncType.NotInc, or any key whose
+    ///  generator is not SequenceInc - so FSession.ExistSequence answers False,
+    ///  ApplyInserter never entered the stamping block, never took a bookmark,
+    ///  and the re-read was NEVER ATTEMPTED. The root's key is the one the
+    ///  CLIENT supplied and has been sitting in the dataset the whole time, so a
+    ///  GET by it would work; only the graph BELOW is on placeholders.
+    ///
+    ///  WHY IT IS NOT sgcNoKeyToAskBy, WHICH IS WHERE IT WENT UNTIL THIS CASE
+    ///  EXISTED. That case tells the reader the key is lost forever, and over
+    ///  this shape that is FALSE - the operator typed the key. Announcing an
+    ///  orphan where nothing is orphaned is the same disease #305 is curing: it
+    ///  makes the warning unbelievable. The remedy differs too - here the
+    ///  consumer can simply call Refresh, which in case (1) it cannot.
+    ///
+    ///  THE DOOR HAD NO FIXTURE UNTIL Test.Janus.Model.ClientKeyRoot, because
+    ///  every other model this repository points at a REST adapter declares
+    ///  [Sequence]. Measured by
+    ///  Voice_ARootWithNoSequenceIsItsOwnCaseAndNotTheOrphanOne.
+    sgcReReadNeverAttempted,
+    /// (3) The re-read was issued and the server answered NO row.
+    sgcAnswerHadNoRow,
+    /// (4) The re-read answered a DIFFERENT row and the identity guard refused it.
+    sgcAnswerWasAnotherRow,
+    /// (5) The re-read answer did not reach every level the client is holding and
+    ///  the depth guard refused it. Not named by #305 - see above.
+    sgcAnswerWasShallower);
+
+  TStaleGraphCases = set of TStaleGraphCase;
+
+  /// <summary> Fired once per case, at the moment the save gives up on
+  ///  reconciling the graph - issue #305. ASender is the ROOT adapter, AEntity is
+  ///  the mapped class whose aggregate stayed stale.
+  ///
+  ///  THE SAME SHAPE AS TBeforeScrollPendingChildsEvent, the other consumer hook
+  ///  of this family: `of object`, ASender first, nil by default. With no handler
+  ///  assigned nothing is called and the framework does exactly what it did
+  ///  before - measured by Voice_NoHandlerIsAssignedByDefault plus the twenty-five
+  ///  clauses of this fixture that predate the voice and were not touched.
+  ///
+  ///  IT DOES NOT GET A `var` ACTION. Everything this announces has ALREADY
+  ///  happened - the server has written, the phases are running inside one try -
+  ///  so there is no decision left to hand back. </summary>
+  TStaleGraphEvent = procedure(const ASender: TObject;
+    const ACase: TStaleGraphCase; const AEntity: String) of object;
+
+const
+  /// The heading of the monitor line, and the string a consumer greps the
+  /// monitor for. THESE LIVE IN THE INTERFACE, NOT IN THE IMPLEMENTATION, for
+  /// the reason already written over cISODATE above: _AnnounceStaleGraph is a
+  /// method of a PARAMETERISED type declared in the interface, and such a method
+  /// cannot name a symbol local to the implementation (E2506).
+  cSTALEGRAPHWARNING = 'o grafo abaixo desta raiz continua defasado';
+  /// One sentence per case, so the monitor says WHICH silence this was and not
+  /// merely that there was one. Kept in the order of TStaleGraphCase; the
+  /// compiler checks the arity of an array[enum] initialiser, so a case added
+  /// without a sentence does not compile.
+  cSTALEGRAPHCASE: array[TStaleGraphCase] of String = (
+    'a resposta do insert nao trouxe chave para perguntar - a linha ficou ' +
+    'gravada no servidor sob uma chave que este cliente nunca vai saber',
+    'mais de uma raiz foi gravada na mesma chamada e a re-leitura foi ' +
+    'desligada de proposito - nenhuma linha do cliente foi perdida',
+    'a raiz nao tem sequence, entao a re-leitura nunca foi tentada - a chave ' +
+    'da raiz veio do cliente e continua conhecida; so o grafo abaixo dela ' +
+    'ficou no placeholder',
+    'a re-leitura nao encontrou linha nenhuma - o dado do cliente esta intacto',
+    'a re-leitura respondeu OUTRA linha e foi recusada - o dado do cliente ' +
+    'esta intacto',
+    'a re-leitura nao alcancou todos os niveis que o cliente segura e foi ' +
+    'recusada - o dado do cliente esta intacto');
+
+type
   TRESTDataSetAdapter<M: class, constructor> = class(TDataSetBaseAdapter<M>)
   private
     /// <summary> Ligado apenas enquanto a re-leitura AUTOMATICA da #297 esta em
@@ -85,6 +208,31 @@ type
     ///  mudar o comportamento de um metodo mais abaixo que nao recebe
     ///  parametro para isso. </summary>
     FReReadAfterInsert: Boolean;
+    /// <summary> The connection, kept so that the adapter can reach the command
+    ///  monitor - issue #305. The DATASET family used to hand it straight to the
+    ///  session and keep nothing; the OBJECTSET family already keeps it
+    ///  (TRESTObjectSetAdapter<M>.FConnection), so this is the house pattern and
+    ///  not a new one. It is the ONLY way to publish on the monitor from here:
+    ///  every existing monitor line in this family is written by
+    ///  TSessionRestFul<M> off its own FConnection, and the session has no idea a
+    ///  graph is stale. </summary>
+    FConnection: IRESTConnection;
+    /// <summary> What the LAST save learned about its own graph - issue #305.
+    ///  Zeroed at the top of ApplyInserter, so it always describes the save that
+    ///  just finished and never accumulates across saves. </summary>
+    FStaleGraphCases: TStaleGraphCases;
+    FOnStaleGraph: TStaleGraphEvent;
+    /// <summary> The verdict of the re-read in flight, and whether there is still
+    ///  a verdict to announce - issue #305. Seeded to "no row came back" before
+    ///  the GET, because that is what a re-read that never reaches
+    ///  RefreshRecordInternal means; RefreshRecordInternal narrows it to the
+    ///  guard that actually refused, or clears it when the answer is applied.
+    ///  A FLAG AROUND A CALL, exactly like FReReadAfterInsert above: the verdict
+    ///  is decided two frames down, in a method that takes no parameter for
+    ///  it. </summary>
+    FReReadStale: Boolean;
+    FReReadStaleCase: TStaleGraphCase;
+    procedure _AnnounceStaleGraph(const ACase: TStaleGraphCase);
     procedure _SetMasterDataSetStateEdit;
     procedure _ExecuteCheckNotNull;
     procedure _PopularDataSetChilds(const AObject: TObject);
@@ -124,6 +272,16 @@ type
     procedure RefreshRecordInternal(const AObject: TObject); override;
     destructor Destroy; override;
     procedure NextPacket; override;
+    /// <summary> Which of the #305 cases the LAST save ran into. Empty is the
+    ///  ordinary answer and means the aggregate came out of the save reconciled -
+    ///  or that there was nothing to reconcile. Read it after ApplyUpdates.
+    ///  ADDITIVE: nothing in the framework reads this, so a consumer that never
+    ///  looks at it sees the behaviour that shipped. </summary>
+    property StaleGraphCases: TStaleGraphCases read FStaleGraphCases;
+    /// <summary> Assign to hear about it instead of asking. nil by default, which
+    ///  is byte-for-byte the behaviour that shipped. </summary>
+    property OnStaleGraph: TStaleGraphEvent read FOnStaleGraph
+      write FOnStaleGraph;
   end;
 
 implementation
@@ -142,13 +300,62 @@ constructor TRESTDataSetAdapter<M>.Create(const AConnection: IRESTConnection;
   ADataSet: TDataSet; APageSize: Integer; AMasterObject: TObject);
 begin
   inherited Create(ADataSet, APageSize, AMasterObject);
+  FConnection := AConnection;
+  FStaleGraphCases := [];
+  FOnStaleGraph := nil;
   FSession := TSessionRestFul<M>.Create(AConnection, Self, APageSize);
 end;
 
 destructor TRESTDataSetAdapter<M>.Destroy;
 begin
   FSession.Free;
+  FConnection := nil;
   inherited;
+end;
+
+/// <summary> The voice of #305: record the case, put a line on the monitor, and
+///  call the consumer's handler if there is one. In that order, and the order is
+///  the point - the PROPERTY is written before anything that can be observed
+///  from outside, so a handler that reads StaleGraphCases sees the case it was
+///  just told about.
+///
+///  THE MONITOR LINE FOLLOWS THE HOUSE FORMAT and not a new one: labelled fields
+///  padded to the same column, `Command(text, nil)`, and guarded by
+///  `CommandMonitor <> nil` - the shape of all NINE call sites in
+///  TSessionRestFul<M> (Janus.Session.RESTful.pas, nine `CommandMonitor <> nil`
+///  guards and the nine `.Command(..., nil)` they guard; counted at this HEAD,
+///  and an earlier version of this sentence said FOURTEEN, which was a number
+///  nobody had counted). Repo-wide there are eleven call sites: those nine, the
+///  one in TDMLCommandFactory._SendCommandMonitor, and this one.
+///  What it does NOT copy is the 'URI' label: this line is not a round trip, and
+///  a URI on it would be a request that never happened.
+///
+///  IT CANNOT RAISE, AND THAT IS THE WHOLE CONSTRAINT. Everything here runs
+///  inside ApplyInserter, the first of three phases in one try; an exception
+///  escaping would cost the update and the delete of the same save. The monitor
+///  half is a nil check away from doing nothing; the handler half is the
+///  consumer's own code, which the framework cannot vouch for - it is called
+///  bare on purpose, because swallowing a consumer's exception silently is the
+///  same disease this issue is curing. What the framework guarantees is that it
+///  adds no throwing of its own. </summary>
+procedure TRESTDataSetAdapter<M>._AnnounceStaleGraph(
+  const ACase: TStaleGraphCase);
+var
+  LEntity: String;
+begin
+  Include(FStaleGraphCases, ACase);
+  if FCurrentInternal <> nil then
+    LEntity := FCurrentInternal.ClassName
+  else
+    LEntity := M.ClassName;
+  if FConnection <> nil then
+    if FConnection.CommandMonitor <> nil then
+      FConnection.CommandMonitor.Command(
+        'Aviso  : ' + cSTALEGRAPHWARNING + sLineBreak +
+        'Classe : ' + LEntity + sLineBreak +
+        'Caso   : ' + cSTALEGRAPHCASE[ACase], nil);
+  if Assigned(FOnStaleGraph) then
+    FOnStaleGraph(Self, ACase, LEntity);
 end;
 
 procedure TRESTDataSetAdapter<M>.DeleteDataSetChilds;
@@ -206,8 +413,17 @@ var
   LField: TField;
   LParam: TParam;
   LStale: TList<TBookmark>;
+  LStaleAndMute: Boolean;
+  LNoSequenceStale: Boolean;
 begin
   inherited;
+  // ISSUE #305 - O ESTADO E DESTA GRAVACAO E NAO DA ANTERIOR. Zerado aqui, no
+  // comeco do primeiro dos tres ApplyInternal, porque e este o ponto por onde
+  // toda gravacao da familia REST passa: nem TRESTFDMemTableAdapter<M> nem
+  // TRESTClientDataSetAdapter<M> recursam nos filhos no ApplyInternal - so o
+  // adapter RAIZ chega aqui -, de modo que zerar em ApplyUpdates seria zerar o
+  // mesmo campo pelo mesmo caminho, uma camada acima e em dois arquivos.
+  FStaleGraphCases := [];
   // Filtar somente os registros inseridos
   FOrmDataSet.Filter := cInternalField + '=' + IntToStr(Integer(dsInsert));
   FOrmDataSet.Filtered := True;
@@ -234,6 +450,13 @@ begin
             ///
             FSession.Insert(LObject);
             FOrmDataSet.Edit;
+            // ISSUE #305 - "DEFASADO E CALADO" E O ESTADO PADRAO ATE QUE ALGUEM
+            // PROVE O CONTRARIO. Comeca True apenas onde ha grafo defasado (a
+            // pergunta e feita nos dois ramos abaixo) e e desligado no unico
+            // ramo em que a re-leitura assume a conta - la o veredito quem da e
+            // _ReReadRootRow, que sabe o que a resposta trouxe.
+            LStaleAndMute := False;
+            LNoSequenceStale := False;
             if FSession.ExistSequence then
             begin
               if FSession.ResultParams.Count > 0 then
@@ -292,11 +515,51 @@ begin
                 // tag=root ck1=-1 ck2=9. Hoje o alcance so e estreito porque o
                 // SERVIDOR percorre apenas colunas de PK
                 // (Janus.Server.Resource.pas:304-307) - o limite nao esta aqui.
-                if _GraphBelowIsStale(Self) and
-                   not _RowKeyIsUngenerated(Self) then
-                  LStale.Add(FOrmDataSet.GetBookmark);
-              end;
-            end;
+                //
+                // ISSUE #305 - E QUANDO O PORTAO NAO ABRE, ALGUEM TEM DE
+                // FALAR. A pergunta e a MESMA de sempre e a resposta continua
+                // decidindo o mesmo GET; o que mudou e que o ramo em que ela
+                // responde "defasado" e o portao FECHA - params vieram e a chave
+                // desta linha nao - deixa de ser silencio. Esse ramo e o caso (1)
+                // da #305 tanto quanto a resposta sem `params` logo abaixo: nos
+                // dois nao ha chave por onde perguntar, e nos dois a linha ficou
+                // gravada no servidor sob uma chave que este cliente nunca vai
+                // saber.
+                if _GraphBelowIsStale(Self) then
+                begin
+                  if _RowKeyIsUngenerated(Self) then
+                    LStaleAndMute := True
+                  else
+                    LStale.Add(FOrmDataSet.GetBookmark);
+                end;
+              end
+              else
+                // A resposta nao trouxe `params`: o gate mudo original. Nao ha
+                // chave, nao ha GET, e ate a #305 nao havia aviso nenhum.
+                LStaleAndMute := _GraphBelowIsStale(Self);
+            end
+            else
+              // A TERCEIRA PORTA, E ELA NAO E O CASO (1) - issue #305. Sem
+              // sequence na raiz o carimbo nunca aconteceu, nenhum bookmark foi
+              // tomado e a re-leitura NUNCA FOI TENTADA; mas a chave da raiz
+              // veio do CLIENTE e esta no dataset o tempo todo, entao um GET por
+              // ela funcionaria. Dizer "uma chave que este cliente nunca vai
+              // saber" aqui seria simplesmente FALSO - por isso este ramo tem
+              // caso proprio. Ver TStaleGraphCase.sgcReReadNeverAttempted.
+              // ESTE RAMO TEVE COBERTURA DEPOIS DE NAO TER, e o registro fica
+              // porque ele diz o que a fixtura vale. Enquanto anunciava
+              // sgcNoKeyToAskBy era um sobrevivente declarado: trocando a
+              // atribuicao logo abaixo por `False`, com tripwire {$MESSAGE WARN}
+              // que o dcc32 devolveu (W1054), a suite fechava 246/0/0 e NADA
+              // morria - porque todo model REST do repositorio declara
+              // [Sequence]. Test.Janus.Model.ClientKeyRoot foi escrito para
+              // alcancar a porta, e a MESMA mutacao agora fecha 248 com 1 falha:
+              // Voice_ARootWithNoSequenceIsItsOwnCaseAndNotTheOrphanOne.
+              LNoSequenceStale := _GraphBelowIsStale(Self);
+            if LStaleAndMute then
+              _AnnounceStaleGraph(sgcNoKeyToAskBy);
+            if LNoSequenceStale then
+              _AnnounceStaleGraph(sgcReReadNeverAttempted);
             FOrmDataSet.Fields[FInternalIndex].AsInteger := -1;
             FOrmDataSet.Post;
           finally
@@ -995,13 +1258,28 @@ var
 begin
   inherited;
   if not _AnswerIsTheRowUnderTheCursor(AObject) then
+  begin
+    // ISSUE #305 - caso (4). So escreve o veredito quando a re-leitura e a
+    // AUTOMATICA: um refresh que o consumidor pediu e recusado pela mesma
+    // guarda, mas ali nao ha gravacao pendurada e nao ha nada a anunciar.
+    if FReReadAfterInsert then
+      FReReadStaleCase := sgcAnswerWasAnotherRow;
     Exit;
+  end;
   // SO NA RE-LEITURA AUTOMATICA - ver FReReadAfterInsert. Num refresh PEDIDO
   // pelo consumidor, filho que sumiu no servidor deve sumir na tela; num
   // refresh que o proprio ApplyInserter disparou um instante depois de o
   // servidor gravar, "a resposta nao mencionou" nunca quer dizer "foi apagado".
   if FReReadAfterInsert and not _AnswerReachesEveryLoadedLevel(Self, AObject) then
+  begin
+    // ISSUE #305 - o quinto caso, o que a issue nao nomeou. Ver TStaleGraphCase.
+    FReReadStaleCase := sgcAnswerWasShallower;
     Exit;
+  end;
+  // Daqui para baixo a resposta E aplicada, entao a re-leitura cumpriu o que
+  // prometeu e nao ha defasagem a anunciar - issue #305.
+  if FReReadAfterInsert then
+    FReReadStale := False;
   FOrmDataSet.DisableControls;
   try
     FOrmDataSet.Edit;
@@ -1298,12 +1576,28 @@ begin
     end;
     if LParams.Count = 0 then
       Exit;
+    // ISSUE #305 - O VEREDITO DA RE-LEITURA, QUE SO SE CONHECE DEPOIS DELA.
+    // Semeado com "nenhuma linha voltou" porque e exatamente isso que significa
+    // uma re-leitura que nao chega em RefreshRecordInternal: TSessionRestFul<M>
+    // .RefreshRecord sai sem chamar ninguem quando a lista vem nil ou vazia -
+    // caso (3). Se ela CHEGA, quem estreita o veredito para a guarda que
+    // recusou, ou o apaga porque a resposta foi aplicada, e o proprio
+    // RefreshRecordInternal.
+    FReReadStale := True;
+    FReReadStaleCase := sgcAnswerHadNoRow;
     FReReadAfterInsert := True;
     try
       FSession.RefreshRecord(LParams);
     finally
       FReReadAfterInsert := False;
     end;
+    // FORA do try/finally do FReReadAfterInsert de proposito: o handler do
+    // consumidor roda com a flag JA desligada, para que um refresh que ele peca
+    // de dentro do proprio handler seja um refresh de consumidor - com a
+    // exigencia de profundidade desligada, que e a que so vale para a re-leitura
+    // automatica.
+    if FReReadStale then
+      _AnnounceStaleGraph(FReReadStaleCase);
   finally
     LParams.Clear;
     LParams.Free;
@@ -1346,8 +1640,16 @@ var
 begin
   if AMarks.Count = 0 then
     Exit;
+  // ISSUE #305 - O DESLIGAMENTO E DE PROPOSITO E CONTINUA SENDO; o que ele nao
+  // pode continuar sendo e MUDO. Cada marca desta lista e uma raiz que o
+  // detector JA declarou defasada, entao aqui nao ha o que perguntar de novo -
+  // basta contar. Um aviso so, e nao um por raiz: o consumidor nao pode agir
+  // raiz a raiz sobre uma decisao que foi tomada para a chamada inteira.
   if AMarks.Count > 1 then
+  begin
+    _AnnounceStaleGraph(sgcMultiRootNotReRead);
     Exit;
+  end;
   for LFor := 0 to AMarks.Count -1 do
   begin
     if not FOrmDataSet.BookmarkValid(AMarks[LFor]) then

@@ -22,9 +22,16 @@
   the number of.
 
   TRESTDataSetAdapter<M>.ApplyInserter stamps the row from ResultParams and then
-  decides whether to buy a re-read GET:
+  decides whether to buy a re-read GET, by asking _GraphBelowIsStale and
+  _RowKeyIsUngenerated in that order: the GET is bought only where the graph
+  below IS stale and the row's own key is NOT.
 
-      if _GraphBelowIsStale(Self) and not _RowKeyIsUngenerated(Self) then
+  ANCHORED BY SYMBOL AND NOT BY THE LINE ANY MORE. This paragraph used to quote
+  the single `if` those two predicates were joined in; #305 split that `if` in
+  two so that the arm where the row's own key is ungenerated - params came back
+  and named no column of this row - could ANNOUNCE instead of falling silent.
+  The decision is unchanged and so is every number below; the shape of the line
+  is not, which is exactly why a quoted line is a worse anchor than a name.
 
   _RowKeyIsUngenerated walks the row's OWN primary key COLUMN BY COLUMN and
   answers True the moment ONE of them still carries the AutoInc placeholder. On

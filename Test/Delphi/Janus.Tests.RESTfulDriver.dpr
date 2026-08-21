@@ -83,6 +83,10 @@ uses
   MetaDbDiff.Mapping.Register,
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
   Test.Janus.Model.AutoIncTree in 'Common\Test.Janus.Model.AutoIncTree.pas',
+  /// A root whose key comes from the CLIENT over a child whose key comes from
+  /// the SERVER - the only shape in the repository that reaches the third door
+  /// of ApplyInserter, where ExistSequence answers False. Issue #305.
+  Test.Janus.Model.ClientKeyRoot in 'Common\Test.Janus.Model.ClientKeyRoot.pas',
   /// The canonical COMPOSITE PRIMARY KEY entity - both columns are the key.
   /// Issue #300.
   Test.Janus.Model.KeyOnly in 'Common\Test.Janus.Model.KeyOnly.pas',
