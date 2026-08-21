@@ -124,8 +124,11 @@ begin
     /// path. What runs here is the DDL serializer, and dbnMySQL emits
     /// 'CREATE OR REPLACE VIEW `client` AS SELECT ...' - correct for both MySQL
     /// and MariaDB, and measured emitting it. Following the DML side "for
-    /// symmetry" would send 'CREATE VIEW [client]' - MSSQL brackets - to a MySQL
-    /// server. Both halves measured. DO NOT UNIFY THE TWO MAPS.
+    /// symmetry" was MEASURED by mutating this very line to dbnMSSQL: it sends
+    /// 'CREATE OR ALTER VIEW [client] AS ...' to a MySQL server - MSSQL brackets
+    /// and MSSQL's spelling of OR REPLACE, because dnMySQL is in
+    /// _SupportsCreateOrReplace below and MSSQL renders OrReplace as OR ALTER.
+    /// Both halves measured. DO NOT UNIFY THE TWO MAPS.
     dnMySQL, dnMariaDB:      Result := dbnMySQL;
     dnFirebird, dnFirebird3: Result := dbnFirebird;
     /// NOT dbnInterbase, WHICH IS WHAT THIS MAP SAID BEFORE. dbnInterbase exists

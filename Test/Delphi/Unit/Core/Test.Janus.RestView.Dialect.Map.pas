@@ -342,9 +342,12 @@ end;
 ///  That rewrite is in the DML AsString and is guarded by Assigned(AAST.Params);
 ///  DDL has no params, so it never runs on this path. Here the map picks the DDL
 ///  serializer, and dbnMySQL writes CREATE OR REPLACE VIEW with backticks, which
-///  is what MySQL and MariaDB accept. Unifying would send 'CREATE VIEW [client]'
-///  - MSSQL brackets - to a MySQL server. The clause pins both halves: the
-///  backticked OR REPLACE must be there, and the brackets must not. </summary>
+///  is what MySQL and MariaDB accept. Unifying was MEASURED, by mutating the
+///  dnMySQL line to dbnMSSQL and watching this clause die: it sends
+///  'CREATE OR ALTER VIEW [client] AS ...' to a MySQL server - MSSQL brackets
+///  and MSSQL's spelling of OR REPLACE, since dnMySQL is in
+///  _SupportsCreateOrReplace. The clause pins both halves: the backticked
+///  OR REPLACE must be there, and the brackets must not. </summary>
 procedure TTestRestViewDialectMap.MySQLAndMariaDBKeepTheDialectTheDMLSideRefused;
 var
   LMySQL: String;
