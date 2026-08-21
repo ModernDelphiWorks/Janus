@@ -51,6 +51,13 @@
   caller supplying an id can spell it - and -1 went back to being an ordinary
   key. See TDMLGeneratorAbstract._NoIdSupplied.
 
+  AND IT COST ONE INVERSION, WHICH THAT HEADER DECLARES RATHER THAN HIDES: a
+  TValue that carries no type was REFUSED on 0103408 and now reads every row.
+  It cannot arrive on THIS route - the REST resource always hands over
+  AQuery.ID.ToString, a typed String - which is why no clause here covers it;
+  the two that do live in Test.Janus.DML.KeyPredicate, next to the #326 guards
+  the shape used to fall into.
+
   THE CONTROLS ARE NOT DECORATIVE
 
   TheCollection_StillAnswersEveryRow is the clause that dies for the lazy

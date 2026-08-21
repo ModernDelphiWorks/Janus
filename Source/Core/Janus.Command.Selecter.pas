@@ -123,8 +123,15 @@ begin
   FPageSize := APageSize;
 end;
 
-/// <summary> ISSUE #361 - "EVERYTHING" IS NOW SPELT WITH AN EMPTY TValue AND
-///  NOT WITH -1. This method and the GenerateNextPacket overload below are the
+/// <summary> ISSUE #361 - "EVERYTHING" IS NOW SPELT WITH A TYPELESS TValue AND
+///  NOT WITH -1. TYPELESS AND NOT MERELY "EMPTY": TValue.IsEmpty is True for an
+///  empty dynamic array and an empty string too, and those are ids that name
+///  nothing rather than absent ids - they belong to the #326 refusals. The test
+///  that decides is TypeInfo = nil, in TDMLGeneratorAbstract._NoIdSupplied,
+///  whose header carries the base x HEAD board of twelve shapes and the one
+///  INVERSION this repair accepted: a typeless TValue used to be REFUSED here
+///  and now reads every row.
+///  This method and the GenerateNextPacket overload below are the
 ///  only two places in this repository that ask the generator for a statement
 ///  with NO key predicate, and they used to say so by handing it the integer
 ///  -1. That is also cAutoIncNotGenerated (Janus.DataSet.Fields.pas:51), the
