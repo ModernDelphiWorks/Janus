@@ -166,6 +166,8 @@ uses
   Test.Janus.ObjectSet.UpdateMasterKey in 'Integration\Test.Janus.ObjectSet.UpdateMasterKey.pas',
   /// The base adapter's cascade DELETE order under an enforced FK — issue #240
   Test.Janus.ObjectSet.CascadeDeleteOrder in 'Integration\Test.Janus.ObjectSet.CascadeDeleteOrder.pas',
+  /// The INSERT against the null pattern of the object written - issue #352
+  Test.Janus.Insert.CacheVsNullness in 'Integration\Test.Janus.Insert.CacheVsNullness.pas',
   /// What a real close costs against what emptying costs — issue #246
   Test.Janus.Close.VsEmpty in 'Unit\Container\Test.Janus.Close.VsEmpty.pas',
   /// The reopen, and the cursor count that shows the lazy path is alive — #248

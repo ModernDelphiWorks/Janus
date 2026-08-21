@@ -277,8 +277,19 @@ begin
             ///  read out of a dataset, so both READERS land on one
             ///  StringToGUID - which accepts only the braced 38-character form
             ///  DoGetValue emits. Only the readers: the write direction parses
-            ///  too, at Janus.Command.Inserter.pas:172, where the text built
+            ///  too, in TCommandInserter.GenerateInsert, where the text built
             ///  from the property is turned back into a TGUID for the param.
+            ///  ANCHORED BY METHOD SINCE #352, AND THIS NOTE IS THE CONFESSION
+            ///  THAT GOES WITH IT. The citation used to read
+            ///  `Janus.Command.Inserter.pas:172`, and that number was CORRECT
+            ///  when it was written: at 349407e line 172 was exactly
+            ///  `AsGuid := StringToGUID(LGuidString);`. THE #352 REPAIR IS WHAT
+            ///  BROKE IT - unifying the column selectors shortened the loop
+            ///  above it and moved the parse to 171. An earlier draft of this
+            ///  paragraph blamed the number for rotting on its own, which was
+            ///  a comfortable thing to write and measurably false. A repair in
+            ///  one file falsifies comments in files it never opens, and a
+            ///  line number is the form of citation that fails silently.
             ///  A JSON null, or a member absent from the payload, is not a
             ///  GUID and must not raise: it leaves the property at TGUID.Empty,
             ///  the same value a freshly constructed object already carries.
