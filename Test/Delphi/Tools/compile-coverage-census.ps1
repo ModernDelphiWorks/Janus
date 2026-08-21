@@ -27,10 +27,20 @@
 
   CONTROLES (o censo nao vale sem eles - o script os imprime e falha se quebrarem)
     positivo: Janus.Bind DEVE aparecer (e compilada por 5 dos 7).
-    negativo: no commit 0546a51, Janus.Client.DataSnap e Janus.Client.WS NAO
-              devem aparecer em nenhum dos 7. Se aparecerem, ou o metodo esta
-              errado, ou voce esta medindo um commit posterior ao conserto da
-              #323 - confira com `git rev-parse HEAD` antes de acreditar.
+    negativo: Janus.Client.DMVC e Janus.Server.DMVC NAO devem aparecer em
+              nenhum dos 7. Nao e escolha de conveniencia: o DMVC desta maquina
+              (D:\Delphi Tools\delphimvcframework-master, 3.4.0-neon-beta) NAO
+              COMPILA no Studio 37 - MVCFramework.pas declara TWebSession em
+              MVCFramework.Session.pas e a RTL declara outra em Web.HTTPApp, e
+              o proprio MVCFramework.pas resolve para a errada. Medido na
+              frente da #341. Enquanto isso for verdade, esses dois nao podem
+              estar cobertos, e se aparecerem o metodo esta errado.
+
+    O CONTROLE NEGATIVO ORIGINAL ERA OUTRO, e ele JA MUDOU uma vez: em 0546a51
+    eram Janus.Client.DataSnap e Janus.Client.WS, que a #323 depois linkou no
+    Janus.Tests.RESTfulDriver. Um controle negativo que o repositorio conserta
+    deixa de ser controle - por isso o de hoje esta ancorado numa dependencia
+    externa que ESTE repositorio nao pode consertar.
 
   ARMADILHAS DA RECEITA (todas custaram tempo; nao as desfaca)
     - /p:"DCC_UnitSearchPath=" e GLOBAL e SUPRIME a lista do .dproj. E preciso
@@ -186,11 +196,11 @@ $posDcu = Get-Hits 'Janus.Bind' $byDcu
 "  DCU: " + ($posDcu -join ', ')
 if ($posDcu.Count -eq 0) { $ok = $false; Write-Warning 'CONTROLE POSITIVO FALHOU: Janus.Bind nao aparece em projeto nenhum. O metodo esta errado.' }
 
-"=== CONTROLE NEGATIVO - Janus.Client.DataSnap / Janus.Client.WS (esperado: nenhum, em 0546a51) ==="
-foreach ($u in @('Janus.Client.DataSnap','Janus.Client.WS')) {
+"=== CONTROLE NEGATIVO - a familia DMVC (esperado: nenhum; o DMVC nao compila no Studio 37) ==="
+foreach ($u in @('Janus.Client.DMVC','Janus.Server.DMVC')) {
   $hm = Get-Hits $u $byMap; $hd = Get-Hits $u $byDcu
   "  {0,-24} MAP=[{1}]  DCU=[{2}]" -f $u, ($hm -join ', '), ($hd -join ', ')
-  if ($hd.Count -gt 0) { Write-Warning "CONTROLE NEGATIVO FALHOU para $u - confira o commit medido (git rev-parse HEAD)." }
+  if ($hd.Count -gt 0) { $ok = $false; Write-Warning "CONTROLE NEGATIVO FALHOU para $u - o DMVC teria de compilar para isso ser possivel; confira o commit medido (git rev-parse HEAD)." }
 }
 "  commit medido: " + (git -C $Root rev-parse HEAD)
 

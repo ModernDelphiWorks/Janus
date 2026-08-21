@@ -1,5 +1,77 @@
 # Censo de cobertura de compilação — Janus
 
+> ## SEGUNDA MEDIÇÃO — issue #341, 21 ago 2026
+>
+> **Tudo abaixo desta caixa é o retrato de `0546a51` e continua valendo como
+> registro histórico — não foi reescrito.** Esta caixa é a re-medição feita na
+> frente da #341, com o MESMO script, o MESMO método (`.dcu` autoritativo,
+> diretório de saída apagado, controle positivo e negativo) e a MESMA receita
+> de search path.
+>
+> | | `0546a51` | `26d1d9a` (base da #341) | HEAD desta frente |
+> |---|---:|---:|---:|
+> | units `.pas` em `Source/` | 136 | 136 | **136** |
+> | compiladas por ≥ 1 projeto | 105 | 111 | **124** |
+> | compiladas por **NENHUM** | 31 | 25 | **12** |
+> | compiladas por exatamente 1 (frágeis) | 44 | 50 | **63** |
+> | divergência `.map` × `.dcu` | 13 | 12 | 15 |
+>
+> **O delta 31 → 25 não foi trabalho desta frente:** é a #323, que linkou as
+> seis units das famílias cliente DataSnap e WS no `Janus.Tests.RESTfulDriver`
+> depois que o censo original foi escrito. Os números de `0546a51` envelheceram
+> exatamente onde o repositório progrediu.
+>
+> **O delta 25 → 12 é desta frente**, e são treze units: os SETE geradores DML
+> distribuídos, o par servidor DataSnap, o par servidor WiRL,
+> `Janus.ModelDB.Compare` e `Janus.Form.Monitor`. Nenhuma delas foi apenas
+> linkada — cada uma responde por pelo menos uma cláusula que MORRE sob mutação
+> plausível, e as mutações estão registradas nos comentários das fixtures.
+>
+> **AS FRÁGEIS SUBIRAM, 50 → 63, E ISSO É ESPERADO.** Uma unit que ninguém
+> compilava e passa a ser compilada por UM projeto sai de "0 projetos" e entra
+> em "exatamente 1"; é o caminho obrigatório. O número de frágeis só desce
+> linkando a mesma unit em dois projetos, o que esta frente NÃO fez e não
+> deveria fazer sem uma razão por unit.
+>
+> **Cobertura por projeto — as duas que mudaram:** `Janus.Tests.Units` 76 → 93,
+> `Janus.Tests.RESTWiRL` 12 → 42. O salto do RESTWiRL é maior que as duas units
+> que ele ganhou porque linkar `Janus.Server.WiRL` puxa a cadeia inteira do
+> lado servidor (`Janus.Server.Resource`, `Janus.Server.RestQuery.Parse`,
+> `Janus.RestComponent` e o que elas usam) para um projeto que até então só
+> compilava o cliente.
+>
+> ### As 12 que sobraram, por natureza
+>
+> **Bloqueio de ambiente — 5.** A família DMVC inteira
+> (`Janus.Client.DMVC`, `Janus.Client.RestDMVC.Factory`,
+> `Janus.Client.RestDriver.DMVC`, `Janus.Server.DMVC`,
+> `Janus.Server.Resource.DMVC`). MEDIDO nesta frente, não herdado: o DMVC desta
+> máquina — `D:\Delphi Tools\delphimvcframework-master`, versão
+> `3.4.0-neon-beta` em `sources\dmvcframeworkbuildconsts.inc` — **não compila no
+> Studio 37**, e o erro é dentro dele, não no Janus: `MVCFramework.pas` declara
+> um `TWebSession` em `MVCFramework.Session.pas` e a RTL declara outro em
+> `Web.HTTPApp`, e o próprio `MVCFramework.pas` resolve para o errado
+> (`E2010 Incompatible types: 'Web.HTTPApp.TWebSession' and
+> 'MVCFramework.Session.TWebSession'`, mais `E2003 MarkAsUsed`,
+> `E2003 SessionId`, `E2149 Class does not have a default property`). Esses
+> cinco são hoje o **controle negativo** do script, justamente porque este
+> repositório não pode consertá-los.
+>
+> **Terceiro vendorizado — 2.** `Source/External/SQLite3/SQLite3.pas` e
+> `SQLiteTable3.pas`. **Linkam** (medido: `Janus.Tests.Units` compila com as
+> duas na `uses`, exit 0), mas não há cláusula honesta barata sobre binding C do
+> SQLite dentro do Janus, e há um problema anterior a testá-las: são **cópia
+> duplicada** de `DataEngine/Source/External/SQLite3/`, e os sete `.dproj`
+> carregam os DOIS diretórios no search path. Diferença entre as cópias:
+> apenas o nome do produto no cabeçalho de licença (e uma linha em branco em
+> `SQLite3.pas`). Decisão do dono — ver o dossiê da #341.
+>
+> **Decisão do dono — 5.** O "Nível 3" da issue:
+> `Horse.Janus`, `Janus.DML.Generator.Firebird3`, `Janus.Metadata.Classe.Factory`,
+> `Janus.OneToMany`, `Janus.Server.Swagger.Horse`. Esta frente NÃO os cobriu e
+> NÃO os removeu, de propósito: cobrir prejulgaria a remoção. O que ela mediu
+> sobre eles está no dossiê da #341.
+
 **Isto é medição, não conserto.** Nada em `Source/`, `.dpr` ou `.dproj` foi alterado.
 
 | | |
