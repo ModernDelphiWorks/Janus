@@ -106,6 +106,7 @@
         <DCCReference Include="Unit\RESTful\Test.Janus.Driver.WiRLClientChain.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Driver.WiRLTokenAcquire.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Driver.WiRLExecuteOverload.pas"/>
+        <DCCReference Include="Unit\RESTful\Test.Janus.Server.WiRLResource.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

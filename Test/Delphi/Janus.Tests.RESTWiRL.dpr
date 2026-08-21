@@ -81,10 +81,18 @@ uses
   Janus.Client.WiRL,
   Janus.Client.RestDriver.WiRL,
   Janus.Client.RestWiRL.Factory,
+  /// THE SERVER SIDE - issue #341, Level 2. The header above says this project
+  /// "covers the WiRL client path", and the compile-coverage census read that
+  /// literally: Janus.Server.WiRL and Janus.Server.Resource.WiRL were compiled
+  /// by NONE of the seven projects, which is the same hole #213 sat in on the
+  /// client side. Claimed by Test.Janus.Server.WiRLResource.
+  Janus.Server.WiRL,
+  Janus.Server.Resource.WiRL,
   /// Tests
   Test.Janus.Driver.WiRLClientChain in 'Unit\RESTful\Test.Janus.Driver.WiRLClientChain.pas',
   Test.Janus.Driver.WiRLTokenAcquire in 'Unit\RESTful\Test.Janus.Driver.WiRLTokenAcquire.pas',
-  Test.Janus.Driver.WiRLExecuteOverload in 'Unit\RESTful\Test.Janus.Driver.WiRLExecuteOverload.pas';
+  Test.Janus.Driver.WiRLExecuteOverload in 'Unit\RESTful\Test.Janus.Driver.WiRLExecuteOverload.pas',
+  Test.Janus.Server.WiRLResource in 'Unit\RESTful\Test.Janus.Server.WiRLResource.pas';
 
 begin
   Randomize;

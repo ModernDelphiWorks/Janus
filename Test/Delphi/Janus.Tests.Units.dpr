@@ -68,6 +68,34 @@ uses
   /// nothing. Forgetting the link does NOT raise an Access Violation -
   /// Janus.Driver.Register.pas:64-66 raises a named exception naming the unit.
   Janus.DML.Generator.PostgreSQL in '..\..\Source\Core\Janus.DML.Generator.PostgreSQL.pas',
+  /// THE SEVEN DISTRIBUTED GENERATORS - issue #341, Level 1.
+  /// They sit in the `uses` clause of `library JanusFramework` (see
+  /// Source\Janus\JanusFramework.dpr) and three of them - InterBase, MongoDB
+  /// and MySQL - are also injected into the CLIENT's own project by the
+  /// design-time package. Until now NO test project compiled a single one of
+  /// them: the compile-coverage census measured 0 of 7 across all seven
+  /// projects. Linking alone is not coverage, so each one is claimed by
+  /// Test.Janus.DML.Generator.Distributed - the registration it promises and
+  /// the dialect token its SELECT carries.
+  Janus.DML.Generator.AbsoluteDB in '..\..\Source\Core\Janus.DML.Generator.AbsoluteDB.pas',
+  Janus.DML.Generator.ElevateDB in '..\..\Source\Core\Janus.DML.Generator.ElevateDB.pas',
+  Janus.DML.Generator.InterBase in '..\..\Source\Core\Janus.DML.Generator.InterBase.pas',
+  /// NoSQL is the base class, not a dialect: it has NO initialization section
+  /// and registers NOTHING. It is linked because MongoDB descends from it and
+  /// the whole criteria body lives here.
+  Janus.DML.Generator.NoSQL in '..\..\Source\Core\Janus.DML.Generator.NoSQL.pas',
+  Janus.DML.Generator.MongoDB in '..\..\Source\Core\Janus.DML.Generator.MongoDB.pas',
+  Janus.DML.Generator.MySQL in '..\..\Source\Core\Janus.DML.Generator.MySQL.pas',
+  Janus.DML.Generator.NexusDB in '..\..\Source\Core\Janus.DML.Generator.NexusDB.pas',
+  /// THE DataSnap SERVER PAIR - issue #341, Level 2. Compiled by none of the
+  /// seven, yet #338 argues the crossed client verbs against the method table
+  /// that lives here. Claimed by Test.Janus.Server.DataSnapResource.
+  Janus.Server.DataSnap in '..\..\Source\RESTful\Server\Janus.Server.DataSnap.pas',
+  Janus.Server.Resource.DataSnap in '..\..\Source\RESTful\Server\Janus.Server.Resource.DataSnap.pas',
+  /// The embedded schema comparator - issue #341, Level 2. One class whose
+  /// only content is a safety default, compiled by none of the seven.
+  Janus.ModelDB.Compare in '..\..\Source\Metadata\Janus.ModelDB.Compare.pas',
+  Janus.Form.Monitor in '..\..\Source\Monitor\Janus.Form.Monitor.pas',
   /// Tests
   Test.Janus.Driver.Register in 'Unit\Core\Test.Janus.Driver.Register.pas',
   Test.Janus.Mapping.Cache   in 'Unit\Core\Test.Janus.Mapping.Cache.pas',
@@ -92,6 +120,11 @@ uses
   Test.Janus.DML.Generator.SQLite in 'Unit\Core\Test.Janus.DML.Generator.SQLite.pas',
   /// The ADS date literal: 'CC' is not a FormatDateTime specifier
   Test.Janus.DML.Generator.ADS in 'Unit\Core\Test.Janus.DML.Generator.ADS.pas',
+  /// The seven distributed generators - issue #341, Level 1
+  Test.Janus.DML.Generator.Distributed in 'Unit\Core\Test.Janus.DML.Generator.Distributed.pas',
+  Test.Janus.Server.DataSnapResource in 'Unit\RESTful\Test.Janus.Server.DataSnapResource.pas',
+  Test.Janus.ModelDB.Compare in 'Unit\Core\Test.Janus.ModelDB.Compare.pas',
+  Test.Janus.Form.Monitor in 'Unit\Core\Test.Janus.Form.Monitor.pas',
   /// An unregistered driver must reach the user as the registry message
   Test.Janus.Command.UnregisteredDriver in 'Unit\Core\Test.Janus.Command.UnregisteredDriver.pas',
   Test.Janus.FluentSQL.Integration in 'Unit\Criteria\Test.Janus.FluentSQL.Integration.pas',
