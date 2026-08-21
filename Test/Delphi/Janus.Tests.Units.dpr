@@ -87,6 +87,14 @@ uses
   Janus.DML.Generator.MongoDB in '..\..\Source\Core\Janus.DML.Generator.MongoDB.pas',
   Janus.DML.Generator.MySQL in '..\..\Source\Core\Janus.DML.Generator.MySQL.pas',
   Janus.DML.Generator.NexusDB in '..\..\Source\Core\Janus.DML.Generator.NexusDB.pas',
+  /// THE DataSnap SERVER PAIR - issue #341, Level 2. Compiled by none of the
+  /// seven, yet #338 argues the crossed client verbs against the method table
+  /// that lives here. Claimed by Test.Janus.Server.DataSnapResource.
+  Janus.Server.DataSnap in '..\..\Source\RESTful\Server\Janus.Server.DataSnap.pas',
+  Janus.Server.Resource.DataSnap in '..\..\Source\RESTful\Server\Janus.Server.Resource.DataSnap.pas',
+  /// The embedded schema comparator - issue #341, Level 2. One class whose
+  /// only content is a safety default, compiled by none of the seven.
+  Janus.ModelDB.Compare in '..\..\Source\Metadata\Janus.ModelDB.Compare.pas',
   /// Tests
   Test.Janus.Driver.Register in 'Unit\Core\Test.Janus.Driver.Register.pas',
   Test.Janus.Mapping.Cache   in 'Unit\Core\Test.Janus.Mapping.Cache.pas',
@@ -113,6 +121,8 @@ uses
   Test.Janus.DML.Generator.ADS in 'Unit\Core\Test.Janus.DML.Generator.ADS.pas',
   /// The seven distributed generators - issue #341, Level 1
   Test.Janus.DML.Generator.Distributed in 'Unit\Core\Test.Janus.DML.Generator.Distributed.pas',
+  Test.Janus.Server.DataSnapResource in 'Unit\RESTful\Test.Janus.Server.DataSnapResource.pas',
+  Test.Janus.ModelDB.Compare in 'Unit\Core\Test.Janus.ModelDB.Compare.pas',
   /// An unregistered driver must reach the user as the registry message
   Test.Janus.Command.UnregisteredDriver in 'Unit\Core\Test.Janus.Command.UnregisteredDriver.pas',
   Test.Janus.FluentSQL.Integration in 'Unit\Criteria\Test.Janus.FluentSQL.Integration.pas',
