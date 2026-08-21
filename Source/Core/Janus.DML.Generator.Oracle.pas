@@ -42,6 +42,24 @@ type
   // Classe de conexao concreta com dbExpress
   TDMLGeneratorOracle = class(TDMLGeneratorAbstract)
   protected
+    /// <summary> Issue #355. THE ONE GENERATOR WHERE THE MISSING WIRING
+    ///  CHANGED THE EMITTED TEXT.
+    ///
+    ///  Of the four statements Janus renders through FluentSQL only the SELECT
+    ///  carries a relation alias, and the alias keyword is the single thing the
+    ///  seven registered serializers do not agree on: Oracle emits none
+    ///  (FluentSQL.SerializeOracle.pas overrides RelationAliasKeyword to '')
+    ///  and every other dialect emits 'AS'. Measured, on the join view of
+    ///  Tmaster:
+    ///     before  ... FROM master INNER JOIN client AS aliastable ON ...
+    ///     after   ... FROM master INNER JOIN client aliastable ON ...
+    ///  Oracle rejects AS in front of a TABLE alias, so every join view this
+    ///  generator built was unparseable by the engine it was built for.
+    ///
+    ///  NOT MEASURED AGAINST A LIVE ORACLE: there is no instance here. What is
+    ///  measured is the text; the keyword rule is FluentSQL's own and is pinned
+    ///  on their side. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
     /// para que um dialeto novo nao herde em silencio o literal de outro.
     function GuidLiteral(const AGuid: TGUID): String; override;
@@ -68,6 +86,11 @@ const
               '   SELECT T.*, ROWNUM AS ROWINI FROM (%s) T';
 
 { TDMLGeneratorOracle }
+
+class function TDMLGeneratorOracle.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnOracle;
+end;
 
 constructor TDMLGeneratorOracle.Create;
 begin

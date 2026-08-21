@@ -191,6 +191,7 @@
         <DCCReference Include="Unit\Middleware\Test.Janus.Middleware.Pipeline.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.DML.Generator.SQLite.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.DML.Generator.ADS.pas"/>
+        <DCCReference Include="Unit\Core\Test.Janus.DML.Dialect.Wiring.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.DML.Generator.Distributed.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Server.DataSnapResource.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.ModelDB.Compare.pas"/>

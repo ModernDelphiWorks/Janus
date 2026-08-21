@@ -42,6 +42,11 @@ type
   // Classe de banco de dados ElevateDB
   TDMLGeneratorElevateDB = class(TDMLGeneratorAbstract)
   protected
+    /// <summary> Issue #355. dbnElevateDB is in the enum and unimplemented -
+    ///  same measurement as the ADS sibling. Answers dbnMSSQL, which is what
+    ///  this generator was already emitting through the enum's zero value, now
+    ///  said out loud. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
     /// para que um dialeto novo nao herde em silencio o literal de outro.
     function GuidLiteral(const AGuid: TGUID): String; override;
@@ -63,6 +68,11 @@ type
 implementation
 
 { TDMLGeneratorElevateDB }
+
+class function TDMLGeneratorElevateDB.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnMSSQL;
+end;
 
 constructor TDMLGeneratorElevateDB.Create;
 begin

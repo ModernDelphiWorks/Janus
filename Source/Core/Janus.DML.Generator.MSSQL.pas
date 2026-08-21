@@ -43,6 +43,12 @@ type
   // Classe de conexao concreta com dbExpress
   TDMLGeneratorMSSql = class(TDMLGeneratorAbstract)
   protected
+    /// <summary> Issue #355. The only generator whose right answer and the
+    ///  enum's zero value are the same value - which is exactly why the defect
+    ///  went unnoticed: the dialect the other generators fell into by accident
+    ///  is this one's by right. Declared anyway, because "it happened to be
+    ///  correct" is not a wiring. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
     /// para que um dialeto novo nao herde em silencio o literal de outro.
     function GuidLiteral(const AGuid: TGUID): String; override;
@@ -64,6 +70,11 @@ type
 implementation
 
 { TDMLGeneratorMSSql }
+
+class function TDMLGeneratorMSSql.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnMSSQL;
+end;
 
 constructor TDMLGeneratorMSSql.Create;
 begin

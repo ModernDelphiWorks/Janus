@@ -43,6 +43,11 @@ type
   // Classe de conexao concreta com dbExpress
   TDMLGeneratorSQLite = class(TDMLGeneratorAbstract)
   protected
+    /// <summary> Issue #355. One of the two generators that already got this
+    ///  right, by a ConfigureFluentSQLDriver call in its constructor. The call
+    ///  is gone: the answer is declared here so that every generator is wired
+    ///  the same way and none of them can be wired twice. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     function GetGeneratorSelect(const ASQL: String; const AOrderBy: String = ''): String; override;
     function GuidLiteral(const AGuid: TGUID): String; override;
   public
@@ -62,10 +67,14 @@ implementation
 
 { TDMLGeneratorSQLite }
 
+class function TDMLGeneratorSQLite.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnSQLite;
+end;
+
 constructor TDMLGeneratorSQLite.Create;
 begin
   inherited;
-  ConfigureFluentSQLDriver(dnSQLite);
   FDateFormat := 'yyyy-MM-dd';
   FTimeFormat := 'HH:MM:SS';
 end;

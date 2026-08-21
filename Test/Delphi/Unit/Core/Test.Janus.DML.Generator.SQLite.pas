@@ -121,6 +121,15 @@ type
   ///  in the FDateFormat mould would have compiled clean, run clean, and
   ///  emitted '1 = 0' again. </summary>
   TDMLGeneratorWithoutGuid = class(TDMLGeneratorAbstract)
+  protected
+    /// Issue #355 made this abstract in the base, and a generator that lives in
+    /// a test answers it like any other. NOT because the build would otherwise
+    /// fail - measured by deleting the NexusDB override: the compile ends at
+    /// exit code 0 and the only complaint is a W1020 that drowns among the 118
+    /// this project already emits, GuidLiteral's included. The failure lands at
+    /// the FIRST CONSTRUCTION, as EAbstractError. Which is exactly why it is
+    /// answered here: this class is constructed, by the clause below.
+    class function SerializationDialect: TFluentSQLDriver; override;
   public
     constructor Create; override;
     function GeneratorSelectAll(AClass: TClass; APageSize: Integer;
@@ -301,10 +310,17 @@ type
   ///  survivors - so each needs a clause of its own, or an inverted condition
   ///  and a wrong message would ship unnoticed.
   ///
-  ///  UseDialect reaches ConfigureFluentSQLDriver, which only the SQLite and
-  ///  Firebird generators call for real; asking for MySQL makes FluentSQL
-  ///  serialize as MySQL, and their MySQL serializer rewrites every ':pN' to
-  ///  '?' (FluentSQL.SerializeMySQL.pas:52), so NOTHING is left to restore.
+  ///  UseDialect reaches ConfigureFluentSQLDriver. THE HALF-SENTENCE THAT USED
+  ///  TO DESCRIBE THAT METHOD IS OUT OF DATE AND IS REPLACED RATHER THAN
+  ///  DELETED: it said ConfigureFluentSQLDriver was what "only the SQLite and
+  ///  Firebird generators call for real", which was true and was the defect
+  ///  issue #355 repaired. Since #355 no generator calls it at all - each one
+  ///  DECLARES its dialect through SerializationDialect and the base
+  ///  constructor does the wiring - and ConfigureFluentSQLDriver survives
+  ///  precisely so that this probe can override the declared dialect at
+  ///  runtime. Asking for MySQL makes FluentSQL serialize as MySQL, and their
+  ///  MySQL serializer rewrites every ':pN' to '?'
+  ///  (FluentSQL.SerializeMySQL.pas:52), so NOTHING is left to restore.
   ///  SpliceWith reaches the splice with a hand-made pair that is not a
   ///  prefix, which their serializer never produces. Descending from the
   ///  SQLite generator rather than from the abstract keeps the probe down to
@@ -1666,10 +1682,14 @@ end;
 
 { TDMLGeneratorWithoutGuid }
 
+class function TDMLGeneratorWithoutGuid.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnSQLite;
+end;
+
 constructor TDMLGeneratorWithoutGuid.Create;
 begin
   inherited;
-  ConfigureFluentSQLDriver(dnSQLite);
   FDateFormat := 'yyyy-MM-dd';
   FTimeFormat := 'HH:MM:SS';
 end;

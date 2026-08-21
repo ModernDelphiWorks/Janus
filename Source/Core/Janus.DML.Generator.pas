@@ -192,8 +192,66 @@ type
     // that rotted, which is why a count is a bad thing to write down.
     FFormatSettings: TFormatSettings;
       FFluentSQLDriver: TFluentSQLDriver;
+      /// <summary> THE DIALECT THIS GENERATOR HANDS TO FluentSQL. Issue #355.
+      ///
+      ///  ABSTRACT, AND THAT IS THE WHOLE REPAIR. The dialect used to be set by
+      ///  a call in the constructor, which meant a descendant could simply not
+      ///  make it - and ten of the fourteen did not. The field they left behind
+      ///  is not empty, it is the ZERO VALUE of TFluentSQLDriver, which is
+      ///  dbnMSSQL: every one of them was asking FluentSQL to serialize as
+      ///  T-SQL without ever saying so.
+      ///
+      ///  WHAT ACTUALLY HAPPENS TO A DESCENDANT THAT STAYS SILENT, MEASURED AND
+      ///  NOT ASSUMED - because "the compiler refuses it" is what an abstract
+      ///  member SOUNDS like and it is not what this build does. Deleting the
+      ///  NexusDB override and building Janus.Tests.Units: EXIT CODE 0, ZERO
+      ///  compile errors, an executable produced. What comes out is one
+      ///  W1020 - "Constructing instance of 'TDMLGeneratorNexusDB' containing
+      ///  abstract method 'TDMLGeneratorAbstract.SerializationDialect'", on the
+      ///  RegisterDriver factory at the foot of that unit - and W1020 is ROUTINE
+      ///  NOISE here: the same build already emits 118 of them, one of which is
+      ///  TDMLGeneratorAbstract.GuidLiteral, the sibling net this design copies.
+      ///  The refusal is at RUNTIME, EAbstractError on the first construction:
+      ///  six clauses errored with "Abstract Error", DialectOf_NexusDB among
+      ///  them.
+      ///
+      ///  THAT IS STILL THE WHOLE POINT, AND IT IS STILL BETTER THAN WHAT IT
+      ///  REPLACES. A silent dbnMSSQL emits plausible SQL forever and nothing
+      ///  says a word; a missing declaration cannot survive one construction,
+      ///  and Test.Janus.DML.Dialect.Wiring gives every generator a clause of
+      ///  its own so the construction happens in the suite.
+      ///
+      ///  AND IT CLOSES THE CLASS ONLY INSIDE TDMLGeneratorAbstract. Every route
+      ///  from THIS tree to a FluentSQL dialect now passes through here. It is
+      ///  not the only route in Janus: Janus.Server.RestView.Manager.pas has a
+      ///  second, independent TDriverName-to-TFluentSQLDriver map that
+      ///  SerializationDialect does not reach.
+      ///
+      ///  Asked as a class function, and answered by the descendant with a
+      ///  constant it already owns: each generator unit names its TDriverName
+      ///  two hundred lines below, at its TDriverRegister.RegisterDriver call.
+      ///  Nothing is inverted - the base asks a question the subclass was
+      ///  already answering somewhere else.
+      ///
+      ///  NOT EVERY GENERATOR CAN NAME ITS OWN ENGINE, AND THE ONES THAT CANNOT
+      ///  SAY WHY IN THEIR OWN OVERRIDE. TFluentSQLDriver has fifteen members
+      ///  and FluentSQL implements seven of them; dbnADS, dbnAbsoluteDB,
+      ///  dbnElevateDB, dbnNexusDB and dbnInterbase have no serializer at all
+      ///  and raise EFluentSQLDriverNotRegistered when asked, and dbnMySQL has
+      ///  one that eats the ':pN' markers Janus depends on. Those overrides
+      ///  answer dbnMSSQL and carry the measurement that says so. </summary>
+      class function SerializationDialect: TFluentSQLDriver; virtual; abstract;
       class function ResolveFluentSQLDriver(
         const AGeneratorDriver: TDriverName): TFluentSQLDriver; static;
+      /// <summary> OVERRIDES THE DECLARED DIALECT AT RUNTIME, AND IS NOT HOW
+      ///  GENERATORS ARE WIRED. Issue #355 moved the wiring into the
+      ///  constructor above; this stayed because the #337 refusal has to be
+      ///  reachable - TDMLGeneratorDialectProbe in
+      ///  Test.Janus.DML.Generator.SQLite pulls it to hand a generator the
+      ///  MySQL dialect and watch GeneratorInsert refuse. Two mechanisms for
+      ///  the same thing is exactly what this issue was about, so this one is
+      ///  named as the lever it is instead of being left to look like the
+      ///  other half of the wiring. </summary>
       procedure ConfigureFluentSQLDriver(const AGeneratorDriver: TDriverName);
       function CreateFluentSQL: IFluentSQL;
       /// <summary> THE RESTORED VALUE REGION, WITH THE VERBATIM TAIL CARRIED OVER
@@ -344,6 +402,11 @@ implementation
 
 constructor TDMLGeneratorAbstract.Create;
 begin
+  /// Issue #355. FIRST LINE OF THE CONSTRUCTOR, AND NOT A CALL A DESCENDANT
+  /// MAKES. SerializationDialect is abstract, so the dispatch here lands on the
+  /// override of the class actually being built - which is why the answer is
+  /// right even though this runs before the descendant constructor body.
+  FFluentSQLDriver := SerializationDialect;
   FQueryCache := TQueryCache.Create;
   // Invariant traz DateSeparator '/' e TimeSeparator ':', que sao exatamente os
   // caracteres que as mascaras dos dialetos ja pressupoem -- por isso o conserto
@@ -1383,14 +1446,24 @@ begin
       /// serializer rewrites every ':pN' to '?' before returning
       /// (FluentSQL.SerializeMySQL.pas:52, a StringReplace over the whole
       /// string), and their UNION merge renumbers ':pN' to ':pM'
-      /// (FluentSQL.Serialize.pas:58-62). Neither reaches Janus TODAY, and the
-      /// reason is itself a defect rather than a design: only two of the twelve
-      /// dialect generators call ConfigureFluentSQLDriver - SQLite and Firebird
-      /// - so every other one renders through the enum's zero value, dbnMSSQL,
-      /// which leaves ':pN' alone. The day somebody repairs THAT, the MySQL
-      /// generator starts serializing as MySQL, and without this count the DML
-      /// of MySQL and MariaDB breaks WITHOUT A WORD. The count has to land
-      /// before the repair, not after it.
+      /// (FluentSQL.Serialize.pas:58-62). Neither reaches Janus TODAY.
+      ///
+      /// THE SENTENCE THAT USED TO FOLLOW IS OUT OF DATE AND IS REPLACED RATHER
+      /// THAN DELETED. It said the reason was "itself a defect rather than a
+      /// design: only two of the twelve dialect generators call
+      /// ConfigureFluentSQLDriver - SQLite and Firebird - so every other one
+      /// renders through the enum's zero value, dbnMSSQL", and it predicted
+      /// that "the day somebody repairs THAT, the MySQL generator starts
+      /// serializing as MySQL, and without this count the DML of MySQL and
+      /// MariaDB breaks WITHOUT A WORD".
+      ///
+      /// THAT DAY WAS ISSUE #355, AND THE PREDICTION WAS RIGHT. The wiring is
+      /// now declared per generator by SerializationDialect, and pointing the
+      /// MySQL one at dbnMySQL was MEASURED to land exactly here: "allocated 2
+      /// bind(s) but only 0 marker(s) could be put back" on GeneratorInsert,
+      /// and 1 of 1 on GeneratorUpdate. Which is why the MySQL generator still
+      /// answers dbnMSSQL and says so in its own override - the count caught
+      /// the repair, the repair did not quietly walk past the count.
       if LWritten <> Length(AMarkers) then
         raise Exception.CreateFmt(
           'The FluentSQL value slot allocated %d bind(s) but only %d marker(s) ' +
