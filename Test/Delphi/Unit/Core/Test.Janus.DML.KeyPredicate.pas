@@ -180,6 +180,26 @@ type
     property nk_id: Integer read Fnk_id write Fnk_id;
   end;
 
+  /// ISSUE #361 - A CLASS THAT MAPS NO PRIMARY KEY AT ALL. Its neighbour
+  /// TNoKeyColsRow declares a [PrimaryKey] whose column string is empty, which
+  /// yields a mapping that is NOT nil; this one declares none, so
+  /// TMappingExplorer.GetMappingPrimaryKey answers nil and the shape falls
+  /// outside both #326 guards. It is a legal entity - nothing in the mapping
+  /// layer requires a key - and reading it as a collection is still fine; only
+  /// asking it for ONE row by id is refused.
+  [Entity]
+  [Table('nokeyatall', '')]
+  TNoPrimaryKeyRow = class
+  private
+    Fnp_id: Integer;
+    Fnp_tag: String;
+  public
+    [Column('np_id', ftInteger)]
+    property np_id: Integer read Fnp_id write Fnp_id;
+    [Column('np_tag', ftString, 20)]
+    property np_tag: String read Fnp_tag write Fnp_tag;
+  end;
+
   [TestFixture]
   TTestDMLKeyPredicate = class
   private
@@ -332,6 +352,16 @@ type
     /// SILENT full-table read. Now it refuses.
     [Test]
     procedure PrimaryKeyWithNoColumns_IsRefusedNotAWholeTableRead;
+    /// ISSUE #361 - THE THIRD MOUTH OF THE SAME HOLE, AND THE ONE #326 LEFT
+    /// OPEN. The two clauses above both reach their guard from INSIDE the
+    /// `if LPrimaryKey <> nil` arm. A class that maps no [PrimaryKey] AT ALL
+    /// never enters that arm: GetGeneratorWhere fell out with the predicate
+    /// still empty and the caller ran its SELECT or DELETE over the whole
+    /// table for a question about one id. Measured by mutation: with the
+    /// refusal disabled and the compiler echoing the tripwire, this is the
+    /// ONLY clause in Units or RESTHorse that dies.
+    [Test]
+    procedure IdAgainstAClassWithNoPrimaryKeyMapping_IsRefusedNotAWholeTableRead;
   end;
 
 implementation
@@ -860,7 +890,25 @@ begin
     'test was written and DELETED because removing it killed nothing.');
 end;
 
+procedure TTestDMLKeyPredicate.
+  IdAgainstAClassWithNoPrimaryKeyMapping_IsRefusedNotAWholeTableRead;
+begin
+  Assert.WillRaise(
+    procedure
+    begin
+      SelectIdSql(dnSQLite, TNoPrimaryKeyRow, TValue.From<Integer>(7));
+    end,
+    Exception,
+    'ISSUE #361: an id was supplied for a class that maps no primary key. ' +
+    'Both #326 guards live INSIDE the  arm, so this ' +
+    'shape walked past them and left the method with an EMPTY predicate - a ' +
+    'SELECT or a DELETE over every row of the table, answered as though it ' +
+    'had located one. Refusing by name is the form the neighbouring guards ' +
+    'already use.');
+end;
+
 initialization
+  TRegisterClass.RegisterEntity(TNoPrimaryKeyRow);
   TRegisterClass.RegisterEntity(TNoKeyColsRow);
   TRegisterClass.RegisterEntity(TDateKeyRow);
   TDUnitX.RegisterTestFixture(TTestDMLKeyPredicate);
