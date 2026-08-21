@@ -96,6 +96,50 @@ type
     function _GetGuidValue(AObject: TObject; AProperty: TRttiProperty): TGUID;
     function _StoreGUIDAsOctet: Boolean;
     procedure _GuardStoreGUIDAsOctet(AProperty: TRttiProperty);
+    /// <summary> THE NAMED BIND MARKER THIS GENERATOR ASKED FOR, PUT BACK OVER
+    ///  THE POSITIONAL :pN THAT THE FLUENTSQL VALUE SLOT ALLOCATES. Issue #337.
+    ///
+    ///  WHAT CHANGED UNDER US. Every SetValue/Values overload of FluentSQL now
+    ///  routes the right-hand side of "COLUMN = ..." through
+    ///  IFluentSQLParams.Add - FluentSQL.pas:827-849 and
+    ///  FluentSQL.Params.pas:109-115 - which names the bind 'p' + ordinal and
+    ///  writes ':pN' into the SQL. That was their repair for an injection they
+    ///  measured in the value slot, and NO overload of theirs carries a
+    ///  fragment through any more. So the two calls this unit makes -
+    ///  Values(col, [':'+col]) and SetValue(col, [':'+col]) - stopped
+    ///  producing "values (:CLIENT_ID, :CLIENT_NAME)" and started producing
+    ///  "values (:p1, :p2)", with the marker TEXT parked as the bind's VALUE.
+    ///
+    ///  WHY THE MARKER HAS TO COME BACK NAMED AND NOT BE CONSUMED POSITIONALLY.
+    ///  Janus binds by NAME: TCommandInserter.GenerateInsert names each TParam
+    ///  after its column (Janus.Command.Inserter.pas:161), and the dataset
+    ///  matches marker to param by that name. Two facts make the positional
+    ///  reading unsafe, and both are measurable in this tree:
+    ///    (a) THE TWO LOOPS DO NOT EMIT THE SAME SET. GeneratorInsert skips a
+    ///        column on four tests; the inserter's loop skips on those four AND
+    ///        on IsJoinColumn (Janus.Command.Inserter.pas:111-112). An ordinal
+    ///        agreed between them would shift every value after the first join
+    ///        column into the wrong slot - silently, since the types usually
+    ///        still fit.
+    ///    (b) THE SQL IS CACHED PER CLASS, THE SKIP SET IS PER INSTANCE.
+    ///        FQueryCache keys on ClassName + '-INSERT' (GeneratorInsert), while
+    ///        IsNullValue is asked of the INSTANCE. A second instance with a
+    ///        different null pattern reuses the first instance's statement.
+    ///        By name that is at worst a spare param; by ordinal it is the
+    ///        wrong column getting the value.
+    ///  So the adoption is: let FluentSQL allocate the bind, then put OUR name
+    ///  back over it. The emitted text is byte-for-byte what this generator
+    ///  emitted before FluentSQL changed, which is why no consumer downstream
+    ///  had to move.
+    ///
+    ///  IT REFUSES RATHER THAN GUESSES. AMarkers is what this unit handed to the
+    ///  value slot, in call order. If the count does not match, or a bind is
+    ///  carrying something this unit did not put there, the rewrite raises: a
+    ///  bind holding REAL data must keep its :pN, because inlining it into the
+    ///  SQL text is the very injection FluentSQL just closed. </summary>
+    function _RestoreNamedPlaceholders(const ASQL: String;
+      const AParams: IFluentSQLParams;
+      const AMarkers: TArray<String>): String;
   protected
     FConnection: IDBConnection;
     FQueryCache: TQueryCache;
@@ -430,6 +474,8 @@ var
   LColumns: TColumnMappingList;
   LSQL: IFluentSQL;
   LKey: String;
+  LMarker: String;
+  LMarkers: TArray<String>;
 begin
   Result := '';
   try
@@ -439,6 +485,7 @@ begin
     LTable := TMappingExplorer.GetMappingTable(AObject.ClassType);
     LColumns := TMappingExplorer.GetMappingColumn(AObject.ClassType);
     LSQL := CreateFluentSQL.Insert.Into(LTable.Name);
+    LMarkers := nil;
     for LColumn in LColumns do
     begin
       try
@@ -451,7 +498,9 @@ begin
           Continue;
         if LColumn.IsNoInsert then
           Continue;
-        LSQL.Values(LColumn.ColumnName, [':' + LColumn.ColumnName]);
+        LMarker := ':' + LColumn.ColumnName;
+        LSQL.Values(LColumn.ColumnName, [LMarker]);
+        LMarkers := LMarkers + [LMarker];
       except
         on E: Exception do
           raise Exception.CreateFmt(
@@ -459,7 +508,10 @@ begin
             [LColumn.ColumnName, AObject.ClassName, E.Message]);
       end;
     end;
-    Result := LSQL.AsString;
+    /// Issue #337. The FluentSQL value slot parameterises; the marker this
+    /// generator asked for is put back over the :pN it allocated. See
+    /// _RestoreNamedPlaceholders for why the ordinal cannot be read directly.
+    Result := _RestoreNamedPlaceholders(LSQL.AsString, LSQL.Params, LMarkers);
     FQueryCache.AddOrSetValue(LKey, Result);
   except
     on E: Exception do
@@ -1122,6 +1174,8 @@ var
   LTable: TTableMapping;
   LSQL: IFluentSQL;
   LColumnName: String;
+  LMarker: String;
+  LMarkers: TArray<String>;
 begin
   Result := '';
   if AModifiedFields.Count = 0 then
@@ -1129,15 +1183,100 @@ begin
   // Varre a lista de campos alterados para montar o UPDATE
   LTable := TMappingExplorer.GetMappingTable(AObject.ClassType);
   LSQL := CreateFluentSQL.Update(LTable.Name);
+  LMarkers := nil;
   for LColumnName in AModifiedFields.Values do
   begin
     // SET Field=Value alterado
     // <exception cref="oTable.Name + '.'"></exception>
-    LSQL.SetValue(LColumnName, [':' + LColumnName]);
+    LMarker := ':' + LColumnName;
+    LSQL.SetValue(LColumnName, [LMarker]);
+    LMarkers := LMarkers + [LMarker];
   end;
+  /// Issue #337. Only the SET slot parameterises: Where(String) is the
+  /// EXPRESSION overload and reaches the SQL verbatim, so the key predicate
+  /// keeps the named marker it always had.
   for LFor := 0 to AParams.Count -1 do
     LSQL.Where(AParams.Items[LFor].Name + ' = :' + AParams.Items[LFor].Name);
-  Result := LSQL.AsString;
+  Result := _RestoreNamedPlaceholders(LSQL.AsString, LSQL.Params, LMarkers);
+end;
+
+function TDMLGeneratorAbstract._RestoreNamedPlaceholders(const ASQL: String;
+  const AParams: IFluentSQLParams;
+  const AMarkers: TArray<String>): String;
+var
+  LMap: TDictionary<String, String>;
+  LFor: Integer;
+  LBound: String;
+  LPos: Integer;
+  LStart: Integer;
+  LStop: Integer;
+  LLength: Integer;
+  LName: String;
+  LMarker: String;
+  LBuilder: TStringBuilder;
+begin
+  Result := ASQL;
+  if Length(AMarkers) = 0 then
+    Exit;
+  if AParams = nil then
+    LFor := -1
+  else
+    LFor := AParams.Count;
+  if LFor <> Length(AMarkers) then
+    raise Exception.CreateFmt(
+      'Janus asked the FluentSQL value slot for %d bind(s) and it allocated %d. ' +
+      'Issue #337: the named marker can only be restored over binds this ' +
+      'generator itself created. SQL=[%s]',
+      [Length(AMarkers), LFor, ASQL]);
+  LMap := TDictionary<String, String>.Create;
+  try
+    for LFor := 0 to AParams.Count - 1 do
+    begin
+      LBound := VarToStr(AParams[LFor].Value);
+      if LBound <> AMarkers[LFor] then
+        raise Exception.CreateFmt(
+          'Bind [%s] of the FluentSQL value slot carries [%s] and this ' +
+          'generator put [%s] there. Issue #337: a bind holding REAL data keeps ' +
+          'its :pN - inlining it into the SQL text is the injection FluentSQL ' +
+          'closed. SQL=[%s]',
+          [AParams[LFor].Name, LBound, AMarkers[LFor], ASQL]);
+      LMap.AddOrSetValue(AParams[LFor].Name, AMarkers[LFor]);
+    end;
+    /// ONE left-to-right pass, never a ReplaceStr sweep. A sweep of ':p1' would
+    /// also eat the head of ':p10', and a marker written back could itself be
+    /// re-read by a later pass if a column happened to be called P1. Emitting
+    /// into a builder means what is written is never scanned again.
+    LBuilder := TStringBuilder.Create;
+    try
+      LLength := Length(ASQL);
+      LPos := 1;
+      while LPos <= LLength do
+      begin
+        if ASQL[LPos] <> ':' then
+        begin
+          LBuilder.Append(ASQL[LPos]);
+          Inc(LPos);
+          Continue;
+        end;
+        LStart := LPos + 1;
+        LStop := LStart;
+        while (LStop <= LLength) and
+              CharInSet(ASQL[LStop], ['A'..'Z', 'a'..'z', '0'..'9', '_']) do
+          Inc(LStop);
+        LName := Copy(ASQL, LStart, LStop - LStart);
+        if (LName <> '') and LMap.TryGetValue(LName, LMarker) then
+          LBuilder.Append(LMarker)
+        else
+          LBuilder.Append(Copy(ASQL, LPos, LStop - LPos));
+        LPos := LStop;
+      end;
+      Result := LBuilder.ToString;
+    finally
+      LBuilder.Free;
+    end;
+  finally
+    LMap.Free;
+  end;
 end;
 
 class function TDMLGeneratorAbstract.ResolveFluentSQLDriver(

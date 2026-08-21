@@ -17,8 +17,19 @@
     so that tree never exists and those entries are dead weight.
     The actual dependency sources live as sibling checkouts under .modules/
     (MetaDbDiff, DataEngine, JsonFlow, ModernSyntax, Horse), plus a FluentSQL
-    PIN worktree (.modules/_wt-fluentsql-pin265) that must win over the plain
-    .modules/FluentSQL checkout, which is missing 4 drivers.
+    PIN worktree (.modules/_wt-fluentsql-pin265) prepended so it wins over the
+    plain .modules/FluentSQL checkout.
+
+    THE REASON WRITTEN HERE FOR THAT PIN IS NO LONGER TRUE. It said
+    .modules/FluentSQL "is missing 4 drivers"; their PR #180 put all four enum
+    members back, so TFluentSQLDriver has its 15 again
+    (FluentSQL.Interfaces.pas:57-59, HEAD 9476416). Test/Delphi went further
+    and RETIRED the pin in issue #337 — see the $PinRel box in
+    Test/Delphi/Tools/compile-coverage-census.ps1, where dropping it is
+    measured 7/7. THIS GATE WAS NOT RE-MEASURED WITHOUT THE PIN, so the
+    prepend stays rather than being dropped on evidence gathered next door.
+    Whoever measures the Examples without it deletes this paragraph and the
+    $PinRel parameter together.
     This script adds those sibling paths, always RELATIVE to each .dproj's
     own directory (never absolute — msbuild's targets repeat the search path
     across -U/-I/-O/-R, and an absolutized ~26-entry list on a long checkout

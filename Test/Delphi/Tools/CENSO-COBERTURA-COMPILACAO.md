@@ -142,7 +142,7 @@ Nada em `Source/`, `.dpr` ou `.dproj` foi alterado **por aquela medição**.
 | **Commit medido** | `0546a51b42eb97d3f882c9725ac98288e4420d78` (`0546a51`, merge do PR #336) |
 | **Data da medição** | 12 ago 2026 |
 | **Compilador** | RAD Studio 37.0, `Win32` / `Debug` |
-| **Pin obrigatório** | FluentSQL em `..\..\..\_wt-fluentsql-pin265\Source\{Core,Drivers}` — **por quê, medido na #341: ver a caixa da segunda medição.** Não é "senão não compila" |
+| **Pin ~~obrigatório~~ — APOSENTADO** | Esta medição usou FluentSQL em `..\..\..\_wt-fluentsql-pin265\Source\{Core,Drivers}`. **O pin não é mais necessário e não funciona mais**: a issue **#337** o aposentou e o default de `$PinRel` no script passou a ser vazio. As duas justificativas dele caíram uma de cada vez — "senão não compila" na #341, "load-bearing em runtime, 61 verdes viram vermelhas" na #337, que é onde essas 61 foram consertadas. Números e mecanismo na caixa de `$PinRel` em `compile-coverage-census.ps1` |
 | **Script que regenera tudo** | `Test/Delphi/Tools/compile-coverage-census.ps1` |
 | **Matriz completa 136 × 7** | `Test/Delphi/Tools/census-matrix-0546a51.csv` |
 
