@@ -354,7 +354,12 @@ var
   LSQL: String;
 begin
   LSQL := TCQ(dbnSQLite).Select('*').From('clientes').Where('telefone').IsNull.AsString;
-  Assert.Contains(LSQL, 'IS NULL');
+  // Issue #293: was 'IS NULL' - FluentSQL renders this predicate lower-case
+  // ('is null'), unlike the structural keywords (SELECT/FROM/WHERE) it
+  // renders upper-case. The mixed-case literal only ever passed because the
+  // suite compared case-insensitively by default; the actual, current output
+  // is lower-case, confirmed by running this fixture.
+  Assert.Contains(LSQL, 'is null');
 end;
 
 procedure TTestFluentSQLIntegration.TestWhereIsNotNull_SerializesPredicate;
@@ -362,7 +367,9 @@ var
   LSQL: String;
 begin
   LSQL := TCQ(dbnSQLite).Select('*').From('clientes').Where('telefone').IsNotNull.AsString;
-  Assert.Contains(LSQL, 'IS NOT NULL');
+  // Issue #293: was 'IS NOT NULL' - same lower-case predicate convention as
+  // TestWhereIsNull_SerializesPredicate above.
+  Assert.Contains(LSQL, 'is not null');
 end;
 
 procedure TTestFluentSQLIntegration.TestWhereLikeFull_SerializesPredicate;
@@ -373,7 +380,12 @@ begin
   LCQ := TCQ(dbnSQLite).Select('*').From('clientes').Where('nome').LikeFull('ana');
   LSQL := LCQ.AsString;
 
-  Assert.Contains(LSQL, 'LIKE');
+  // Issue #293: was 'LIKE' - FluentSQL renders the LIKE predicate lower-case
+  // ('like'), same convention as IS NULL/IS NOT NULL above. The very next
+  // assertion already spelled it lower-case ('nome like :p1'), so this one
+  // was internally inconsistent with itself and only passed under the
+  // default case-insensitive comparison.
+  Assert.Contains(LSQL, 'like');
   Assert.Contains(LSQL, 'nome like :p1',
     'the predicate must be bound to a placeholder, not to an inlined literal');
   Assert.DoesNotContain(LSQL, '%ana%',
@@ -392,7 +404,8 @@ begin
   LCQ := TCQ(dbnSQLite).Select('*').From('clientes').Where('nome').LikeLeft('ana');
   LSQL := LCQ.AsString;
 
-  Assert.Contains(LSQL, 'LIKE');
+  // Issue #293: was 'LIKE' - see TestWhereLikeFull_SerializesPredicate above.
+  Assert.Contains(LSQL, 'like');
   Assert.Contains(LSQL, 'nome like :p1',
     'the predicate must be bound to a placeholder, not to an inlined literal');
   Assert.DoesNotContain(LSQL, '%ana',
@@ -410,7 +423,8 @@ begin
   LCQ := TCQ(dbnSQLite).Select('*').From('clientes').Where('nome').LikeRight('ana');
   LSQL := LCQ.AsString;
 
-  Assert.Contains(LSQL, 'LIKE');
+  // Issue #293: was 'LIKE' - see TestWhereLikeFull_SerializesPredicate above.
+  Assert.Contains(LSQL, 'like');
   Assert.Contains(LSQL, 'nome like :p1',
     'the predicate must be bound to a placeholder, not to an inlined literal');
   Assert.DoesNotContain(LSQL, 'ana%',
@@ -655,7 +669,11 @@ var
   LSQL: String;
 begin
   LSQL := TCQ(dbnSQLite).Select('nome').Upper.Alias('nome_upper').From('clientes').AsString;
-  Assert.Contains(LSQL, 'Upper(');
+  // Issue #293: was 'Upper(' - FluentSQL renders the SQL function name
+  // upper-case ('UPPER('), the same convention as COUNT(*) in
+  // TestCriteria_GroupBy_WithColumn. Confirmed by running this fixture:
+  // actual output is 'SELECT UPPER(nome) AS nome_upper FROM clientes'.
+  Assert.Contains(LSQL, 'UPPER(');
   Assert.Contains(LSQL, 'AS nome_upper');
 end;
 

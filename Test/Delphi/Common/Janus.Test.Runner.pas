@@ -65,6 +65,19 @@ var
   LRunStartTime: TDateTime;
 begin
   Result := EXIT_FAILURE;
+  // Issue #293: DUnitX.Assert.pas:1368 defaults fIgnoreCaseDefault to True in
+  // its class constructor, which makes every Assert.AreEqual/AreNotEqual/
+  // Contains/DoesNotContain/StartsWith/EndsWith call on Strings compare
+  // case-insensitively unless the call sets ignoreCase explicitly. A pure
+  // case mutation in production (e.g. a codegen template emitting
+  // LowerCase(LValue) instead of LValue) can then pass the whole suite
+  // silently. Setting the default to False here, once, for all seven test
+  // executors (they all route through TJanusTestRunner.Execute) makes case
+  // matter by default across the suite, matching the repo convention that
+  // callers who genuinely do not care about case say so explicitly (e.g.
+  // Assert.Contains(LowerCase(LSQL), ...) in
+  // Test.Janus.FluentSQL.Integration.pas).
+  Assert.IgnoreCaseDefault := False;
   try
     LRunStartTime := Now;
     TDUnitX.CheckCommandLine;
