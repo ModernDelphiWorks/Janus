@@ -159,6 +159,13 @@
         <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.ADS.pas"/>
         <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.MSSQL.pas"/>
         <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.PostgreSQL.pas"/>
+        <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.AbsoluteDB.pas"/>
+        <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.ElevateDB.pas"/>
+        <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.InterBase.pas"/>
+        <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.NoSQL.pas"/>
+        <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.MongoDB.pas"/>
+        <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.MySQL.pas"/>
+        <DCCReference Include="..\..\Source\Core\Janus.DML.Generator.NexusDB.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Driver.Register.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Mapping.Cache.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.RTTI.Singleton.pas"/>
@@ -180,6 +187,7 @@
         <DCCReference Include="Unit\Middleware\Test.Janus.Middleware.Pipeline.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.DML.Generator.SQLite.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.DML.Generator.ADS.pas"/>
+        <DCCReference Include="Unit\Core\Test.Janus.DML.Generator.Distributed.pas"/>
         <DCCReference Include="Unit\Core\Test.Janus.Command.UnregisteredDriver.pas"/>
         <DCCReference Include="Unit\Criteria\Test.Janus.FluentSQL.Integration.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.REST.QueryParse.pas"/>
