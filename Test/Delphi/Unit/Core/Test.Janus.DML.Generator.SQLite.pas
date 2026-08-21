@@ -30,6 +30,8 @@ uses
   StrUtils,
   Generics.Collections,
   DUnitX.TestFramework,
+  FluentSQL,
+  FluentSQL.Interfaces,
   DataEngine.FactoryInterfaces,
   MetaDbDiff.Mapping.Attributes,
   MetaDbDiff.Mapping.Classes,
@@ -266,6 +268,32 @@ type
     [Column('w12', ftInteger)] property w12: Integer read Fw12 write Fw12;
   end;
 
+  /// <summary> A KEY COLUMN NAMED LIKE A FLUENTSQL PLACEHOLDER. Issue #337.
+  ///
+  ///  The SET slot is parameterised and comes back as ':p1'; the key predicate
+  ///  is written VERBATIM by GeneratorUpdate through the Where(String)
+  ///  overload, so a key column called `p1` puts a SECOND ':p1' into the very
+  ///  same statement - and the two are indistinguishable as text.
+  ///
+  ///  There is nothing exotic about the name: p1 is a legal identifier in
+  ///  every engine Janus speaks, and this entity is otherwise the plainest one
+  ///  that can be written. The trigger is a lowercase key named p&lt;N&gt; with
+  ///  N no greater than the number of columns in the SET. </summary>
+  [Entity]
+  [Table('r337pk', '')]
+  [PrimaryKey('p1', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'Primary key')]
+  TPlaceholderNamedKey = class
+  private
+    Fp1: Integer;
+    Fnm: String;
+  public
+    [Column('p1', ftInteger)]
+    property p1: Integer read Fp1 write Fp1;
+    [Column('nm', ftString, 20)]
+    property nm: String read Fnm write Fnm;
+  end;
+
   [TestFixture]
   TTestDMLGenerator = class
   private
@@ -344,6 +372,11 @@ type
     procedure TestGenerateInsert_TwelveColumns_EveryMarkerLandsInItsOwnSlot;
     [Test]
     procedure TestGenerateUpdate_TwelveFields_EveryMarkerLandsInItsOwnSlot;
+    // Issue #337 - see the TPlaceholderNamedKey summary.
+    [Test]
+    procedure TestGenerateUpdate_AKeyNamedLikeAPlaceholder_KeepsItsOwnMarker;
+    [Test]
+    procedure FluentSQLRendersTheValueRegionAsAPrefixOfTheWholeUpdate;
     [Test]
     procedure TestGenerateNextPacket_UsesSqlitePagination;
     [Test]
@@ -1328,6 +1361,64 @@ begin
   end;
 end;
 
+procedure TTestDMLGenerator.TestGenerateUpdate_AKeyNamedLikeAPlaceholder_KeepsItsOwnMarker;
+var
+  LChanges: TDictionary<String, String>;
+  LRow: TPlaceholderNamedKey;
+  LUpdater: TCommandUpdater;
+  LSQL: String;
+begin
+  LChanges := TDictionary<String, String>.Create;
+  LRow := TPlaceholderNamedKey.Create;
+  try
+    LRow.p1 := 7;
+    LRow.nm := 'NEWNAME';
+    LChanges.Add('nm', 'nm');
+    LUpdater := TCommandUpdater.Create(FConnection, dnSQLite, LRow);
+    try
+      LSQL := LowerCase(LUpdater.GenerateUpdate(LRow, LChanges));
+      /// The SET slot took bind p1, so the statement carries TWO ':p1' before
+      /// the rewrite. The key predicate is Janus's own verbatim text and must
+      /// come out untouched; rewriting it points the lookup at the new NAME.
+      Assert.Contains(LSQL, 'where p1 = :p1',
+        'the key predicate is verbatim text and must keep its own marker');
+      Assert.DoesNotContain(LSQL, 'where p1 = :nm',
+        'the key would be compared against the new value of another column');
+      Assert.Contains(LSQL, 'nm = :nm',
+        'the SET slot still carries the marker of its own column');
+    finally
+      LUpdater.Free;
+    end;
+  finally
+    LRow.Free;
+    LChanges.Free;
+  end;
+end;
+
+/// <summary> THE PROPERTY OF THEIR SERIALIZER THAT GeneratorUpdate LEANS ON.
+///  Issue #337. The generator renders the UPDATE once BEFORE the key predicate
+///  exists, to get the value region with no SQL parsing and no guess about
+///  where SET ends, and then carries the tail of the finished statement over
+///  untouched. That splice is only sound while the first render is a PREFIX of
+///  the second - which is FluentSQL's behaviour, not ours, so it is pinned here
+///  instead of assumed in a comment. The generator also re-checks it on every
+///  call and refuses by name if it breaks; this clause is what makes the break
+///  show up as one red test rather than as every UPDATE in the suite. </summary>
+procedure TTestDMLGenerator.FluentSQLRendersTheValueRegionAsAPrefixOfTheWholeUpdate;
+var
+  LCQ: IFluentSQL;
+  LBefore, LAfter: String;
+begin
+  LCQ := TCQ(dbnSQLite).Update('r337pk');
+  LCQ.SetValue('nm', [':nm']);
+  LBefore := LCQ.AsString;
+  LCQ.Where('p1 = :p1');
+  LAfter := LCQ.AsString;
+  Assert.AreEqual(LBefore, Copy(LAfter, 1, Length(LBefore)),
+    Format('the value region must be a prefix of the whole statement: ' +
+           'before=[%s] whole=[%s]', [LBefore, LAfter]));
+end;
+
 procedure TTestDMLGenerator.TestGenerateNextPacket_UsesSqlitePagination;
 var
   LClient: Tclient;
@@ -1974,5 +2065,6 @@ initialization
   TRegisterClass.RegisterEntity(TNullableGuidChild);
   TRegisterClass.RegisterEntity(TNullableGuidMaster);
   TRegisterClass.RegisterEntity(TWideSlot);
+  TRegisterClass.RegisterEntity(TPlaceholderNamedKey);
 
 end.

@@ -476,7 +476,10 @@ end;
 //
 // FluentSQL fixed it. Exists/NotExists are now the EXPRESSION slot: the operand
 // is a SUBQUERY and goes in verbatim between parentheses, with no bind -- the
-// contract written out at FluentSQL.Interfaces.pas:526-537 (HEAD 9476416).
+// contract written out at FluentSQL.Interfaces.pas:528-548 for Exists and
+// :549-554 for NotExists (HEAD 9476416). An earlier draft of this box cited
+// :526-537; :526-527 close the doc of NotIn(String) and declare it, so that
+// citation opened two lines inside the WRONG member.
 // The old assertions were red against that HEAD before this pair was written:
 //   [SELECT * FROM clientes WHERE (exists (SELECT 1 FROM pedidos))]
 //     does not contain [exists :p1]

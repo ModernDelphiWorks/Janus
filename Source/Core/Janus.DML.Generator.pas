@@ -125,12 +125,34 @@ type
     ///        FQueryCache keys on ClassName + '-INSERT' (GeneratorInsert), while
     ///        IsNullValue is asked of the INSTANCE. A second instance with a
     ///        different null pattern reuses the first instance's statement.
-    ///        By name that is at worst a spare param; by ordinal it is the
-    ///        wrong column getting the value.
+    ///  DO NOT READ (b) AS "BY NAME IT IS HARMLESS". By name it is still wrong,
+    ///  in BOTH directions, and an earlier version of this paragraph said "at
+    ///  worst a spare param", which is an understatement of one of the two:
+    ///        wide first, then narrow -> the cached statement names a marker the
+    ///          narrow instance never binds: a MARKER WITH NO BIND;
+    ///        narrow first, then wide  -> the cached statement has no slot for a
+    ///          column the wide instance does bind: A COLUMN SILENTLY LOST.
+    ///  What (b) establishes is only the COMPARISON: by name the damage is one
+    ///  of those two and it is visible at the marker; by ordinal it is the
+    ///  wrong column quietly receiving another column's value, which nothing
+    ///  downstream can notice.
+    ///  THE CACHE-VERSUS-NULLS DEFECT IS PRE-EXISTING AND IS NOT REPAIRED HERE.
+    ///  It predates this rewrite and is untouched by it: the cache hit returns
+    ///  before any of this runs (GeneratorInsert, the TryGetValue/Exit pair),
+    ///  so the restore is not even on that path. Registered as a finding for
+    ///  the owner to rule on, not fixed in passing.
     ///  So the adoption is: let FluentSQL allocate the bind, then put OUR name
     ///  back over it. The emitted text is byte-for-byte what this generator
     ///  emitted before FluentSQL changed, which is why no consumer downstream
     ///  had to move.
+    ///
+    ///  ASQL IS THE VALUE REGION ONLY - NEVER A WHOLE UPDATE. Only ':pN' may
+    ///  appear in what this scans, because the value slot takes the marker as a
+    ///  bind VALUE and never as text. A whole UPDATE also carries the key
+    ///  predicate, which GeneratorUpdate writes VERBATIM, and a key column
+    ///  named `p1` is then textually indistinguishable from the bind FluentSQL
+    ///  allocated - see the box in GeneratorUpdate for the measured corruption
+    ///  and for how the two regions are told apart.
     ///
     ///  IT REFUSES RATHER THAN GUESSES. AMarkers is what this unit handed to the
     ///  value slot, in call order. If the count does not match, or a bind is
@@ -1176,6 +1198,8 @@ var
   LColumnName: String;
   LMarker: String;
   LMarkers: TArray<String>;
+  LValueRegion: String;
+  LWhole: String;
 begin
   Result := '';
   if AModifiedFields.Count = 0 then
@@ -1192,12 +1216,45 @@ begin
     LSQL.SetValue(LColumnName, [LMarker]);
     LMarkers := LMarkers + [LMarker];
   end;
-  /// Issue #337. Only the SET slot parameterises: Where(String) is the
-  /// EXPRESSION overload and reaches the SQL verbatim, so the key predicate
-  /// keeps the named marker it always had.
+  /// THE STATEMENT IS RENDERED HERE, BEFORE THE KEY PREDICATE EXISTS, AND THAT
+  /// IS THE WHOLE POINT. Issue #337.
+  ///
+  /// Where(String) is the EXPRESSION overload: it allocates no bind and the
+  /// text reaches the SQL verbatim - which is right, because the key predicate
+  /// is Janus's own marker and has to stay named. But it means the finished
+  /// statement carries TWO KINDS of ':' token that are indistinguishable as
+  /// text: the ':pN' FluentSQL allocated for the SET slot, and whatever
+  /// ':column' this loop wrote. A key column called `p1` collides head-on -
+  /// measured, before this split existed:
+  ///     UPDATE r337pk SET nm = :nm WHERE p1 = :nm
+  /// The key was compared against the NEW VALUE OF ANOTHER COLUMN, the p1 bind
+  /// was left orphaned, and nothing raised: the update reaches zero rows, or
+  /// the wrong ones. `p1` is a legal identifier in every engine Janus speaks.
+  ///
+  /// So the rewrite is never allowed to see the predicate. Rendering before
+  /// the Where gives the value region EXACTLY as FluentSQL spells it, with no
+  /// SQL parsing and no guess about where SET ends: only ':pN' can appear in
+  /// it, because SetValue puts the marker in as a bind VALUE and never as
+  /// text. The tail is then carried over untouched.
+  ///
+  /// THAT THE FIRST RENDER IS A PREFIX OF THE SECOND IS MEASURED, NOT ASSUMED
+  /// - by FluentSQLRendersTheValueRegionAsAPrefixOfTheWholeUpdate in
+  /// Test.Janus.DML.Generator.SQLite - and it is CHECKED again below on every
+  /// call, because it is a property of THEIR serializer and not of ours. If it
+  /// ever stops holding, this refuses by name rather than splicing two strings
+  /// that no longer line up.
+  LValueRegion := LSQL.AsString;
   for LFor := 0 to AParams.Count -1 do
     LSQL.Where(AParams.Items[LFor].Name + ' = :' + AParams.Items[LFor].Name);
-  Result := _RestoreNamedPlaceholders(LSQL.AsString, LSQL.Params, LMarkers);
+  LWhole := LSQL.AsString;
+  if Copy(LWhole, 1, Length(LValueRegion)) <> LValueRegion then
+    raise Exception.CreateFmt(
+      'The FluentSQL UPDATE no longer starts with what it rendered before the ' +
+      'key predicate was added, so the value region cannot be told from the ' +
+      'verbatim one. Issue #337. before=[%s] whole=[%s]',
+      [LValueRegion, LWhole]);
+  Result := _RestoreNamedPlaceholders(LValueRegion, LSQL.Params, LMarkers) +
+            Copy(LWhole, Length(LValueRegion) + 1, MaxInt);
 end;
 
 function TDMLGeneratorAbstract._RestoreNamedPlaceholders(const ASQL: String;
