@@ -82,6 +82,8 @@ uses
   /// Models
   MetaDbDiff.Mapping.Register,
   Test.Janus.Model.AsymKey in 'Common\Test.Janus.Model.AsymKey.pas',
+  /// The three level model with a to-ONE root - issue #312 needs that shape
+  Test.Janus.Model.AsymTree in 'Common\Test.Janus.Model.AsymTree.pas',
   Test.Janus.Model.AutoIncTree in 'Common\Test.Janus.Model.AutoIncTree.pas',
   /// A root whose key comes from the CLIENT over a child whose key comes from
   /// the SERVER - the only shape in the repository that reaches the third door
@@ -137,6 +139,8 @@ uses
   Test.Janus.Rest.CompositeKeyReReadGate in 'Unit\RESTful\Test.Janus.Rest.CompositeKeyReReadGate.pas',
   /// The OBJECT half of the same family: the insert answer carries the key the
   /// server generated, and TRESTObjectSetAdapter never read it - issue #301
+  /// Whether the client reconciles the key of EVERY row the insert wrote - issue #312
+  Test.Janus.Rest.GraphInsertEntities in 'Unit\RESTful\Test.Janus.Rest.GraphInsertEntities.pas',
   Test.Janus.Rest.ObjectSetInsertKey in 'Unit\RESTful\Test.Janus.Rest.ObjectSetInsertKey.pas',
   /// What Insert does when the happy path does NOT happen: a connection that
   /// raises instead of answering, whose finally then freed a local that was

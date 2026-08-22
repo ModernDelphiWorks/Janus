@@ -83,6 +83,8 @@ uses
   Test.Janus.Model.KeyTypes in 'Common\Test.Janus.Model.KeyTypes.pas',
   /// The one shape that reaches an EMPTY Variant — issue #311
   Test.Janus.Model.KeyTypeDecoy in 'Common\Test.Janus.Model.KeyTypeDecoy.pas',
+  /// Whether the insert response says the key of EVERY row it wrote — issue #312
+  Test.Janus.Server.Resource.InsertEntities in 'RESTHorse\Test.Janus.Server.Resource.InsertEntities.pas',
   /// Whether the insert response quotes the key it carries back — issue #311
   Test.Janus.Server.Resource.KeyQuoting in 'RESTHorse\Test.Janus.Server.Resource.KeyQuoting.pas',
   Test.Janus.Server.IdSentinelCollision in 'RESTHorse\Test.Janus.Server.IdSentinelCollision.pas',

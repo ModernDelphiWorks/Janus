@@ -92,6 +92,7 @@
         </DelphiCompile>
         <DCCReference Include="Common\Janus.Test.Runner.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AsymKey.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.AsymTree.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.AutoIncTree.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.ClientKeyRoot.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.CompositeAutoInc.pas"/>
@@ -112,6 +113,7 @@
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.ReReadAfterInsert.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.CompositeKeyReReadGate.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.ResultParamsCompositeKey.pas"/>
+        <DCCReference Include="Unit\RESTful\Test.Janus.Rest.GraphInsertEntities.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.ObjectSetInsertKey.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.InsertAnswerRobustness.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.OpenIdPopulates.pas"/>

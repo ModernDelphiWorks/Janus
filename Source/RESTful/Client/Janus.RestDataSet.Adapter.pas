@@ -459,6 +459,36 @@ begin
             LNoSequenceStale := False;
             if FSession.ExistSequence then
             begin
+              // ISSUE #312 - ESTA FAMILIA NAO LE `entities`, E ISSO E UMA
+              // DECLARACAO E NAO UM ESQUECIMENTO.
+              //
+              // A resposta do insert ganhou uma chave IRMA de `params` que
+              // nomeia a chave gerada de CADA linha gravada, cada uma com o
+              // CAMINHO do objeto dono - `mids[0].leafs[1]`. O leitor daquilo
+              // e TRESTObjectSetAdapter<M>._ApplyGeneratedKeysToGraph, e ele
+              // navega um GRAFO DE OBJETOS: resolve cada segmento contra o
+              // mapeamento de associacao e escreve numa TRttiProperty tipada.
+              //
+              // Aqui nao ha grafo de objetos. Ha um cursor sobre um dataset
+              // filtrado, masters e detalhes em datasets separados amarrados
+              // por FMasterObject, e uma linha por vez - `mids[0]` nao e um
+              // endereco que este lado saiba resolver. As duas familias nao
+              // tem ancestral comum (TDataSetAbstract<M> e TObjectSetAbstract<M>
+              // sao ambos `class abstract` sem pai), entao nao ha leitor unico
+              // a compartilhar: seria um leitor por familia de qualquer jeito.
+              //
+              // E ESTA FAMILIA JA TEM UMA RESPOSTA PROPRIA PARA A MESMA
+              // PERGUNTA: a re-leitura da #297, logo abaixo, que traz o grafo
+              // do servidor depois de gravar. Trocar ou empilhar uma segunda em
+              // cima dela e uma decisao sobre o produto e nao sobre este
+              // conserto.
+              //
+              // O QUE SIM E GARANTIDO AQUI, e medido: nada de `entities` entra
+              // em FResultParams, entao o laco abaixo - que escreve QUALQUER
+              // campo que a resposta nomeie, valendo o ULTIMO - nao pode ter o
+              // comportamento alterado por ela. Ver
+              // Test.Janus.Rest.CompositeKeyReReadGate,
+              // Entities_AChildKeyNamedLikeTheRootsDoesNotReachTheRootRow.
               if FSession.ResultParams.Count > 0 then
               begin
                 for LFor := 0 to FSession.ResultParams.Count -1 do

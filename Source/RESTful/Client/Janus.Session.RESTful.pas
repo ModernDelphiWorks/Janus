@@ -395,6 +395,11 @@ var
   LValuesObject: TJSONObject;
   LFor: Integer;
   LPar: Integer;
+  // ISSUE #312
+  LEntitiesArray: TJSONArray;
+  LEntityObject: TJSONObject;
+  LKeysObject: TJSONObject;
+  LEntity: TInsertedEntity;
 begin
   // ISSUE #313 - O `finally` LIA ESTE LOCAL SEM ELE TER SIDO ATRIBUIDO.
   // TJSONObject e tipo NAO GERENCIADO, e Delphi nao zera local desses. A
@@ -444,10 +449,79 @@ begin
                                      FConnection.AddBodyParam(LJSON);
                                    end);
     FResultParams.Clear;
+    // ISSUE #312 - a lista IRMA e limpa junto, no mesmo ponto e pelo mesmo
+    // motivo: o estado e DESTA gravacao e nao da anterior.
+    FResultEntities.Clear;
     // Gera lista de params com o retorno, se existir o elemento "params" no JSON.
     LParamsObject := TJanusJson.JSONStringToJSONObject(LResult);
     if LParamsObject = nil then
       Exit;
+
+    // ISSUE #312 - `entities` E LIDO ANTES DE `params`, E A ORDEM E DELIBERADA.
+    // Tudo o que vem depois desta secao e o leitor de `params`, e ele sai por
+    // `Exit` em duas formas de resposta - `params` ausente e `params` de tipo
+    // errado. Ler `entities` DEPOIS disso jogaria fora a chave de todo o grafo
+    // por causa de um defeito numa chave IRMA que nada tem com ela. As duas
+    // chaves sao independentes na resposta e sao lidas de forma independente
+    // aqui.
+    //
+    // NENHUMA ENTRADA DE `entities` ENTRA EM FResultParams, e essa e a trava
+    // que a issue #312 pede por escrito. FResultParams e uma lista PLANA sem
+    // dono com dois leitores que discordam sobre nome repetido:
+    // TRESTObjectSetAdapter<M>._SetGeneratedKeyValue casa por nome de
+    // PROPRIEDADE e o PRIMEIRO que casa decide, enquanto
+    // TRESTDataSetAdapter<M>.ApplyInserter escreve QUALQUER campo que a
+    // resposta nomeie e o ULTIMO vence. Se a chave de um filho chamado como a
+    // da raiz entrasse ali, a familia DataSet SOBRESCREVERIA a chave da raiz -
+    // silenciosamente. Por isso a estrutura e outra, e por isso `params` nao
+    // ganhou entradas.
+    //
+    // FORMA ESPERADA DE CADA ELEMENTO:
+    //   {"path":"mids[0].leafs[1]","class":"TAitLeaf","keys":{"leaf_id":9}}
+    // `path` VAZIO e a raiz. Ver _CollectInsertedEntities em
+    // Janus.Server.Resource.pas para o produtor e para o porque do caminho.
+    //
+    // A GUARDA E POR TIPO E CADA ELEMENTO E INDEPENDENTE, como no laco de
+    // `params` logo abaixo (issue #315): um elemento malformado nao diz nada
+    // sobre os irmaos dele, entao e pulado e os bons sao lidos. `nil is
+    // TJSONArray` e False, entao a chave AUSENTE - toda resposta anterior a
+    // esta issue, e as quatro escritas a mao em Examples\Delphi\RESTful - sai
+    // por aqui sem escrever nada e o cliente se comporta exatamente como antes.
+    if LParamsObject.Values['entities'] is TJSONArray then
+    begin
+      LEntitiesArray := TJSONArray(LParamsObject.Values['entities']);
+      for LFor := 0 to LEntitiesArray.Count -1 do
+      begin
+        if not (LEntitiesArray.Items[LFor] is TJSONObject) then
+          Continue;
+        LEntityObject := TJSONObject(LEntitiesArray.Items[LFor]);
+        // `path` e `keys` sao o que um elemento PRECISA ter. Sem um deles nao
+        // ha nem de quem nem o que, e a entrada nao carrega informacao alguma.
+        if not (LEntityObject.Values['path'] is TJSONString) then
+          Continue;
+        if not (LEntityObject.Values['keys'] is TJSONObject) then
+          Continue;
+        LEntity := TInsertedEntity.Create;
+        LEntity.Path := LEntityObject.Values['path'].Value;
+        // `class` e OPCIONAL: e uma conferencia que o leitor faz quando vem, e
+        // um servidor de terceiro que nao a mande continua sendo lido.
+        if LEntityObject.Values['class'] is TJSONString then
+          LEntity.EntityClassName := LEntityObject.Values['class'].Value;
+        LKeysObject := TJSONObject(LEntityObject.Values['keys']);
+        for LPar := 0 to LKeysObject.Count -1 do
+        begin
+          // Mesma convencao de FResultParams: TUDO chega como TEXTO. Quem le
+          // decide o que a propriedade aceita - ver _SetGeneratedKeyValueFrom.
+          with LEntity.Keys.Add as TParam do
+          begin
+            Name := LKeysObject.Pairs[LPar].JsonString.Value;
+            DataType := ftString;
+            Value := LKeysObject.Pairs[LPar].JsonValue.Value;
+          end;
+        end;
+        FResultEntities.Add(LEntity);
+      end;
+    end;
 
     // ISSUE #315 - O `as` LEVANTAVA ANTES DA GUARDA SER AVALIADA. Escrito
     // `Values['params'] as TJSONArray` seguido de `if = nil then Exit`, isto
