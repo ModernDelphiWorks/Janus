@@ -91,7 +91,9 @@ uses
   /// Whether a PUT can locate the row its key names — issue #320
   Test.Janus.Server.Resource.UpdateWhere in 'RESTHorse\Test.Janus.Server.Resource.UpdateWhere.pas',
   /// The WIDTH of an integer primary key — issues #324 and #325
-  Test.Janus.Server.Resource.IntegerKeyWidth in 'RESTHorse\Test.Janus.Server.Resource.IntegerKeyWidth.pas';
+  Test.Janus.Server.Resource.IntegerKeyWidth in 'RESTHorse\Test.Janus.Server.Resource.IntegerKeyWidth.pas',
+  /// What a PUT answers when it locates no row — issue #363
+  Test.Janus.Server.Resource.UpdateNotFound in 'RESTHorse\Test.Janus.Server.Resource.UpdateNotFound.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
