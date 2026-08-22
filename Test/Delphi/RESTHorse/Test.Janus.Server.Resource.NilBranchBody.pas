@@ -43,14 +43,17 @@
 
   - to-ONE nil: the root row is written, the branch is not, and the answer is
     the ordinary success sentence. Silent.
-  - to-MANY nil: TRESTObjectSet.OneToManyCascadeActionsExecute reaches
-    `LObjectList.Count` on a nil list. Access violation, rolled back, so not
-    even the root row survives. Loud, and a DIFFERENT defect: the OneToOne
-    handler next to it grew a `if LObject = nil then Exit` in issue #240 and
-    the OneToMany one never did - in this unit and in
-    TObjectSetBaseAdapter<M> alike. Repairing that guard is not a free
-    decision either: it converts a request that fails loudly today into one
-    that half succeeds silently, which is the very question #366 asks.
+  - to-MANY nil: an access violation, rolled back, so not even the root row
+    survives. Loud, and a DIFFERENT defect. TWO methods of TRESTObjectSet
+    reach `LObjectList.Count` on the nil list - SetAutoIncValueOneToMany,
+    which runs first from inside Insert, and OneToManyCascadeActionsExecute
+    after it. The OneToOne handler next to each grew a `if LObject = nil then
+    Exit` in issue #240 and neither OneToMany one did, in this unit and in
+    TObjectSetBaseAdapter<M> alike. Measured by mutation: guarding either one
+    alone changes nothing observable, because the other still reads the nil
+    list. Repairing both is not a free decision either: it converts a request
+    that fails loudly today into one that half succeeds silently, which is
+    the very question #366 asks.
 
   THE CONTROL CLAUSES ARE NOT DECORATION
 
@@ -457,14 +460,17 @@ begin
     end,
     Exception,
     'THE TO-MANY LEG IS NOT THE TO-ONE LEG, and the issue assumed it would ' +
-    'be. TRESTObjectSet.OneToManyCascadeActionsExecute takes the nil list ' +
-    'out of the TValue - IsObject is true for a nil instance - and reads ' +
-    'LObjectList.Count off it. Its OneToOne neighbour grew `if LObject = ' +
-    'nil then Exit` in issue #240; the OneToMany one never did, here or in ' +
-    'TObjectSetBaseAdapter<M>. This clause going green without raising ' +
-    'means that guard was added - which is itself a decision, because it ' +
-    'converts a request that fails loudly into one that half succeeds ' +
-    'silently');
+    'be. TWO methods of TRESTObjectSet take the nil list out of the TValue - ' +
+    'IsObject is true for a nil instance - and read LObjectList.Count off ' +
+    'it: SetAutoIncValueOneToMany, which runs FIRST, from inside Insert, and ' +
+    'OneToManyCascadeActionsExecute after it. Their OneToOne neighbours grew ' +
+    '`if LObject = nil then Exit` in issue #240; neither OneToMany one did, ' +
+    'here or in TObjectSetBaseAdapter<M>. MEASURED BY MUTATION: guarding ' +
+    'either one ALONE leaves this clause raising, because the other still ' +
+    'reads the nil list - only both guards together silence it. This clause ' +
+    'going green without raising means both were added, which is itself a ' +
+    'decision: it converts a request that fails loudly into one that half ' +
+    'succeeds silently');
   Assert.AreEqual(0, _ScalarInt('SELECT COUNT(*) FROM atnil'),
     'and the rollback takes the ROOT row with it, so unlike the to-one leg ' +
     'nothing at all is written. That asymmetry is the reason the two legs ' +
