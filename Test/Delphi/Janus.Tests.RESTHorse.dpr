@@ -91,7 +91,9 @@ uses
   /// Whether a PUT can locate the row its key names — issue #320
   Test.Janus.Server.Resource.UpdateWhere in 'RESTHorse\Test.Janus.Server.Resource.UpdateWhere.pas',
   /// The WIDTH of an integer primary key — issues #324 and #325
-  Test.Janus.Server.Resource.IntegerKeyWidth in 'RESTHorse\Test.Janus.Server.Resource.IntegerKeyWidth.pas';
+  Test.Janus.Server.Resource.IntegerKeyWidth in 'RESTHorse\Test.Janus.Server.Resource.IntegerKeyWidth.pas',
+  /// Whether a segment reaches a model whose class is not 'T'+table - issue #364
+  Test.Janus.Server.ResourceNaming in 'RESTHorse\Test.Janus.Server.ResourceNaming.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
