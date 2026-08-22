@@ -67,10 +67,24 @@
   inherits, TSessionAbstract<M>.Update(const AObject: M; const AKey: String),
   reaches FCommandExecutor and FModifiedFields.Items[AKey], and a RESTful
   session has neither: FCommandExecutor is assigned by
-  TSessionObjectSet/TSessionDataSet and by nothing on the REST side. Measured -
-  see the mutation table in the delivery note: routing Update through that
-  overload takes the whole fixture from 6 passing clauses to an access
-  violation, and NOT ONE PUT reaches the connection.
+  TSessionObjectSet/TSessionDataSet and by nothing on the REST side.
+
+  MEASURED, AND THE PARTITION IS THE POINT. This fixture carries EIGHT clauses.
+  Routing Update through that overload leaves FOUR of the eight PASSING - the
+  two Insert and the two Delete clauses, which never enter Update - and takes
+  all FOUR Update clauses to `Access violation ... Read of address 00000000`.
+  Suite wide: 283 found, 0 failed, 4 ERRORED, 279 passed. And NOT ONE request
+  reaches the connection.
+
+  A SEEDED KEY IS WHAT MAKES THAT NUMBER SAY SOMETHING. The key handed to the
+  overload is the very one TSessionAbstract<M>.Create seeds FModifiedFields
+  with - M.ClassName - so the dictionary lookup provably is not what fails, and
+  the nil that remains can only be FCommandExecutor. The failure is the absence
+  this paragraph claims, not a carelessly written mutation.
+
+  (An earlier revision of this paragraph said SIX passing clauses. That number
+  was never measured and no reading produces it: 283 - 275 basal = 8, and there
+  are eight [Test] attributes below.)
 
   So "do not use a list" means ADDING a single-object PUT to the shipped
   session class - a new method on a public generic, whose list overload the
@@ -89,7 +103,21 @@
   The neighbouring list that DOES legitimately own - LUpdateList in
   TRESTDataSetAdapter<M>.ApplyUpdater - is a different local in a different
   unit, and it is filled with objects that method creates itself (`M.Create`).
-  It is deliberately NOT touched.
+  It is deliberately NOT touched. The repository-wide census is SIX owning-list
+  construction sites under Source\ - Janus.Query.ResultSet, two in
+  Janus.Session.Abstract, Janus.Manager.ObjectSet, the ApplyUpdater one and this
+  one - and the other five are all populated by objects their own method built.
+
+  AND NO SHIPPED CONSUMER RELIES ON THE OLD OWNERSHIP, which is what makes this
+  a repair rather than a breaking change. Reaching this method needs BOTH the
+  single production construction site of the REST object-set adapter
+  (Janus.Manager.ObjectSet, under IFDEF DRIVERRESTFUL) and a project defining
+  that symbol; of the eleven .dproj that define it, the ten Examples call Update
+  by another route entirely, because Janus.Container.ObjectSet carries no IFDEF
+  at all and builds TObjectSetAdapter unconditionally. What those Examples DO
+  spell is `FMaster.Update(LMasterNew)` followed by `LMasterNew.Free` in the
+  finally - the house idiom, and precisely the double free the unrepaired source
+  would have handed them the day one of them changed container.
 
   AND THE OBJECT LEAK IS RULED OUT FROM THE OTHER SIDE by
   Update_TheLedgerSeesTheCallersOwnFree: after the call the caller performs the
@@ -105,7 +133,8 @@
   counter is blind to it, which is the same finding Test.Janus.Metadata.Compare
   recorded for a different leak and a different suite. The ledger is an
   instrument for ENTITY instances and a TObjectList is not one; catching that
-  would need a heap instrument, which is a different issue from this one.
+  would need a heap instrument - System.GetAllocMemCount around the call would
+  do it in three lines - which is a neighbouring finding and not this issue.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
