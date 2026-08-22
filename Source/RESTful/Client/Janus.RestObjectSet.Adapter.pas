@@ -725,6 +725,40 @@ var
 begin
   inherited;
   LObjectList := TObjectList<M>.Create;
+  // ISSUE #362 - THE LIST IS TRANSPORT, NOT AN OWNER, AND THE DEFAULT SAID
+  // OTHERWISE. TObjectList<M>.Create leaves OwnsObjects at True, and the Clear
+  // below therefore DESTROYED the item - which here is THE CALLER'S OBJECT,
+  // not a copy of it. `Update(AObject)` does not suggest a transfer of
+  // ownership, so the obvious consumer
+  //
+  //     LObj := ...; try LObjectSet.Update(LObj); finally LObj.Free; end;
+  //
+  // was writing a use-after-free and then a double free, silently. Measured by
+  // a per-address destruction ledger: one destruction of the very object the
+  // caller passed. See Test.Janus.Rest.ObjectSetOwnership.
+  //
+  // WHY THE LIST STAYS AT ALL. Because the only method on the RESTful session
+  // that puts a PUT on the wire takes one: TSessionRestFul<M>.Update(const
+  // AObjectList: TObjectList<M>) is the sole Update override there. The
+  // single-object overload it inherits - TSessionAbstract<M>.Update(const
+  // AObject: M; const AKey: String) - reaches FCommandExecutor and
+  // FModifiedFields.Items[AKey], and a RESTful session has neither:
+  // FCommandExecutor is assigned by the SQL sessions and by nothing on this
+  // side. Measured, not argued - routing this method through that overload
+  // gives an access violation reading address 00000000 in all four Update
+  // clauses and puts NOT ONE request on the wire. Removing the list would mean
+  // adding a second way to spell the same round trip to a shipped generic,
+  // whose list overload TRESTDataSetAdapter<M>.ApplyUpdater still needs,
+  // because that one really does batch N objects.
+  //
+  // NOTHING ELSE ENTERS THIS LIST, and that is why turning ownership off
+  // cannot start leaking something. The list is a local of this method and its
+  // whole population is the three statements below: create, ONE Add of the
+  // argument, clear and free. The neighbouring list that legitimately DOES own
+  // its items - LUpdateList in TRESTDataSetAdapter<M>.ApplyUpdater, filled
+  // with objects that method creates itself - is a different local in a
+  // different unit and is deliberately untouched.
+  LObjectList.OwnsObjects := False;
   try
     LObjectList.Add(AObject);
     FSession.Update(LObjectList);
