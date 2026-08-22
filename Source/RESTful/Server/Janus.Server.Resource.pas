@@ -73,13 +73,31 @@ type
       /// ISSUE #363 - THE ANSWER OF A PUT THAT LOCATED NO ROW, AND IT IS
       /// RETURNED RATHER THAN RAISED.
       ///
-      /// It carries the SAME `result` key as its three siblings above, which
-      /// is what lets it leave through the transport's ordinary Send path
-      /// instead of the transport's exception path. That is not a stylistic
-      /// choice, it is the measurement: TRESTServerHorse's four routes answer
-      /// Format(cEXCEPTION, [E.Message]) - a `%s` INSIDE a JSON string - and
-      /// every message in this class is itself a JSON DOCUMENT, so a raised
-      /// answer arrives as
+      /// WHAT CHOOSES THE TRANSPORT'S PATH IS `Exit` VERSUS `raise`, AND
+      /// NOTHING ELSE. Each of TRESTServerHorse's four routes is one Res.Send
+      /// of this class's Result wrapped in a bare try/except whose handler
+      /// sends Format(cEXCEPTION, [E.Message]) instead
+      /// (TRESTServerHorse.AddResources, anchored by SYMBOL). A value that is
+      /// RETURNED is sent as it stands; only an EXCEPTION reaches the wrapper.
+      /// THE TOP-LEVEL KEY OF THE DOCUMENT PLAYS NO PART IN THAT CHOICE -
+      /// measured by mutation: spelling this constant `{"exception":...}` while
+      /// keeping the Exit leaves the RESTHorse suite green, and the body still
+      /// leaves through Res.Send and still parses. An earlier draft of this note
+      /// said the shared `result` key "is what lets it leave through the
+      /// transport's ordinary Send path"; that was false, and the very next
+      /// sentence of the same paragraph measured the RAISE rather than the key.
+      ///
+      /// SO THE `result` KEY IS COHERENCE, NOT MECHANISM, AND IT IS STILL
+      /// DELIBERATE. Every answer this class RETURNS is spelled that way -
+      /// cRESOURCEDELETE, cRESOURCEINSERT, cRESOURCEUPDATE - `exception` is
+      /// what it RAISES, and ParseDelete's own not-found message already
+      /// spells `result` too. The key is chosen to match its siblings; the
+      /// Exit is what makes the answer arrive readable.
+      ///
+      /// AND THE RETURN, WHICH IS THE MECHANISM, IS THE MEASUREMENT.
+      /// Format(cEXCEPTION, [E.Message]) pastes the message into a `%s` INSIDE
+      /// a JSON string, and every message in this class is itself a JSON
+      /// DOCUMENT, so a raised answer arrives as
       ///   {"Exception": "{"result":"No records found to delete, ..."}"}
       /// which does not parse. Measured over a live Horse server: the DELETE
       /// not-found answer is 82 bytes and TJSONObject.ParseJSONValue returns
@@ -91,6 +109,16 @@ type
       /// against. Raising here would therefore have reproduced the defect
       /// inside the repair. Returning it does not: the successful answers of
       /// this class travel through Res.Send unwrapped and parse.
+      ///
+      /// THE PRICE OF RETURNING IS PAID ON THE CLIENT, AND IT IS NAMED RATHER
+      /// THAN HIDDEN. A body that parses is a body the Janus REST client does
+      /// NOT raise on, and TSessionRestFul<M>.Update assigns the answer to a
+      /// local that only its CommandMonitor block reads - so the PUT that
+      /// located no row now completes in total silence one layer up. Measured
+      /// on both sides against a live server, and pinned by
+      /// Characterisation_TheJanusClientSwallowsThisAnswer in
+      /// Test.Janus.Server.Resource.UpdateNotFound, whose header carries the
+      /// argument and the alternatives.
       ///
       /// The wrapper defect above is REPORTED and not repaired here - it
       /// belongs to all four verbs and to five error constants, and changing
@@ -932,10 +960,20 @@ begin
   LClassType := TMappingExplorer.GetRepositoryMapping
                                 .FindEntityByName(AQuery.ResourceName);
   /// ISSUE #363 - this was a bare `Exit`, so a PUT naming a resource the
-  /// server never registered completed with an EMPTY BODY. Its two siblings in
-  /// this class - ParseInsert and ParseFind, anchored by SYMBOL - both raise
-  /// cRESOURCENOTREGISTER for the same mistake, and PUT was the only one of
-  /// the three that answered silence. It now says what they say.
+  /// server never registered completed with an EMPTY BODY. ParseInsert and
+  /// ParseFind (anchored by SYMBOL) both raise cRESOURCENOTREGISTER for the
+  /// same mistake. It now says what they say.
+  ///
+  /// AND WHAT IS LEFT IS ParseDelete, WHICH STILL ANSWERS SILENCE. It carries
+  /// the SAME bare `Exit` on the SAME nil LClassType - measured over a live
+  /// Horse server, DELETE /api/Janus/NotAnEntityAtAll(1) answers status 200,
+  /// length 0, ParseJSONValue nil. So this class is THREE-RAISE / ONE-SILENT,
+  /// not the two-and-two an earlier draft of this note claimed when it called
+  /// PUT "the only one of the three that answered silence". ParseDelete is not
+  /// repaired inside this issue - its own not-found signal is the separate
+  /// question cRESOURCEUPDATENOTFOUND documents - and the silence is pinned by
+  /// Characterisation_TheUnregisteredResourceExitOfDeleteStillAnswersSilence
+  /// so the count cannot rot again.
   if LClassType = nil then
     raise Exception.CreateFmt(cRESOURCENOTREGISTER, [AQuery.ResourceName]);
 
