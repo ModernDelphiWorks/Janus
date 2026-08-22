@@ -51,6 +51,20 @@
   already existed, which is why the control clause matters - without it, a
   green "the list is not nil" could be green over a route that loaded nothing.
 
+  WHAT THE `2 -> 0` IS AND IS NOT, SAID PLAINLY
+
+  In the DEFECTIVE state the second clause dies at the same
+  `Assert.IsNotNull(leafs)` the first one dies at, so its
+  `Assert.AreEqual(2, leafs.Count)` is NEVER EXERCISED IN RED. That is not a
+  flaw - a nil list has no Count to compare - but it does mean the `0` half of
+  `2 -> 0` is not measured DIRECTLY by that assertion. What holds it is the
+  pair around it: Premise_TheGrandchildRowsAreInTheDatabaseAndLinked proves the
+  two rows are there to be lost, and
+  Control_TheOneToManyRouteStillCarriesItsGrandchildren proves those same two
+  rows do reach an object graph through the sibling route. The count assertion
+  earns its keep in GREEN, where it is what separates "a list exists" from "the
+  rows were actually appended to it".
+
   WHAT IS NOT MEASURED HERE
 
   The REST server's own twin, TRESTObjectManager.ExecuteOneToOne, which does

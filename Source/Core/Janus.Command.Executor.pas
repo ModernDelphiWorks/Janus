@@ -352,22 +352,36 @@ begin
         // sem log - e os objetos recem-criados nao eram nem adicionados nem
         // liberados.
         //
-        // O MESMO FATO JA ESTAVA REGISTRADO NA CASA, em Janus.Mapping.Lazy, no
-        // comentario da funcao anonima que TLazyMapping usa para materializar
-        // uma associacao OneToMany - ancorado por SIMBOLO porque um numero de
-        // linha ali envelhece sozinho. E o MESMO comentario carrega o aviso
-        // sobre o risco desta chamada: GetMethod('Create') devolve o PRIMEIRO
-        // construtor declarado, e num TObjectList<T> esse e o de zero
-        // argumentos, de modo que passar um argumento levanta 'Parameter count
-        // mismatch'. Aqui o alvo nao e uma lista generica e sim a classe da
-        // ENTIDADE do outro lado da associacao: enumerados todos os alvos de
-        // 1:1 / N:1 declarados sob Test\ e Examples\, nenhum declara mais de um
-        // construtor nem construtor com parametro, entao GetMethod('Create')
-        // resolve o construtor certo - ou cai em TObject.Create, inofensivo,
-        // para os que nao declaram nenhum.
+        // ESTE SITIO NAO TINHA A CHAMADA E AGORA TEM. Este comentario nao
+        // enumera os demais, DE PROPOSITO: o mecanismo e o censo completo do
+        // contorno sao mantidos num lugar so, na declaracao de
+        // TObjectHelper.MethodCall - ancorado por SIMBOLO, nao por numero de
+        // linha nem por contagem. Dois lugares mantendo o mesmo censo a mao
+        // divergem, e a versao anterior deste comentario provou isso: afirmava
+        // ser "o unico dos oito sitios", e a afirmacao era FALSA. Uma frase
+        // dessas e a pior possivel para estar errada, porque e exatamente a que
+        // o proximo leitor cita como prova de que os irmaos estao cobertos.
         //
-        // Este era o UNICO dos oito sitios que criam por referencia de classe
-        // em Source\ sem esta chamada; os outros sete ja a tinham.
+        // O UNICO IRMAO QUE ESTE COMENTARIO AFIRMA E O QUE FOI MEDIDO:
+        // CreateLazySingleAssociationLoadFunc, em Janus.Mapping.Lazy, e o gemeo
+        // LAZY deste metodo - mesma associacao de objeto unico, mesmo
+        // LChildClass.Create - e TAMBEM nao faz a chamada. Latente hoje: nao ha
+        // no repositorio modelo de 1:1 lazy cujo alvo construa algo no proprio
+        // construtor, entao o defeito nao tem por onde aparecer. Nao foi
+        // consertado aqui porque precisa de red-first proprio.
+        //
+        // O RISCO DESTA CHAMADA, e por que ele nao morde aqui.
+        // GetMethod('Create') devolve o PRIMEIRO construtor declarado - o aviso
+        // esta escrito em CreateLazyManyAssociationLoadFunc, tambem em
+        // Janus.Mapping.Lazy, onde num TObjectList<T> esse primeiro e o de zero
+        // argumentos e passar um argumento levanta 'Parameter count mismatch'.
+        // Aqui o alvo nao e uma lista generica e sim a classe da ENTIDADE do
+        // outro lado da associacao. A CONDICAO de seguranca, dita como
+        // condicao e nao como contagem: a chamada e segura enquanto o alvo
+        // declarar no maximo um construtor sem parametros - se nao declarar
+        // nenhum, GetMethod cai em TObject.Create, inofensivo. Um alvo que
+        // passe a declarar dois construtores, com o de parametros primeiro,
+        // quebra aqui.
         LObjectValue.MethodCall('Create', []);
         AProperty.SetValue(AObject, TValue.from<TObject>(LObjectValue));
       end;

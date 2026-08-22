@@ -171,7 +171,7 @@ uses
   Test.Janus.ObjectSet.CascadeDeleteOrder in 'Integration\Test.Janus.ObjectSet.CascadeDeleteOrder.pas',
   /// The INSERT against the null pattern of the object written - issue #352
   Test.Janus.Insert.CacheVsNullness in 'Integration\Test.Janus.Insert.CacheVsNullness.pas',
-  /// Whether the child of a 1:1 association gets its own constructor run â issue #369
+  /// Whether the child of a 1:1 association gets its own constructor run — issue #369
   Test.Janus.ObjectSet.OneToOneChildCtor in 'Integration\Test.Janus.ObjectSet.OneToOneChildCtor.pas',
   /// What a real close costs against what emptying costs — issue #246
   Test.Janus.Close.VsEmpty in 'Unit\Container\Test.Janus.Close.VsEmpty.pas',
