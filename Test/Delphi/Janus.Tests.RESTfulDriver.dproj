@@ -100,6 +100,7 @@
         <DCCReference Include="Common\Test.Janus.Model.RestLazyKeys.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.NotIncKey.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.OpenIdRow.pas"/>
+        <DCCReference Include="Common\Test.Janus.Model.OwnedProbe.pas"/>
         <DCCReference Include="Common\Test.Janus.Model.NullableKey.pas"/>
         <DCCReference Include="Common\Test.Janus.RestConnection.Double.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Driver.ManagerDataSet.pas"/>
@@ -121,6 +122,7 @@
         <DCCReference Include="Unit\RESTful\Test.Janus.Client.DataSnapVerb.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Client.WSVerb.pas"/>
         <DCCReference Include="Unit\RESTful\Test.Janus.Rest.NullableKeyReconciliation.pas"/>
+        <DCCReference Include="Unit\RESTful\Test.Janus.Rest.ObjectSetOwnership.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
