@@ -91,7 +91,9 @@ uses
   /// Whether a PUT can locate the row its key names — issue #320
   Test.Janus.Server.Resource.UpdateWhere in 'RESTHorse\Test.Janus.Server.Resource.UpdateWhere.pas',
   /// The WIDTH of an integer primary key — issues #324 and #325
-  Test.Janus.Server.Resource.IntegerKeyWidth in 'RESTHorse\Test.Janus.Server.Resource.IntegerKeyWidth.pas';
+  Test.Janus.Server.Resource.IntegerKeyWidth in 'RESTHorse\Test.Janus.Server.Resource.IntegerKeyWidth.pas',
+  /// What a body says about an association whose property arrives NIL — issue #366
+  Test.Janus.Server.Resource.NilBranchBody in 'RESTHorse\Test.Janus.Server.Resource.NilBranchBody.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

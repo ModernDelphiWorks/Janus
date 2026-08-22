@@ -164,6 +164,7 @@
         <DCCReference Include="RESTHorse\Test.Janus.Server.IdSentinelCollision.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.UpdateWhere.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.IntegerKeyWidth.pas"/>
+        <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.NilBranchBody.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>
