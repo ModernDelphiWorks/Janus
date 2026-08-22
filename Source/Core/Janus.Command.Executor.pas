@@ -336,6 +336,39 @@ begin
         LObjectValue := AProperty.PropertyType
                                  .AsInstance
                                  .MetaclassType.Create;
+        // O MethodCall NAO E REDUNDANTE - issue #369. MetaclassType e um
+        // TClass, e Create sobre uma REFERENCIA DE CLASSE resolve para
+        // TObject.Create, que nao e virtual: a linha acima aloca a instancia
+        // mas o corpo do construtor da classe filha NAO roda. Tudo o que esse
+        // construtor devia montar chega nil.
+        //
+        // MEDIDO, mesmo modelo, mesmas linhas, mudando so a rota: um
+        // TAsymTreeMid - cujo construtor monta Fleafs - carregado como filho
+        // 1:1 chegava com leafs nil e as DUAS netas eram descartadas (2 -> 0);
+        // pelo irmao ExecuteOneToMany, que sempre teve esta chamada, chegava
+        // com leafs.Count = 2. A perda era SILENCIOSA por construcao:
+        // ExecuteOneToMany anexa cada filho sob `if LObjectList <> nil`, entao
+        // a lista nil fazia aquela guarda jogar fora cada linha sem excecao e
+        // sem log - e os objetos recem-criados nao eram nem adicionados nem
+        // liberados.
+        //
+        // O MESMO FATO JA ESTAVA REGISTRADO NA CASA, em Janus.Mapping.Lazy, no
+        // comentario da funcao anonima que TLazyMapping usa para materializar
+        // uma associacao OneToMany - ancorado por SIMBOLO porque um numero de
+        // linha ali envelhece sozinho. E o MESMO comentario carrega o aviso
+        // sobre o risco desta chamada: GetMethod('Create') devolve o PRIMEIRO
+        // construtor declarado, e num TObjectList<T> esse e o de zero
+        // argumentos, de modo que passar um argumento levanta 'Parameter count
+        // mismatch'. Aqui o alvo nao e uma lista generica e sim a classe da
+        // ENTIDADE do outro lado da associacao: enumerados todos os alvos de
+        // 1:1 / N:1 declarados sob Test\ e Examples\, nenhum declara mais de um
+        // construtor nem construtor com parametro, entao GetMethod('Create')
+        // resolve o construtor certo - ou cai em TObject.Create, inofensivo,
+        // para os que nao declaram nenhum.
+        //
+        // Este era o UNICO dos oito sitios que criam por referencia de classe
+        // em Source\ sem esta chamada; os outros sete ja a tinham.
+        LObjectValue.MethodCall('Create', []);
         AProperty.SetValue(AObject, TValue.from<TObject>(LObjectValue));
       end;
       // Preenche o objeto com os dados do ResultSet
