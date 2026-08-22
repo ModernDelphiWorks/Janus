@@ -123,10 +123,38 @@ begin
   FPageSize := APageSize;
 end;
 
+/// <summary> ISSUE #361 - "EVERYTHING" IS NOW SPELT WITH A TYPELESS TValue AND
+///  NOT WITH -1. TYPELESS AND NOT MERELY "EMPTY": TValue.IsEmpty is True for an
+///  empty dynamic array and an empty string too, and those are ids that name
+///  nothing rather than absent ids - they belong to the #326 refusals. The test
+///  that decides is TypeInfo = nil, in TDMLGeneratorAbstract._NoIdSupplied,
+///  whose header carries the base x HEAD board of twelve shapes and the one
+///  INVERSION this repair accepted: a typeless TValue used to be REFUSED here
+///  and now reads every row.
+///  This method and the GenerateNextPacket overload below are the
+///  only two places in this repository that ask the generator for a statement
+///  with NO key predicate, and they used to say so by handing it the integer
+///  -1. That is also cAutoIncNotGenerated (Janus.DataSet.Fields.pas:51), the
+///  placeholder an AutoInc key carries until the database answers, so a stale
+///  placeholder arriving as a REST id was read here as "no filter" and a
+///  DELETE for one row emptied the table. See
+///  TDMLGeneratorAbstract._NoIdSupplied for the measurement.
+///  GenerateSelectID, three methods down, still passes -1 - as the PAGE SIZE -
+///  and is deliberately untouched.
+///
+///  WHAT CERTIFIES THE ARGUMENT BELOW, MEASURED ON 7227497 AND NOT ASSUMED. A
+///  bare raise in this method kills 52 clauses in Units and 4 in RESTHorse, so
+///  it is heavily exercised; and replacing TValue.Empty with a TYPED value
+///  kills TheCollection_StillAnswersEveryRow and
+///  TheCollection_AnswersAsManyRowsAsWereWritten, both in
+///  Test.Janus.Server.IdSentinelCollision. UNITS ALONE DOES NOT CATCH IT -
+///  that same swap leaves Units entirely green - so the cover for this line
+///  lives in RESTHorse and nowhere else. ANCHORED BY SYMBOL. </summary>
 function TCommandSelecter.GenerateSelectAll(const AClass: TClass): String;
 begin
   FPageNext := 0;
-  FSelectCommand := FGeneratorCommand.GeneratorSelectAll(AClass, FPageSize, -1);
+  FSelectCommand := FGeneratorCommand.GeneratorSelectAll(AClass, FPageSize,
+                                                         TValue.Empty);
   FResultCommand := FGeneratorCommand.GeneratorPageNext(FSelectCommand, FPageSize, FPageNext);
   FResultCommand := NormalizeFirebirdPagination(FResultCommand);
   Result := FResultCommand;
@@ -172,7 +200,20 @@ end;
 function TCommandSelecter.GenerateNextPacket(const AClass: TClass;
   const APageSize, APageNext: Integer): String;
 begin
-  FSelectCommand := FGeneratorCommand.GeneratorSelectAll(AClass, APageSize, -1);
+  // ISSUE #361 - the second and last "no key predicate" caller; see
+  // GenerateSelectAll above.
+  //
+  // THIS ARGUMENT WAS REACHED AND UNCERTIFIED, AND THE TWO ARE NOT THE SAME
+  // THING. Measured on 7227497: a bare raise here killed 4 clauses, so the
+  // method IS exercised - but replacing TValue.Empty with a TYPED value killed
+  // ZERO. The neighbouring clause asserts only the LIMIT/OFFSET text, and the
+  // three NextPacketList_PageOnly_* clauses count rows a connection double
+  // hands back regardless of the SQL, so a key predicate could have appeared
+  // in this statement in silence. Test.Janus.DML.Generator.SQLite's
+  // TestGenerateNextPacket_CarriesNoKeyPredicate is the clause that now dies
+  // for it. ANCHORED BY SYMBOL.
+  FSelectCommand := FGeneratorCommand.GeneratorSelectAll(AClass, APageSize,
+                                                         TValue.Empty);
   FResultCommand := FGeneratorCommand.GeneratorPageNext(FSelectCommand, APageSize, APageNext);
   Result := FResultCommand;
 end;

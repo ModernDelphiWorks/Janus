@@ -85,6 +85,7 @@ uses
   Test.Janus.Model.KeyTypeDecoy in 'Common\Test.Janus.Model.KeyTypeDecoy.pas',
   /// Whether the insert response quotes the key it carries back — issue #311
   Test.Janus.Server.Resource.KeyQuoting in 'RESTHorse\Test.Janus.Server.Resource.KeyQuoting.pas',
+  Test.Janus.Server.IdSentinelCollision in 'RESTHorse\Test.Janus.Server.IdSentinelCollision.pas',
   /// Whether a PUT can locate the row its key names — issue #320
   Test.Janus.Server.Resource.UpdateWhere in 'RESTHorse\Test.Janus.Server.Resource.UpdateWhere.pas',
   /// The WIDTH of an integer primary key — issues #324 and #325

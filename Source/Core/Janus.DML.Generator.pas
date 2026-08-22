@@ -57,7 +57,7 @@ type
       AFieldType: TFieldType): Variant;
       procedure _GenerateJoinColumn(AClass: TClass; ATable: TTableMapping;
         const ASQL: IFluentSQL);
-    function _IsType(const AID: TValue): Boolean;
+    function _NoIdSupplied(const AID: TValue): Boolean;
     /// <summary> THE LITERAL OF A DATE, TIME OR TIMESTAMP AID, IN THIS
     ///  DIALECT'S OWN MASK. False when AID is not one of those three, so the
     ///  caller falls through to the arm it always had. Issue #326.
@@ -873,9 +873,23 @@ begin
   LScopeWhere := GetGeneratorQueryScopeWhere(AClass);
   if LScopeWhere <> '' then
     Result := ' WHERE ' + LScopeWhere;
-  if _IsType(AID) then
+  if _NoIdSupplied(AID) then
     Exit;
   LPrimaryKey := TMappingExplorer.GetMappingPrimaryKey(AClass);
+  // ISSUE #361 - AN ID WAS SUPPLIED AND THE CLASS MAPS NO PRIMARY KEY: REFUSE.
+  // This is the third mouth of the hole #326 closed twice below, and it was
+  // left open because the arm that follows was written as `if LPrimaryKey <>
+  // nil then` - so a class with no key mapping fell out of this method with
+  // the predicate still EMPTY, and the caller ran its SELECT or DELETE over
+  // the whole table for a question about one row. The two guards inside that
+  // arm cannot see this shape, because they only run once it is entered.
+  // Refusing by name is the form the neighbour already uses, and it is louder
+  // than a full-table read that answers 200.
+  if LPrimaryKey = nil then
+    raise Exception.CreateFmt('An id was supplied for %s, which maps no ' +
+      'primary key, so the predicate would be empty and the statement would ' +
+      'match EVERY row. To read all records, use the overload that takes no ' +
+      'id.', [AClass.ClassName]);
   if LPrimaryKey <> nil then
   begin
     // ISSUE #326 - ONE TERM PER VALUE THE CALLER SUPPLIED, AND NO MORE.
@@ -894,7 +908,8 @@ begin
     // first key column happens to be UNIQUE the old behaviour was CORRECT.
     LValues := _KeyValues(AID);
     // AN ID WAS SUPPLIED AND NOT ONE TERM CAN BE BUILT FROM IT: REFUSE.
-    // Reaching here means _IsType already agreed the caller HAS given an id,
+    // Reaching here means _NoIdSupplied already agreed the caller HAS given an
+    // id - the method issue #361 renamed from _IsType and rewrote -
     // so answering with no predicate would read the WHOLE TABLE for a question
     // about one row. Two shapes get here and both were MEASURED, not imagined:
     //   * an EMPTY TArray<TValue> from the entry point #326 adds - Find([])
@@ -1003,32 +1018,94 @@ begin
   Result := True;
 end;
 
-function TDMLGeneratorAbstract._IsType(const AID: TValue): Boolean;
-var
-  LIntValue: Int64;
+/// <summary> ISSUE #361 - "GIVE ME EVERYTHING" AND "GIVE ME THE ROW WITH THIS
+///  ID" ARE NOW TWO QUESTIONS, AND THEY ARE NO LONGER TOLD APART BY A VALUE.
+///
+///  THIS METHOD USED TO BE CALLED _IsType AND ANSWERED True FOR EXACTLY -1 -
+///  as UInt64, as Int64, as Integer, AND as the string '-1'. GetGeneratorWhere
+///  answers an id it agrees with by discarding the whole predicate, so -1
+///  meant "no filter". The trouble is that -1 is ALSO the framework's
+///  placeholder for an AutoInc key the generator has not answered yet -
+///  cAutoIncNotGenerated, Janus.DataSet.Fields.pas:51 - so a stale placeholder
+///  travelling to the server as an id turned a question about ONE row into a
+///  statement over EVERY row. MEASURED on develop 0103408, SQLite in a file,
+///  through the server alone with raw HTTP and no Janus client: against a
+///  table holding a single row, `DELETE resource(-1)` answered 200
+///  "delete command executed successfully" and left the table EMPTY, the
+///  grandchild going with it by cascade, and `GET resource(-1)` handed back
+///  that row. What kept it from emptying a larger table is not this method: it
+///  is TRESTObjectManager.Find (Janus.Server.RestObject.Manager.pas:567-586)
+///  refusing to build an object unless RecordCount = 1.
+///
+///  THE REPAIR IS NOT A DIFFERENT MAGIC NUMBER. Any integer chosen to mean
+///  "no id" can be reached by an id, so the marker is moved OUT OF BAND: "no
+///  id" is now a TYPELESS TValue, and a caller that actually supplies an id
+///  hands over a value that carries a type. Every path that carries an id from
+///  outside - the REST path segment (Janus.Server.Resource.pas:514 and :802
+///  hand AQuery.ID.ToString to TRESTObjectSet.Find), IContainerObjectSet<M>
+///  .Find, IContainerDataSet<M>.Find/Open - arrives holding a typed value, so
+///  none of them can ever be read as "no filter" again. -1 goes back to being
+///  an ordinary key value and builds the predicate any other key would.
+///
+///  AND THIS REPAIR IS AN INVERSION FOR ONE SHAPE, WHICH IS DECLARED HERE
+///  RATHER THAN LEFT TO BE DISCOVERED. A TValue that carries NO TYPE used to
+///  be REFUSED and is now served the WHOLE TABLE. Measured base x HEAD through
+///  TCommandSelecter.GenerateSelectID, twelve shapes, and only these moved:
+///    * typeless TValue (TValue.Empty, Default(TValue)):
+///        0103408 RAISED "an id was supplied carrying no values"
+///        -> here  SELECT ... FROM keyonly, no predicate
+///    * Integer -1 / Int64 -1 / String '-1': whole table -> real predicate
+///    * UInt64 High(UInt64):                 whole table -> real predicate
+///  The first is the cost, the rest are the repair. The reason the old code
+///  refused a typeless value is incidental and worth knowing: TValue.IsType<T>
+///  answers True for one, so _KeyValues took the TArray<TValue> arm and handed
+///  back an EMPTY array, which the #326 guard then caught.
+///  Two things keep the exposure small, and neither is a guard: the REST route
+///  always arrives as AQuery.ID.ToString, a typed String and never a typeless
+///  value; and this method is reached only from the SELECT family - DELETE
+///  does not pass through GetGeneratorWhere at all. It is pinned by
+///  Test.Janus.DML.KeyPredicate's TypelessTValue_MeansEveryRow_AndThatIs-
+///  Deliberate so it cannot drift back in silence.
+///
+///  ONE MINE THE OLD DESIGN CARRIED AND THIS ONE DOES NOT. Because the test
+///  was BY VALUE, a legitimate 64-bit key could be swallowed: the UInt64 arm
+///  asked TryAsType<Int64> = -1, so High(UInt64) - every bit set, an ordinary
+///  key - was read as "no id" and returned the whole table. MEASURED on
+///  0103408, shape 05 of the board above. With no value test left, the shape
+///  cannot recur.
+///
+///  THE TWO CALLERS THAT REALLY MEAN "EVERYTHING" WERE ENUMERATED AND MOVED,
+///  and they are the only two in this repository: TCommandSelecter's
+///  GenerateSelectAll (Janus.Command.Selecter.pas:129) and its
+///  GenerateNextPacket overload (:175), both now passing TValue.Empty. The
+///  third site in the family, GenerateSelectID (:167), passes -1 as PAGE SIZE
+///  and a real id, and is untouched. Test.Janus.DML.Dialect.Wiring's SelectOf
+///  helper is the only clause that asked the generator for "everything" by
+///  hand and it moved with them. WHETHER ANYONE OUTSIDE THIS REPOSITORY CALLS
+///  GeneratorSelectAll WITH -1 IS NOT MEASURABLE FROM HERE AND IS NOT
+///  MEASURED - the same exposure the composite-key repair declared thirty
+///  lines up.
+///
+///  THE SIBLING SENTINEL WAS FOUND AND MOVED WITH IT: TDMLGeneratorNoSQL
+///  spelled the same test as `AID.ToString <> '-1'`
+///  (Janus.DML.Generator.NoSQL.pas), an independent copy this issue did not
+///  name. It now asks the same question this method does.
+///
+///  THE TEST IS `TypeInfo = nil` AND NOT `TValue.IsEmpty`, AND THE DIFFERENCE
+///  WAS MEASURED, NOT REASONED. The first draft of this method asked
+///  AID.IsEmpty, which reads well and is WRONG: the RTL answers True there for
+///  an empty DYNAMIC ARRAY and for an empty STRING as well as for a typeless
+///  value. That let the two #326 clauses through -
+///  Test.Janus.DML.KeyPredicate's EmptyValueArray_IsRefusedInsteadOfMatching-
+///  EveryRow and EmptyValueArray_OnTheOpenChain_IsRefusedNotAWholeTableRead
+///  both went RED with "Method did not throw any exceptions", because Find([])
+///  was being read as "no id" and skipping the very refusal they certify. A
+///  typeless TValue is the only shape no caller supplying an id can produce;
+///  an empty array and an empty string are ids that name nothing, and those
+///  belong to the guards below. </summary>
+function TDMLGeneratorAbstract._NoIdSupplied(const AID: TValue): Boolean;
 begin
-  Result := False;
-  if AID.IsType<UInt64> then
-  begin
-    if AID.TryAsType<Int64>(LIntValue) and (LIntValue = -1)  then
-      Result := True;
-    Exit;
-  end;
-  if AID.IsType<Int64> then
-  begin
-    if AID.AsInt64 = -1 then
-      Result := True;
-    Exit;
-  end;
-  if AID.IsType<Integer> then
-  begin
-    if AID.AsInteger = -1 then
-      Result := True;
-    Exit;
-  end;
-  if AID.IsType<String> then
-    if AID.AsString = '-1' then
-      Result := True;
+  Result := AID.TypeInfo = nil;
 end;
 
 function TDMLGeneratorAbstract._BuildSelectSQL(AClass: TClass;
