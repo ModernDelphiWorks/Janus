@@ -338,14 +338,24 @@ begin
   begin
     // THIS FILTER IS GROUPED BY ARGUMENT AND NOT BY MEASUREMENT, and a
     // mutation says so: removed, with a {$MESSAGE WARN} the compiler echoed as
-    // W1054, Janus.Tests.RESTHorse stayed at 177/0/0. The reason is a fact
-    // about the test tree rather than about this code - EVERY mapped
-    // association reachable from a REST insert body in this repository carries
-    // CascadeInsert, so the filter never excludes anything a fixture can see.
-    // It mirrors the predicate CascadeActionsExecute itself filters on, which
-    // is what the walk is describing; closing it honestly needs a model with a
-    // populated branch the cascade does NOT write, and inventing one is a
-    // piece of work of its own.
+    // W1054, Janus.Tests.RESTHorse stayed at 177/0/0.
+    //
+    // THE REASON IS A FACT ABOUT THE FIXTURE TREE THIS SUITE LINKS, and the
+    // SCOPE of that sentence matters, because an earlier version of it said
+    // "in this repository" and that is FALSE. Re-derived by sweeping every
+    // [Association] under Test\ and Examples\ and reading forward from each to
+    // its `property` line: 66 associations in all - 27 under Test\, 39 under
+    // Examples\ - of which 29 carry NO [CascadeActions] at all. The shape the
+    // filter exists for is therefore common; what is true is only that none of
+    // those 29 sits on a model any RESTHorse fixture inserts. The nearest live
+    // one is Examples\Delphi\Data\Models\Janus.Model.Master.pas:110 - a to-ONE
+    // association with no [CascadeActions] whose branch IS constructed, at
+    // :129 of that same file.
+    //
+    // The filter mirrors the predicate CascadeActionsExecute itself filters on,
+    // which is what this walk is describing; closing it honestly needs a
+    // RESTHorse model with a populated branch the cascade does NOT write, and
+    // building one is a piece of work of its own.
     if not (TCascadeAction.CascadeInsert in LAssociation.CascadeActions) then
       Continue;
     LValue := LAssociation.PropertyRtti.GetNullableValue(AObject);

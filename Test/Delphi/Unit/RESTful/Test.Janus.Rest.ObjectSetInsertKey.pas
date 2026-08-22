@@ -58,14 +58,21 @@
   gap was levels two and three; here the root itself was never reconciled, so
   the cascade did not merely lag - it propagated a number that exists nowhere.
 
-  WHY THE ROOT'S OWN KEY IS THE ONLY THING STAMPED
+  WHY THE ROOT'S OWN KEY IS THE ONLY THING STAMPED FROM `params`
 
-  Because it is the only thing the answer carries. The producer is a loop over
-  the PRIMARY KEY COLUMNS of the inserted entity, naming each by
-  ColumnProperty.Name; nothing below the root is named. So the reader is
+  Because it is the only thing `params` carries. The producer of that array is a
+  loop over the PRIMARY KEY COLUMNS of the inserted entity, naming each by
+  ColumnProperty.Name; nothing below the root goes into it. So the reader is
   PK-scoped and name-matched on purpose, and
   AnswerThatNamesNoPrimaryKeyLeavesThePlaceholder is what holds it to that: an
-  answer that names something else must change nothing at all.
+  answer that names something else THERE must change nothing at all.
+
+  THAT HEADING AND THAT FIRST SENTENCE USED TO SAY "the answer" RATHER THAN
+  "`params`", AND THE WIDER READING IS NOW FALSE - issue #312. The ANSWER gained
+  a sibling key, `entities`, which names the key of every other row the insert
+  wrote. `params` did not move, and every document in THIS fixture carries
+  `params` alone, so nothing below is measuring the wrong thing; what needed
+  correcting is the word, not the clauses.
 
   WHAT IS STILL NOT RECONCILED, AND IS NOT THIS ISSUE
 

@@ -74,6 +74,22 @@
   document here, and the DataSet family's half of the same proof lives in
   Test.Janus.Rest.CompositeKeyReReadGate.
 
+  THE GATE IS PER ENTITY, AND THE FIRST DELIVERY OF THIS ISSUE GOT IT WRONG
+
+  That delivery put the reader inside `if FSession.ExistSequence` - #301's gate
+  for the ROOT's key, which answers `GetMappingSequence(TClass(M)) <> nil`. It
+  asks ONE class. So a MIXED aggregate - a root whose key the CLIENT supplies
+  over a child carrying its own [Sequence] - answered False, and the client
+  discarded an `entities` array reporting a key the database really had
+  generated. The defect of this very issue, one level up: asking ONE CLASS a
+  question that is per ROW.
+
+  The gate did not go away, it moved to where the question belongs: each entry
+  is asked about the entity its path RESOLVED TO. Removing it instead of moving
+  it is not an option and that is measured too - it reddens
+  Insert_AnEntryWhoseEntityHasNoSequenceOfItsOwnIsNotRead, the symmetric shape
+  where root and child are both NotInc and the client's own values must survive.
+
   THE ANSWERS ARE CANNED. Nothing here speaks to a server. The PRODUCER half -
   that the document really comes out of TAppResourceBase.insert with these
   paths and these keys - is measured in Janus.Tests.RESTHorse by
@@ -99,9 +115,15 @@ uses
   Janus.Client.Methods,
   Janus.RestFactory.Interfaces,
   Janus.RestObjectSet.Adapter,
+  MetaDbDiff.Mapping.Explorer,
   Test.Janus.RestConnection.Double,
   Test.Janus.Model.AutoIncTree,
   Test.Janus.Model.AsymTree,
+  /// The MIXED graph - a root whose key the CLIENT supplies over a child whose
+  /// key the SERVER generates. Written by #305 for that asymmetry; #312 needs
+  /// it because the gate this reader used to sit behind asked only about the
+  /// ROOT, so this whole shape never read the answer at all.
+  Test.Janus.Model.ClientKeyRoot,
   Test.Janus.Model.NotIncKey;
 
 const
@@ -237,6 +259,23 @@ const
   cEXAMPLESERVERANSWER =
     '{"message":"registro inserido com sucesso!", "params":[{"root_id":555}]}';
 
+  /// THE MIXED GRAPH - the shape the ROOT-SCOPED gate could not see.
+  ///
+  /// TCkrRoot is TAutoIncType.NotInc with NO [Sequence]: its key comes from the
+  /// CLIENT. TCkrChild is AutoInc + SequenceInc + [Sequence]: its key comes
+  /// from the SERVER. So this aggregate has nothing to reconcile at level one
+  /// and something real to reconcile at level two - and
+  /// TSessionRestFul<M>.ExistSequence answers
+  /// `GetMappingSequence(TClass(M)) <> nil`, about the ROOT and only the root.
+  cCLIENTROOTKEY = 42;
+  cCKRCHILDKEY   = 601;
+  cANSWERFORTHEMIXEDGRAPH =
+    '{"result":"Resource ckrroot insert command executed successfully", ' +
+    '"params":[{"ckrroot_id":42}], ' +
+    '"entities":[' +
+      '{"path":"","class":"TCkrRoot","keys":{"ckrroot_id":42}},' +
+      '{"path":"childs[0]","class":"TCkrChild","keys":{"ckrchild_id":601}}]}';
+
   /// The same contract for the entity with no [Sequence].
   cANSWERFORTHENOSEQUENCEENTITY =
     '{"result":"Resource nikroot insert command executed successfully", ' +
@@ -274,11 +313,14 @@ type
     FRecorder: TRecordingRestConnection;
     FRoot: TAitRoot;
     FPair: TAsymTreeOneRoot;
+    FMixed: TCkrRoot;
     function BuildTree: TAitRoot;
     function BuildPair: TAsymTreeOneRoot;
+    function BuildMixed: TCkrRoot;
     /// Insert the canonical tree against AAnswer.
     procedure InsertWith(const AAnswer: String);
     procedure InsertPairWith(const AAnswer: String);
+    procedure InsertMixedWith(const AAnswer: String);
   public
     [Setup]
     procedure Setup;
@@ -379,10 +421,27 @@ type
     [Test]
     procedure ARuinedElementIsSkippedAndItsSiblingsAreStillRead;
 
-    /// THE GATE. Without a [Sequence] the whole block is skipped, `entities`
-    /// included.
+    /// THE GATE, AND IT IS PER ENTITY - NOT PER AGGREGATE.
+    ///
+    /// The first delivery of #312 put this reader inside
+    /// `if FSession.ExistSequence`, the gate #301 wrote for the ROOT's key.
+    /// That gate answers `GetMappingSequence(TClass(M)) <> nil`: it asks ONE
+    /// class, the root. The reason written beside it - "with no [Sequence]
+    /// there is no generated key to reconcile" - is true of a SYMMETRIC
+    /// aggregate and FALSE of a mixed one, and asking one class a question that
+    /// is per ROW is precisely the defect #312 was opened against, one level up.
+    ///
+    /// The three clauses below are the mixed shape. The fourth is the
+    /// symmetric one, which used to be the ONLY thing measured here and which
+    /// is the case where the old reason really did hold.
     [Test]
-    procedure Insert_WithoutASequenceTheEntitiesArrayIsNotRead;
+    procedure Premise_TheMixedGraphRootHasNoSequenceAndItsChildDoes;
+    [Test]
+    procedure MixedGraph_TheChildWithItsOwnSequenceIsStillReconciled;
+    [Test]
+    procedure MixedGraph_TheClientSuppliedRootKeyIsNotTouched;
+    [Test]
+    procedure Insert_AnEntryWhoseEntityHasNoSequenceOfItsOwnIsNotRead;
   end;
 
 implementation
@@ -396,12 +455,14 @@ begin
   FRecorder.Response := cANSWERWITHENTITIES;
   FRoot := nil;
   FPair := nil;
+  FMixed := nil;
 end;
 
 procedure TTestRestGraphInsertEntities.TearDown;
 begin
   FreeAndNil(FRoot);
   FreeAndNil(FPair);
+  FreeAndNil(FMixed);
   FConn := nil;
   FRecorder := nil;
 end;
@@ -470,6 +531,40 @@ begin
   LLeaf.lparent := cPLACEHOLDER;
   LLeaf.ltag := 'pairleaf';
   Result.mid.leafs.Add(LLeaf);
+end;
+
+function TTestRestGraphInsertEntities.BuildMixed: TCkrRoot;
+var
+  LChild: TCkrChild;
+begin
+  Result := TCkrRoot.Create;
+  // The root's key comes from the CLIENT and is a real number from the start -
+  // it is NOT a placeholder, and nothing may change it.
+  Result.ckrroot_id := cCLIENTROOTKEY;
+  Result.tag := 'mixedroot';
+  LChild := TCkrChild.Create;
+  // The child's OWN key is the placeholder: the server generates it.
+  LChild.ckrchild_id := cPLACEHOLDER;
+  // Its foreign key is already right, because the root's key was never in
+  // doubt. This is what makes the clause below about the child's OWN key and
+  // nothing else.
+  LChild.ckrroot_id := cCLIENTROOTKEY;
+  LChild.tag := 'mixedchild';
+  Result.childs.Add(LChild);
+end;
+
+procedure TTestRestGraphInsertEntities.InsertMixedWith(const AAnswer: String);
+var
+  LAdapter: TRESTObjectSetAdapter<TCkrRoot>;
+begin
+  FRecorder.Response := AAnswer;
+  FMixed := BuildMixed;
+  LAdapter := TRESTObjectSetAdapter<TCkrRoot>.Create(FConn);
+  try
+    LAdapter.Insert(FMixed);
+  finally
+    LAdapter.Free;
+  end;
 end;
 
 procedure TTestRestGraphInsertEntities.InsertWith(const AAnswer: String);
@@ -779,12 +874,63 @@ begin
     'from an `Exit`');
 end;
 
-procedure TTestRestGraphInsertEntities.Insert_WithoutASequenceTheEntitiesArrayIsNotRead;
+procedure TTestRestGraphInsertEntities
+  .Premise_TheMixedGraphRootHasNoSequenceAndItsChildDoes;
+begin
+  // Without this the two clauses below could be green for the wrong reason -
+  // if TCkrRoot ever gained a [Sequence] the ROOT-scoped gate would let the
+  // read through and nothing would be measuring the mixed shape any more.
+  Assert.IsNull(TMappingExplorer.GetMappingSequence(TCkrRoot),
+    'premise: the ROOT has no [Sequence], so TSessionRestFul<M>.ExistSequence ' +
+    'answers False for this aggregate. That is the whole point of the shape');
+  Assert.IsNotNull(TMappingExplorer.GetMappingSequence(TCkrChild),
+    'premise: and the CHILD does have one, so the server really does generate ' +
+    'a key for it and really does have something to report');
+end;
+
+procedure TTestRestGraphInsertEntities
+  .MixedGraph_TheChildWithItsOwnSequenceIsStillReconciled;
+begin
+  InsertMixedWith(cANSWERFORTHEMIXEDGRAPH);
+  Assert.AreEqual(cCKRCHILDKEY, FMixed.childs[0].ckrchild_id,
+    'THE BLOCKER THE FIRST DELIVERY OF #312 SHIPPED, and it is this issue''s ' +
+    'own defect one level up. ' + IntToStr(cPLACEHOLDER) + ' here means the ' +
+    'reader sat behind `if FSession.ExistSequence`, which asks ' +
+    'GetMappingSequence of ONE class - the ROOT - and answers False for a ' +
+    'root whose key the client supplies. The server generated this child''s ' +
+    'key, reported it, and the client threw the whole array away. The gate ' +
+    'has to be asked PER ENTITY, of the object the path resolved to');
+end;
+
+procedure TTestRestGraphInsertEntities
+  .MixedGraph_TheClientSuppliedRootKeyIsNotTouched;
+begin
+  InsertMixedWith(cANSWERFORTHEMIXEDGRAPH);
+  Assert.AreEqual(cCLIENTROOTKEY, FMixed.ckrroot_id,
+    'the root has no [Sequence], so #301''s reading of `params` must stay ' +
+    'skipped for it and the client''s own key must survive. Moving the graph ' +
+    'reader out of that gate must NOT have moved the root''s reader with it');
+  Assert.AreEqual(cCLIENTROOTKEY, FMixed.childs[0].ckrroot_id,
+    'and the child''s foreign key was already right before the POST - nothing ' +
+    'here may disturb it');
+end;
+
+procedure TTestRestGraphInsertEntities
+  .Insert_AnEntryWhoseEntityHasNoSequenceOfItsOwnIsNotRead;
 var
   LAdapter: TRESTObjectSetAdapter<TNikRoot>;
   LRoot: TNikRoot;
   LChild: TNikChild;
 begin
+  // THE SYMMETRIC SHAPE, and the one where the old root-scoped reason really
+  // did hold: TNikRoot and TNikChild are BOTH NotInc with no [Sequence]. This
+  // clause used to be the only thing measuring the gate, which is exactly how
+  // the mixed case above went unmeasured - the doubtful case was not the one
+  // on the bench.
+  //
+  // It stays green under the per-entity gate for a DIFFERENT reason than
+  // before: not because the root has no sequence, but because the ENTITY the
+  // entry resolves to has none.
   FRecorder.Response := cANSWERFORTHENOSEQUENCEENTITY;
   LRoot := TNikRoot.Create;
   try
@@ -801,12 +947,15 @@ begin
     finally
       LAdapter.Free;
     end;
+    Assert.IsNull(TMappingExplorer.GetMappingSequence(TNikChild),
+      'premise: the CHILD has no [Sequence] either - that is what makes this ' +
+      'the symmetric shape rather than the mixed one');
     Assert.AreEqual(7, LRoot.nik_id,
-      'premise: no [Sequence] means the whole block is skipped, as #301 ' +
-      'pinned for `params`');
+      'the root: no [Sequence] means #301''s reading of `params` is skipped, ' +
+      'and the client''s own value survives');
     Assert.AreEqual(1, LRoot.childs[0].child_id,
-      'and the new reading sits INSIDE the same gate: with no generated key ' +
-      'to reconcile, the client''s own value must survive');
+      'the child: with no sequence of ITS OWN there is no generated key to ' +
+      'reconcile, so the entry naming it must be refused');
   finally
     LRoot.Free;
   end;

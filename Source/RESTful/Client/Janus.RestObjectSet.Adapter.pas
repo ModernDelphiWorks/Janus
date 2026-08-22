@@ -56,10 +56,18 @@ type
     ///  children.
     ///
     ///  WHY IT IS SCOPED TO THE PRIMARY KEY AND MATCHED BY NAME. Because that
-    ///  is exactly what the producer emits: Janus.Server.Resource.pas builds
-    ///  the answer from a loop over the PRIMARY KEY COLUMNS of the inserted
-    ///  entity, naming each one by ColumnProperty.Name. Nothing else is named,
-    ///  so an answer carrying any other name must change nothing.
+    ///  is exactly what `params` carries: Janus.Server.Resource.pas builds that
+    ///  array from a loop over the PRIMARY KEY COLUMNS of the inserted entity,
+    ///  naming each one by ColumnProperty.Name. Nothing else goes into `params`,
+    ///  so an answer carrying any other name THERE must change nothing.
+    ///
+    ///  THAT SENTENCE USED TO SAY "the answer" AND IT IS NOW TOO WIDE - issue
+    ///  #312. The ANSWER also carries `entities`, which names the key of every
+    ///  other row the insert wrote. What did NOT change is `params`, which is
+    ///  the source this reader is pointed at through _SetGeneratedKeyValue and
+    ///  the only thing the paragraph above is about. The `entities` side has
+    ///  its own reader, _ApplyGeneratedKeysToGraph, which reaches this same
+    ///  body through _SetGeneratedKeyValueFrom with a different source.
     ///
     ///  THIS IS NOT THE SAME CODE AS THE DATASET FAMILY'S, and the duplication
     ///  is deliberate - see the note over Insert.
@@ -118,9 +126,26 @@ type
     ///  is the whole safety of it. Two things follow:
     ///
     ///    - `entities` can only ever address a MAPPED association. A path
-    ///      naming any other published property resolves to nil and writes
-    ///      nothing, so a defective - or hostile - answer cannot reach into an
-    ///      arbitrary part of the object graph.
+    ///      naming any other published property resolves to nil, so a
+    ///      defective - or hostile - answer cannot WRITE into an arbitrary part
+    ///      of the object graph.
+    ///
+    ///      THAT IS ABOUT WRITING, AND READING ALREADY HAS AN EFFECT. Resolving
+    ///      a segment calls TRttiPropertyHelper.GetNullableValue, which for a
+    ///      property that is not Nullable-shaped falls through to
+    ///      `Self.GetValue` - MetaDbDiff.Rtti.Helper, GetNullableValue, the
+    ///      `else` arm - and that RUNS THE GETTER. On a Lazy association the
+    ///      getter is what materialises the proxy, so an answer naming a lazy
+    ///      association forces a load during reconciliation, before anything is
+    ///      written and whether or not the entry is ever accepted.
+    ///
+    ///      NOT REACHABLE TODAY, and the number is measured rather than
+    ///      assumed: no Lazy association anywhere under Test\ or Examples\
+    ///      carries CascadeInsert, so no such branch can appear in `entities`
+    ///      at all, and the walk that produces it descends only CascadeInsert
+    ///      associations. Recorded as an OBSERVATION and deliberately not
+    ///      repaired here - the fix is a question about what a resolver is
+    ///      allowed to touch, not about this issue.
     ///    - The MULTIPLICITY decides whether the segment must carry an ordinal,
     ///      which is the same question the producer asked when it wrote the
     ///      segment. Without it the list branch would have to cast whatever the
@@ -165,6 +190,15 @@ type
     ///  ends of a contract drift apart. The producer still emits the root's
     ///  entry, because an `entities` array that describes the whole graph is
     ///  worth more to a third party reader than one with a hole in it.
+    ///
+    ///  IT DISCRIMINATES PER ENTITY AND NOT PER AGGREGATE - issue #312, second
+    ///  delivery. Each entry is asked whether the class its path RESOLVED TO
+    ///  carries a [Sequence], which is the same question
+    ///  TSessionRestFul&lt;M&gt;.ExistSequence asks of the root. The first
+    ///  delivery let the ROOT's answer decide for the whole graph, and a mixed
+    ///  aggregate - client-supplied root key over a sequenced child - therefore
+    ///  discarded a key the database really had generated. See the gate itself
+    ///  for the measurement.
     ///
     ///  NOT MEASURED against a live server. </summary>
     procedure _ApplyGeneratedKeysToGraph(const AObject: TObject);
@@ -553,6 +587,36 @@ begin
     if (LEntity.EntityClassName <> '') and
        (not SameText(LEntity.EntityClassName, LTarget.ClassName)) then
       Continue;
+
+    // THE GATE, ASKED PER ENTITY - issue #312, second delivery.
+    //
+    // This is the SAME question TSessionRestFul<M>.ExistSequence asks -
+    // `GetMappingSequence(<class>) <> nil` - put to the class the path
+    // RESOLVED TO instead of to the root. One question asked twice, which is
+    // the house idiom; a second table kept in step by hand is what it avoids.
+    //
+    // WHY IT CANNOT BE THE ROOT'S ANSWER. Insert used to call this reader from
+    // inside `if FSession.ExistSequence`, and that gate asks ONE class. In a
+    // MIXED aggregate - a root whose key the client supplies over a child that
+    // carries its own [Sequence] - the root answers False and the child's real
+    // generated key was discarded with the whole array. Measured on
+    // Test.Janus.Model.ClientKeyRoot: the child came out at the placeholder
+    // while the answer said 601. Asking one class a question that is per ROW
+    // is the very defect #312 repairs in `params`, one level up.
+    //
+    // WHY IT CANNOT SIMPLY BE REMOVED. An entity with no sequence has no
+    // SERVER-generated key, so its value came from the client and must
+    // survive; a server echoing it back must not be able to overwrite it.
+    // Measured: removing this line reddens
+    // Insert_AnEntryWhoseEntityHasNoSequenceOfItsOwnIsNotRead.
+    //
+    // THIS IS ABOUT THE ENTITY, NOT ABOUT THE VALUE. A sequenced entity whose
+    // key the caller happened to fill in by hand is still reconciled from the
+    // answer - that is the same reading #301 gave the root and it is not
+    // widened here.
+    if TMappingExplorer.GetMappingSequence(LTarget.ClassType) = nil then
+      Continue;
+
     LPrimaryKey := TMappingExplorer.GetMappingPrimaryKeyColumns(LTarget.ClassType);
     // No `raise` here, unlike Insert's own reading of the root's mapping: an
     // entry for an unmapped branch is a defect in the ANSWER, and an answer
@@ -613,22 +677,40 @@ begin
       for LColumn in LPrimaryKey.Columns do
         SetAutoIncValueChilds(AObject, LColumn);
 
-      // ISSUE #312 - AND NOW EVERY LEVEL BELOW THE ROOT. The two loops above
-      // reconcile the root and hand its key to the level under it, which is
-      // all the answer could carry before this issue. `entities` names the key
-      // the server generated for each of the other rows, so each of them can
-      // be reconciled and can hand ITS key to the level under IT.
-      //
-      // INSIDE THE ExistSequence GATE, with the two loops above and for the
-      // same reason: with no [Sequence] there is no generated key to
-      // reconcile, and the client's own values must survive. Pinned by
-      // Insert_WithoutASequenceTheEntitiesArrayIsNotRead.
-      //
-      // AFTER them, not before: the two are independent - the root's entry is
-      // skipped by the reader - but keeping the root's whole reconciliation in
-      // one place is what makes the order of these three lines readable.
-      _ApplyGeneratedKeysToGraph(AObject);
     end;
+
+    // ISSUE #312 - AND NOW EVERY LEVEL BELOW THE ROOT. The two loops above
+    // reconcile the root and hand its key to the level under it, which is all
+    // the answer could carry before this issue. `entities` names the key the
+    // server generated for each of the OTHER rows, so each of them can be
+    // reconciled and can hand ITS key to the level under IT.
+    //
+    // OUTSIDE THE ExistSequence GATE, AND THE FIRST DELIVERY OF #312 HAD IT
+    // INSIDE. That gate is #301's, written for the ROOT's key, and it answers
+    // `GetMappingSequence(TClass(M)) <> nil` - it asks ONE CLASS, the root.
+    // The reason written beside it, "with no [Sequence] there is no generated
+    // key to reconcile", is true of a SYMMETRIC aggregate and FALSE of a MIXED
+    // one: a root whose key the CLIENT supplies over a child that carries its
+    // own [Sequence] answers False at the gate, and the whole array - a key
+    // the database really did generate and the server really did report - was
+    // thrown away. Measured on Test.Janus.Model.ClientKeyRoot, the model #305
+    // wrote for exactly that asymmetry: the child came out at -1 while the
+    // answer said 601.
+    //
+    // AND IT WAS THIS ISSUE'S OWN DEFECT ONE LEVEL UP - asking ONE CLASS a
+    // question that is PER ROW is what #312 repairs in `params`.
+    //
+    // THE GATE DID NOT GO AWAY; IT MOVED TO WHERE THE QUESTION BELONGS. Each
+    // entry is now asked the SAME question about the entity its path resolved
+    // to - see _ApplyGeneratedKeysToGraph. Taking the gate away instead of
+    // moving it is not an option and that is measured too: it reddens
+    // Insert_AnEntryWhoseEntityHasNoSequenceOfItsOwnIsNotRead, where root and
+    // child are both NotInc and the client's own values have to survive.
+    //
+    // NOTHING ELSE MOVED. The root's reading of `params` stays inside the gate
+    // exactly as #301 left it, which is what
+    // MixedGraph_TheClientSuppliedRootKeyIsNotTouched holds it to.
+    _ApplyGeneratedKeysToGraph(AObject);
   except
     on E: Exception do
     begin
