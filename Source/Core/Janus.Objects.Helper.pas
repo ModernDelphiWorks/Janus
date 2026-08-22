@@ -213,6 +213,77 @@ begin
   end;
 end;
 
+{ CANONICAL NOTE - THE MethodCall('Create', []) IDIOM.
+  DO NOT "CLEAN UP" THE CALLERS. Anchored by symbol: every site that applies
+  the idiom points back here, at Janus.Objects.Helper.TObjectHelper.MethodCall.
+
+  Across the framework you meet this pair, always together:
+
+      LObject := <class-reference expression>.Create;  // allocates only
+      LObject.MethodCall('Create', []);                // runs the MODEL ctor
+
+  The second line reads as a duplicate of the first. It is not. Removing it
+  compiles clean, and at one measured site leaves the whole unit suite green,
+  while every field the model assigns in its own constructor silently arrives
+  empty and every sub-object it builds arrives nil.
+
+  WHY THE FIRST LINE DOES NOT RUN THE MODEL CONSTRUCTOR
+
+  The reason is NOT virtual versus non-virtual dispatch. It is which type the
+  COMPILER can see at the call site. A constructor reached through a class
+  reference is bound to the constructor visible on the type that reference is
+  DECLARED to hold - never on the class it happens to carry at run time. Every
+  site in this framework holds a plain TClass, either directly or as
+  TRttiInstanceType.MetaclassType, whose static type is also TClass. TClass is
+  `class of TObject`, so the compiler binds `<expr>.Create` to TObject.Create,
+  which allocates and zero-fills and nothing else.
+
+  The consequence that settles the "it is just virtual dispatch" reading:
+  making the model's own Create virtual does NOT rescue it. Measured below,
+  row 7. What DOES work is any form where the compiler already knows the
+  concrete type: generic code declared `<M: class, constructor>` calling
+  M.Create, and a TYPED class reference whose declared base itself declares
+  Create virtual (that is why Janus.Types.Blob can call LGraphicClass.Create
+  with no workaround - Vcl.Graphics declares TGraphicClass = class of TGraphic
+  at line 357 and TGraphic.Create virtual at line 995).
+
+  MEASURED AT 8f5864f - a disposable console probe over this very method, on a
+  model whose constructor assigns an 8-character String and builds a sub-object
+  (Delphi 37.0, Win32/Debug):
+
+    1 TClass.Create                                  Tag len 0   Child nil
+    2 MetaclassType.Create                           Tag len 0   Child nil
+    3 MetaclassType.Create + MethodCall('Create',[])  Tag len 8   Child built
+    4 T.Create, generic <M: class, constructor>       Tag len 8   Child built
+    5 idem, model ctor declared VIRTUAL               Tag len 8   Child built
+    6 idem, model ctor declared OVERRIDE              Tag len 8   Child built
+    7 TClass.Create over that same VIRTUAL ctor       Tag len 0   Child nil
+    8 typed `class of` whose base ctor is virtual     Tag len 8   Child built
+
+  AND ON TWO REAL SITES, by deleting only the MethodCall line and rerunning
+  Janus.Tests.Units (baseline 715/715):
+
+    Janus.DataSet.Base.Adapter.FillMastersClass  -> 704 passed, 1 failed,
+      10 errored (access violations). The suite defends that one.
+    Janus.Mapping.Lazy.CreateLazyManyAssociationLoadFunc -> STAYS 715/715
+      GREEN. The suite does not defend that one.
+
+  Read that last line as the reason this note exists: "the tests still pass"
+  is NOT evidence that an occurrence of the idiom was redundant.
+
+  PRECEDENT - the fact was already written down once, but only in one place,
+  far from the sites that depend on it: see the block inside
+  Janus.Mapping.Lazy.CreateLazyManyAssociationLoadFunc.
+
+  KNOWN HAZARD OF THE IDIOM ITSELF - MethodCall resolves the name through
+  TRttiType.GetMethod, which answers the FIRST declared method carrying that
+  name, not an overload matched against the arguments passed. On TObjectList<T>
+  that is the parameterless constructor, and handing it an argument raises
+  'Parameter count mismatch' before anything else runs - the bite is recorded
+  in Janus.Mapping.Lazy, which is why the list there is built by invoking the
+  TRttiMethod over the metaclass instead. Anyone applying this idiom at a NEW
+  site must first check which constructor GetMethod actually returns for that
+  class. }
 function TObjectHelper.MethodCall(const AMethodName: String;
   const AParameters: array of TValue): TValue;
 var

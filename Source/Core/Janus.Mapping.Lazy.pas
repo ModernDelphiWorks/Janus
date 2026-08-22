@@ -230,6 +230,17 @@ begin
       // Invocar o construtor sobre a METACLASSE constroi de verdade, e o
       // numero de argumentos passa a seguir o construtor que o RTTI devolveu.
       //
+      // CORRECTION TO THE PARAGRAPH ABOVE, AND THE ANCHOR FOR THE WHOLE FACT.
+      // "que nao e virtual" names the wrong cause. Declaring the model's own
+      // Create virtual does NOT make TClass.Create reach it - measured, row 7
+      // of the probe recorded in the canonical note. The real cause is static
+      // binding: TClass is `class of TObject`, so the compiler resolves
+      // `<TClass expr>.Create` against TObject, whatever the runtime class is.
+      // This block is the precedent - the place where the fact was first
+      // written down - and the full account now lives at
+      // Janus.Objects.Helper.TObjectHelper.MethodCall, together with the
+      // GetMethod('Create') hazard this paragraph discovered.
+      //
       // A GUARDA ABAIXO NAO E A DE Lazy<T>.CreateDefaultValue, E E DE
       // PROPOSITO. O irmao, em Janus.Types.Lazy, exige tambem LRttiType
       // .IsList; aqui o IsList foi OMITIDO. TRttiTypeHelper.IsList
@@ -294,6 +305,9 @@ begin
         while not LResultSet.Eof do
         begin
           LObjectCreate := LPropertyType.AsInstance.MetaclassType.Create;
+          // Not a duplicate of the line above - see the canonical note at
+          // Janus.Objects.Helper.TObjectHelper.MethodCall. Deleting this line
+          // leaves Janus.Tests.Units 715/715 green: nothing here defends it.
           LObjectCreate.MethodCall('Create', []);
           ABindToObject(LResultSet, LObjectCreate);
           ProcessLazyLoadedObject(LObjectCreate,

@@ -828,6 +828,9 @@ begin
   try
     LObjectSet := TRESTObjectSet.Create(FConnection, LClassType);
     LObject := LClassType.Create;
+    // Not a duplicate of the line above: LClassType is a plain TClass, so the
+    // line above runs TObject.Create and the model constructor never fires.
+    // Canonical note at Janus.Objects.Helper.TObjectHelper.MethodCall.
     LObject.MethodCall('Create', []);
 
     TJanusJson.JsonToObject(AValue, LObject);
@@ -911,6 +914,8 @@ begin
   try
     LObjectSet := TRESTObjectSet.Create(FConnection, LClassType);
     LObjectNew := LClassType.Create;
+    // Not a duplicate of the line above - LClassType is a plain TClass. See the
+    // canonical note at Janus.Objects.Helper.TObjectHelper.MethodCall.
     LObjectNew.MethodCall('Create', []);
 
     TJanusJson.JsonToObject(AValue, LObjectNew);
