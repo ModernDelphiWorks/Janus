@@ -113,11 +113,15 @@ uses
   RestHorseTest.Base;
 
 type
-  /// THE NAMES ARE NOT DECORATIVE. TRESTQueryParse.GetResourceName answers
-  /// 'T' + the path segment and TMappingRepository.FindEntityByName matches it
-  /// against ClassName, so the shipped convention is class = 'T' + table. Every
-  /// key column is spelled once (im, il) so a propagation that reads the wrong
-  /// entity's key mapping cannot resolve by coincidence.
+  /// THE NAMES ARE NOT DECORATIVE. TRESTQueryParse.GetResourceName hands its
+  /// answer to TMappingRepository.FindEntityByName, which matches it against
+  /// ClassName; since issue #364 the getter RESOLVES the segment against the
+  /// registry - ClassName first, then the [Table] name - where it used to
+  /// answer 'T' + the segment and nothing else. These models are spelled
+  /// class = 'T' + table, so they are reached on the FIRST of those two
+  /// passes, exactly as they were before, and the URLs below are unchanged.
+  /// Every key column is spelled once (im, il) so a propagation that reads the
+  /// wrong entity's key mapping cannot resolve by coincidence.
   [Entity]
   [Table('idsleaf', '')]
   [PrimaryKey('ilkey', TAutoIncType.AutoInc, TGeneratorType.SequenceInc,
