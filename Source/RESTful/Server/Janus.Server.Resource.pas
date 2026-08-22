@@ -344,13 +344,28 @@ begin
     // SCOPE of that sentence matters, because an earlier version of it said
     // "in this repository" and that is FALSE. Re-derived by sweeping every
     // [Association] under Test\ and Examples\ and reading forward from each to
-    // its `property` line: 66 associations in all - 27 under Test\, 39 under
-    // Examples\ - of which 29 carry NO [CascadeActions] at all. The shape the
-    // filter exists for is therefore common; what is true is only that none of
-    // those 29 sits on a model any RESTHorse fixture inserts. The nearest live
-    // one is Examples\Delphi\Data\Models\Janus.Model.Master.pas:110 - a to-ONE
+    // its `property` line: 66 textual occurrences in all - 27 under Test\, 39
+    // under Examples\ - of which 29 carry NO [CascadeActions].
+    //
+    // THOSE ARE OCCURRENCES, NOT DECLARATIONS, and the difference is declared
+    // rather than rounded away: 5 of the 66 are not attributes at all - 3 under
+    // Test\ are prose inside comments or an Assert argument, and 2 under
+    // Examples\ are attributes commented out. Real declarations: 61. It does
+    // not move the conclusion, because the shape the filter exists for is
+    // common either way.
+    //
+    // What is true is only that none of those sits on a model any RESTHorse
+    // fixture inserts. The nearest live one is
+    // Examples\Delphi\Data\Models\Janus.Model.Master.pas:110 - a to-ONE
     // association with no [CascadeActions] whose branch IS constructed, at
-    // :129 of that same file.
+    // :131 of that same file.
+    //
+    // AN EARLIER VERSION OF THIS NOTE SAID :129 AND THAT WAS WRONG - re-read
+    // here, :129 is the `begin` and :131 is `Fclient := Tclient.Create;`. And
+    // naming WHICH copy is part of the citation: Examples\Delphi\RESTful\
+    // Horse\models\Janus.Model.Master.pas is a second copy that happens to
+    // carry the same two line numbers today. The one cited is the Data\Models\
+    // one.
     //
     // The filter mirrors the predicate CascadeActionsExecute itself filters on,
     // which is what this walk is describing; closing it honestly needs a

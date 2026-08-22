@@ -269,11 +269,34 @@ const
   /// `GetMappingSequence(TClass(M)) <> nil`, about the ROOT and only the root.
   cCLIENTROOTKEY = 42;
   cCKRCHILDKEY   = 601;
+
+  /// A NUMBER THE CLIENT NEVER HAD, and the whole reason this constant is not
+  /// simply an echo of cCLIENTROOTKEY.
+  ///
+  /// The first version of this document answered `"ckrroot_id":42` - the value
+  /// the client had already put on the root. So
+  /// MixedGraph_TheClientSuppliedRootKeyIsNotTouched could not tell "the root's
+  /// reader was correctly skipped" from "the root's reader ran and wrote back
+  /// the same 42": MEASURED, by forcing the root gate open with
+  /// `if True or FSession.ExistSequence` under a {$MESSAGE WARN} the compiler
+  /// echoed - the suite went 275 to 273 and that clause stayed GREEN, with the
+  /// regression caught by two OTHER clauses. The behaviour was defended; the
+  /// clause's own claim about itself was not true.
+  ///
+  /// THAT IS THE SAME SPECIES OF DEFECT THIS COMMIT EXISTS TO REPAIR - a clause
+  /// that pins the easy shape and never puts the doubtful one on the bench -
+  /// reappearing inside the repair. Hence 99: the assertions still demand
+  /// cCLIENTROOTKEY, so the root's key moving AT ALL is now visible.
+  ///
+  /// It is spelled in BOTH `params` and the root's `entities` entry, so the
+  /// clause dies for either route - the root's params reader running, or the
+  /// root's entry ceasing to be skipped.
+  cSERVERROOTKEYTHECLIENTNEVERHAD = 99;
   cANSWERFORTHEMIXEDGRAPH =
     '{"result":"Resource ckrroot insert command executed successfully", ' +
-    '"params":[{"ckrroot_id":42}], ' +
+    '"params":[{"ckrroot_id":99}], ' +
     '"entities":[' +
-      '{"path":"","class":"TCkrRoot","keys":{"ckrroot_id":42}},' +
+      '{"path":"","class":"TCkrRoot","keys":{"ckrroot_id":99}},' +
       '{"path":"childs[0]","class":"TCkrChild","keys":{"ckrchild_id":601}}]}';
 
   /// The same contract for the entity with no [Sequence].
@@ -909,10 +932,14 @@ begin
   Assert.AreEqual(cCLIENTROOTKEY, FMixed.ckrroot_id,
     'the root has no [Sequence], so #301''s reading of `params` must stay ' +
     'skipped for it and the client''s own key must survive. Moving the graph ' +
-    'reader out of that gate must NOT have moved the root''s reader with it');
+    'reader out of that gate must NOT have moved the root''s reader with it. ' +
+    IntToStr(cSERVERROOTKEYTHECLIENTNEVERHAD) + ' here means it did - and ' +
+    'that number is in the document precisely so this clause can SEE it: an ' +
+    'answer echoing the client''s own 42 could not have told the two apart');
   Assert.AreEqual(cCLIENTROOTKEY, FMixed.childs[0].ckrroot_id,
-    'and the child''s foreign key was already right before the POST - nothing ' +
-    'here may disturb it');
+    'and the child''s foreign key was already right before the POST. ' +
+    IntToStr(cSERVERROOTKEYTHECLIENTNEVERHAD) + ' here is the same failure ' +
+    'arriving by the cascade: a root reconciled to 99 hands 99 down');
 end;
 
 procedure TTestRestGraphInsertEntities
