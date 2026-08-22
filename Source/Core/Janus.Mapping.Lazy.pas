@@ -182,6 +182,52 @@ begin
         while not LResultSet.Eof do
         begin
           LObjectValue := LChildClass.Create;
+          // O MethodCall NAO E REDUNDANTE. LChildClass e um TClass, e Create
+          // sobre uma REFERENCIA DE CLASSE liga ESTATICAMENTE a TObject.Create:
+          // a linha acima aloca e zera a instancia, e o corpo do construtor da
+          // classe filha NAO roda. A causa e a ligacao estatica, nao despacho
+          // virtual - um construtor virtual alcancado assim falha igual. O
+          // relato canonico do mecanismo, com a medicao das oito formas por
+          // tras dele, esta em TObjectHelper.MethodCall - ancorado por SIMBOLO.
+          //
+          // O IRMAO DESTA FUNCAO, LOGO ABAIXO NESTA MESMA UNIT,
+          // CreateLazyManyAssociationLoadFunc, sempre teve esta chamada. Doze
+          // linhas de distancia, e a diferenca decidia se o dado sobrevivia.
+          //
+          // MEDIDO, mesmo modelo, mesmas linhas, mudando so a rota: um
+          // TLazyCtorChild - cujo construtor monta Fgrands - materializado por
+          // esta funcao chegava com grands nil, e as duas netas eram
+          // descartadas; pelas rotas de colecao, lazy e eager, chegava com
+          // grands.Count = 2. A perda e SILENCIOSA por construcao:
+          // TSQLCommandExecutor<M>.ExecuteOneToMany anexa cada neta sob
+          // `if LObjectList <> nil`, entao a lista nil faz aquela guarda jogar
+          // fora cada linha sem excecao e sem log - e os objetos recem-criados
+          // nao sao nem adicionados nem liberados.
+          //
+          // POR QUE A SUITE FICAVA VERDE COM O DEFEITO VIVO. Medido com uma
+          // sonda nesta linha, sobre a Janus.Tests.Units inteira em 8f5864f:
+          // o sitio executava TRES vezes em 715 testes, sempre
+          // TExame -> TProcedimento, sempre vindo de
+          // Test.Janus.Cursor.Advance.LazySingleAssociation_ThreeRows_Terminates,
+          // que chama esta funcao DIRETAMENTE. NENHUMA rota publica chegava
+          // aqui, e TProcedimento.Create e VAZIO - nao havia o que um construtor
+          // pulado perdesse. A mesma sonda sobre a Janus.Tests.RESTfulDriver nao
+          // produziu uma linha: 283 testes, sitio nunca alcancado. Quem cobre
+          // isso agora e Test.Janus.ObjectSet.LazyOneToOneChildCtor, o primeiro
+          // teste do repositorio a alcancar esta funcao pela API publica.
+          //
+          // O RISCO DESTA CHAMADA, dito como CONDICAO e nao como contagem.
+          // GetMethod('Create') devolve o PRIMEIRO construtor declarado, nao uma
+          // sobrecarga casada com os argumentos - o aviso esta escrito por
+          // extenso no irmao logo abaixo. A chamada e segura enquanto o alvo
+          // declarar no maximo um construtor sem parametros; nao declarando
+          // nenhum, GetMethod cai em TObject.Create, inofensivo. Um alvo que
+          // passe a declarar dois construtores, com o de parametros primeiro,
+          // quebra aqui. E a armadilha especifica descrita no irmao NAO morde
+          // nesta linha: mesmo que o alvo fosse um TObjectList<T>, o construtor
+          // que GetMethod devolve para ele e o de ZERO argumentos, que e
+          // exatamente o numero de argumentos passados aqui.
+          LObjectValue.MethodCall('Create', []);
           ABindToObject(LResultSet, LObjectValue);
           ProcessLazyLoadedObject(LObjectValue,
                                   AProcessingObjects,
