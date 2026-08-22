@@ -529,6 +529,15 @@ begin
   for LEntity in FSession.ResultEntities do
   begin
     // The root has its own reader - see the doc comment over the declaration.
+    //
+    // THIS GUARD IS REDUNDANT TODAY AND SAYS SO, because a mutation proved it:
+    // removed, with a {$MESSAGE WARN} the compiler echoed as W1054, the
+    // RESTfulDriver suite stayed at 272/0/0. _ResolveEntityPath refuses the
+    // empty path on its own, so the entry would be dropped one line below
+    // anyway. It stays because the two refusals answer different questions -
+    // that one says "the empty path addresses nothing", this one says "the
+    // root is not this reader's to write" - and it would become live the day
+    // the resolver learned to answer for the root. It is NOT load-bearing now.
     if LEntity.Path = '' then
       Continue;
     LTarget := _ResolveEntityPath(AObject, LEntity.Path);

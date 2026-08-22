@@ -336,6 +336,16 @@ begin
     Exit;
   for LAssociation in LAssociations do
   begin
+    // THIS FILTER IS GROUPED BY ARGUMENT AND NOT BY MEASUREMENT, and a
+    // mutation says so: removed, with a {$MESSAGE WARN} the compiler echoed as
+    // W1054, Janus.Tests.RESTHorse stayed at 177/0/0. The reason is a fact
+    // about the test tree rather than about this code - EVERY mapped
+    // association reachable from a REST insert body in this repository carries
+    // CascadeInsert, so the filter never excludes anything a fixture can see.
+    // It mirrors the predicate CascadeActionsExecute itself filters on, which
+    // is what the walk is describing; closing it honestly needs a model with a
+    // populated branch the cascade does NOT write, and inventing one is a
+    // piece of work of its own.
     if not (TCascadeAction.CascadeInsert in LAssociation.CascadeActions) then
       Continue;
     LValue := LAssociation.PropertyRtti.GetNullableValue(AObject);
