@@ -91,16 +91,21 @@
   unit, and it is filled with objects that method creates itself (`M.Create`).
   It is deliberately NOT touched.
 
-  Update_TheObjectIsDestroyedExactlyOnce is the clause that pins the other
-  half: after the call the caller frees the object, and the ledger must read
-  exactly 1 - not 0, which would be the leak a repair that merely deleted the
-  Clear would have caused, and not 2, which is the defect.
+  AND THE OBJECT LEAK IS RULED OUT FROM THE OTHER SIDE by
+  Update_TheLedgerSeesTheCallersOwnFree: after the call the caller performs the
+  Free, and the ledger must have seen it. That clause is also the instrument's
+  self-check - a ledger that recorded nothing would make every "0 destructions"
+  clause here green while measuring nothing, and this is the one place that
+  reddens if it does.
 
-  DUNITX'S OWN LEAK COUNTER IS BLIND TO THIS FAMILY OF DEFECT, and that is
-  measured rather than assumed - Test.Janus.Metadata.Compare records the same
-  finding for a different leak, and the delivery note for this issue records
-  the re-measurement here: a mutation that leaks the wrapper list outright
-  leaves `Tests Leaked : 0`. The ledger is the instrument; the counter is not.
+  WHAT NOTHING HERE CATCHES, SAID PLAINLY: A LEAK OF THE WRAPPER LIST ITSELF.
+  Measured, not assumed - a mutation that removes LObjectList.Free outright,
+  applied with a MESSAGE WARN directive the compiler echoed as W1054 on the
+  header of Update, SURVIVES at 283/0/0 and leaves Tests Leaked at 0. DUnitX's leak
+  counter is blind to it, which is the same finding Test.Janus.Metadata.Compare
+  recorded for a different leak and a different suite. The ledger is an
+  instrument for ENTITY instances and a TObjectList is not one; catching that
+  would need a heap instrument, which is a different issue from this one.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
@@ -147,11 +152,18 @@ type
     [Test]
     procedure Update_TheObjectTheCallerPassedIsNotDestroyed;
 
-    /// THE OTHER HALF: not destroyed by the adapter, and not forgotten either.
-    /// The caller frees it and the ledger must read exactly one destruction.
-    /// 0 would mean a repair that leaked, 2 would mean the defect.
+    /// THE INSTRUMENT'S OWN SELF-CHECK, and the clause the one above depends
+    /// on for its meaning. A ledger that recorded NOTHING would make every
+    /// "0 destructions" clause in this fixture green while measuring nothing
+    /// at all. Here the caller's own Free is performed and the ledger is
+    /// required to have seen it - so a broken ledger reddens HERE, which is
+    /// what stops it from silently passing everywhere else.
+    ///
+    /// It also pins the ownership handover in the direction the repair could
+    /// have got wrong: after Update the object is the CALLER'S to release, and
+    /// releasing it must really release it.
     [Test]
-    procedure Update_TheObjectIsDestroyedExactlyOnce;
+    procedure Update_TheLedgerSeesTheCallersOwnFree;
 
     /// The object must still be USABLE, which is the thing the caller actually
     /// lost. Guarded: it asks the ledger before touching the object, so on the
@@ -260,7 +272,7 @@ begin
     'and its own Free is a double free - issue #362');
 end;
 
-procedure TTestRestObjectSetOwnership.Update_TheObjectIsDestroyedExactlyOnce;
+procedure TTestRestObjectSetOwnership.Update_TheLedgerSeesTheCallersOwnFree;
 var
   LProbe: TOwnedProbe;
   LAddress: Pointer;
@@ -270,14 +282,16 @@ begin
 
   FAdapter.Update(LProbe);
 
-  if TOwnedProbe.DestructionsOf(LAddress) = 0 then
-    LProbe.Free;
+  if TOwnedProbe.DestructionsOf(LAddress) <> 0 then
+    Assert.Fail('Update destroyed the object, so the caller has nothing left ' +
+      'to free and this clause cannot make its measurement - issue #362');
+
+  LProbe.Free;
 
   Assert.AreEqual(1, TOwnedProbe.DestructionsOf(LAddress),
-    'exactly one destruction over the whole call plus the caller''s own Free. ' +
-    '0 means the object was never released by anyone - a list that stopped ' +
-    'owning without the caller taking the object back; 2 means the adapter ' +
-    'destroyed it and the caller then destroyed it again - issue #362');
+    'the ledger must have SEEN the caller''s own Free. 0 here means the ' +
+    'instrument records nothing, and every "0 destructions" clause in this ' +
+    'fixture would then be green while measuring nothing at all');
 end;
 
 procedure TTestRestObjectSetOwnership.Update_TheObjectIsStillReadableAfterTheCall;
