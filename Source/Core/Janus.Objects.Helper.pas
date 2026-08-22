@@ -214,10 +214,19 @@ begin
 end;
 
 { CANONICAL NOTE - THE MethodCall('Create', []) IDIOM.
-  DO NOT "CLEAN UP" THE CALLERS. Anchored by symbol: every site that applies
-  the idiom points back here, at Janus.Objects.Helper.TObjectHelper.MethodCall.
+  DO NOT "CLEAN UP" THE CALLERS.
 
-  Across the framework you meet this pair, always together:
+  This note explains the MECHANISM and the RISK. It deliberately does NOT say
+  how many sites apply the idiom, nor that all of them link back here. Three
+  hand counts of this same territory produced three different partitions, so
+  any number written here would be false by the next reading, and the sites
+  that merely CARRY the idiom are not the same set as the sites ANNOTATED with
+  a pointer to this note. What holds without rotting is the CONDITION:
+  wherever you meet the pair below, the second line is load-bearing unless you
+  have measured otherwise AT THAT SITE - and "the suite is still green" is not
+  that measurement.
+
+  Across the framework you meet this pair:
 
       LObject := <class-reference expression>.Create;  // allocates only
       LObject.MethodCall('Create', []);                // runs the MODEL ctor
@@ -232,8 +241,8 @@ end;
   The reason is NOT virtual versus non-virtual dispatch. It is which type the
   COMPILER can see at the call site. A constructor reached through a class
   reference is bound to the constructor visible on the type that reference is
-  DECLARED to hold - never on the class it happens to carry at run time. Every
-  site in this framework holds a plain TClass, either directly or as
+  DECLARED to hold - never on the class it happens to carry at run time. Where
+  the idiom appears, the reference is a plain TClass, either directly or as
   TRttiInstanceType.MetaclassType, whose static type is also TClass. TClass is
   `class of TObject`, so the compiler binds `<expr>.Create` to TObject.Create,
   which allocates and zero-fills and nothing else.
@@ -260,16 +269,27 @@ end;
     7 TClass.Create over that same VIRTUAL ctor       Tag len 0   Child nil
     8 typed `class of` whose base ctor is virtual     Tag len 8   Child built
 
-  AND ON TWO REAL SITES, by deleting only the MethodCall line and rerunning
-  Janus.Tests.Units (baseline 715/715):
+  AND ON THREE REAL SITES, by deleting only the MethodCall line and rerunning
+  Janus.Tests.Units (baseline 715/715). Each mutation was confirmed to have
+  reached the binary by the generated code size moving, so a green result here
+  means "unnoticed", never "not compiled":
 
     Janus.DataSet.Base.Adapter.FillMastersClass  -> 704 passed, 1 failed,
       10 errored (access violations). The suite defends that one.
-    Janus.Mapping.Lazy.CreateLazyManyAssociationLoadFunc -> STAYS 715/715
-      GREEN. The suite does not defend that one.
+    Janus.Mapping.Lazy.CreateLazyManyAssociationLoadFunc -> code size moved,
+      suite STAYS 715/715 GREEN.
+    Janus.Server.RestObject.Manager.NextPacketList -> code size moved by -116
+      bytes, suite STAYS 715/715 GREEN. This unit IS linked into that suite;
+      an earlier reading of this measurement called it unlinked, which was
+      wrong - the byte-identical build that suggested it came from
+      Janus.Tests.RESTfulDriver, which is the suite that really does not
+      compile this unit at all.
 
-  Read that last line as the reason this note exists: "the tests still pass"
-  is NOT evidence that an occurrence of the idiom was redundant.
+  Read those two green rows as the reason this note exists: "the tests still
+  pass" is NOT evidence that an occurrence of the idiom was redundant. Do not
+  quote absolute code sizes from here as reproducible - only the DIFFERENCE
+  within one build environment carries the argument, the same lesson already
+  recorded for module offsets in Janus.DataSet.Base.Adapter.FillMastersClass.
 
   PRECEDENT - the fact was already written down once, but only in one place,
   far from the sites that depend on it: see the block inside
