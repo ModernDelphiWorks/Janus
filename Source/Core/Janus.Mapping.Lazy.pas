@@ -179,6 +179,26 @@ begin
                                                      LChildClass,
                                                      AAssociation);
       try
+        // VAZAMENTO PREEXISTENTE DESTE LACO - anterior a esta branch, NAO
+        // consertado aqui, e deliberadamente nao consertado aqui. O laco cria
+        // um objeto POR LINHA e devolve so o ULTIMO: toda linha anterior fica
+        // sem dono. O gemeo EAGER nao tem isso porque REUSA -
+        // TSQLCommandExecutor<M>.ExecuteOneToOne le a propriedade primeiro e so
+        // aloca quando ela vem nil. Quem exercita este laco com mais de uma
+        // linha ja contorna POR FORA: em
+        // Test.Janus.Cursor.Advance.LazySingleAssociation_ThreeRows_Terminates
+        // uma TObjectList<TObject> com OwnsObjects recolhe cada objeto que o
+        // callback ve passar.
+        //
+        // POR QUE A CHAMADA DE CONSTRUTOR ABAIXO ENTRA MESMO ASSIM. MEDIDO na
+        // revisao independente desta branch, com censo de blocos e contador de
+        // destrutor por classe, sobre tres linhas filhas: SEM a chamada, 36
+        // blocos e 1136 bytes vazados, 0 de 6 netas destruidas; COM a chamada,
+        // 36 blocos e 1216 bytes, 2 de 6 netas destruidas. Custo +80 bytes e
+        // ZERO blocos, e no MESMO caminho ela ELIMINA um vazamento de netas -
+        // as netas que hoje sao construidas e jogadas fora sob o
+        // `if LObjectList <> nil` de ExecuteOneToMany. O laco tem issue
+        // propria; nao o conserte de carona numa branch de outra causa.
         while not LResultSet.Eof do
         begin
           LObjectValue := LChildClass.Create;
@@ -187,8 +207,17 @@ begin
           // a linha acima aloca e zera a instancia, e o corpo do construtor da
           // classe filha NAO roda. A causa e a ligacao estatica, nao despacho
           // virtual - um construtor virtual alcancado assim falha igual. O
-          // relato canonico do mecanismo, com a medicao das oito formas por
-          // tras dele, esta em TObjectHelper.MethodCall - ancorado por SIMBOLO.
+          // relato canonico do mecanismo, e a CONDICAO em que este contorno e
+          // seguro, sao mantidos num lugar so: em TObjectHelper.MethodCall,
+          // ancorado por SIMBOLO - nunca por linha e nunca por CONTAGEM, porque
+          // tres censos deste mesmo territorio ja deram tres particoes
+          // diferentes, e qualquer numero escrito aqui nasce vencido. MEDIDO
+          // nesta arvore, em 20 ago 2026: o corpo daquele simbolo, em
+          // Janus.Objects.Helper, AINDA NAO TEM esse texto - identico em
+          // origin/develop, aqui e em f337eae; ele chega pela frente
+          // docs/tclass-create-workaround, que precisa entrar ANTES desta. Ate
+          // la a ancora esta certa e o alvo e que nao chegou, e o que vale e o
+          // paragrafo acima.
           //
           // O IRMAO DESTA FUNCAO, LOGO ABAIXO NESTA MESMA UNIT,
           // CreateLazyManyAssociationLoadFunc, sempre teve esta chamada. Doze

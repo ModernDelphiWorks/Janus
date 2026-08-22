@@ -51,25 +51,44 @@
   zkey, ykey, ekey. A step that resolved a column name against the wrong
   entity's mapping cannot succeed by coincidence here.
 
-  WHY THERE IS NO `HasTheProxyMaterialisedYet` PROBE ON THE LAZY ROOT
+  WHY THE LAZY ROOT IS PROBED BEHAVIOURALLY AND NOT BY A FLAG
 
-  One was written and REMOVED, and the reason is worth keeping. ILazy<T>
-  descends from TFunc<T>, so it is a METHOD REFERENCE, and the compiler
-  AUTO-INVOKES it on any member access. `LLazy.IsValueCreated` does not compile
-  at all - measured: "E2003 Undeclared identifier: 'IsValueCreated'", because
-  it is read as `LLazy().IsValueCreated` and looked up on the CHILD class.
-  Reaching for the interface behind a Pointer() typecast to dodge that is worse
-  and not better: measured, it AVs at run time, because the auto-invocation
-  happens INSIDE the cast too, so what gets cast to IInterface is the loaded
-  OBJECT and the first AddRef walks that object's VMT. Every IsValueCreated
-  call in this repository goes through ILazyProxy, which is a plain interface -
-  none goes through ILazy<T>, and now it is written down why.
+  WHAT DOES NOT COMPILE, and that part stands. A probe written DIRECTLY on the
+  Lazy<> member DOES NOT COMPILE: ILazy<T> descends from TFunc<T>, so it is a
+  METHOD REFERENCE and the compiler AUTO-INVOKES it on any member access.
+  `LLazy.IsValueCreated` is read as `LLazy().IsValueCreated` and looked up on
+  the CHILD class - measured, "E2003 Undeclared identifier: 'IsValueCreated'",
+  and the independent review of this branch reproduced it with an E2015
+  alongside. Casting the VARIABLE through Pointer() to dodge the
+  auto-invocation is worse and not better: the auto-invocation happens INSIDE
+  the cast too, so what reaches IInterface is the loaded OBJECT and the first
+  AddRef walks that object's VMT.
 
-  A probe was not needed anyway. The fixture proves the route is lazy
-  BEHAVIOURALLY, by editing the child row AFTER the root is loaded and before
-  the property is touched: a lazy route reads the edit, an eager one cannot,
-  and Lazy<T>.CreateDefaultValue - the fallback when no proxy was injected -
-  produces a blank instance that carries neither value.
+  WHAT AN EARLIER VERSION OF THIS HEADER GOT WRONG, kept here because the
+  mistake is instructive. It concluded from the paragraph above that asking the
+  proxy whether it had fired was not available AT ALL - and then, one sentence
+  later, named the route that works. FALSE, and measured false. The flag IS
+  reachable, by the framework's OWN idiom: read the Lazy<> FIELD by RTTI,
+  GetReferenceToRawData, GetField('FLazy'), AsInterface, Supports(...,
+  ILazyProxy, ...), then ILazyProxy.IsValueCreated - the very sequence
+  Janus.Mapping.Lazy.InjectLazyAssociationFactory already performs to find an
+  existing proxy, and ILazyProxy is a plain interface, which is why every
+  IsValueCreated call in this repository goes through it and none through
+  ILazy<T>. Measured in the independent review of this branch, on this fixture:
+  beforeTouch=False, afterTouch=True, suite green. A second form measured
+  green too - Supports(IInterface(Pointer(@Fchild)^), ILazyProxy, ...) answered
+  SUPPORTS-OK with IsValueCreated=False and no AV. What separates it from the
+  AV above is that it takes the ADDRESS of the record field, so there is no
+  member access on the method reference and nothing is auto-invoked.
+
+  WHY THE BEHAVIOURAL PREMISE STAYS ANYWAY. Not because the flag is out of
+  reach - it is not - but because the flag is WEAKER evidence. IsValueCreated
+  is a boolean about the proxy; what has to be pinned here is WHEN THE SELECT
+  RAN. The fixture decides that by editing the child row AFTER the root is
+  loaded and BEFORE the property is touched: a lazy route reads the edit, an
+  eager one cannot, and Lazy<T>.CreateDefaultValue - the fallback when no proxy
+  was injected - produces a blank instance that carries neither value. One
+  True/False cannot tell those three apart; the edit can.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
