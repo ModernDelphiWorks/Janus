@@ -136,6 +136,32 @@ type
     procedure CompositeKey_NoChildMeansNoGet;
     [Test]
     procedure CompositeKey_AnAnswerMissingOneKeyColumnKeepsTheGateShut;
+
+    /// ISSUE #312 - THE DATASET FAMILY'S HALF OF THE RISK CLAUSE, and the
+    /// reason it belongs HERE rather than next to the ObjectSet one.
+    ///
+    /// ApplyInserter walks ResultParams 0..Count-1 and writes ANY field the
+    /// row has and the answer names - not only key columns - with the LAST one
+    /// winning. That is what makes a child key inside `params` dangerous in a
+    /// way it is not in the other family: a child called `ck1` would overwrite
+    /// the ROOT's `ck1`, silently, and every clause above would stay green.
+    ///
+    /// #312 therefore put the graph's keys in a SIBLING key of the envelope,
+    /// `entities`, and nothing from it is ever added to ResultParams. This
+    /// clause is what proves that rather than asserting it: the answer carries
+    /// an `entities` array whose child entry names `ck1` with a different
+    /// number, and the root row must come out carrying the one from `params`.
+    ///
+    /// AND THE DATASET FAMILY DOES NOT READ `entities` AT ALL IN THIS
+    /// DELIVERY - see the note over ApplyInserter. This clause is not about
+    /// what it reads; it is about what it must be UNABLE to read.
+    [Test]
+    procedure Entities_AChildKeyNamedLikeTheRootsDoesNotReachTheRootRow;
+
+    /// And the presence of the new key must not disturb the #297 gate either:
+    /// the re-read still fires exactly once, on the same key.
+    [Test]
+    procedure Entities_ThePresenceOfTheNewKeyChangesNothingAboutTheGate;
   end;
 
 implementation
@@ -158,6 +184,17 @@ const
   cPOSTHALFKEY =
     '{"result":"Resource ckroot insert command executed successfully",' +
     '"params":[{"ck2":9}]}';
+  /// ISSUE #312. The shipped answer AFTER that issue: `params` byte for byte
+  /// what it was above, plus the sibling `entities` key. The child's entry
+  /// deliberately names `ck1` - a column the ROOT row has - with a number the
+  /// root must never take.
+  cCHILDKEYUNDERENTITIES = 111;
+  cPOSTANSWERWITHENTITIES =
+    '{"result":"Resource ckroot insert command executed successfully",' +
+    '"params":[{"ck1":7,"ck2":9}],' +
+    '"entities":[' +
+      '{"path":"","class":"TCkRoot","keys":{"ck1":7,"ck2":9}},' +
+      '{"path":"childs[0]","class":"TCkChild","keys":{"ck1":111}}]}';
   /// What the GET route answers: the root on its real key with its child.
   cGETANSWER =
     '[{"ck1":7,"ck2":9,"tag":"root","childs":[' +
@@ -296,6 +333,38 @@ begin
   Assert.AreEqual(0, FRep.GetCount,
     'one placeholder anywhere in the row key is enough for ' +
     '_RowKeyIsUngenerated to keep the gate shut');
+end;
+
+procedure TTestRestCompositeKeyReReadGate
+  .Entities_AChildKeyNamedLikeTheRootsDoesNotReachTheRootRow;
+begin
+  FRep.PostAnswer := cPOSTANSWERWITHENTITIES;
+  BuildTree;
+  Seed;
+  TMemApply<TCkRoot>.Apply(FRoot);
+  Assert.AreEqual(cSRVK1, KeyOf(FRootMem, 'ck1'),
+    'ISSUE #312, THE RISK CLAUSE FOR THIS FAMILY. ' +
+    IntToStr(cCHILDKEYUNDERENTITIES) + ' here would mean an entry of ' +
+    '`entities` reached ResultParams, and ApplyInserter would have written a ' +
+    'CHILD''s key over the ROOT''s - it writes any field the row has and the ' +
+    'answer names, LAST one winning. The two lists are separate structures ' +
+    'and that is what makes this impossible rather than unlikely');
+  Assert.AreEqual(cSRVK2, KeyOf(FRootMem, 'ck2'),
+    'and the other column of the composite key is untouched too');
+end;
+
+procedure TTestRestCompositeKeyReReadGate
+  .Entities_ThePresenceOfTheNewKeyChangesNothingAboutTheGate;
+begin
+  FRep.PostAnswer := cPOSTANSWERWITHENTITIES;
+  BuildTree;
+  Seed;
+  TMemApply<TCkRoot>.Apply(FRoot);
+  Assert.AreEqual(1, FRep.PostCount,
+    'still one POST for the aggregate');
+  Assert.AreEqual(1, FRep.GetCount,
+    'and the #297 re-read still fires exactly once. A new sibling key in the ' +
+    'envelope must be invisible to every reader that does not ask for it');
 end;
 
 initialization

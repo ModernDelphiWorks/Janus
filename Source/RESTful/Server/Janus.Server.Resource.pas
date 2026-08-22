@@ -57,7 +57,18 @@ type
       /// The %s is now a whole serialised JSON OBJECT, braces included - it
       /// used to be the inside of a pair list, with the braces written here.
       /// The document on the wire is unchanged.
-      cRESOURCEINSERT      = '{"result":"Resource %s insert command executed successfully", "params":[%s]}';
+      /// ISSUE #312 - THE ANSWER GAINS A SIBLING KEY AND `params` DOES NOT
+      /// MOVE. `params` still carries the ROOT's primary key and NOTHING else,
+      /// byte for byte what it carried before this issue, and that is a
+      /// constraint rather than an oversight: TRESTDataSetAdapter<M>.
+      /// ApplyInserter walks 0..ResultParams.Count-1 and writes ANY field the
+      /// row has and the answer names - not just key columns - with the LAST
+      /// one winning. A child's key added to `params` could therefore
+      /// OVERWRITE the root's own key the moment the two spell the same
+      /// column name. Everything new goes into `entities`, which is a sibling
+      /// of `params` and which no reader in this repository read before this
+      /// issue - see the enumeration over _CollectInsertedEntities.
+      cRESOURCEINSERT      = '{"result":"Resource %s insert command executed successfully", "params":[%s], "entities":%s}';
       cRESOURCEUPDATE      = '{"result":"Resource %s update command executed successfully"}';
     function ResolverFindToSkip(const AObjectSet: TRESTObjectSet;
       const AQuery: TRESTQueryParse): string;
@@ -91,6 +102,7 @@ uses
   StrUtils,
   MetaDbDiff.mapping.classes,
   MetaDbDiff.mapping.attributes,
+  MetaDbDiff.types.mapping,
   MetaDbDiff.rtti.helper,
   Janus.Json,
   Janus.Objects.Helper,
@@ -205,6 +217,155 @@ begin
   if VarIsFloat(LValue) then
     Exit(TJSONNumber.Create(Double(VarAsType(LValue, varDouble))));
   Result := TJSONString.Create(VarToStr(LValue));
+end;
+
+/// <summary> One PATH SEGMENT appended to the path of the object above it.
+///  Issue #312. The root's path is the EMPTY STRING, so the first segment
+///  carries no leading separator. </summary>
+function _JoinEntityPath(const APath, ASegment: String): String;
+begin
+  if APath = '' then
+    Result := ASegment
+  else
+    Result := APath + '.' + ASegment;
+end;
+
+/// <summary> The keys the database generated for EVERY row this insert wrote,
+///  each one said TOGETHER WITH WHOSE IT IS. Issue #312.
+///
+///  WHAT WAS WRONG. The server writes the whole aggregate - TRESTObjectSet.
+///  Insert cascades through CascadeActionsExecute and the database generates a
+///  key for every row - and the answer asked the primary key of exactly ONE
+///  class: `GetMappingPrimaryKeyColumns(LObject.ClassType)` over the ROOT. So
+///  the client's root came back reconciled and the whole graph under it kept
+///  the AutoInc placeholder. The symptom is not an error at save time; it is
+///  the NEXT Update or Delete of that child aiming at a key no row has.
+///
+///  WHY A WALK AFTER THE FACT RATHER THAN INSTRUMENTING THE CASCADE. Because
+///  when Insert returns, the server's own copy of the graph ALREADY HOLDS every
+///  generated key - that is what SetAutoIncValueChilds and the per-item stamp
+///  inside OneToManyCascadeActionsExecute have just finished doing. Reading it
+///  here needs no hook, no accumulator threaded through three methods, and no
+///  change at all to Janus.Server.RestObjectSet.pas, which is the file the
+///  cascade lives in and the one hardest to touch safely.
+///
+///  HOW A CHILD IS IDENTIFIED, AND WHY NOT THE THREE ALTERNATIVES.
+///  By its PATH from the root: the association PROPERTY name, plus a bracketed
+///  ordinal when the association is to-many. `mids[0].leafs[1]`.
+///
+///    - By CLASS NAME alone: cannot tell two siblings of one list apart, and a
+///      list of N children is the shape this issue is actually about.
+///    - By the child's OWN key as it arrived: that key is the PLACEHOLDER, and
+///      every child in the graph carries the SAME placeholder. It is not a
+///      discriminator at all.
+///    - By a flat ORDINAL over the traversal: it works only while both ends
+///      walk in the same order, and a wrong ordinal writes a real key onto the
+///      wrong object SILENTLY. A path is CHECKABLE - the reader resolves each
+///      segment against the mapping and against the actual list, and a segment
+///      that does not resolve writes nothing.
+///
+///  WHAT THE PATH BINDS BETWEEN THE TWO ENDS, stated so it can be argued with:
+///
+///    1. The client's graph must still have the SHAPE it POSTed. It does: the
+///       REST ObjectSet family sends the aggregate in ONE POST and never
+///       cascades an insert of its own - Janus.RestObjectSet.Adapter.pas has
+///       exactly one CascadeActionsExecute call and it is CascadeDelete - so
+///       nothing on the client adds, removes or reorders a list between the
+///       POST and the read.
+///    2. List ORDER must survive the round trip, because `[1]` means the second
+///       element of the list the client sent. JSON arrays are ordered and both
+///       ends walk 0..Count-1.
+///    3. The segment is the association PROPERTY name, not the table name and
+///       not the column name. A third party server answering `entities` has to
+///       spell the property the client's class declares.
+///
+///  WHAT IT DELIBERATELY DOES NOT BIND: the ORDER of the entries in the array,
+///  and the order in which associations are declared. Each entry names its own
+///  target and carries its own keys, so the reader can apply them in any order
+///  - which is why a flat ordinal was refused above.
+///
+///  ONLY ASSOCIATIONS CARRYING CascadeInsert ARE DESCENDED, which is the same
+///  predicate CascadeActionsExecute filters on. A branch the cascade did not
+///  write has no generated key to report, and reporting the value the client
+///  sent as if the server had produced it is worse than saying nothing.
+///
+///  RECURSION WITHOUT A VISITED SET, deliberately. A cyclic aggregate would
+///  spin here - and it would have spun in CascadeActionsExecute first, which is
+///  the code that ran immediately before this and which has no visited set
+///  either. A guard here would not protect anything that reaches this line; it
+///  would only make the walk disagree with the walk it is describing.
+///
+///  NOT MEASURED against a live server, and not measured for an aggregate whose
+///  child key is SUPPLIED rather than generated - there the child is already
+///  right and the entry merely restates it. </summary>
+procedure _CollectInsertedEntities(const AObject: TObject; const APath: String;
+  const AEntities: TJSONArray);
+var
+  LPrimaryKey: TPrimaryKeyColumnsMapping;
+  LColumn: TColumnMapping;
+  LAssociations: TAssociationMappingList;
+  LAssociation: TAssociationMapping;
+  LEntity: TJSONObject;
+  LKeys: TJSONObject;
+  LValue: TValue;
+  LChild: TObject;
+  LList: TObjectList<TObject>;
+  LFor: Integer;
+begin
+  if AObject = nil then
+    Exit;
+  LKeys := TJSONObject.Create;
+  LPrimaryKey := TMappingExplorer.GetMappingPrimaryKeyColumns(AObject.ClassType);
+  /// An entity with no primary key mapping still gets an entry, with an EMPTY
+  /// keys object. Saying "this object was written and I have no key for it" is
+  /// information; omitting it would make the array's shape depend on the
+  /// mapping and a reader could not tell an unmapped branch from one the walk
+  /// never reached.
+  if LPrimaryKey <> nil then
+    for LColumn in LPrimaryKey.Columns do
+      LKeys.AddPair(LColumn.ColumnProperty.Name,
+                    _PrimaryKeyValueToJson(LColumn, AObject));
+  LEntity := TJSONObject.Create;
+  LEntity.AddPair('path', TJSONString.Create(APath));
+  LEntity.AddPair('class', TJSONString.Create(AObject.ClassName));
+  LEntity.AddPair('keys', LKeys);
+  AEntities.AddElement(LEntity);
+
+  LAssociations := TMappingExplorer.GetMappingAssociation(AObject.ClassType);
+  if LAssociations = nil then
+    Exit;
+  for LAssociation in LAssociations do
+  begin
+    if not (TCascadeAction.CascadeInsert in LAssociation.CascadeActions) then
+      Continue;
+    LValue := LAssociation.PropertyRtti.GetNullableValue(AObject);
+    if not LValue.IsObject then
+      Continue;
+    if LAssociation.Multiplicity in [TMultiplicity.OneToOne,
+                                     TMultiplicity.ManyToOne] then
+    begin
+      /// TValue reports tkClass for a NIL instance too, so IsObject above lets
+      /// an optional branch that was never filled through. Same guard, same
+      /// reason, as TRESTObjectSet.OneToOneCascadeActionsExecute.
+      LChild := LValue.AsObject;
+      if LChild = nil then
+        Continue;
+      _CollectInsertedEntities(LChild,
+        _JoinEntityPath(APath, LAssociation.PropertyRtti.Name), AEntities);
+    end
+    else
+    if LAssociation.Multiplicity in [TMultiplicity.OneToMany,
+                                     TMultiplicity.ManyToMany] then
+    begin
+      LList := TObjectList<TObject>(LValue.AsObject);
+      if LList = nil then
+        Continue;
+      for LFor := 0 to LList.Count -1 do
+        _CollectInsertedEntities(LList.Items[LFor],
+          _JoinEntityPath(APath, LAssociation.PropertyRtti.Name) +
+          '[' + IntToStr(LFor) + ']', AEntities);
+    end;
+  end;
 end;
 
 /// <summary> The SQL LITERAL of one primary key column, RENDERED rather than
@@ -610,6 +771,7 @@ var
   LClassType: TClass;
   LObjectSet: TRESTObjectSet;
   LParams: TJSONObject;
+  LEntities: TJSONArray;
   LAllowVerbs: TRESTAllowVerbCache;
 begin
   LClassType := TMappingExplorer.GetRepositoryMapping
@@ -649,10 +811,15 @@ begin
       /// the decimal separator JSON requires rather than the one the machine's
       /// locale requires, are then the serialiser's job and not this loop's.
       LParams := TJSONObject.Create;
+      /// ISSUE #312 - the SIBLING key. Built from the SAME graph `params` was
+      /// built from, and after the same Insert, so the two can never describe
+      /// two different writes. `params` is not touched: see cRESOURCEINSERT.
+      LEntities := TJSONArray.Create;
       try
         for LColumn in LPrimaryKey.Columns do
           LParams.AddPair(LColumn.ColumnProperty.Name,
                           _PrimaryKeyValueToJson(LColumn, LObject));
+        _CollectInsertedEntities(LObject, '', LEntities);
         /// ToJSON and NOT ToString: both run TJSONAncestor.ToChars, so both
         /// escape the quote and the backslash, but ToString passes no options
         /// while ToJSON passes EncodeBelow32 and EncodeAbove127. A control
@@ -660,9 +827,11 @@ begin
         /// one that can still emit a document nobody can parse.
         /// An empty column list now yields {} instead of indexing LValues[0].
         Result := Format(cRESOURCEINSERT, [AQuery.ResourceName,
-                                           LParams.ToJSON]);
+                                           LParams.ToJSON,
+                                           LEntities.ToJSON]);
       finally
         LParams.Free;
+        LEntities.Free;
       end;
     finally
       LObject.Free;

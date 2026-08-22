@@ -35,6 +35,9 @@ uses
   /// Janus
   Janus.ObjectSet.Base.Adapter,
   Janus.RestFactory.Interfaces,
+  /// ISSUE #312 - TInsertedEntity, a forma parseada de um elemento de
+  /// `entities`. Mora ao lado de FResultParams e nunca dentro dele.
+  Janus.Session.Abstract,
   MetaDbDiff.mapping.classes,
   MetaDbDiff.types.mapping,
   Janus.Objects.Helper;
@@ -85,6 +88,86 @@ type
     ///  NOT MEASURED against a live server. </summary>
     procedure _SetGeneratedKeyValue(const AObject: TObject;
       const AColumn: TColumnMapping);
+    /// <summary> The reader above with the SOURCE made a parameter - issue
+    ///  #312.
+    ///
+    ///  #312 needed the very same reading against a DIFFERENT list of pairs:
+    ///  the `keys` of one element of `entities` rather than the flat
+    ///  ResultParams. Everything that makes the reader safe - the IsWritable
+    ///  guard, the case-insensitive match, first-match-wins, and above all the
+    ///  rule that it may write only what the declared type provably accepts and
+    ///  must otherwise leave the property alone - has to hold for both, and the
+    ///  cheapest way to guarantee that is for there to be ONE of it.
+    ///
+    ///  So the body moved here unchanged and _SetGeneratedKeyValue became the
+    ///  call that passes FSession.ResultParams. The root's route is therefore
+    ///  the same code it always was, and every clause in
+    ///  Test.Janus.Rest.ObjectSetInsertKey and
+    ///  Test.Janus.Rest.NullableKeyReconciliation now holds BOTH readers
+    ///  honest. </summary>
+    procedure _SetGeneratedKeyValueFrom(const AObject: TObject;
+      const AColumn: TColumnMapping; const AKeys: TParams);
+    /// <summary> The object one `path` of the insert answer names, or NIL -
+    ///  issue #312.
+    ///
+    ///  A path is association property names separated by dots, each one
+    ///  followed by a bracketed ordinal when the association is to-many:
+    ///  `mids[0].leafs[1]`. The EMPTY path is the root and never reaches here.
+    ///
+    ///  IT NAVIGATES BY THE ASSOCIATION MAPPING AND NOT BY BARE RTTI, and that
+    ///  is the whole safety of it. Two things follow:
+    ///
+    ///    - `entities` can only ever address a MAPPED association. A path
+    ///      naming any other published property resolves to nil and writes
+    ///      nothing, so a defective - or hostile - answer cannot reach into an
+    ///      arbitrary part of the object graph.
+    ///    - The MULTIPLICITY decides whether the segment must carry an ordinal,
+    ///      which is the same question the producer asked when it wrote the
+    ///      segment. Without it the list branch would have to cast whatever the
+    ///      property holds to TObjectList&lt;TObject&gt; and read Count off it -
+    ///      an unchecked cast on a value that came off the wire. Here a segment
+    ///      whose shape disagrees with the mapping simply resolves to nil.
+    ///
+    ///  EVERY REFUSAL IS NIL AND NOTHING RAISES, for the reason #301 wrote:
+    ///  before the answer was read, no answer of any shape could make an insert
+    ///  fail, and reading it must not have bought that.
+    ///
+    ///  NOT MEASURED against a live server. </summary>
+    function _ResolveEntityPath(const ARoot: TObject;
+      const APath: String): TObject;
+    /// <summary> Writes onto the graph the key the server generated for each
+    ///  row BELOW the root - issue #312.
+    ///
+    ///  WHY IT EXISTS. The server writes the whole aggregate and the database
+    ///  generates a key for every row, but until #312 the answer named the
+    ///  primary key of ONE class - the root. The client kept a graph whose
+    ///  every level below the first held the AutoInc placeholder, and the
+    ///  symptom arrived later, as an Update or a Delete aimed at a key no row
+    ///  has.
+    ///
+    ///  AND THE PLACEHOLDER WAS NOT EVEN CONFINED TO THE CHILD'S OWN KEY. A
+    ///  grandchild had no valid PARENT in memory either: SetAutoIncValueChilds
+    ///  walks exactly ONE level, Insert calls it only on the root, and this
+    ///  family never calls CascadeActionsExecute for an insert - so nothing
+    ///  reached the third level at all. That is why this stamps the key AND
+    ///  then walks one level down from the object it just stamped: the first
+    ///  write fixes that object's own key, the second hands it to the children
+    ///  waiting on it, exactly as the server's own cascade does.
+    ///
+    ///  IT IS ORDER INDEPENDENT ON PURPOSE. Each entry names its own target and
+    ///  carries its own keys, and the one-level walk reads the key off the
+    ///  object it has just written. So no entry depends on another having been
+    ///  applied first, and the reader does not care what order the array
+    ///  arrived in. That is the property a flat ordinal would not have had.
+    ///
+    ///  THE ROOT'S ENTRY IS SKIPPED. The root already has a reader - the
+    ///  `params` route in Insert - and answering one question twice is how two
+    ///  ends of a contract drift apart. The producer still emits the root's
+    ///  entry, because an `entities` array that describes the whole graph is
+    ///  worth more to a third party reader than one with a hole in it.
+    ///
+    ///  NOT MEASURED against a live server. </summary>
+    procedure _ApplyGeneratedKeysToGraph(const AObject: TObject);
     /// <summary> The Nullable arm of the reader above - issue #317.
     ///
     ///  WHAT WAS WRONG. A `Nullable<T>` property is tkRecord, so it matched no
@@ -275,6 +358,16 @@ end;
 
 procedure TRESTObjectSetAdapter<M>._SetGeneratedKeyValue(const AObject: TObject;
   const AColumn: TColumnMapping);
+begin
+  // ISSUE #312 - o corpo desta leitura virou _SetGeneratedKeyValueFrom, com a
+  // FONTE por parametro, para que a leitura de `entities` seja A MESMA e nao
+  // uma segunda copia dela. A raiz continua vindo de FResultParams, e nenhuma
+  // entrada de `entities` entra ali - ver TInsertedEntity.
+  _SetGeneratedKeyValueFrom(AObject, AColumn, FSession.ResultParams);
+end;
+
+procedure TRESTObjectSetAdapter<M>._SetGeneratedKeyValueFrom(
+  const AObject: TObject; const AColumn: TColumnMapping; const AKeys: TParams);
 var
   LProperty: TRttiProperty;
   LParam: TParam;
@@ -288,9 +381,9 @@ begin
   // not writable rather than letting SetValue raise on it.
   if not LProperty.IsWritable then
     Exit;
-  for LFor := 0 to FSession.ResultParams.Count -1 do
+  for LFor := 0 to AKeys.Count -1 do
   begin
-    LParam := FSession.ResultParams.Items[LFor];
+    LParam := AKeys.Items[LFor];
     // The answer names the key by PROPERTY name, which is what the producer
     // wrote. Case-insensitively, for the same reason the DataSet family reads
     // it through FindField: a third party server is not obliged to echo the
@@ -338,6 +431,140 @@ begin
   end;
 end;
 
+function TRESTObjectSetAdapter<M>._ResolveEntityPath(const ARoot: TObject;
+  const APath: String): TObject;
+var
+  LSegments: TArray<String>;
+  LSegment: String;
+  LName: String;
+  LIndexText: String;
+  LIndex: Integer;
+  LOpen: Integer;
+  LCurrent: TObject;
+  LAssociations: TAssociationMappingList;
+  LAssociation: TAssociationMapping;
+  LFound: TAssociationMapping;
+  LIsList: Boolean;
+  LValue: TValue;
+  LList: TObjectList<TObject>;
+begin
+  Result := nil;
+  if APath = '' then
+    Exit;
+  LCurrent := ARoot;
+  LSegments := APath.Split(['.']);
+  for LSegment in LSegments do
+  begin
+    if LCurrent = nil then
+      Exit(nil);
+    LName := LSegment;
+    LIndex := -1;
+    LOpen := Pos('[', LSegment);
+    if LOpen > 0 then
+    begin
+      if LSegment[Length(LSegment)] <> ']' then
+        Exit(nil);
+      LName := Copy(LSegment, 1, LOpen -1);
+      LIndexText := Copy(LSegment, LOpen +1, Length(LSegment) - LOpen -1);
+      if not TryStrToInt(LIndexText, LIndex) then
+        Exit(nil);
+      if LIndex < 0 then
+        Exit(nil);
+    end;
+    if LName = '' then
+      Exit(nil);
+    LAssociations := TMappingExplorer.GetMappingAssociation(LCurrent.ClassType);
+    if LAssociations = nil then
+      Exit(nil);
+    LFound := nil;
+    for LAssociation in LAssociations do
+    begin
+      // Case-insensitively, for the same reason the key name is matched that
+      // way: a third party server is not obliged to echo the spelling back.
+      if SameText(LAssociation.PropertyRtti.Name, LName) then
+      begin
+        LFound := LAssociation;
+        Break;
+      end;
+    end;
+    if LFound = nil then
+      Exit(nil);
+    // THE MULTIPLICITY DECIDES THE SHAPE OF THE SEGMENT, and it is the same
+    // question the producer asked when it wrote it. A to-many association
+    // MUST carry an ordinal and a to-one MUST NOT; anything else is an answer
+    // about a graph this client does not have.
+    LIsList := LFound.Multiplicity in [TMultiplicity.OneToMany,
+                                       TMultiplicity.ManyToMany];
+    if LIsList <> (LIndex >= 0) then
+      Exit(nil);
+    LValue := LFound.PropertyRtti.GetNullableValue(LCurrent);
+    if not LValue.IsObject then
+      Exit(nil);
+    if not LIsList then
+      // TValue reports tkClass for a NIL instance too, so this can still be
+      // nil - the loop head above catches it on the next turn and the final
+      // assignment below cannot answer a dangling one.
+      LCurrent := LValue.AsObject
+    else
+    begin
+      LList := TObjectList<TObject>(LValue.AsObject);
+      if LList = nil then
+        Exit(nil);
+      if LIndex >= LList.Count then
+        Exit(nil);
+      LCurrent := LList.Items[LIndex];
+    end;
+  end;
+  Result := LCurrent;
+end;
+
+procedure TRESTObjectSetAdapter<M>._ApplyGeneratedKeysToGraph(
+  const AObject: TObject);
+var
+  LEntity: TInsertedEntity;
+  LTarget: TObject;
+  LPrimaryKey: TPrimaryKeyColumnsMapping;
+  LColumn: TColumnMapping;
+begin
+  for LEntity in FSession.ResultEntities do
+  begin
+    // The root has its own reader - see the doc comment over the declaration.
+    if LEntity.Path = '' then
+      Continue;
+    LTarget := _ResolveEntityPath(AObject, LEntity.Path);
+    if LTarget = nil then
+      Continue;
+    // The producer says WHICH CLASS it measured, and when it does the reader
+    // checks it. A path that resolves to something else is an answer about a
+    // graph this client does not have, and writing a key from it would be
+    // writing a real number onto the wrong object - silently, which is exactly
+    // the failure a bare ordinal would have had. The check is skipped when the
+    // answer omits `class`, so a third party server that does not send it is
+    // still read.
+    if (LEntity.EntityClassName <> '') and
+       (not SameText(LEntity.EntityClassName, LTarget.ClassName)) then
+      Continue;
+    LPrimaryKey := TMappingExplorer.GetMappingPrimaryKeyColumns(LTarget.ClassType);
+    // No `raise` here, unlike Insert's own reading of the root's mapping: an
+    // entry for an unmapped branch is a defect in the ANSWER, and an answer
+    // must not be able to make an insert that already succeeded fail.
+    if LPrimaryKey = nil then
+      Continue;
+    // Two loops rather than one, for the reason #301 wrote at the root: no
+    // column may be cascaded down before every column has been reconciled.
+    for LColumn in LPrimaryKey.Columns do
+      _SetGeneratedKeyValueFrom(LTarget, LColumn, LEntity.Keys);
+
+    // AND THIS IS THE HALF THE ROOT'S READER ALREADY HAD. Stamping the mid's
+    // own key leaves the LEAF still pointing at the placeholder, because
+    // nothing on the client copies a mid's key down - SetAutoIncValueChilds
+    // walks one level and Insert calls it on the root alone. Walking one level
+    // from each reconciled object is what gives the grandchild a valid parent.
+    for LColumn in LPrimaryKey.Columns do
+      SetAutoIncValueChilds(LTarget, LColumn);
+  end;
+end;
+
 procedure TRESTObjectSetAdapter<M>.Insert(const AObject: M);
 var
   LPrimaryKey: TPrimaryKeyColumnsMapping;
@@ -376,6 +603,22 @@ begin
 
       for LColumn in LPrimaryKey.Columns do
         SetAutoIncValueChilds(AObject, LColumn);
+
+      // ISSUE #312 - AND NOW EVERY LEVEL BELOW THE ROOT. The two loops above
+      // reconcile the root and hand its key to the level under it, which is
+      // all the answer could carry before this issue. `entities` names the key
+      // the server generated for each of the other rows, so each of them can
+      // be reconciled and can hand ITS key to the level under IT.
+      //
+      // INSIDE THE ExistSequence GATE, with the two loops above and for the
+      // same reason: with no [Sequence] there is no generated key to
+      // reconcile, and the client's own values must survive. Pinned by
+      // Insert_WithoutASequenceTheEntitiesArrayIsNotRead.
+      //
+      // AFTER them, not before: the two are independent - the root's entry is
+      // skipped by the reader - but keeping the root's whole reconciliation in
+      // one place is what makes the order of these three lines readable.
+      _ApplyGeneratedKeysToGraph(AObject);
     end;
   except
     on E: Exception do

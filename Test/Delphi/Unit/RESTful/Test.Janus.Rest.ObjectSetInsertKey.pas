@@ -75,6 +75,19 @@
   cannot move it silently:
   ChildOwnKeyIsNotReconciled and GrandchildIsNotReachedByThisCascade.
 
+  THAT PARAGRAPH IS NOW ABOUT THE OLD CONTRACT ONLY - ISSUE #312. The answer
+  has since gained a SIBLING key, `entities`, which names the key of every row
+  the insert wrote and says whose each one is; the reader for it is
+  TRESTObjectSetAdapter<M>._ApplyGeneratedKeysToGraph and the clauses are in
+  Test.Janus.Rest.GraphInsertEntities.
+
+  The two characterisation clauses below are NOT contradicted by that and are
+  NOT deleted: every answer in THIS fixture carries `params` and nothing else,
+  which is what every server produced before #312 and what the four hand
+  written servers under Examples\Delphi\RESTful still produce. Their subject is
+  what the client does with the OLD document, and that has not moved. What is
+  no longer true is the sentence "has no counterpart here yet".
+
   WHY THE ASSERTIONS NAME NUMBERS AND NOT "NOTHING RAISED"
 
   Every clause below states the value of a key, on the root AND on the child.
