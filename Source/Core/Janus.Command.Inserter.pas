@@ -165,6 +165,13 @@ begin
           ParamType := ptInput;
           if LColumn.FieldType = ftGuid then
           begin
+            /// Issue #294. The reason is written out over
+            /// TGuidOctetRefusal in Janus.DML.Commands. It stands BEFORE the
+            /// value is read, not after: what is refused is the whole shape of
+            /// the write, and a StringToGUID that happened to raise first
+            /// would report the wrong defect.
+            Self._GuardStoreGUIDAsOctet(LColumn.ColumnProperty,
+                                        'num INSERT (parametro de gravacao)');
             LGuidString := _GetParamValue(AObject,
                                          LColumn.ColumnProperty,
                                          LColumn.FieldType);
