@@ -170,16 +170,51 @@
   doc-comment on that clause, and whose assertion message inside it, both already
   said it would go RED. That was falsified by the measurement above, not deleted.
 
-  And ZERO examples - the FIVE Examples/Delphi/RESTful `.Update(` sites are the
-  SERVER side over IDBConnection, none of them this session: four in the driver
-  servers (Datasnap, DelphiMVC, MARS, WiRL) and, the fifth, HorseJanus.DAO.Base's
-  IContainerObjectSet<T>. The count in this sentence used to read FOUR and it was
-  short by that fifth one.
+  AND THE EXAMPLES ARE NOT ZERO, WHICH AN EARLIER COUNT OF THIS SENTENCE GOT
+  WRONG TWICE - first the number, then the QUESTION. The number is right as it
+  now stands: Examples/Delphi/RESTful holds FIVE `.Update(` sites and all five
+  are the SERVER side over IDBConnection - four driver servers (Datasnap,
+  DelphiMVC, MARS, WiRL) plus HorseJanus.DAO.Base's IContainerObjectSet<T>.
+  They stay server-side even in the three server projects that DO define
+  DRIVERRESTFUL, because TContainerObjectSet<M>.Create builds
+  TObjectSetAdapter<M> with no conditional at all and that adapter's session is
+  TSessionObjectSet<M>, not this one. But `.Update(` IS THE WRONG QUERY FOR THIS
+  RADIUS, and no re-count could ever have repaired that: the second caller named
+  above is spelled ApplyUpdates, so the search is blind to it by construction.
 
-  The one that is NOT cheap is ApplyUpdater: it clears the dsEdit marker of
-  EVERY filtered row before it calls Update once with the whole list, so an
-  exception on row k leaves rows k+1..N marked as applied and never sent. A
-  raise there buys a signal and pays with a silently partial apply.
+  ASKED BY SYMBOL INSTEAD, FIVE EXAMPLE CLIENT PROJECTS ARE IN THE RADIUS: the
+  Client side of Datasnap, DelphiMVC, Horse, MARS and WiRL. Each is compiled
+  with DRIVERRESTFUL and USEFDMEMTABLE, each builds a TManagerDataSet over a
+  REST connection, and each calls ApplyUpdates - TManagerDataSet.ApplyUpdates ->
+  TRESTFDMemTableAdapter<M>.ApplyUpdates -> ApplyInternal -> ApplyUpdater ->
+  TRESTDataSetAdapter<M>.ApplyUpdater -> FSession.Update, FSession being the
+  TSessionRestFul<M> that adapter's own constructor creates. Four of the five
+  reach it straight from a form's Button2Click; the Horse client reaches it
+  through Provider.Janus, by a View -> Controller -> Repository -> Provider
+  chain. Two nearby files LOOK like more and are not: Horse/Client's leftover
+  uMainFormORM.pas is referenced by no .dpr and no .dproj in this repository,
+  and Examples/Delphi/Datasnap/Client names TContainerRESTFDMemTable over units
+  Janus.Container.RestFDMemTable and Janus.Session.BaseURL, and not one of those
+  three symbols exists in Source any more - it is stale against this framework,
+  so nothing at all can be claimed about where its apply path lands. The other
+  named caller, TRESTObjectSetAdapter<M>.Update, has NO example reaching it: the
+  only one that would, in the WiRL client, is commented out.
+
+  WHAT THAT MEASUREMENT IS AND IS NOT: it is READING, not running. The chain was
+  walked symbol by symbol through Source and the defines were read out of each
+  .dproj; not one of the five example clients was compiled to check. Nor is any
+  of them compiled by the seven test projects - no unit of theirs appears as a
+  DCCReference in any of the seven - so no mutation here can turn them red,
+  which is exactly why the ONE CLAUSE above, measured by mutation, does not
+  count them.
+
+  SO THE PRINCIPAL COST IS ApplyUpdater, AND IT IS NOT A HYPOTHETICAL CALLER:
+  it is the exact path the five example clients above already walk, every time
+  their button is pressed. It clears the dsEdit marker of EVERY filtered row
+  before it calls Update once with the whole list, so an exception on row k
+  leaves rows k+1..N marked as applied and never sent. A raise there buys a
+  signal and pays with a silently partial apply - and that is the price the
+  shipped examples would pay first, not some caller nobody has written yet.
 
   AND THERE IS AN ADDITIVE PATH THAT IS ALREADY SHIPPED, which is the part worth
   knowing before anything is changed at all: TJanusClient.OnAfterCommand fires
