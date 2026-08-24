@@ -162,6 +162,7 @@
         <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.InsertEntities.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.KeyQuoting.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.IdSentinelCollision.pas"/>
+        <DCCReference Include="RESTHorse\Test.Janus.Server.ResourceNaming.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.UpdateWhere.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.IntegerKeyWidth.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.UpdateNotFound.pas"/>

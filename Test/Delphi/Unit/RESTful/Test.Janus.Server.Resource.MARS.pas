@@ -138,11 +138,21 @@
      Both methods are written as
          if LQuery.ResourceName <> '' then ... else raise Exception...
 
-     but GetResourceName returns 'T' + FResourceName, so ResourceName is never
-     empty and the else can never run. The same shape appears in the DMVC and
-     WiRL resource units. Select_TheEmptyResourceGuard_IsUnreachable pins that
-     premise, so the branch cannot be mistaken for covered code, and it says so
-     out loud if the premise ever flips.
+     but ResourceName is never empty, so the else can never run. The
+     MECHANISM behind that changed with issue #364 and the CONCLUSION did
+     not: the getter used to answer 'T' + FResourceName unconditionally, and
+     now it RESOLVES the segment against the mapping registry - ClassName
+     first, [Table] name second - and falls back to 'T' + the segment when
+     nothing claims it. All three of those answers are non-empty, including
+     for the empty segment, where the answer is the single character 'T'.
+     The one new way out of the getter is an EXCEPTION, raised when two
+     registered entities claim the segment by [Table]; that leaves the guard
+     just as unreachable, by not reaching it at all.
+
+     The same shape appears in the DMVC and WiRL resource units.
+     Select_TheEmptyResourceGuard_IsUnreachable pins that premise, so the
+     branch cannot be mistaken for covered code, and it says so out loud if
+     the premise ever flips.
 
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
@@ -297,9 +307,12 @@ type
 
     /// Characterisation, not aspiration. Both select and delete guard with
     /// `if LQuery.ResourceName <> '' then ... else raise`, and that else can
-    /// never run, because GetResourceName returns 'T' + the parsed name and is
-    /// therefore never empty. This pins the premise so the dead branch cannot
-    /// be mistaken for live cover. See NOT FIXED HERE in the unit header.
+    /// never run, because GetResourceName is never empty: since issue #364 it
+    /// RESOLVES the segment against the mapping registry instead of decorating
+    /// it, and every answer it can give - a registered ClassName, or the
+    /// 'T' + segment fallback - has at least one character. This pins the
+    /// premise so the dead branch cannot be mistaken for live cover. See NOT
+    /// FIXED HERE in the unit header.
     [Test]
     procedure Select_TheEmptyResourceGuard_IsUnreachable;
   end;
