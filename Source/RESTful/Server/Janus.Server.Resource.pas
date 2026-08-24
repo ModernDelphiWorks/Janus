@@ -90,25 +90,29 @@ type
       /// SO THE `result` KEY IS COHERENCE, NOT MECHANISM, AND IT IS STILL
       /// DELIBERATE. Every answer this class RETURNS is spelled that way -
       /// cRESOURCEDELETE, cRESOURCEINSERT, cRESOURCEUPDATE - `exception` is
-      /// what it RAISES, and ParseDelete's own not-found message already
-      /// spells `result` too. The key is chosen to match its siblings; the
-      /// Exit is what makes the answer arrive readable.
+      /// what it RAISES. The key is chosen to match its siblings; the Exit is
+      /// what makes the answer arrive readable.
       ///
-      /// AND THE RETURN, WHICH IS THE MECHANISM, IS THE MEASUREMENT.
-      /// Format(cEXCEPTION, [E.Message]) pastes the message into a `%s` INSIDE
-      /// a JSON string, and every message in this class is itself a JSON
-      /// DOCUMENT, so a raised answer arrives as
+      /// AND THE RETURN, WHICH IS THE MECHANISM, WAS THE MEASUREMENT WHEN THIS
+      /// NOTE WAS WRITTEN. On the tree that carried issue #363,
+      /// Format(cEXCEPTION, [E.Message]) pasted the message into a `%s` INSIDE
+      /// a JSON string while the messages of this class were themselves JSON
+      /// DOCUMENTS, so a raised answer arrived as
       ///   {"Exception": "{"result":"No records found to delete, ..."}"}
-      /// which does not parse. Measured over a live Horse server: the DELETE
-      /// not-found answer is 82 bytes and TJSONObject.ParseJSONValue returns
-      /// nil for it.
+      /// and TJSONObject.ParseJSONValue answered nil for it. nil is what makes
+      /// TJanusClient.ResponseValue raise cRESTNOJSONVALUE - "the body was
+      /// empty, was not JSON, ..." - the complaint about the CALLER'S PAYLOAD
+      /// that issue was opened against. Raising here would have reproduced the
+      /// defect inside the repair.
       ///
-      /// nil is exactly what makes TJanusClient.ResponseValue raise
-      /// cRESTNOJSONVALUE - "the body was empty, was not JSON, ..." - which is
-      /// the complaint about the CALLER'S PAYLOAD this issue was opened
-      /// against. Raising here would therefore have reproduced the defect
-      /// inside the repair. Returning it does not: the successful answers of
-      /// this class travel through Res.Send unwrapped and parse.
+      /// ISSUE #376 REMOVED THAT REASON, AND THE `Exit` STAYS ANYWAY. cEXCEPTION
+      /// now interpolates an ESCAPED string literal, so a raised answer parses
+      /// whatever the message says (anchored by SYMBOL; pinned by
+      /// Test.Janus.Server.ExceptionEnvelope). What raising would still cost is
+      /// the OTHER half this note already names below - the shape of the answer
+      /// decides whether the Janus REST client raises at all - and #376 did not
+      /// touch that, so turning this Exit into a raise remains a decision with
+      /// its own price rather than a free correction.
       ///
       /// THE PRICE OF RETURNING IS PAID ON THE CLIENT, AND IT IS NAMED RATHER
       /// THAN HIDDEN. A body that parses is a body the Janus REST client does
@@ -120,9 +124,10 @@ type
       /// Test.Janus.Server.Resource.UpdateNotFound, whose header carries the
       /// argument and the alternatives.
       ///
-      /// The wrapper defect above is REPORTED and not repaired here - it
-      /// belongs to all four verbs and to five error constants, and changing
-      /// it changes the top-level key every error consumer reads.
+      /// The wrapper defect above was REPORTED here and repaired by issue #376,
+      /// in Janus.Server.Horse and not in this unit: it belonged to all four
+      /// verbs at once, and the repair left the envelope's top-level key exactly
+      /// where every error consumer already reads it.
       cRESOURCEUPDATENOTFOUND = '{"result":"Resource %s update command found no record with the key informed"}';
     function ResolverFindToSkip(const AObjectSet: TRESTObjectSet;
       const AQuery: TRESTQueryParse): string;
@@ -756,7 +761,17 @@ var
   procedure ExceptionExecute;
   begin
     if LObject = nil then
-      raise Exception.Create('{"result":"No records found to delete, with the filter entered!"}');
+      /// ISSUE #376 - THE MESSAGE IS A SENTENCE, AND IT USED TO BE A JSON
+      /// DOCUMENT. The wording is the same one it always carried; what is gone
+      /// is the `{"result":"..."}` that used to wrap it. A RAISED message
+      /// reaches the wire through the transport's error envelope, which is the
+      /// ONLY writer of JSON on that path - so a message that spelled its own
+      /// document put one document inside another's string. Escaping (see
+      /// cEXCEPTION in Janus.Server.Horse) now keeps the envelope parseable
+      /// whatever the message says, and this message no longer asks it to
+      /// carry a document it would have to escape and a consumer would have to
+      /// parse twice. Anchored by SYMBOL.
+      raise Exception.Create('No records found to delete, with the filter entered!');
   end;
 
   procedure FilterExecuteFind;

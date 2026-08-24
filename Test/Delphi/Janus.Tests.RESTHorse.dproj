@@ -166,6 +166,7 @@
         <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.UpdateWhere.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.IntegerKeyWidth.pas"/>
         <DCCReference Include="RESTHorse\Test.Janus.Server.Resource.UpdateNotFound.pas"/>
+        <DCCReference Include="RESTHorse\Test.Janus.Server.ExceptionEnvelope.pas"/>
         <BuildConfiguration Include="Base">
             <Key>Base</Key>
         </BuildConfiguration>

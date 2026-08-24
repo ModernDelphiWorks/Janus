@@ -69,32 +69,44 @@
   WHY THE ANSWER IS RETURNED AND NOT RAISED, WHICH IS THE WHOLE DESIGN
 
   The house already has a not-found signal, and it is ParseDelete's: it RAISES
-  Exception.Create with a message that is itself a JSON document. That looks
-  like the precedent to copy, and the fifth measurement above is why it is not.
-  TRESTServerHorse's four routes catch the exception and emit Format with
-  cEXCEPTION - which pastes a JSON document raw INSIDE a JSON string. The 82
-  bytes DELETE answers are
+  Exception.Create, and on the tree this issue was worked on that message was
+  itself a JSON document. That looked like the precedent to copy, and the fifth
+  measurement above is why it was not. TRESTServerHorse's four routes catch the
+  exception and emit Format with cEXCEPTION, which then pasted a JSON document
+  raw INSIDE a JSON string, so the DELETE answer read
 
     {"Exception": "{"result":"No records found to delete, with the filter entered!"}"}
 
-  and that does not parse. So the sibling's not-found answer reaches the client
-  as the very same cRESTNOJSONVALUE this issue was opened about. Copying it
-  verbatim would have reproduced the defect inside the repair.
+  and did not parse. The sibling's not-found answer reached the client as the
+  very same cRESTNOJSONVALUE this issue was opened about, so copying it verbatim
+  would have reproduced the defect inside the repair.
 
   What is copied is its WORDING and its intent - say so in the body. What is
   NOT copied is the raise: the answer leaves as the function's Result, exactly
   like cRESOURCEUPDATE, cRESOURCEDELETE and cRESOURCEINSERT, which travel
   through Res.Send unwrapped and which the second measurement shows do parse.
 
+  THAT MEASUREMENT WAS PINNED BY A CLAUSE OF THIS FIXTURE, AND ISSUE #376
+  FALSIFIED IT AS THE CLAUSE SAID IT WOULD. cEXCEPTION now interpolates an
+  ESCAPED string literal and ParseDelete's message is prose rather than a
+  document, so the raised not-found answer parses. The clause was removed
+  rather than inverted - what it measured is now the subject of
+  Test.Janus.Server.ExceptionEnvelope, which pins it on BOTH message shapes.
+  The Exit above stays, and the paragraphs below are why: what makes raising
+  expensive here is what the Janus REST CLIENT does with the answer, and #376
+  did not touch that.
+
   AND THE UNREGISTERED-RESOURCE EXIT IS REPAIRED THE OTHER WAY, ON PURPOSE.
   "Resource not registered" is not a question about data, and ParseInsert and
   ParseFind both RAISE cRESOURCENOTREGISTER for it. PUT answered silence and now
-  raises what they raise, which means it also inherits the wrapper defect above:
-  the clause below asserts the resource NAME travels, and deliberately does not
-  assert that the document parses, because on this route it does not. That is
-  the wrapper's defect and not ParseUpdate's, it is reported rather than
-  repaired here, and the characterisation clause at the end pins it so that
-  whoever repairs it finds this note.
+  raises what they raise, which meant it also inherited the wrapper defect
+  above: the clause below asserts the resource NAME travels and does not assert
+  that the document parses, because when it was written, on this route, it did
+  not. That was the wrapper's defect and not ParseUpdate's, it was reported
+  rather than repaired here, and issue #376 repaired it in
+  Janus.Server.Horse - this very route is now the one
+  Test.Janus.Server.ExceptionEnvelope drives to prove the envelope survives a
+  message that still carries quotes.
 
   FOUR VERBS SHARE THAT EXIT AND ONE OF THEM IS STILL MUTE. An earlier draft of
   this header, and of the note in Source, said PUT was "the only one of the
@@ -397,19 +409,13 @@ type
     [Test]
     procedure APutToAnUnregisteredResource_MustNotAnswerAnEmptyBody;
 
-    /// ...and it has to name the resource that was asked for. Deliberately NOT
-    /// a parse assertion - see the header: this answer travels through the
-    /// transport's exception wrapper, which is where it stops being JSON.
+    /// ...and it has to name the resource that was asked for. NOT a parse
+    /// assertion, and it was not one when it was written either - see the
+    /// header: this answer travels through the transport's exception wrapper,
+    /// which is where it used to stop being JSON. Whether it parses is now
+    /// asked on this same route by Test.Janus.Server.ExceptionEnvelope.
     [Test]
     procedure APutToAnUnregisteredResource_TheAnswerMustNameTheResource;
-
-    /// CHARACTERISATION, GREEN BEFORE AND AFTER. It pins the measurement the
-    /// design above rests on: the house's OTHER not-found answer is raised, and
-    /// arrives unparseable. When the transport wrapper is repaired this clause
-    /// goes RED, and that is the signal to come read the header - it is not a
-    /// regression.
-    [Test]
-    procedure Characterisation_TheRaisedNotFoundOfDeleteDoesNotParse;
 
     /// CHARACTERISATION, GREEN BEFORE AND AFTER. What is left over from the
     /// unregistered-resource repair: ParseDelete still answers silence for it.
@@ -694,25 +700,6 @@ begin
     + LBody + ']');
   Assert.IsTrue(LBody.Contains('not registered'),
     'The answer does not say what was wrong with it. Body was: [' + LBody + ']');
-end;
-
-procedure TTestServerResourceUpdateNotFound.Characterisation_TheRaisedNotFoundOfDeleteDoesNotParse;
-var
-  LBody: String;
-begin
-  LBody := _Body(_Delete('CustomerTest(' + cGHOSTKEY + ')'));
-  Assert.IsTrue(LBody.Contains('No records found to delete'),
-    'premise: ParseDelete still signals not-found by RAISING a message. '
-    + 'Body was: [' + LBody + ']');
-  Assert.IsFalse(_Parses(LBody),
-    'THE TRANSPORT WRAPPER HAS BEEN REPAIRED, AND THIS CLAUSE IS THE SIGNAL, '
-    + 'NOT A REGRESSION. It pinned the measurement the repair of ParseUpdate '
-    + 'rests on: an exception message that is itself a JSON document comes out '
-    + 'of the cEXCEPTION wrapper unparseable, which is why ParseUpdate RETURNS '
-    + 'its not-found answer instead of raising it. If the wrapper now escapes '
-    + 'or forwards the document, go read the header of this unit and decide '
-    + 'whether ParseUpdate should join ParseDelete in raising. Body was: ['
-    + LBody + ']');
 end;
 
 procedure TTestServerResourceUpdateNotFound.Characterisation_TheUnregisteredResourceExitOfDeleteStillAnswersSilence;
