@@ -93,6 +93,15 @@
   was injected - produces a blank instance that carries neither value. One
   True/False cannot tell those three apart; the edit can.
 
+  THE SECOND QUESTION THIS CHILD ANSWERS
+
+  TLazyCtorChild also carries a per-address DESTRUCTION LEDGER, because the
+  single-object lazy route builds one instance PER ROW and returns only the
+  last: whether the instances it drops are released is a fact about objects the
+  observer no longer holds, and no flag reachable through a reference can state
+  it. See the Ledger/ResetLedger/DestructionsOf declarations for the one way a
+  per-address ledger can lie and the shape of clause that is immune to it.
+
   ANCHORS ARE BY METHOD, NEVER BY `file:line`.
 }
 
@@ -153,6 +162,31 @@ type
     Fctag: String;
     Fgrands: TObjectList<TLazyCtorGrand>;
   public
+    /// <summary> How many times the instance that LIVED AT each ADDRESS has
+    ///  been destroyed since the last ResetLedger. Same instrument, and same
+    ///  discipline, as Test.Janus.Model.OwnedProbe: the address is produced
+    ///  INSIDE the destructor, where Self is still a live object, and nothing
+    ///  outside ever dereferences a pointer the ledger holds. Owned by this
+    ///  unit; created and released by its initialization/finalization.
+    ///
+    ///  WHY A LEDGER AND NOT A FLAG ON THE OBJECT. What has to be observed is
+    ///  the destruction of an object the observer no longer holds - a flag
+    ///  would have to be read through the very reference that is gone.
+    ///
+    ///  THE ONE WAY IT CAN LIE. The memory manager reuses addresses, so a
+    ///  clause that reads a SINGLE address cannot tell one instance from its
+    ///  successor at the same address. A clause that sums the ledger over the
+    ///  DISTINCT addresses it collected is immune to that: whichever address a
+    ///  later instance lands on, the sum still counts one entry per
+    ///  destruction that happened in the window. </summary>
+    class var Ledger: TDictionary<Pointer, Integer>;
+    /// <summary> Forget everything recorded so far. </summary>
+    class procedure ResetLedger;
+    /// <summary> How many times the instance that LIVED AT this address has
+    ///  been destroyed. The argument is a bare address on purpose: a caller
+    ///  that asked with an object reference would be holding a reference it
+    ///  may not hold. </summary>
+    class function DestructionsOf(const AInstance: Pointer): Integer;
     constructor Create;
     destructor Destroy; override;
 
@@ -268,13 +302,38 @@ implementation
 
 { TLazyCtorChild }
 
+class procedure TLazyCtorChild.ResetLedger;
+begin
+  if Ledger <> nil then
+    Ledger.Clear;
+end;
+
+class function TLazyCtorChild.DestructionsOf(const AInstance: Pointer): Integer;
+begin
+  Result := 0;
+  if Ledger <> nil then
+    if not Ledger.TryGetValue(AInstance, Result) then
+      Result := 0;
+end;
+
 constructor TLazyCtorChild.Create;
 begin
   Fgrands := TObjectList<TLazyCtorGrand>.Create;
 end;
 
 destructor TLazyCtorChild.Destroy;
+var
+  LCount: Integer;
 begin
+  // Self is still a live object here, so taking its address is legal. This is
+  // the ONLY place the address is produced; nothing ever dereferences it
+  // afterwards.
+  if Ledger <> nil then
+  begin
+    if not Ledger.TryGetValue(Pointer(Self), LCount) then
+      LCount := 0;
+    Ledger.AddOrSetValue(Pointer(Self), LCount + 1);
+  end;
   Fgrands.Free;
   inherited;
 end;
@@ -307,10 +366,15 @@ begin
 end;
 
 initialization
+  TLazyCtorChild.Ledger := TDictionary<Pointer, Integer>.Create;
   TRegisterClass.RegisterEntity(TLazyCtorGrand);
   TRegisterClass.RegisterEntity(TLazyCtorChild);
   TRegisterClass.RegisterEntity(TLazyCtorLazyRoot);
   TRegisterClass.RegisterEntity(TLazyCtorManyRoot);
   TRegisterClass.RegisterEntity(TLazyCtorEagerRoot);
+
+finalization
+  TLazyCtorChild.Ledger.Free;
+  TLazyCtorChild.Ledger := nil;
 
 end.

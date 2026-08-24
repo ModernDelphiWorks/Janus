@@ -121,6 +121,7 @@ uses
   Model.Procedimento,
   Model.Setor,
   Test.Janus.Model.KeyOnly,
+  Test.Janus.Model.LazyCtor,
   Test.Janus.Cursor.Double;
 
 type
@@ -181,6 +182,13 @@ type
     // ---- Janus.Mapping.Lazy.pas : the two lazy load funcs -----------------
     [Test]
     procedure LazySingleAssociation_ThreeRows_Terminates;
+    /// The loop yields ONE object per row and returns only the LAST, so every
+    /// earlier instance has to be released by the loop itself - nothing else
+    /// ever learns those instances existed. The clause reads
+    /// TLazyCtorChild's per-address destruction ledger; see the method body
+    /// for how it is made immune to address reuse.
+    [Test]
+    procedure LazySingleAssociation_ThreeRows_FreesEveryDiscardedInstance;
     [Test]
     procedure LazySingleAssociation_ZeroRows_ReturnsNil;
     /// The loop of CreateLazyManyAssociationLoadFunc, driven for the first
@@ -627,10 +635,13 @@ begin
   LAssoc := AssociationOf(TExame, TMultiplicity.OneToOne);
   Assert.IsNotNull(LAssoc, 'TExame must expose a OneToOne association');
   LOwner := TExame.Create;
-  // LSeen owns every object the loop creates; the loop returns only the last,
-  // so the test has to reclaim the rest itself.
-  LSeen := TObjectList<TObject>.Create(True);
+  // LSeen MUST NOT own what it collects. The loop releases every instance it
+  // discards, so an owning list here would free those a second time. What the
+  // loop does NOT release is the instance it RETURNS: on this direct-call
+  // route no proxy takes it, so the test frees LResult itself.
+  LSeen := TObjectList<TObject>.Create(False);
   LFactory := TDMLCommandFactory.Create(LOwner, LConn, dnSQLite);
+  LResult := nil;
   try
     LFunc := CreateLazySingleAssociationLoadFunc(LOwner, LAssoc, LFactory,
       procedure(const AResultSet: IDBDataSet; const AObject: TObject)
@@ -643,6 +654,79 @@ begin
     Assert.AreEqual(cROWS, LSeen.Count,
       'the loop must visit every row exactly once - proof it advanced');
   finally
+    LResult.Free;
+    LSeen.Free;
+    LFactory.Free;
+    LOwner.Free;
+  end;
+end;
+
+procedure TTestCursorAdvance.LazySingleAssociation_ThreeRows_FreesEveryDiscardedInstance;
+var
+  LConn: IDBConnection;
+  LFactory: TDMLCommandFactory;
+  LOwner: TLazyCtorLazyRoot;
+  LAssoc: TAssociationMapping;
+  LFunc: TLazyLoadFunc;
+  LSeen: TList<Pointer>;
+  LDistinct: TList<Pointer>;
+  LResult: TObject;
+  LPtr: Pointer;
+  LDestroyed: Integer;
+begin
+  // WHY THIS OWNER AND NOT TExame. The class the loop instantiates is the type
+  // of the association property, and only TLazyCtorChild carries the
+  // per-address destruction ledger this clause reads.
+  LConn := LazyConnection(cROWS);
+  LAssoc := AssociationOf(TLazyCtorLazyRoot, TMultiplicity.OneToOne);
+  Assert.IsNotNull(LAssoc,
+    'TLazyCtorLazyRoot must expose a OneToOne association');
+  LOwner := TLazyCtorLazyRoot.Create;
+  // ADDRESSES, never references: every pointer collected here may already
+  // name a destroyed object by the time the clause runs, and nothing below
+  // ever dereferences one.
+  LSeen := TList<Pointer>.Create;
+  LDistinct := TList<Pointer>.Create;
+  LFactory := TDMLCommandFactory.Create(LOwner, LConn, dnSQLite);
+  LResult := nil;
+  try
+    TLazyCtorChild.ResetLedger;
+    // ABindToObject is the only seam that sees EVERY instance the loop makes.
+    // The load func hands the object to it before deciding what to keep.
+    LFunc := CreateLazySingleAssociationLoadFunc(LOwner, LAssoc, LFactory,
+      procedure(const AResultSet: IDBDataSet; const AObject: TObject)
+      begin
+        LSeen.Add(Pointer(AObject));
+      end,
+      nil, nil);
+    LResult := LFunc();
+    Assert.IsNotNull(LResult, 'a populated cursor must yield an object');
+    // Without this the clause below could pass on a loop that built ONE
+    // object: no instance discarded, nothing to release.
+    Assert.AreEqual(cROWS, LSeen.Count,
+      'the callback must see one instance per row');
+
+    // HOW ADDRESS REUSE IS HANDLED. Releasing an instance hands its block back
+    // to the memory manager, so a LATER instance of the loop may be allocated
+    // at an address an EARLIER one used - and then LSeen holds the same
+    // pointer twice. Summing the ledger over the DISTINCT addresses collected
+    // survives that: each destruction is recorded once against whatever
+    // address it happened at, and every such address is in the collection,
+    // so the sum equals the number of instances released during the window -
+    // no matter how the addresses were shared. Reading one chosen address
+    // instead would not survive it, which is why no clause here does.
+    for LPtr in LSeen do
+      if LDistinct.IndexOf(LPtr) < 0 then
+        LDistinct.Add(LPtr);
+    LDestroyed := 0;
+    for LPtr in LDistinct do
+      Inc(LDestroyed, TLazyCtorChild.DestructionsOf(LPtr));
+    Assert.AreEqual(cROWS - 1, LDestroyed,
+      'the loop must release every instance it discards - one per row except ' +
+      'the one it returns');
+  finally
+    LResult.Free;
+    LDistinct.Free;
     LSeen.Free;
     LFactory.Free;
     LOwner.Free;
