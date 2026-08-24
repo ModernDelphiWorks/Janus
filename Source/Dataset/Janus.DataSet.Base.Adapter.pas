@@ -1040,6 +1040,9 @@ begin
           if LObjectList = nil then
             Exit;
           LObjectType := LPropertyType.AsInstance.MetaclassType.Create;
+          // Not a duplicate of the line above - see the canonical note at
+          // Janus.Objects.Helper.TObjectHelper.MethodCall. Deleting this line
+          // costs Janus.Tests.Units 11 tests (704 passed, 1 failed, 10 errored).
           LObjectType.MethodCall('Create', []);
           // Popula o objeto M e o adiciona na lista e objetos com o registro do DataSet.
           Bind.SetFieldToProperty(LDataSet, LObjectType);

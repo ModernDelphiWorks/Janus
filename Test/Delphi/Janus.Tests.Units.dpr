@@ -171,6 +171,8 @@ uses
   Test.Janus.ObjectSet.CascadeDeleteOrder in 'Integration\Test.Janus.ObjectSet.CascadeDeleteOrder.pas',
   /// The INSERT against the null pattern of the object written - issue #352
   Test.Janus.Insert.CacheVsNullness in 'Integration\Test.Janus.Insert.CacheVsNullness.pas',
+  /// Whether the child of a 1:1 association gets its own constructor run — issue #369
+  Test.Janus.ObjectSet.OneToOneChildCtor in 'Integration\Test.Janus.ObjectSet.OneToOneChildCtor.pas',
   /// What a real close costs against what emptying costs — issue #246
   Test.Janus.Close.VsEmpty in 'Unit\Container\Test.Janus.Close.VsEmpty.pas',
   /// The reopen, and the cursor count that shows the lazy path is alive — #248
@@ -199,7 +201,13 @@ uses
   Test.Janus.KeyWidth.ByIdApi in 'Unit\Core\Test.Janus.KeyWidth.ByIdApi.pas',
   /// Compile gate for Components\Source\: every RequiresUnits entry in
   /// Janus.Link.Reg.pas must name a unit that actually exists - issue #340
-  Test.Janus.LinkReg.RequiresUnits in 'Unit\Core\Test.Janus.LinkReg.RequiresUnits.pas';
+  Test.Janus.LinkReg.RequiresUnits in 'Unit\Core\Test.Janus.LinkReg.RequiresUnits.pas',
+  /// Three routes onto one child whose constructor builds a list - the
+  /// model behind the LAZY twin of issue #369
+  Test.Janus.Model.LazyCtor in 'Common\Test.Janus.Model.LazyCtor.pas',
+  /// Whether the child of a LAZY single-object association gets its own
+  /// constructor run - the lazy twin of issue #369
+  Test.Janus.ObjectSet.LazyOneToOneChildCtor in 'Integration\Test.Janus.ObjectSet.LazyOneToOneChildCtor.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
