@@ -1042,7 +1042,12 @@ begin
           LObjectType := LPropertyType.AsInstance.MetaclassType.Create;
           // Not a duplicate of the line above - see the canonical note at
           // Janus.Objects.Helper.TObjectHelper.MethodCall. Deleting this line
-          // costs Janus.Tests.Units 11 tests (704 passed, 1 failed, 10 errored).
+          // costs Janus.Tests.Units 11 clauses. The DECOMPOSITION moves with
+          // the suite total and the difference does not: 704/1/10 at 8f5864f,
+          // baseline 715; 719/1/10 on this branch, whose executable lines are
+          // identical to develop f03ef0b, baseline 730 after #370-#372 added
+          // 15 clauses ([Test] attributes: 0, 6 and 9). Quote the 11,
+          // re-measure the rest.
           LObjectType.MethodCall('Create', []);
           // Popula o objeto M e o adiciona na lista e objetos com o registro do DataSet.
           Bind.SetFieldToProperty(LDataSet, LObjectType);

@@ -58,9 +58,12 @@
     lzmany  --(OneToMany, Lazy)--> lzchild    CONTROL: lazy is not the cause
     lzeager --(OneToMany      )--> lzchild    CONTROL: the data is not the cause
 
-  The EAGER single-object route is deliberately NOT a control: it carries the
-  SAME defect and its repair is issue #369, on a different branch. Used here it
-  would be red beside the clause under test and would isolate nothing.
+  The EAGER single-object route is deliberately NOT a control: when this
+  fixture was written it CARRIED the same defect, its repair was issue #369 on
+  a different branch, and used here it would have been red beside the clause
+  under test and would have isolated nothing. That repair has since landed -
+  #371 (81d3c14), which merged BEFORE this fixture - so the eager route is no
+  longer defective; the reason it is not a control is historical only.
 
   WHAT THE `2 -> 0` IS AND IS NOT
 

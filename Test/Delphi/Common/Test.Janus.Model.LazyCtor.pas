@@ -40,10 +40,13 @@
 
   WHY THE EAGER 1:1 ROUTE IS NOT ONE OF THE CONTROLS
 
-  It has the SAME defect, and its repair is issue #369, on its own branch. On
-  develop it would be red beside the clause under test and would isolate
-  nothing. It is named here so the next reader does not mistake its absence for
-  an oversight.
+  It HAD the same defect when this fixture was written, and its repair was
+  issue #369 on its own branch: used here it would have been red beside the
+  clause under test and would have isolated nothing. That repair has since
+  landed - #371 (81d3c14), which merged BEFORE this fixture - so the eager 1:1
+  route is no longer defective and the reason it is not a control is now
+  historical only. It is named here so the next reader does not mistake its
+  absence for an oversight.
 
   WHY EVERY COLUMN NAME IS SPELLED ONCE
 
