@@ -97,7 +97,9 @@ uses
   /// What a PUT answers when it locates no row — issue #363
   Test.Janus.Server.Resource.UpdateNotFound in 'RESTHorse\Test.Janus.Server.Resource.UpdateNotFound.pas',
   /// Whether the transport's error envelope survives the message it carries - issue #376
-  Test.Janus.Server.ExceptionEnvelope in 'RESTHorse\Test.Janus.Server.ExceptionEnvelope.pas';
+  Test.Janus.Server.ExceptionEnvelope in 'RESTHorse\Test.Janus.Server.ExceptionEnvelope.pas',
+  /// What a body says about an association whose property arrives NIL — issue #366
+  Test.Janus.Server.Resource.NilBranchBody in 'RESTHorse\Test.Janus.Server.Resource.NilBranchBody.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

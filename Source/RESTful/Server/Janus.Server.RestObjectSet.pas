@@ -407,6 +407,18 @@ begin
     Exit;
 
   LObjectList := TObjectList<TObject>(LValue.AsObject);
+  // TValue reporta tkClass tambem para uma instancia nil, entao o IsObject
+  // acima deixa passar um ramo to-many opcional que nunca foi construido. Sem
+  // esta saida, ler .Count da lista nil levanta violacao de acesso e o rollback
+  // leva junto a linha do master: nem a raiz sobrevive. Mesma guarda que
+  // OneToOneCascadeActionsExecute recebeu na issue #240.
+  //
+  // Com ela, o ramo continua NAO gravado e a resposta continua a de sucesso.
+  // Esse silencio e decisao registrada da issue #366 - instanciar a
+  // propriedade nil geraria linha-fantasma em todo modelo que constroi o ramo
+  // no construtor, e recusar contraria a doutrina da casa - e nao esquecimento.
+  if LObjectList = nil then
+    Exit;
   for LFor := 0 to LObjectList.Count -1 do
   begin
     LObject := LObjectList.Items[LFor];
@@ -603,6 +615,14 @@ begin
     Exit;
 
   LObjectList := TObjectList<TObject>(LValue.AsObject);
+  // TValue reporta tkClass tambem para uma instancia nil, entao o IsObject
+  // acima deixa passar uma lista to-many que nunca foi construida. Ler .Count
+  // dela e violacao de acesso, e violacao de acesso nao e resposta. O par
+  // OneToOne ao lado escapa por outro caminho - o Assigned(Self) de
+  // TObjectHelper.GetType - e aqui nao existe caminho equivalente, porque o
+  // .Count e lido antes de qualquer helper.
+  if LObjectList = nil then
+    Exit;
   for LFor := 0 to LObjectList.Count -1 do
   begin
     LObject := LObjectList.Items[LFor];
