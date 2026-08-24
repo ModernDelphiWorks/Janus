@@ -1204,7 +1204,7 @@ var
 begin
   LValue := AProperty.GetNullableValue(AObject);
   // Nullable<TGUID> SEM VALOR chega aqui como Variant Null
-  // (MetaDbDiff.RTTI.Helper.pas:356-359). Vira GUID vazio, que o chamador
+  // (MetaDbDiff.RTTI.Helper.pas:357-360). Vira GUID vazio, que o chamador
   // converte na guarda '1 = 0' - uma FK opcional nao preenchida nao e' erro.
   // Sem esta linha o TryAsType abaixo falha e o codigo levanta o erro NOMEADO
   // de tipo errado sobre uma FK legitimamente nula; e' o que a mutacao de
@@ -1215,7 +1215,7 @@ begin
   // NEUTRALIDADE DE RESPOSTA - nao inalcancabilidade. A distincao importa
   // porque a versao anterior deste comentario afirmava que nenhum caminho
   // produzia TValue vazio, e isso era FALSO:
-  //   IsNullable e' checagem POR NOME (MetaDbDiff.RTTI.Helper.pas:620-629):
+  //   IsNullable e' checagem POR NOME (MetaDbDiff.RTTI.Helper.pas:621-630):
   //   basta o record se chamar "Nullable<...>". Um record assim COM FHasValue
   //   (True) e SEM FValue passa pela checagem, chega em
   //   MetaDbDiff.RTTI.Helper.pas:362-364, nao acha o campo, e sai com o

@@ -38,9 +38,58 @@ uses
 
 type
   TRttiPropertyHelper_ = class helper (TRttiPropertyHelper) for TRttiProperty
+  private
+    function _ResolveNullFromNullableValue(const AObject: TObject;
+      const ADefaultValueIsNull: Boolean): Boolean;
   public
 //    procedure SetNullableValue(AInstance: Pointer; ATypeInfo:
 //      PTypeInfo; AValue: Variant);
+    /// <summary> Answers whether the DML consumer must write NULL for this
+    ///  property instead of writing its value.
+    ///
+    ///  WHY THE ANSWER IS DECIDED HERE. Nullable&lt;T&gt; is declared in this
+    ///  repository (Janus.Types.Nullable.pas), so what "no value" MEANS for it
+    ///  is this repository's word. The mapping layer keeps the two things it
+    ///  owns - the [Restrictions([NotNull])] exemption and the [NullIfEmpty]
+    ///  opt-in - and this method composes them with the type.
+    ///
+    ///  THE THREE RULES, IN THIS ORDER:
+    ///  1. [Restrictions([TRestriction.NotNull])] exempts the property, and
+    ///     exempts it BEFORE anything is read off the instance.
+    ///  2. For a bare Nullable&lt;T&gt;, nullity is the absence of a value and
+    ///     nothing else. A property nobody assigned resolves to NULL; a
+    ///     property assigned the default of its type (0, an empty string, a
+    ///     zero date) resolves to that VALUE.
+    ///  3. [NullIfEmpty] is the opt-in that maps the default of the type onto
+    ///     NULL, on a Nullable&lt;T&gt; property or on a plain one. It is the
+    ///     only switch for that behaviour.
+    ///
+    ///  THE NAME IS DELIBERATELY NOT IsNullValue. A member repeating the
+    ///  ancestor helper's name would SHADOW it, and then which of the two
+    ///  answers a call site gets would be decided by that unit's uses clause -
+    ///  two answers selected by an import. A distinct name has no such state.
+    ///
+    ///  ONE READ, ONE ANSWER. Presence and value both come from the SAME
+    ///  GetNullableValue call: it yields Variant Null exactly for the record
+    ///  that carries no value, and the stored value otherwise. Asking a
+    ///  HasValue property for the presence and this function for the value
+    ///  would be two reads of two different field sets, which can disagree the
+    ///  moment a record shaped like a Nullable does not carry every field the
+    ///  property reads.
+    ///
+    ///  CONDITION - the consumer's INSERT and UPDATE paths do not agree on what
+    ///  a True means. An INSERT that reacts to it by OMITTING the column lets
+    ///  the database apply the column DEFAULT, which need not be NULL, while an
+    ///  UPDATE binds an explicit NULL parameter. The same property can
+    ///  therefore land two different values in the same column depending on
+    ///  which path ran.
+    ///
+    ///  CONDITION - on a NOT NULL column with no default, answering False where
+    ///  this once answered True swaps the failure mode: the column stops being
+    ///  omitted, so the database stops refusing the statement and the default
+    ///  of the type is written silently instead. Whoever leaned on that refusal
+    ///  as a guard no longer has it. </summary>
+    function MustWriteNull(const AObject: TObject): Boolean;
     function GetValueNullable(const AInstance: Pointer; const ATypeInfo:
       PTypeInfo): TValue;
     procedure SetValueNullable(const AInstance: Pointer;
@@ -121,6 +170,84 @@ begin
   else
   if ATypeInfo = TypeInfo(Nullable<Boolean>) then
     Result := TValue.From(Self.GetValue(AInstance).AsType<Nullable<Boolean>>.ToVariant)
+end;
+
+function TRttiPropertyHelper_.MustWriteNull(const AObject: TObject): Boolean;
+begin
+  Result := False;
+  /// The restriction answers first and answers alone: nothing is read off the
+  /// instance for a property the schema forbids from being null.
+  if Self.IsNotNull then
+    Exit(False);
+
+  if (Self.IsNullable) or (Self.IsNullIfEmpty) then
+    Exit(_ResolveNullFromNullableValue(AObject, Self.IsNullIfEmpty));
+end;
+
+/// <summary> Resolves the nullity of one property value from a SINGLE read.
+///
+///  ADefaultValueIsNull = False: the only thing that answers True is the
+///  absence of a value - GetNullableValue renders that as Variant Null.
+///  ADefaultValueIsNull = True: the default of the type ('', zero, a zero date)
+///  is ALSO reported as null. That widening is the [NullIfEmpty] opt-in, and
+///  nothing else turns it on. </summary>
+function TRttiPropertyHelper_._ResolveNullFromNullableValue(
+  const AObject: TObject; const ADefaultValueIsNull: Boolean): Boolean;
+var
+  LValue: TValue;
+begin
+  Result := False;
+  /// PRESENCE AND VALUE COME FROM THIS ONE CALL. Reading the presence
+  /// somewhere else would be a second read, and a second read is a second
+  /// answer whenever the two readers do not look at the same fields.
+  LValue := Self.GetNullableValue(AObject);
+  if LValue.AsVariant = Null then
+    Exit(True);
+
+  if not ADefaultValueIsNull then
+    Exit(False);
+
+  if LValue.Kind in [tkString, tkUString, tkLString, tkWString
+                    {$IFDEF DELPHI22_UP}
+                    , tkAnsiChar, tkWideChar, tkAnsiString, tkWideString
+                    , tkShortString, tkUnicodeString
+                    {$ENDIF}] then
+  begin
+    if LValue.AsType<String> = '' then
+      Exit(True);
+  end
+  else
+  if LValue.Kind in [tkInteger, tkInt64] then
+  begin
+    if LValue.AsType<Integer> = 0 then
+      Exit(True);
+  end
+  else
+  if LValue.Kind in [tkFloat] then
+  begin
+    if LValue.TypeInfo = TypeInfo(TDateTime) then
+    begin
+      if LValue.AsType<TDateTime> = 0 then
+        Exit(True);
+    end
+    else
+    if LValue.TypeInfo = TypeInfo(TDate) then
+    begin
+      if LValue.AsType<TDate> = 0 then
+        Exit(True);
+    end
+    else
+    if LValue.TypeInfo = TypeInfo(TTime) then
+    begin
+      if LValue.AsType<TTime> = 0 then
+        Exit(True);
+    end
+    else
+    begin
+      if LValue.AsType<Double> = 0 then
+        Exit(True);
+    end;
+  end;
 end;
 
 //procedure TRttiPropertyHelper_.SetNullableValue(AInstance: Pointer;

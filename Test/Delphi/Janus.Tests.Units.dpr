@@ -102,6 +102,7 @@ uses
   Test.Janus.RTTI.Singleton  in 'Unit\Core\Test.Janus.RTTI.Singleton.pas',
   Test.Janus.RTTI.Singleton.Concurrency in 'Unit\Core\Test.Janus.RTTI.Singleton.Concurrency.pas',
   Test.Janus.Types.Nullable       in 'Unit\Core\Test.Janus.Types.Nullable.pas',
+  Test.Janus.Nullable.MustWriteNull in 'Unit\Core\Test.Janus.Nullable.MustWriteNull.pas',
   Test.Janus.Lazy.Smoke in 'Unit\Mapping.Lazy\Test.Janus.Lazy.Smoke.pas',
   Test.Janus.Container.ObjectSet.LazyProxy in 'Unit\Container\Test.Janus.Container.ObjectSet.LazyProxy.pas',
   Test.Janus.Mapping.Lazy    in 'Unit\Mapping.Lazy\Test.Janus.Mapping.Lazy.pas',

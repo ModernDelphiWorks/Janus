@@ -42,7 +42,11 @@ uses
   MetaDbDiff.Mapping.Popular,
   MetaDbDiff.Mapping.Classes,
   MetaDbDiff.Mapping.Attributes,
-  MetaDbDiff.Mapping.Explorer;
+  MetaDbDiff.Mapping.Explorer,
+  /// Brings TRttiPropertyHelper_.MustWriteNull into scope. It must come AFTER
+  /// MetaDbDiff.Rtti.Helper: the derived helper only extends the ancestor while
+  /// the ancestor is already visible.
+  Janus.RTTI.Helper;
 
 type
   TCommandUpdater = class(TDMLCommandAbstract)
@@ -202,7 +206,7 @@ function TCommandUpdater._GetParamValue(AInstance: TObject;
   AProperty: TRttiProperty; AFieldType: TFieldType): Variant;
 begin
   Result := Null;
-  if AProperty.IsNullValue(AInstance) then
+  if AProperty.MustWriteNull(AInstance) then
     Exit;
 
   case AProperty.PropertyType.TypeKind of
