@@ -633,19 +633,50 @@ begin
       // Edit
       if TDataSetState(FOrmDataSet.Fields[FInternalIndex].AsInteger) in [dsEdit] then
       begin
+        // ISSUE #377 - THE ROW IS SENT BEFORE IT IS MARKED, AND THE MARK IS
+        // WHAT SAYS "SENT". The wire verb is one PUT per item
+        // (TSessionRestFul<M>.Update loops the list), so a list handed over
+        // whole is not one operation that succeeds or fails as a unit: it is N
+        // operations, and the k-th may raise with 1..k-1 already written by the
+        // server. With the mark written first, the rows from k on left this
+        // procedure carrying the marker that means "applied" while nothing of
+        // them ever reached the wire - and the row itself still holds the edit
+        // the operator typed, so the next save has nothing left to send it by.
+        //
+        // The list stays as the TRANSPORT because a search for `procedure
+        // Update` over Janus.Session.RESTful and its ancestor Janus.Session.
+        // Abstract finds one spelling that reaches the wire here - the one
+        // taking a TObjectList<M>. That search is blind to a route through the
+        // ancestor's single-object overload, which was tried and measured to
+        // fault reading address zero on a REST session without putting a
+        // request on the wire. So the list stays, and carries ONE item at a
+        // time. Clear here and not
+        // after the send: the list owns its objects, so clearing at the top of
+        // the iteration frees the previous one, and the finally below frees the
+        // last - including the one a raise left behind.
+        //
+        // THE SEND MUST STAY INSIDE THIS LOOP. The loop condition is
+        // RecordCount over a filtered set and nothing here calls Next: the
+        // cursor only advances because Post drops the row out of the filter.
+        // Sending in a batch and marking afterwards does not terminate.
+        //
+        // The marker overwritten below is Integer(dsEdit); the relational guard
+        // TDataSetBaseAdapter<M>._IsPendingInsertRow asks for Integer(dsInsert),
+        // so it cannot tell dsEdit from -1 and moving this line reparents
+        // nothing. That is NOT true of the twin line in ApplyInserter.
+        LUpdateList.Clear;
         LObject := M.Create;
         TBind.Instance.SetFieldToProperty(FOrmDataSet, LObject);
         for LDataSetChild in FMasterObject.Values do
           LDataSetChild.FillMastersClass(LDataSetChild, LObject);
         ///
         LUpdateList.Add(LObject);
+        FSession.Update(LUpdateList);
         FOrmDataSet.Edit;
         FOrmDataSet.Fields[FInternalIndex].AsInteger := -1;
         FOrmDataSet.Post;
       end;
     end;
-    if LUpdateList.Count > 0 then
-      FSession.Update(LUpdateList);
   finally
     FOrmDataSet.Filtered := False;
     FOrmDataSet.Filter := '';

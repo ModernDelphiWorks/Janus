@@ -462,14 +462,23 @@ begin
     DoBeforeApplyUpdates(FOrmDataSet, LOwnerData);
     ApplyInternal(MaxErros);
     DoAfterApplyUpdates(FOrmDataSet, LOwnerData);
+    // ISSUE #377 - The twin of the note in TRESTFDMemTableAdapter<M>.
+    // ApplyUpdates, and it is here for the same reason and with the same
+    // condition attached: the list owns its objects, so clearing it from a
+    // finally DESTROYS the deletes an exception prevented from being sent. The
+    // two families are moved together because the suite does not hold them to
+    // each other here: reverting THIS hunk alone, with the FDMemTable one in
+    // place, left Janus.Tests.RESTfulDriver entirely green. That is a
+    // measurement of two projects - RESTfulDriver and Units - and it says
+    // nothing about the four REST server projects, which were not run.
+    FSession.DeleteList.Clear;
+    FSession.DeleteList.TrimExcess;
   finally
     if FSession.ModifiedFields.ContainsKey(M.ClassName) then
     begin
       FSession.ModifiedFields.Items[M.ClassName].Clear;
       FSession.ModifiedFields.Items[M.ClassName].TrimExcess;
     end;
-    FSession.DeleteList.Clear;
-    FSession.DeleteList.TrimExcess;
   end;
 end;
 

@@ -423,14 +423,29 @@ begin
     _DoBeforeApplyUpdates(FOrmDataSet);
     ApplyInternal(MaxErros);
     _DoAfterApplyUpdates(FOrmDataSet, MaxErros);
+    // ISSUE #377 - THE DELETE LIST IS EMPTIED ON THE SUCCESS PATH, NOT ON THE
+    // WAY OUT. The list owns its objects (TSessionAbstract<M> creates it as a
+    // TObjectList<M> with the default ownership), so Clear does not merely
+    // forget the rows the operator deleted - it destroys them. Cleared from the
+    // finally, an exception raised anywhere in the three phases took the
+    // pending deletes with it: they had not been sent, and after the unwind
+    // there was nothing left to send.
+    //
+    // CONDITION THIS BUYS, and it is a real one. Should the delete phase itself
+    // raise partway, the objects for 1..k-1 - already deleted on the server -
+    // stay in the list and go out again on the next save. That is harmless only
+    // while the client swallows the server's "found no record" answer. If that
+    // answer ever starts raising - the contract question of issue #363, whose
+    // refusal is recorded over TRESTDataSetAdapter<M> - a re-sent delete becomes
+    // a new failure mode and this list has to be consumed per item instead.
+    FSession.DeleteList.Clear;
+    FSession.DeleteList.TrimExcess;
   finally
     if FSession.ModifiedFields.ContainsKey(M.ClassName) then
     begin
       FSession.ModifiedFields.Items[M.ClassName].Clear;
       FSession.ModifiedFields.Items[M.ClassName].TrimExcess;
     end;
-    FSession.DeleteList.Clear;
-    FSession.DeleteList.TrimExcess;
   end;
 end;
 
