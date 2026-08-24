@@ -1,5 +1,65 @@
 # Censo de cobertura de compilação — Janus
 
+> ## TERCEIRA MEDIÇÃO — issue #363, 24 ago 2026
+>
+> **Esta caixa registra um DESLOCAMENTO PONTUAL de cobertura, não um censo novo.**
+> Ela existe porque o próprio documento estabelece o costume de registrar o
+> deslocamento no MESMO commit que o causa — e porque, desta vez, **o script não
+> teria avisado** (ver abaixo).
+>
+> A frente da #363 é a **primeira a linkar a cadeia do CLIENTE REST** dentro do
+> `Janus.Tests.RESTHorse`: a fixture `Test.Janus.Server.Resource.UpdateNotFound`
+> dirige um `TSessionRestFul<M>` de verdade, por cima de `TRESTClientHorse`,
+> contra o servidor Horse do próprio projeto. Medido com o MESMO script, o MESMO
+> método (`.dcu` autoritativo, diretório de saída **apagado antes de cada build**)
+> e a MESMA receita de search path.
+>
+> | `Janus.Tests.RESTHorse` | base `8f5864f` | HEAD desta frente |
+> |---|---:|---:|
+> | `.dcu` escritos no diretório do projeto | 264 | **281** |
+> | dos quais units de `Source/` | 46 | **62** |
+>
+> **As 16 units de `Source/` que entraram:** `Janus.Client`, `Janus.Client.Base`,
+> `Janus.Client.Consts`, `Janus.Client.Horse`, `Janus.Client.Methods`,
+> `Janus.Client.RestDriver`, `Janus.Client.RestDriver.Horse`,
+> `Janus.Client.RestException`, `Janus.Client.RestHorse.Factory`,
+> `Janus.DataSet.Abstract`, `Janus.DataSet.Base.Adapter`, `Janus.DataSet.Events`,
+> `Janus.RestDataSet.Adapter`, `Janus.RestFactory.Connection`,
+> `Janus.RestFactory.Interfaces` e `Janus.Session.RESTful`. O **17º** `.dcu` novo
+> (264 → 281 são dezessete) **não** é de `Source/`: é a própria unit de teste.
+> Nenhuma unit saiu.
+>
+> **O SCRIPT NÃO AVISA, E ISSO É UM LIMITE DELE, NÃO UM DESCUIDO DE QUEM O RODOU.**
+> O controle positivo do `compile-coverage-census.ps1` é `Janus.Bind`, e ela
+> continua sendo compilada pelos mesmos **6** projetos antes e depois —
+> `$CExpectedBindProjects = 6` segue certo, medido, e nenhum aviso de deriva foi
+> emitido. Nenhuma das 16 units acima está no delta do controle, então **um salto
+> de +16 units de `Source/` num projeto passa calado**. Registrar aqui, no commit
+> que desloca, continua sendo obrigação humana.
+>
+> **O que fica histórico:** a tabela "Cobertura por projeto" mais abaixo diz
+> `Janus.Tests.RESTHorse | 45`, e a seção "As 44 frágeis" diz que ele "compila 45
+> units de `Source/` e não é dono exclusivo de nenhuma". Aquilo é o retrato de
+> `0546a51` e **não foi reescrito**. Hoje o número é **62** — e a segunda metade da
+> frase **continua verdadeira e foi remedida**: das 60 units compiladas por um só
+> projeto, **zero** têm o `Janus.Tests.RESTHorse` como dono (39 `Units`,
+> 8 `RESTfulDriver`, 5 `RESTMARS`, 5 `RESTWiRL`, 3 `LiveBindings`).
+>
+> **O censo inteiro neste mesmo build**, para contexto: 137 units `.pas` em
+> `Source/` (2 em `Source/External/`); **126** compiladas por ≥ 1 projeto; **11**
+> por nenhum; **60** frágeis; divergência `.map` × `.dcu` = 15. Cobertura por
+> projeto: `Units` 96, `RESTHorse` 62, `RESTMARS` 47, `RESTfulDriver` 45,
+> `RESTWiRL` 43, `RESTOracle` 36, `LiveBindings` 3. Controle negativo (família
+> DMVC) vazio nos sete, como esperado.
+>
+> **Commit medido:** `68c81ab` — esta branch com `origin/develop` `f03ef0b`
+> mergeado. O commit que carrega esta caixa não altera **nenhuma linha
+> executável**, só prosa e uma cláusula de teste nova, então o censo dele é este.
+> A base comparada é `8f5864f`, medida no mesmo dia, com o mesmo search path,
+> num worktree à parte.
+
+---
+
 > ## SEGUNDA MEDIÇÃO — issue #341, 21 ago 2026
 >
 > **Tudo abaixo desta caixa é o retrato de `0546a51` e continua valendo como

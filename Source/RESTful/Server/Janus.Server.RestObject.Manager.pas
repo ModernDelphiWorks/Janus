@@ -273,6 +273,9 @@ begin
     begin
       // Instancia o objeto do tipo definido na lista
       LObjectCreate := LPropertyType.AsInstance.MetaclassType.Create;
+      // Not a duplicate of the line above: MetaclassType is a TClass, so that
+      // line runs TObject.Create only. Canonical note at
+      // Janus.Objects.Helper.TObjectHelper.MethodCall.
       LObjectCreate.MethodCall('Create', []);
       // Popula o objeto com os dados do ResultSet
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectCreate);
@@ -327,6 +330,8 @@ begin
     while not LResultSet.Eof do
     begin
       LObject := FObjectInternal.ClassType.Create;
+      // Not a duplicate: ClassType is a TClass, so the line above runs
+      // TObject.Create. See Janus.Objects.Helper.TObjectHelper.MethodCall.
       LObject.MethodCall('Create', []);
       LObjectList.Add(LObject);
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectList.Last);
@@ -367,6 +372,8 @@ begin
     while not LResultSet.Eof do
     begin
       LObject := FObjectInternal.ClassType.Create;
+      // Not a duplicate: ClassType is a TClass, so the line above runs
+      // TObject.Create. See Janus.Objects.Helper.TObjectHelper.MethodCall.
       LObject.MethodCall('Create', []);
       LObjectList.Add(LObject);
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectList.Last);
@@ -391,6 +398,8 @@ begin
     while not LResultSet.Eof do
     begin
       LObject := FObjectInternal.ClassType.Create;
+      // Not a duplicate: ClassType is a TClass, so the line above runs
+      // TObject.Create. See Janus.Objects.Helper.TObjectHelper.MethodCall.
       LObject.MethodCall('Create', []);
       AObjectList.Add(LObject);
       TBind.Instance.SetFieldToProperty(LResultSet, AObjectList.Last);
@@ -414,6 +423,8 @@ begin
     while not LResultSet.Eof do
     begin
       LObject := FObjectInternal.ClassType.Create;
+      // Not a duplicate: ClassType is a TClass, so the line above runs
+      // TObject.Create. See Janus.Objects.Helper.TObjectHelper.MethodCall.
       LObject.MethodCall('Create', []);
       AObjectList.Add(LObject);
       TBind.Instance.SetFieldToProperty(LResultSet, AObjectList.Last);
@@ -439,6 +450,8 @@ begin
     while not LResultSet.Eof do
     begin
       LObject := FObjectInternal.ClassType.Create;
+      // Not a duplicate: ClassType is a TClass, so the line above runs
+      // TObject.Create. See Janus.Objects.Helper.TObjectHelper.MethodCall.
       LObject.MethodCall('Create', []);
       LObjectList.Add(LObject);
       TBind.Instance.SetFieldToProperty(LResultSet, LObjectList.Last);
@@ -548,6 +561,8 @@ begin
     while not LResultSet.Eof do
     begin
       LObject := FObjectInternal.ClassType.Create;
+      // Not a duplicate: ClassType is a TClass, so the line above runs
+      // TObject.Create. See Janus.Objects.Helper.TObjectHelper.MethodCall.
       LObject.MethodCall('Create', []);
       TBind.Instance.SetFieldToProperty(LResultSet, Result.Items[Result.Add(LObject)]);
       // Alimenta registros das associacoes existentes 1:1 ou 1:N
@@ -573,6 +588,8 @@ begin
     if LResultSet.RecordCount = 1 then
     begin
       Result := FObjectInternal.ClassType.Create;
+      // Not a duplicate: ClassType is a TClass, so the line above runs
+      // TObject.Create. See Janus.Objects.Helper.TObjectHelper.MethodCall.
       Result.MethodCall('Create', []);
       TBind.Instance.SetFieldToProperty(LResultSet, Result);
       // Alimenta registros das associacoes existentes 1:1 ou 1:N
@@ -595,6 +612,8 @@ begin
     if LResultSet.RecordCount > 0 then
     begin
       LObject := FObjectInternal.ClassType.Create;
+      // Not a duplicate: ClassType is a TClass, so the line above runs
+      // TObject.Create. See Janus.Objects.Helper.TObjectHelper.MethodCall.
       LObject.MethodCall('Create', []);
       TBind.Instance.SetFieldToProperty(LResultSet, LObject);
       // Alimenta registros das associacoes existentes 1:1 ou 1:N

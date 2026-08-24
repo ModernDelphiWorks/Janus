@@ -50,6 +50,12 @@ type
     FPathTokens: TArray<String>;
     FQueryTokens: TDictionary<String, String>;
     FResourceName: String;
+    /// The resolved answer of GetResourceName, and whether it has been
+    /// computed for the CURRENT FResourceName. FResourceName is written in
+    /// exactly one place - ParseResourceNameAndID, which only ParseQuery
+    /// calls - so ParseQuery is the only point that can invalidate this.
+    FResolvedName: String;
+    FResolved: Boolean;
     FID: TValue;
     function GetSelect: String;
     function GetFilter: String;
@@ -60,6 +66,7 @@ type
     function GetTop: Integer;
     function GetCount: Boolean;
     function GetResourceName: String;
+    function _ResolveResourceName(const ASegment: String): String;
     function SplitString(const AValue, ADelimiters: String): TStringDynArray;
     function ParseQueryingData(const AURI: String): String;
     function ParseOperator(const AParams: String): String;
@@ -83,6 +90,16 @@ type
     const cPATH_SEPARATOR = '/';
     const cQUERY_SEPARATOR = '&';
     const cQUERY_INITIAL = '?';
+    /// The refusal for a segment that two registered entities claim by
+    /// [Table]. It is shaped like the refusals in Janus.Server.Resource -
+    /// a JSON object under an "exception" key - because every server family
+    /// turns an exception raised here into the body of the response.
+    const cRESOURCEAMBIGUOUS =
+      '{"exception":"Resource [%s] is ambiguous on the server: %d registered '
+      + 'entities map a table spelled that way, among them [%s] and [%s]. '
+      + 'Address one of them by its CLASS NAME instead, or give the tables '
+      + 'distinct names - the server refuses to choose, because the choice '
+      + 'would depend on the order a hash table enumerates class pointers."}';
   public
     constructor Create;
     destructor Destroy; override;
@@ -113,7 +130,9 @@ type
 implementation
 
 uses
-  System.NetEncoding;
+  System.NetEncoding,
+  MetaDbDiff.Mapping.Classes,
+  MetaDbDiff.Mapping.Explorer;
 
 var
   GCompOps: TDictionary<String, String>;
@@ -125,6 +144,8 @@ constructor TRESTQueryParse.Create;
 begin
   FQueryTokens := TDictionary<String, String>.Create;
   FResourceName := '';
+  FResolvedName := '';
+  FResolved := False;
   FID := TValue.Empty;
 end;
 
@@ -174,9 +195,156 @@ begin
     Result := FQueryTokens.Items['$orderby'];
 end;
 
+/// Answers the CLASS NAME the path segment addresses - ISSUE #364.
+///
+/// It used to answer 'T' + the segment and let TMappingRepository
+/// .FindEntityByName match that against ClassName, which made
+/// `class = 'T' + table` a rule of the wire protocol that nothing declares
+/// and nothing validates. The repository does not keep it: it is a
+/// CONVENTION, not a constraint, and the models this suite's own shared
+/// model unit ships are all outside it - which
+/// Premise_EveryModelThisSuiteShips_IsOffTheConvention measures against the
+/// live registry rather than asserting from a count that would rot.
+///
+/// It mattered because the two halves of this framework named the resource
+/// differently. TSessionRestFul<M>.Create, when the connection has
+/// ServerUse, sends `Table(LTable).Name` - the TABLE name - so a Janus
+/// client could only ever reach a model that happened to obey the
+/// convention; every other one came back as
+/// `Resource [T<table>] not registered on the server!`, naming a symbol
+/// that exists in no source file.
+///
+/// MEMOISED, and not as a micro-optimisation. The resource layer reads this
+/// property two to three times per request, and resolving now WALKS THE
+/// REGISTRY calling TMappingExplorer.GetMappingTable - which enters a GLOBAL
+/// critical section, once per entity. Before this issue the getter was a
+/// string concatenation and took that lock ZERO times, so the cost is one
+/// this repair introduces and has to answer for.
+///
+/// MEASURED with a counter in this unit, over one whole Janus.Tests.RESTHorse
+/// run. THE COUNTS LIVE IN THIS COMMIT'S MESSAGE, NOT HERE: they move with
+/// the suite, and one of them moves with the LINK as well. The measurement
+/// also takes TWO BUILDS of this tree, because the memo cannot be switched
+/// off without recompiling - so what carries across the two rows is the
+/// SHAPE, never an absolute.
+///
+/// WITHOUT the memo the registry is walked once per READ of this property,
+/// so the resolutions track the reads. WITH it there is one resolution per
+/// REQUEST, because FResourceName is written in ParseResourceNameAndID and
+/// nowhere else, and only ParseQuery calls it.
+///
+/// THE LOCK ACQUISITIONS ARE DELIBERATELY NOT WRITTEN DOWN, and that is the
+/// finding, not an omission. Their SHAPE is one for GetRepositoryMapping
+/// plus one per entity the scan REACHES, times the resolutions - and how far
+/// the scan reaches is a property of the IMAGE, not of this tree: it ends
+/// early on a ClassName match, and where that match falls inside a
+/// hash-bucket enumeration over VMT pointers moves when the binary is
+/// relinked. The same counting logic on two builds of this same tree gave
+/// two different answers, each stable across repeated runs of its own build.
+/// A count written here would be a fact about one link, wearing the clothes
+/// of a fact about the code.
+///
+/// Both runs are GREEN, which is the point: deleting the memo cannot change
+/// a single answer, only the cost.
 function TRESTQueryParse.GetResourceName: String;
 begin
-  Result := 'T' + FResourceName;
+  if not FResolved then
+  begin
+    FResolvedName := _ResolveResourceName(FResourceName);
+    FResolved := True;
+  end;
+  Result := FResolvedName;
+end;
+
+/// Resolves a path segment to a registered entity's ClassName.
+///
+/// ClassName wins over the table name, so no URL that resolved yesterday
+/// can change meaning today - that is what keeps the whole RESTHorse suite,
+/// which addresses every entity by its class name minus the 'T', reading
+/// the same rows. Finding it ENDS the scan, which is also what keeps the
+/// refusal below from ever swallowing a segment that already resolved.
+/// The [Table] name is consulted second: it is not a guess about the
+/// class's spelling, it is the string the client actually put on the wire,
+/// already carried by the model.
+///
+/// WHEN TWO ENTITIES CLAIM THE SEGMENT BY [Table], IT REFUSES OUT LOUD.
+///
+/// Two classes mapping one table is a legitimate shape - a full entity and
+/// a projection over it - and this tree already contains it. Picking one of
+/// them would be picking in the ORDER TRepository._GetEntity hands the
+/// classes over, which is `FEntitys.Keys` of a TObjectDictionary<TClass,..>
+/// (MetaDbDiff.Mapping.Repository.pas): hash-bucket order over VMT
+/// POINTERS, in an image linked /DYNAMICBASE.
+///
+/// MEASURED, with the silent choice put back and NOTHING else changed but
+/// the ORDER OF TWO ADJACENT RegisterEntity LINES in a test fixture: one URL
+/// answered two different entities - [{"akey":1,"atag":"iamambiguous"}] with
+/// one order, [{"akey":1}] with the other. Stable per binary (six runs of
+/// one build gave one answer), decided at LINK time by something no caller
+/// can see. A silent wrong answer is worse than a refusal, so the refusal is
+/// the answer, and it names both candidates.
+///
+/// The two it names are the lexical extremes of the claimant set, NOT the
+/// first two the enumeration produced - a refusal whose TEXT depends on
+/// hash order would have kept the very defect it reports.
+///
+/// When nothing claims the segment the answer is still 'T' + segment, so
+/// the caller-visible refusal and the never-empty contract are both
+/// unchanged. WHERE THOSE TWO ARE PINNED, and it is not where the directory
+/// layout suggests: the four clauses that spell out the fallback -
+/// ParseResourceName_Simple, _WithID, _WithQueryString and _PrefixedWithT -
+/// are in Test.Janus.REST.QueryParse.pas, which SITS in the RESTHorse
+/// directory of Test\Delphi but is linked by Janus.Tests.Units.dpr and runs
+/// in Janus.Tests.Units, not in Janus.Tests.RESTHorse. The never-empty
+/// contract is pinned separately, by Test.Janus.Server.Resource.MARS, in
+/// Janus.Tests.RESTMARS.
+function TRESTQueryParse._ResolveResourceName(const ASegment: String): String;
+var
+  LClass: TClass;
+  LTable: TTableMapping;
+  LName: String;
+  LFirst: String;
+  LLast: String;
+  LClaimants: Integer;
+begin
+  Result := 'T' + ASegment;
+  if ASegment = '' then
+    Exit;
+  LFirst := '';
+  LLast := '';
+  LClaimants := 0;
+  for LClass in TMappingExplorer.GetRepositoryMapping.List.Entitys do
+  begin
+    if SameText(LClass.ClassName, Result) then
+      Exit;
+    LTable := TMappingExplorer.GetMappingTable(LClass);
+    if LTable = nil then
+      Continue;
+    if not SameText(LTable.Name, ASegment) then
+      Continue;
+    LName := LClass.ClassName;
+    Inc(LClaimants);
+    if LFirst = '' then
+    begin
+      LFirst := LName;
+      LLast := LName;
+    end
+    else
+    begin
+      if CompareText(LName, LFirst) < 0 then
+        LFirst := LName;
+      if CompareText(LName, LLast) > 0 then
+        LLast := LName;
+    end;
+  end;
+  // Two DIFFERENT answers for one segment. Same class name twice - the same
+  // class registered from two units - is not an ambiguity: the answer does
+  // not depend on which one is picked.
+  if not SameText(LFirst, LLast) then
+    raise Exception.CreateFmt(cRESOURCEAMBIGUOUS,
+                              [ASegment, LClaimants, LFirst, LLast]);
+  if LFirst <> '' then
+    Result := LFirst;
 end;
 
 function TRESTQueryParse.GetSearch: String;
@@ -212,6 +380,9 @@ var
   LQueryingData: String;
 begin
   FPath := AURI;
+  // The segment is about to be re-read, so any answer resolved from the
+  // previous one is stale. This is the ONLY place FResourceName can change.
+  FResolved := False;
   ParseResourceNameAndID(FPath);
   LQueryingData := ParseQueryingData(FPath);
   FPathTokens := ParsePathTokens(FPath);

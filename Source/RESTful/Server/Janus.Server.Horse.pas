@@ -29,6 +29,12 @@ uses
   SysUtils,
   StrUtils,
   Janus.RestComponent,
+  /// TJsonBuilder.StringToJson is what turns an exception message into the
+  /// JSON string literal cEXCEPTION now interpolates - see the note on that
+  /// constant. It is the SAME escaper the framework's own serialisation walks
+  /// through: TJanusJson delegates to TJsonBuilder, and every string VALUE
+  /// this repository writes out leaves through it. Anchored by SYMBOL.
+  JsonFlow.Builders,
   // DataEngine Conexao
   DataEngine.FactoryInterfaces,
   // HorseCore
@@ -41,7 +47,39 @@ type
     class var FConnection: IDBConnection;
   private
     FAPIAddress: String;
-    const cEXCEPTION = '{"Exception": "%s"}';
+    /// ISSUE #376 - THE `%s` IS NO LONGER INSIDE THE QUOTES, AND THE QUOTES
+    /// ARE NOW THE ESCAPER'S.
+    ///
+    /// THE DOCUMENT ON THE WIRE IS UNCHANGED: still one object, still the
+    /// single key `Exception`, still a JSON STRING for its value. What moved
+    /// is WHO writes the delimiters. This constant used to spell them, so
+    /// Format pasted the exception message RAW between them - and a message
+    /// carrying a quote, a backslash or a character below #32 closed or
+    /// corrupted the string it landed in, and the answer stopped being a
+    /// document at all. Now every handler below hands over
+    /// TJsonBuilder.StringToJson(E.Message), which returns the delimiters and
+    /// the escaped text together.
+    ///
+    /// WHY THAT IS THE WHOLE DEFECT AND NOT A COSMETIC ONE: an answer Delphi's
+    /// parser refuses makes TCustomRESTResponse.GetJSONValue answer nil,
+    /// TJanusClient.ResponseValue raises cRESTNOJSONVALUE on that nil, and its
+    /// wording - "the body was empty, was not JSON, or the configured root
+    /// element is absent from it" - blames the CALLER's payload for an answer
+    /// this server wrote. Anchored by SYMBOL, in Janus.Client.Horse and
+    /// Janus.Client.
+    ///
+    /// THE VALUE STAYS A STRING ON PURPOSE. A message that is itself a
+    /// serialised document could have been NESTED under this key instead, and
+    /// that would change the wire contract for every consumer already reading
+    /// `Exception` as a string. Escaping keeps the contract and makes it
+    /// reversible: whatever the message was, a consumer gets it back byte for
+    /// byte.
+    ///
+    /// Pinned by Test.Janus.Server.ExceptionEnvelope, over BOTH message
+    /// shapes - one that is plain prose and one that is still a JSON document
+    /// with quotes in it. The second is the one that dies if the escape is
+    /// removed and only the wording of a message is repaired.
+    const cEXCEPTION = '{"Exception": %s}';
     const cCONTENTTYPE = 'application/json; charset=UTF-8';
     procedure AddResources;
   public
@@ -109,7 +147,9 @@ begin
             Res.RawWebResponse.CustomHeaders.AddPair('ResultCount', IntToStr(LAppResource.ResultCount));
         except
           on E: Exception do
-            Res.Send(Format(cEXCEPTION, [E.Message])).ContentType(cCONTENTTYPE);
+            Res.Send(Format(cEXCEPTION,
+                            [TJsonBuilder.StringToJson(E.Message)]))
+              .ContentType(cCONTENTTYPE);
         end;
       finally
         LAppResource.Free;
@@ -128,7 +168,9 @@ begin
                                        Req.Body)).ContentType(cCONTENTTYPE);
         except
           on E: Exception do
-            Res.Send(Format(cEXCEPTION, [E.Message])).ContentType(cCONTENTTYPE);
+            Res.Send(Format(cEXCEPTION,
+                            [TJsonBuilder.StringToJson(E.Message)]))
+              .ContentType(cCONTENTTYPE);
         end;
       finally
         LAppResource.Free;
@@ -147,7 +189,9 @@ begin
                                        Req.Body)).ContentType(cCONTENTTYPE);
         except
           on E: Exception do
-            Res.Send(Format(cEXCEPTION, [E.Message])).ContentType(cCONTENTTYPE);
+            Res.Send(Format(cEXCEPTION,
+                            [TJsonBuilder.StringToJson(E.Message)]))
+              .ContentType(cCONTENTTYPE);
         end;
       finally
         LAppResource.Free;
@@ -169,7 +213,9 @@ begin
                                          Req.Query['$filter'])).ContentType(cCONTENTTYPE);
         except
           on E: Exception do
-            Res.Send(Format(cEXCEPTION, [E.Message])).ContentType(cCONTENTTYPE);
+            Res.Send(Format(cEXCEPTION,
+                            [TJsonBuilder.StringToJson(E.Message)]))
+              .ContentType(cCONTENTTYPE);
         end;
       finally
         LAppResource.Free;
