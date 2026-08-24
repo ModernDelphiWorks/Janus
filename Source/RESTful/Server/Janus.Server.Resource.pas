@@ -70,6 +70,60 @@ type
       /// issue - see the enumeration over _CollectInsertedEntities.
       cRESOURCEINSERT      = '{"result":"Resource %s insert command executed successfully", "params":[%s], "entities":%s}';
       cRESOURCEUPDATE      = '{"result":"Resource %s update command executed successfully"}';
+      /// ISSUE #363 - THE ANSWER OF A PUT THAT LOCATED NO ROW, AND IT IS
+      /// RETURNED RATHER THAN RAISED.
+      ///
+      /// WHAT CHOOSES THE TRANSPORT'S PATH IS `Exit` VERSUS `raise`, AND
+      /// NOTHING ELSE. Each of TRESTServerHorse's four routes is one Res.Send
+      /// of this class's Result wrapped in a bare try/except whose handler
+      /// sends Format(cEXCEPTION, [E.Message]) instead
+      /// (TRESTServerHorse.AddResources, anchored by SYMBOL). A value that is
+      /// RETURNED is sent as it stands; only an EXCEPTION reaches the wrapper.
+      /// THE TOP-LEVEL KEY OF THE DOCUMENT PLAYS NO PART IN THAT CHOICE -
+      /// measured by mutation: spelling this constant `{"exception":...}` while
+      /// keeping the Exit leaves the RESTHorse suite green, and the body still
+      /// leaves through Res.Send and still parses. An earlier draft of this note
+      /// said the shared `result` key "is what lets it leave through the
+      /// transport's ordinary Send path"; that was false, and the very next
+      /// sentence of the same paragraph measured the RAISE rather than the key.
+      ///
+      /// SO THE `result` KEY IS COHERENCE, NOT MECHANISM, AND IT IS STILL
+      /// DELIBERATE. Every answer this class RETURNS is spelled that way -
+      /// cRESOURCEDELETE, cRESOURCEINSERT, cRESOURCEUPDATE - `exception` is
+      /// what it RAISES, and ParseDelete's own not-found message already
+      /// spells `result` too. The key is chosen to match its siblings; the
+      /// Exit is what makes the answer arrive readable.
+      ///
+      /// AND THE RETURN, WHICH IS THE MECHANISM, IS THE MEASUREMENT.
+      /// Format(cEXCEPTION, [E.Message]) pastes the message into a `%s` INSIDE
+      /// a JSON string, and every message in this class is itself a JSON
+      /// DOCUMENT, so a raised answer arrives as
+      ///   {"Exception": "{"result":"No records found to delete, ..."}"}
+      /// which does not parse. Measured over a live Horse server: the DELETE
+      /// not-found answer is 82 bytes and TJSONObject.ParseJSONValue returns
+      /// nil for it.
+      ///
+      /// nil is exactly what makes TJanusClient.ResponseValue raise
+      /// cRESTNOJSONVALUE - "the body was empty, was not JSON, ..." - which is
+      /// the complaint about the CALLER'S PAYLOAD this issue was opened
+      /// against. Raising here would therefore have reproduced the defect
+      /// inside the repair. Returning it does not: the successful answers of
+      /// this class travel through Res.Send unwrapped and parse.
+      ///
+      /// THE PRICE OF RETURNING IS PAID ON THE CLIENT, AND IT IS NAMED RATHER
+      /// THAN HIDDEN. A body that parses is a body the Janus REST client does
+      /// NOT raise on, and TSessionRestFul<M>.Update assigns the answer to a
+      /// local that only its CommandMonitor block reads - so the PUT that
+      /// located no row now completes in total silence one layer up. Measured
+      /// on both sides against a live server, and pinned by
+      /// Characterisation_TheJanusClientSwallowsThisAnswer in
+      /// Test.Janus.Server.Resource.UpdateNotFound, whose header carries the
+      /// argument and the alternatives.
+      ///
+      /// The wrapper defect above is REPORTED and not repaired here - it
+      /// belongs to all four verbs and to five error constants, and changing
+      /// it changes the top-level key every error consumer reads.
+      cRESOURCEUPDATENOTFOUND = '{"result":"Resource %s update command found no record with the key informed"}';
     function ResolverFindToSkip(const AObjectSet: TRESTObjectSet;
       const AQuery: TRESTQueryParse): string;
     function ResolverFindFilter(const AObjectSet: TRESTObjectSet;
@@ -497,21 +551,31 @@ end;
 ///  and must not be allowed to identify an arbitrary one. It comes back as ''
 ///  and the caller emits `1 = 0`, the same idiom Janus.DML.Generator uses for
 ///  an undetermined association value. The PUT then leaves through the
-///  `if LObjectOld = nil then Exit` that ParseUpdate already had for a row
-///  that is not there, so this is not a new exit - it is an existing one,
-///  reached honestly instead of by a SQL syntax error.
+///  not-found exit that ParseUpdate already had for a row that is not there,
+///  so this is not a new exit - it is an existing one, reached honestly
+///  instead of by a SQL syntax error.
 ///
 ///  AND THAT TRADE HAS A COST WORTH NAMING. Before this change, a PUT whose
 ///  key carried no value emitted `WHERE (ktnull.ktopt=)` and the request died
 ///  loudly - `[FireDAC][Phys][SQLite] ERROR: near ")": syntax error`. It now
-///  emits `WHERE (1 = 0)` and the caller gets an EMPTY BODY and no exception.
-///  That is consistent with what ParseUpdate already did for a row that is not
-///  there, and the alternative - letting a malformed statement decide - was
-///  worse. But the "PUT that silently does nothing" this issue was opened
-///  against remains the house's answer for a missing row: what changed is that
-///  it is now reached BY CONTRACT rather than BY ACCIDENT. Whether a PUT that
-///  matches no row should answer 404 instead of an empty 200 is a question
-///  about what a consumer receives, and it is not this repair's to settle.
+///  emits `WHERE (1 = 0)` and takes the not-found exit, which is consistent
+///  with what ParseUpdate already did for a row that is not there; the
+///  alternative - letting a malformed statement decide - was worse.
+///
+///  WHAT THAT EXIT ANSWERS HAS SINCE CHANGED, AND THE TWO SENTENCES THAT USED
+///  TO STAND HERE WERE FALSIFIED BY IT RATHER THAN DELETED. They said the
+///  caller "gets an EMPTY BODY and no exception", and that the "PUT that
+///  silently does nothing ... remains the house's answer for a missing row".
+///  Both were true when written and neither is now: issue #363 measured what
+///  that empty body does to a consumer - TJanusClient.ResponseValue turns a
+///  nil JSONValue into cRESTNOJSONVALUE, a complaint about the payload the
+///  CALLER sent - and the exit now answers cRESOURCEUPDATENOTFOUND. The `1 = 0`
+///  path above reaches that same answer, so a key the request left
+///  undetermined is now reported rather than swallowed.
+///
+///  The STATUS is still not settled here and #363 did not settle it either:
+///  everything the Horse transport emits is 200, errors included, and no seam
+///  between this class and any of the five transports carries a status at all.
 ///
 ///  DATE AND TIME GO OUT IN ISO-8601 AND THE RESIDUE IS DECLARED. The
 ///  dialect-correct mask lives in TDMLGeneratorAbstract.FDateFormat, which has
@@ -898,8 +962,23 @@ var
 begin
   LClassType := TMappingExplorer.GetRepositoryMapping
                                 .FindEntityByName(AQuery.ResourceName);
+  /// ISSUE #363 - this was a bare `Exit`, so a PUT naming a resource the
+  /// server never registered completed with an EMPTY BODY. ParseInsert and
+  /// ParseFind (anchored by SYMBOL) both raise cRESOURCENOTREGISTER for the
+  /// same mistake. It now says what they say.
+  ///
+  /// AND WHAT IS LEFT IS ParseDelete, WHICH STILL ANSWERS SILENCE. It carries
+  /// the SAME bare `Exit` on the SAME nil LClassType - measured over a live
+  /// Horse server, DELETE /api/Janus/NotAnEntityAtAll(1) answers status 200,
+  /// length 0, ParseJSONValue nil. So this class is THREE-RAISE / ONE-SILENT,
+  /// not the two-and-two an earlier draft of this note claimed when it called
+  /// PUT "the only one of the three that answered silence". ParseDelete is not
+  /// repaired inside this issue - its own not-found signal is the separate
+  /// question cRESOURCEUPDATENOTFOUND documents - and the silence is pinned by
+  /// Characterisation_TheUnregisteredResourceExitOfDeleteStillAnswersSilence
+  /// so the count cannot rot again.
   if LClassType = nil then
-    Exit;
+    raise Exception.CreateFmt(cRESOURCENOTREGISTER, [AQuery.ResourceName]);
 
   if TMappingExplorer.GetRESTReadOnly(LClassType) then
     raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
@@ -946,8 +1025,12 @@ begin
       end;
       LWhere := Copy(LWhere, 1, Length(LWhere) -5);
       LObjectOld := LObjectSet.FindOne(LWhere);
+      /// ISSUE #363 - this was a bare `Exit`, so the request completed with an
+      /// EMPTY BODY and the caller was told nothing at all about the one thing
+      /// that went wrong. See cRESOURCEUPDATENOTFOUND for why the answer is
+      /// RETURNED here and not raised the way ParseDelete raises its own.
       if LObjectOld = nil then
-        Exit;
+        Exit(Format(cRESOURCEUPDATENOTFOUND, [AQuery.ResourceName]));
 
       try
         LObjectSet.Modify(LObjectOld);
