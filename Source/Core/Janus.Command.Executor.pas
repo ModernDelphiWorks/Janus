@@ -336,6 +336,53 @@ begin
         LObjectValue := AProperty.PropertyType
                                  .AsInstance
                                  .MetaclassType.Create;
+        // O MethodCall NAO E REDUNDANTE - issue #369. MetaclassType e um
+        // TClass, e Create sobre uma REFERENCIA DE CLASSE resolve para
+        // TObject.Create, que nao e virtual: a linha acima aloca a instancia
+        // mas o corpo do construtor da classe filha NAO roda. Tudo o que esse
+        // construtor devia montar chega nil.
+        //
+        // MEDIDO, mesmo modelo, mesmas linhas, mudando so a rota: um
+        // TAsymTreeMid - cujo construtor monta Fleafs - carregado como filho
+        // 1:1 chegava com leafs nil e as DUAS netas eram descartadas (2 -> 0);
+        // pelo irmao ExecuteOneToMany, que sempre teve esta chamada, chegava
+        // com leafs.Count = 2. A perda era SILENCIOSA por construcao:
+        // ExecuteOneToMany anexa cada filho sob `if LObjectList <> nil`, entao
+        // a lista nil fazia aquela guarda jogar fora cada linha sem excecao e
+        // sem log - e os objetos recem-criados nao eram nem adicionados nem
+        // liberados.
+        //
+        // ESTE SITIO NAO TINHA A CHAMADA E AGORA TEM. Este comentario nao
+        // enumera os demais, DE PROPOSITO: o mecanismo e o censo completo do
+        // contorno sao mantidos num lugar so, na declaracao de
+        // TObjectHelper.MethodCall - ancorado por SIMBOLO, nao por numero de
+        // linha nem por contagem. Dois lugares mantendo o mesmo censo a mao
+        // divergem, e a versao anterior deste comentario provou isso: afirmava
+        // ser "o unico dos oito sitios", e a afirmacao era FALSA. Uma frase
+        // dessas e a pior possivel para estar errada, porque e exatamente a que
+        // o proximo leitor cita como prova de que os irmaos estao cobertos.
+        //
+        // O UNICO IRMAO QUE ESTE COMENTARIO AFIRMA E O QUE FOI MEDIDO:
+        // CreateLazySingleAssociationLoadFunc, em Janus.Mapping.Lazy, e o gemeo
+        // LAZY deste metodo - mesma associacao de objeto unico, mesmo
+        // LChildClass.Create - e TAMBEM nao faz a chamada. Latente hoje: nao ha
+        // no repositorio modelo de 1:1 lazy cujo alvo construa algo no proprio
+        // construtor, entao o defeito nao tem por onde aparecer. Nao foi
+        // consertado aqui porque precisa de red-first proprio.
+        //
+        // O RISCO DESTA CHAMADA, e por que ele nao morde aqui.
+        // GetMethod('Create') devolve o PRIMEIRO construtor declarado - o aviso
+        // esta escrito em CreateLazyManyAssociationLoadFunc, tambem em
+        // Janus.Mapping.Lazy, onde num TObjectList<T> esse primeiro e o de zero
+        // argumentos e passar um argumento levanta 'Parameter count mismatch'.
+        // Aqui o alvo nao e uma lista generica e sim a classe da ENTIDADE do
+        // outro lado da associacao. A CONDICAO de seguranca, dita como
+        // condicao e nao como contagem: a chamada e segura enquanto o alvo
+        // declarar no maximo um construtor sem parametros - se nao declarar
+        // nenhum, GetMethod cai em TObject.Create, inofensivo. Um alvo que
+        // passe a declarar dois construtores, com o de parametros primeiro,
+        // quebra aqui.
+        LObjectValue.MethodCall('Create', []);
         AProperty.SetValue(AObject, TValue.from<TObject>(LObjectValue));
       end;
       // Preenche o objeto com os dados do ResultSet
