@@ -179,26 +179,31 @@ begin
                                                      LChildClass,
                                                      AAssociation);
       try
-        // VAZAMENTO PREEXISTENTE DESTE LACO - anterior a esta branch, NAO
-        // consertado aqui, e deliberadamente nao consertado aqui. O laco cria
-        // um objeto POR LINHA e devolve so o ULTIMO: toda linha anterior fica
-        // sem dono. O gemeo EAGER nao tem isso porque REUSA -
-        // TSQLCommandExecutor<M>.ExecuteOneToOne le a propriedade primeiro e so
-        // aloca quando ela vem nil. Quem exercita este laco com mais de uma
-        // linha ja contorna POR FORA: em
-        // Test.Janus.Cursor.Advance.LazySingleAssociation_ThreeRows_Terminates
-        // uma TObjectList<TObject> com OwnsObjects recolhe cada objeto que o
-        // callback ve passar.
+        // ESTE LACO CRIA UM OBJETO POR LINHA E DEVOLVE SO O ULTIMO, e por isso
+        // LIBERA a instancia da volta anterior antes de sobrescrever Result -
+        // ver `Result.Free` no fim do corpo. Sem essa liberacao toda volta
+        // anterior ficava sem dono. A CONDICAO que torna o laco alcancavel com
+        // mais de uma volta: uma associacao declarada 1:1 no MAPEAMENTO nao
+        // torna a FK unica no BANCO - quem faz isso e o DDL -, entao basta a
+        // coluna de ligacao repetir.
+        //
+        // POR QUE LIBERAR, E NAO REUSAR COMO O GEMEO EAGER. O eager
+        // (TSQLCommandExecutor<M>.ExecuteOneToOne) le
+        // AProperty.GetNullableValue e so aloca quando vem nil. Essa forma NAO
+        // E EXPRESSAVEL aqui: no caminho lazy o getter da propriedade do dono E
+        // o gatilho do lazy, e o proxy so marca o valor como criado DEPOIS que
+        // esta funcao retorna - ler a propriedade de dentro dela reentra em
+        // TLazyProxyLoader.Invoke com o valor ainda nao criado, sem fundo.
+        // Liberar preserva IDENTICO o valor devolvido; parar na primeira linha,
+        // ou recusar quando o cursor traz mais de uma, mudariam contrato
+        // observavel.
         //
         // POR QUE A CHAMADA DE CONSTRUTOR ABAIXO ENTRA MESMO ASSIM. MEDIDO na
-        // revisao independente desta branch, com censo de blocos e contador de
-        // destrutor por classe, sobre tres linhas filhas: SEM a chamada, 36
-        // blocos e 1136 bytes vazados, 0 de 6 netas destruidas; COM a chamada,
-        // 36 blocos e 1216 bytes, 2 de 6 netas destruidas. Custo +80 bytes e
-        // ZERO blocos, e no MESMO caminho ela ELIMINA um vazamento de netas -
-        // as netas que hoje sao construidas e jogadas fora sob o
-        // `if LObjectList <> nil` de ExecuteOneToMany. O laco tem issue
-        // propria; nao o conserte de carona numa branch de outra causa.
+        // revisao independente da branch que a introduziu, com censo de blocos
+        // e contador de destrutor por classe, sobre tres linhas filhas: seu
+        // custo em blocos vazados era ZERO, e no MESMO caminho ela ELIMINA um
+        // vazamento de netas - as netas que sem ela sao construidas e jogadas
+        // fora sob o `if LObjectList <> nil` de ExecuteOneToMany.
         while not LResultSet.Eof do
         begin
           LObjectValue := LChildClass.Create;
@@ -261,6 +266,18 @@ begin
           ProcessLazyLoadedObject(LObjectValue,
                                   AProcessingObjects,
                                   AProcessLoadedObject);
+          // A CONDICAO EM QUE LIBERAR AQUI E SEGURO: nada retem a instancia
+          // descartada. ProcessLazyLoadedObject, acima nesta unit, casa
+          // Add/Remove sob finally sobre uma TList<Pointer> - lista de
+          // ponteiros, sem posse - e ABindToObject so escreve para DENTRO do
+          // objeto. O unico dono real do valor devolvido e TLazyProxyLoader,
+          // que guarda e libera so o ULTIMO. O que QUEBRARIA a condicao: um
+          // alvo cujo construtor registrasse a propria instancia num registro
+          // global, porque o MethodCall('Create') acima faz o construtor rodar
+          // de verdade - ai o registro ficaria com ponteiro pendurado.
+          // Result inicia nil no topo desta funcao, entao a primeira volta
+          // libera nil, que e inofensivo.
+          Result.Free;
           Result := LObjectValue;
           // Avanca o cursor: sem isso o laco nunca atinge Eof e recria o mesmo
           // objeto infinitamente (loop infinito / OOM).
