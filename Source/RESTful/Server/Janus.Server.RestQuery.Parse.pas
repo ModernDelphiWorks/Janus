@@ -201,8 +201,8 @@ end;
 /// .FindEntityByName match that against ClassName, which made
 /// `class = 'T' + table` a rule of the wire protocol that nothing declares
 /// and nothing validates. The repository does not keep it: it is a
-/// CONVENTION, not a constraint, and the eight models the RESTHorse suite
-/// itself ships are all outside it - which
+/// CONVENTION, not a constraint, and the models this suite's own shared
+/// model unit ships are all outside it - which
 /// Premise_EveryModelThisSuiteShips_IsOffTheConvention measures against the
 /// live registry rather than asserting from a count that would rot.
 ///
@@ -222,15 +222,30 @@ end;
 /// this repair introduces and has to answer for.
 ///
 /// MEASURED with a counter in this unit, over one whole Janus.Tests.RESTHorse
-/// run (179 requests, 37 registered entities), the same tree with and
-/// without the memo:
+/// run. THE COUNTS LIVE IN THIS COMMIT'S MESSAGE, NOT HERE: they move with
+/// the suite, and one of them moves with the LINK as well. The measurement
+/// also takes TWO BUILDS of this tree, because the memo cannot be switched
+/// off without recompiling - so what carries across the two rows is the
+/// SHAPE, never an absolute.
 ///
-///        memo off   481 resolutions (2.69/request)   9875 lock acquisitions
-///        memo on    179 resolutions (1.00/request)   2699 lock acquisitions
+/// WITHOUT the memo the registry is walked once per READ of this property,
+/// so the resolutions track the reads. WITH it there is one resolution per
+/// REQUEST, because FResourceName is written in ParseResourceNameAndID and
+/// nowhere else, and only ParseQuery calls it.
 ///
-/// Both runs are 188/188 GREEN, which is the point: deleting the memo cannot
-/// change a single answer, only the cost. FResourceName is written in
-/// ParseResourceNameAndID and nowhere else, and only ParseQuery calls it.
+/// THE LOCK ACQUISITIONS ARE DELIBERATELY NOT WRITTEN DOWN, and that is the
+/// finding, not an omission. Their SHAPE is one for GetRepositoryMapping
+/// plus one per entity the scan REACHES, times the resolutions - and how far
+/// the scan reaches is a property of the IMAGE, not of this tree: it ends
+/// early on a ClassName match, and where that match falls inside a
+/// hash-bucket enumeration over VMT pointers moves when the binary is
+/// relinked. The same counting logic on two builds of this same tree gave
+/// two different answers, each stable across repeated runs of its own build.
+/// A count written here would be a fact about one link, wearing the clothes
+/// of a fact about the code.
+///
+/// Both runs are GREEN, which is the point: deleting the memo cannot change
+/// a single answer, only the cost.
 function TRESTQueryParse.GetResourceName: String;
 begin
   if not FResolved then

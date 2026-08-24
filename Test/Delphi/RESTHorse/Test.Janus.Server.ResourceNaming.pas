@@ -90,23 +90,41 @@
      at all, but a model with neither [Resource] nor the convention was
      unreachable from both branches.
 
-  HOW MANY REAL COLLISIONS THE REPAIR HAD TO SURVIVE: ONE, AND IT IS NOT THE
-  TWELVE
+  WHICH REAL COLLISIONS THE REPAIR HAD TO SURVIVE - AND WHICH ONE IT CANNOT
+  EVEN SEE
 
-  The twelve files named Janus.Model.Client.pas across Examples are twelve
-  copies of ONE class over ONE table. Copies of one ANSWER are not an
-  ambiguity, which is exactly why the resolver compares the answers and not
-  the matches: two entities with the same ClassName resolve to the same
-  string, so there is nothing to choose between.
+  The files named Janus.Model.Client.pas across Examples are copies of ONE
+  class name over ONE table. Copies of one ANSWER are not an ambiguity, which
+  is exactly why the resolver compares the ANSWERS and not the matches, and
+  why it does not refuse them.
 
   Measured over the whole tree - every [Table] attribute paired with the class
-  that follows it - exactly ONE table name is claimed by two DIFFERENT class
-  names: `client`, by Tclient (the twelve example copies) and by TClientModel
-  in Projects\Janus DLL Framework. Even that one cannot bite at runtime,
-  because no program in this repository links both. The genuinely dangerous
-  pairs in a live process are the two THIS FILE declares on purpose, and that
-  is the point of declaring them: the shape exists, it is legitimate, and
-  before this repair nothing in the suite could see it.
+  declaration that follows it - the answer DEPENDS ON THE EQUALITY YOU ASK
+  WITH, and that dependence is the finding. Asked CASE-SENSITIVELY, which is
+  how the phrase "two different class names" reads, the segment `client` is
+  claimed by two different SPELLINGS - Tclient, the Examples copies, against
+  TClientModel in Projects\Janus DLL Framework - and so is the segment
+  `person`: TPERSON under Examples\Delphi\Data\Blob against TPerson under
+  Examples\Delphi\JSON, two DIFFERENT classes with DIFFERENT property sets,
+  not copies of one answer. Asked with SameText, which is what this resolver
+  and TMappingRepository.FindEntityByName actually use, the person pair
+  collapses to a single name and only the client pair can reach the refusal
+  below. The census figures are in this commit's message, not here: a count
+  in a comment is a fact about the tree on one day.
+
+  THAT GAP IS NOT CLOSED HERE, AND IT IS REPORTED RATHER THAN HIDDEN. When
+  two DIFFERENT classes carry names that differ only in CASE, this resolver
+  sees one answer and does not refuse - and TMappingRepository
+  .FindEntityByName then Exits on the FIRST SameText match, which is the very
+  hash-bucket enumeration over VMT pointers this repair exists to escape. No
+  program in this repository links either pair, so neither can bite here;
+  closing it means changing FindEntityByName, which lives in another
+  repository and is another issue.
+
+  The genuinely dangerous pairs in a live process are the ones THIS FILE
+  declares on purpose, and that is the point of declaring them: the shape
+  exists, it is legitimate, and before this repair nothing in the suite could
+  see it.
 
   THE CONTROLS ARE NOT DECORATIVE
 
