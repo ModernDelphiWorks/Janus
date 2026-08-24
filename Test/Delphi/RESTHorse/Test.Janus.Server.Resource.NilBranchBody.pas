@@ -26,7 +26,8 @@
 
   It is the same idiom Test.Janus.Server.Resource.InsertEntities already uses
   in AToOneBranchArrivesNilThroughThisRouteAndIsNotReported, and that clause is
-  the neighbour to rewrite alongside these ones when the decision is taken.
+  the neighbour to rewrite alongside these ones IF the to-one direction is ever
+  taken. It was NOT taken here - see the box on the to-one silence below.
 
   WHAT IS UNDER MEASUREMENT
 
@@ -39,21 +40,58 @@
   at all - anchored by METHOD, and it lives in JsonFlow, a DIFFERENT
   REPOSITORY from this one.
 
-  THE TWO LEGS DO NOT BEHAVE THE SAME, AND THE ISSUE ASSUMED THEY WOULD
+  THE TWO LEGS STILL DO NOT BEHAVE THE SAME, AND ONE OF THEM WAS REPAIRED
 
   - to-ONE nil: the root row is written, the branch is not, and the answer is
-    the ordinary success sentence. Silent.
-  - to-MANY nil: an access violation, rolled back, so not even the root row
-    survives. Loud, and a DIFFERENT defect. TWO methods of TRESTObjectSet
-    reach `LObjectList.Count` on the nil list - SetAutoIncValueOneToMany,
-    which runs first from inside Insert, and OneToManyCascadeActionsExecute
-    after it. The OneToOne handler next to each grew a `if LObject = nil then
-    Exit` in issue #240 and neither OneToMany one did, in this unit and in
-    TObjectSetBaseAdapter<M> alike. Measured by mutation: guarding either one
-    alone changes nothing observable, because the other still reads the nil
-    list. Repairing both is not a free decision either: it converts a request
-    that fails loudly today into one that half succeeds silently, which is
-    the very question #366 asks.
+    the ordinary success sentence. Silent - and STILL silent, by the decision
+    written down in the next box, not by omission.
+  - to-MANY nil: it USED to be an access violation, rolled back, so not even
+    the root row survived. Both SetAutoIncValueOneToMany, which runs first
+    from inside Insert, and OneToManyCascadeActionsExecute after it took the
+    nil list out of the TValue - IsObject is true for a nil instance - and
+    read `LObjectList.Count` off it. Their OneToOne neighbours were already
+    safe: OneToOneCascadeActionsExecute grew an explicit `if LObject = nil
+    then Exit` in issue #240, and SetAutoIncValueOneToOne leaves through the
+    `Assigned(Self)` inside TObjectHelper.GetType. Both OneToMany ones now
+    carry the same explicit exit, so the leg no longer raises: the root row
+    is kept and the branch is dropped, which is what the to-one leg already
+    did.
+
+  WHY THE TO-ONE SILENCE WAS LEFT STANDING - DECIDED, NOT FORGOTTEN
+
+  The repair was ruled NARROW: the access violation goes, nothing else moves.
+  The other directions issue #366 listed were measured and rejected.
+  Instantiating the nil class-typed property is what
+  AConstructorBuiltBranchIsWrittenEvenWhenTheBodyOmitsIt measures the price
+  of - every model that builds its branch in its constructor would start
+  writing a phantom row for a member nobody sent. Making the server refuse
+  runs against what this house decided elsewhere, that no row is an answer
+  and not an error. And a new signal, property, event or reporting channel
+  was vetoed outright. So the loss of a nil to-one branch is STILL silent,
+  and the clauses below keep pinning it exactly as they did. What changed is
+  only that the to-many leg stopped answering with an access violation,
+  because an access violation is never an answer.
+
+  WHAT THE MUTATIONS PROVE, AND WHAT THEY CANNOT
+
+  Removing EITHER guard alone brings the raise back - the other site still
+  reads the nil list - so each guard is load-bearing and the to-many clause
+  below dies for either mutation. What no clause here can do is tell the two
+  SITES apart: they fail with the same access violation, on the same nil
+  pointer, through the same inherited `Count` getter, and whichever runs
+  first simply wins. Their ORDER is the only difference between them and it
+  is not observable from a request, so no clause was invented to pretend
+  otherwise.
+
+  TObjectSetBaseAdapter<M> CARRIES THE SAME UNGUARDED PAIR - the same two
+  method names, the same unguarded `LObjectList.Count` - and was deliberately
+  left untouched: this front was ruled narrow to the REST server route the
+  issue names, and no clause here reaches that adapter. The sites were found
+  by searching Source/ for the literal cast line that produces the list,
+  `LObjectList := TObjectList<TObject>(LValue.AsObject);`. That search is
+  blind to any site that reaches a nil list under a different variable name
+  or a different spelling of the cast, so it bounds what was looked at, not
+  what exists.
 
   THE CONTROL CLAUSES ARE NOT DECORATION
 
@@ -219,10 +257,10 @@ type
     [Test]
     procedure TheAnswerForALostToOneBranchIsIndistinguishableFromSuccess;
 
-    /// THE TO-MANY LEG, which the issue left NOT MEASURED and which does NOT
-    /// behave like the to-one one.
+    /// THE TO-MANY LEG, which the issue left NOT MEASURED. It used to answer
+    /// with an access violation; now it answers the way the to-one leg does.
     [Test]
-    procedure AToManyBranchThatArrivesNilRaisesAndRollsBackTheWholeInsert;
+    procedure AToManyBranchThatArrivesNilIsLostAndTheRootIsKept;
 
     /// THE UPDATE LEG, which the issue also left NOT MEASURED.
     [Test]
@@ -451,30 +489,45 @@ begin
 end;
 
 procedure TTestServerResourceNilBranchBody
-  .AToManyBranchThatArrivesNilRaisesAndRollsBackTheWholeInsert;
+  .AToManyBranchThatArrivesNilIsLostAndTheRootIsKept;
+var
+  LAnswer: String;
 begin
-  Assert.WillRaise(
+  LAnswer := '';
+  Assert.WillNotRaiseAny(
     procedure
     begin
-      _InsertRaw('NilBranchListRoot', cBODY_NIL);
+      LAnswer := _InsertRaw('NilBranchListRoot', cBODY_NIL);
     end,
-    Exception,
-    'THE TO-MANY LEG IS NOT THE TO-ONE LEG, and the issue assumed it would ' +
-    'be. TWO methods of TRESTObjectSet take the nil list out of the TValue - ' +
-    'IsObject is true for a nil instance - and read LObjectList.Count off ' +
-    'it: SetAutoIncValueOneToMany, which runs FIRST, from inside Insert, and ' +
-    'OneToManyCascadeActionsExecute after it. Their OneToOne neighbours grew ' +
-    '`if LObject = nil then Exit` in issue #240; neither OneToMany one did, ' +
-    'here or in TObjectSetBaseAdapter<M>. MEASURED BY MUTATION: guarding ' +
-    'either one ALONE leaves this clause raising, because the other still ' +
-    'reads the nil list - only both guards together silence it. This clause ' +
-    'going green without raising means both were added, which is itself a ' +
-    'decision: it converts a request that fails loudly into one that half ' +
-    'succeeds silently');
-  Assert.AreEqual(0, _ScalarInt('SELECT COUNT(*) FROM atnil'),
-    'and the rollback takes the ROOT row with it, so unlike the to-one leg ' +
-    'nothing at all is written. That asymmetry is the reason the two legs ' +
-    'are measured in separate clauses');
+    'THE ACCESS VIOLATION IS GONE, and that is the whole of what issue #366 ' +
+    'changed in Source. SetAutoIncValueOneToMany, which runs FIRST from ' +
+    'inside Insert, and OneToManyCascadeActionsExecute after it both take ' +
+    'the nil list out of the TValue - IsObject is true for a nil instance - ' +
+    'and both now leave before reading LObjectList.Count, the same explicit ' +
+    'exit OneToOneCascadeActionsExecute received in issue #240. A raise here ' +
+    'means a guard was removed: EITHER one alone brings this clause down, ' +
+    'because the other site still reads the nil list, which is what makes ' +
+    'both of them load-bearing');
+  Assert.AreEqual(1, _ScalarInt('SELECT COUNT(*) FROM atnil'),
+    'and NO rollback: the ROOT row survives. It used to be swept away with ' +
+    'the raise, so this is the half of the behaviour the guards moved. A 0 ' +
+    'here means the insert died somewhere before the root was committed');
+  Assert.AreEqual(0, _ScalarInt('SELECT COUNT(*) FROM atmid'),
+    'THE SILENCE IS INHERITED, NOT INTRODUCED. The list property is still ' +
+    'nil after the model constructor ran, so the deserialiser had nowhere ' +
+    'to put the member the body spells out, and the cascade now walks past ' +
+    'it instead of dereferencing it. The to-many leg therefore lands exactly ' +
+    'where AToOneBranchThatArrivesNilIsLostAndTheRootIsKept already stands. ' +
+    'A 1 here means the deserialiser started building nil branches, which ' +
+    'is direction (a) of issue #366 and was REJECTED - see the phantom row ' +
+    'AConstructorBuiltBranchIsWrittenEvenWhenTheBodyOmitsIt measures');
+  Assert.IsTrue(Pos('insert command executed successfully', LAnswer) > 0,
+    'and the caller is told the ordinary success sentence, with nothing ' +
+    'naming the branch that was dropped. That silence is the DECISION of ' +
+    'issue #366, recorded here so it cannot later be read as an oversight: ' +
+    'a new signal, property, event or reporting channel was vetoed, so this ' +
+    'clause - not a runtime warning - is where the loss stays declared. ' +
+    'Answer as received: ' + LAnswer);
 end;
 
 procedure TTestServerResourceNilBranchBody
