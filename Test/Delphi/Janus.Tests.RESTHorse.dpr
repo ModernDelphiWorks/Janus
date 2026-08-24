@@ -95,7 +95,9 @@ uses
   /// Whether a segment reaches a model whose class is not 'T'+table - issue #364
   Test.Janus.Server.ResourceNaming in 'RESTHorse\Test.Janus.Server.ResourceNaming.pas',
   /// What a PUT answers when it locates no row — issue #363
-  Test.Janus.Server.Resource.UpdateNotFound in 'RESTHorse\Test.Janus.Server.Resource.UpdateNotFound.pas';
+  Test.Janus.Server.Resource.UpdateNotFound in 'RESTHorse\Test.Janus.Server.Resource.UpdateNotFound.pas',
+  /// Whether the transport's error envelope survives the message it carries - issue #376
+  Test.Janus.Server.ExceptionEnvelope in 'RESTHorse\Test.Janus.Server.ExceptionEnvelope.pas';
 
 begin
 {$IFDEF TESTINSIGHT}
