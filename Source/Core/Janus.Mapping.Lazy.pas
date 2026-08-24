@@ -211,13 +211,13 @@ begin
           // seguro, sao mantidos num lugar so: em TObjectHelper.MethodCall,
           // ancorado por SIMBOLO - nunca por linha e nunca por CONTAGEM, porque
           // tres censos deste mesmo territorio ja deram tres particoes
-          // diferentes, e qualquer numero escrito aqui nasce vencido. MEDIDO
-          // nesta arvore, em 20 ago 2026: o corpo daquele simbolo, em
-          // Janus.Objects.Helper, AINDA NAO TEM esse texto - identico em
-          // origin/develop, aqui e em f337eae; ele chega pela frente
-          // docs/tclass-create-workaround, que precisa entrar ANTES desta. Ate
-          // la a ancora esta certa e o alvo e que nao chegou, e o que vale e o
-          // paragrafo acima.
+          // diferentes, e qualquer numero escrito aqui nasce vencido. O ALVO
+          // JA CHEGOU: o texto entrou pela frente docs/tclass-create-workaround
+          // (#370, 8895751) e hoje esta em Janus.Objects.Helper, no bloco
+          // imediatamente acima da implementacao de TObjectHelper.MethodCall.
+          // A frase que estava aqui dizia que aquele corpo AINDA NAO TINHA
+          // esse texto e que a frente precisava entrar ANTES desta - medida
+          // certa em 20 ago 2026, falsa desde que o #370 entrou.
           //
           // O IRMAO DESTA FUNCAO, LOGO ABAIXO NESTA MESMA UNIT,
           // CreateLazyManyAssociationLoadFunc, sempre teve esta chamada. Doze
@@ -381,8 +381,26 @@ begin
         begin
           LObjectCreate := LPropertyType.AsInstance.MetaclassType.Create;
           // Not a duplicate of the line above - see the canonical note at
-          // Janus.Objects.Helper.TObjectHelper.MethodCall. Deleting this line
-          // leaves Janus.Tests.Units 715/715 green: nothing here defends it.
+          // Janus.Objects.Helper.TObjectHelper.MethodCall. What stood here -
+          // "deleting this line leaves Janus.Tests.Units 715/715 green:
+          // nothing here defends it" - was measured at 8f5864f, when no
+          // fixture read anything this line produces. Since #372 (f03ef0b)
+          // one does: Test.Janus.ObjectSet.LazyOneToOneChildCtor
+          // .Control_TheLazyOneToManyRouteRunsTheChildConstructor loads
+          // TLazyCtorManyRoot.kids - a LAZY OneToMany, so it comes through
+          // this very function - and asserts kids[0].grands, the list that
+          // only TLazyCtorChild.Create builds. RE-MEASURED on this branch's
+          // tree, whose executable lines are identical to develop f03ef0b -
+          // an anchor chosen over a SHA of this commit, which cannot name
+          // itself and would dangle on any rewrite. On the current suite
+          // (Studio 37, Win32/Debug) deleting this line leaves
+          // Janus.Tests.Units 729/730 with exactly ONE red: that same
+          // Control_TheLazyOneToManyRouteRunsTheChildConstructor, dying at
+          // Assert.IsNotNull(kids[0].grands). It also moves .text by -100
+          // bytes, so the mutation demonstrably reached the binary.
+          // Janus.Tests.RESTfulDriver stays 283/283 with .text unchanged,
+          // because it does not link this unit at all. The old green is
+          // history; this line is defended now.
           LObjectCreate.MethodCall('Create', []);
           ABindToObject(LResultSet, LObjectCreate);
           ProcessLazyLoadedObject(LObjectCreate,

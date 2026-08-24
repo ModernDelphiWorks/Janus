@@ -353,10 +353,13 @@ begin
         // liberados.
         //
         // ESTE SITIO NAO TINHA A CHAMADA E AGORA TEM. Este comentario nao
-        // enumera os demais, DE PROPOSITO: o mecanismo e o censo completo do
-        // contorno sao mantidos num lugar so, na declaracao de
+        // enumera os demais, DE PROPOSITO: o mecanismo e a CONDICAO de
+        // seguranca do contorno sao mantidos num lugar so, junto de
         // TObjectHelper.MethodCall - ancorado por SIMBOLO, nao por numero de
-        // linha nem por contagem. Dois lugares mantendo o mesmo censo a mao
+        // linha nem por contagem. CENSO NENHUM E MANTIDO LA, e esta frase ja
+        // prometeu "o censo completo": o bloco que chegou pelo #370 (8895751)
+        // recusa POR ESCRITO dizer quantos sitios aplicam o contorno, entao a
+        // promessa nasceu falsa. Dois lugares mantendo o mesmo censo a mao
         // divergem, e a versao anterior deste comentario provou isso: afirmava
         // ser "o unico dos oito sitios", e a afirmacao era FALSA. Uma frase
         // dessas e a pior possivel para estar errada, porque e exatamente a que
@@ -365,10 +368,18 @@ begin
         // O UNICO IRMAO QUE ESTE COMENTARIO AFIRMA E O QUE FOI MEDIDO:
         // CreateLazySingleAssociationLoadFunc, em Janus.Mapping.Lazy, e o gemeo
         // LAZY deste metodo - mesma associacao de objeto unico, mesmo
-        // LChildClass.Create - e TAMBEM nao faz a chamada. Latente hoje: nao ha
-        // no repositorio modelo de 1:1 lazy cujo alvo construa algo no proprio
-        // construtor, entao o defeito nao tem por onde aparecer. Nao foi
-        // consertado aqui porque precisa de red-first proprio.
+        // LChildClass.Create - e tinha o MESMO defeito. Foi consertado por
+        // conta propria, com red-first proprio, na branch
+        // fix/lazy-onetoone-child-constructor (#372, f03ef0b), que entrou
+        // DEPOIS desta: aquele sitio passa a fazer a chamada. As tres coisas
+        // que esta frase afirmava ANTES viraram falsas junto - ela dizia que o
+        // gemeo TAMBEM nao fazia a chamada, que o defeito era "latente" por
+        // nao haver no repositorio modelo de 1:1 lazy cujo alvo construa algo
+        // no proprio construtor, e que faltava o conserto. O modelo existe:
+        // TLazyCtorChild, em Test.Janus.Model.LazyCtor, cujo construtor monta
+        // Fgrands. A cobertura tambem mudou de mao - quando esta frase dizia
+        // "latente", nenhuma rota publica alcancava a funcao lazy; quem a
+        // alcanca agora e Test.Janus.ObjectSet.LazyOneToOneChildCtor.
         //
         // O RISCO DESTA CHAMADA, e por que ele nao morde aqui.
         // GetMethod('Create') devolve o PRIMEIRO construtor declarado - o aviso
