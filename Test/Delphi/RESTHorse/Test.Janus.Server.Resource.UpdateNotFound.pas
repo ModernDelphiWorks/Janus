@@ -61,6 +61,10 @@
   same answer by the same road. So the third mistake moved from MUTE to
   MISLABELLED, which is better and is not fixed; telling it apart needs a JSON
   parse check before the mapping walk, and that is not this issue's to add.
+  That reading is held by a CLAUSE and not by this paragraph -
+  Characterisation_ANonJsonBodyIsMislabelledAsNotFound - for the same reason
+  the leftover silence of ParseDelete is: a measurement left in prose goes
+  stale without anything turning red.
 
   WHY THE ANSWER IS RETURNED AND NOT RAISED, WHICH IS THE WHOLE DESIGN
 
@@ -147,10 +151,31 @@
   open question. One statement changes - the body of TSessionRestFul<M>.Update -
   and TWO callers in Source would newly be able to see an exception:
   TRESTObjectSetAdapter<M>.Update and TRESTDataSetAdapter<M>.ApplyUpdater (both
-  anchored by SYMBOL). Inside this repository the blast radius is one test unit,
-  Test.Janus.Rest.ObjectSetOwnership, which drives a recording double and never
-  sees a server answer, and ZERO examples - the four Examples/Delphi/RESTful
-  `.Update(` sites are the SERVER side over IDBConnection, not this session.
+  anchored by SYMBOL).
+
+  Inside this repository the blast radius is ONE CLAUSE, and it is in THIS FILE:
+  Characterisation_TheJanusClientSwallowsThisAnswer. Measured by mutation -
+  Update made to raise on the not-found answer it gets back, all seven projects
+  rebuilt and run, on this branch with origin/develop f03ef0b merged in - it is
+  the only red anywhere: Units 730/730, LiveBindings 31/31, RESTfulDriver
+  283/283, RESTHorse 191/192, RESTMARS 33/33, RESTWiRL 30/30, and RESTOracle's
+  12 errored, which is its basal state here with or without the mutation.
+
+  Test.Janus.Rest.ObjectSetOwnership, which drives
+  TRESTObjectSetAdapter<M>.Update through a recording double, stays GREEN under
+  that mutation: the double never answers a not-found document, so it is on the
+  PATH without being in the blast radius. AN EARLIER DRAFT OF THIS PARAGRAPH
+  NAMED IT AS THE BLAST RADIUS AND NAMED NOTHING THAT BREAKS - it named the unit
+  that does NOT go red and omitted the clause that does, in the same file whose
+  doc-comment on that clause, and whose assertion message inside it, both already
+  said it would go RED. That was falsified by the measurement above, not deleted.
+
+  And ZERO examples - the FIVE Examples/Delphi/RESTful `.Update(` sites are the
+  SERVER side over IDBConnection, none of them this session: four in the driver
+  servers (Datasnap, DelphiMVC, MARS, WiRL) and, the fifth, HorseJanus.DAO.Base's
+  IContainerObjectSet<T>. The count in this sentence used to read FOUR and it was
+  short by that fifth one.
+
   The one that is NOT cheap is ApplyUpdater: it clears the dsEdit marker of
   EVERY filtered row before it calls Update once with the whole list, so an
   exception on row k leaves rows k+1..N marked as applied and never sent. A
@@ -359,6 +384,18 @@ type
     [Test]
     procedure Characterisation_TheUnregisteredResourceExitOfDeleteStillAnswersSilence;
 
+    /// CHARACTERISATION, GREEN TODAY. The THIRD mistake of the header's first
+    /// table: a body the server could not parse at all is reported as a key
+    /// that located no row. It is here because the repair separates two of the
+    /// three and the third only moved from MUTE to MISLABELLED - see "AND THE
+    /// REPAIR SEPARATES TWO OF THE THREE, NOT THREE" above - and that reading
+    /// was carried by prose alone, which is exactly how the previous count in
+    /// this header went wrong. It goes RED the day a JSON parse check lands
+    /// before the mapping walk of ParseUpdate, and that is the signal to come
+    /// read the header, not a regression.
+    [Test]
+    procedure Characterisation_ANonJsonBodyIsMislabelledAsNotFound;
+
     /// PREMISE FOR THE CLIENT CLAUSE BELOW, AND IT IS NOT A FORMALITY. Without
     /// it, "the client did not raise" could mean the client never reached
     /// ParseUpdate at all - a resource name the server does not resolve, or a
@@ -391,6 +428,8 @@ const
   cGHOSTKEY   = '999999';
   cGHOSTBODY  = '{"id":999999,"name":"Ghost","email":"ghost@test.com","active":true}';
   cUNMAPPED   = 'NotAnEntityAtAll';
+  /// The body of the header's fourth measurement, spelled the same there.
+  cNOTJSON    = 'this is not json';
   /// Spelled out rather than compared with a Boolean so that a failure PRINTS
   /// the class of whatever was raised instead of just "expected True".
   cNOEXCEPTION = '<NO EXCEPTION>';
@@ -658,6 +697,24 @@ begin
   Assert.IsFalse(_Parses(LBody),
     'An empty body cannot parse; if this fails the measurement above is not '
     + 'measuring what it says. Body was: [' + LBody + ']');
+end;
+
+procedure TTestServerResourceUpdateNotFound.Characterisation_ANonJsonBodyIsMislabelledAsNotFound;
+var
+  LBody: String;
+begin
+  LBody := _Body(_Put('CustomerTest', cNOTJSON));
+  Assert.IsTrue(LBody.Contains('found no record'),
+    'A BODY THE SERVER CANNOT PARSE IS NO LONGER REPORTED AS A KEY THAT LOCATED '
+    + 'NO ROW, AND THIS CLAUSE IS THE SIGNAL, NOT A REGRESSION. It held the half '
+    + 'of issue #363 that was deliberately NOT repaired: TJanusJson.JsonToObject '
+    + 'fills nothing from an unparseable body, every key column renders as the '
+    + 'empty literal, ParseUpdate emits `(1 = 0)` and leaves through the SAME '
+    + 'not-found exit - so the caller is told the wrong reason instead of '
+    + 'nothing at all. If a JSON parse check now runs before the mapping walk, '
+    + 'that is the repair this clause was waiting for: read the header of this '
+    + 'unit, delete this clause, and say there what the third mistake answers '
+    + 'now. Body was: [' + LBody + ']');
 end;
 
 function TTestServerResourceUpdateNotFound._ClientUpdate(const AId: Integer;
