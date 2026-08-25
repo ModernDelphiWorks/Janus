@@ -150,7 +150,7 @@ type
 
     /// TGUID, and not String, because THAT is what a ftGuid column means in
     /// this framework - TCommandInserter._GetParamValue (by symbol),
-    /// Janus.Command.Updater.pas:118-119 and Janus.Command.Deleter.pas:97-98
+    /// Janus.Command.Updater.pas:134 and :254, Janus.Command.Deleter.pas:109
     /// all read it as AsType<TGUID>.ToString, and issue #284 made the SELECT
     /// side read it the same way. Declared as String this model compiled and
     /// its REST test passed - the REST filter reads the FIELD, never the
