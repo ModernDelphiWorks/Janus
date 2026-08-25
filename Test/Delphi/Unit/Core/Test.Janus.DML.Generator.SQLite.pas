@@ -28,6 +28,7 @@ uses
   Rtti,
   SysUtils,
   StrUtils,
+  Variants,
   Generics.Collections,
   DUnitX.TestFramework,
   FluentSQL,
@@ -54,6 +55,7 @@ uses
   Janus.Model.Client,
   Janus.Model.Master,
   Janus.Model.Detail,
+  Janus.RTTI.Helper,
   Test.Janus.Model.KeyOnly,
   Test.Janus.Model.RestLazyKeys;
 
@@ -153,7 +155,7 @@ type
   /// <summary> A ftGuid COLUMN OVER A String PROPERTY - WRONG ON PURPOSE.
   ///  The owner's ruling for #284 is that ftGuid means a TGUID property, and
   ///  that is not a new rule: TCommandInserter._GetParamValue (by symbol),
-  ///  Janus.Command.Updater.pas:118-119 and Janus.Command.Deleter.pas:97-98
+  ///  Janus.Command.Updater.pas:134 and :254 and Janus.Command.Deleter.pas:109
   ///  have always read it as AsType<TGUID>.ToString. This pair exists so the
   ///  ruling has a test instead of a paragraph: the SELECT side must say WHICH
   ///  property is wrong and WHAT to do, not raise a bare EInvalidCast from
@@ -387,6 +389,19 @@ type
     function OctetInsert(const AOctet: Boolean): String;
     function OctetUpdate(const AOctet: Boolean): String;
     function OctetDelete(const AOctet: Boolean): String;
+    /// Issue #384. The three helpers above all read the KEY parameter, which
+    /// TCommandUpdater builds in its primary-key loop. These two read a WRITTEN
+    /// ftGuid column instead - the parameter _GetParamValue produces - which is
+    /// a different arm of a different method and had no reader here at all.
+    /// Each answers the bound parameter as text, or cUNBOUNDGUID when the
+    /// command left it null.
+    function ValueColumnUpdate(const AOctet: Boolean): String;
+    function ValueColumnUpdateNullable(const AOctet: Boolean): String;
+    /// Issue #384. MustWriteNull over the Nullable<TGUID> property alone,
+    /// with no command around it - the stage TCommandUpdater runs BEFORE the
+    /// case that dispatches on the property kind. Answers the message it
+    /// raised, or the empty string when it returned an answer.
+    function NullableGuidMustWriteNull: String;
     /// Issue #294. The message of whatever AWrite raised, or the empty string
     /// when it raised nothing - which is the state this issue found on all
     /// three write paths and is therefore worth naming rather than asserting
@@ -546,6 +561,28 @@ type
     procedure TestGuidWrite_DeleteStoreGUIDAsOctetOn_RaisesInsteadOfBindingText;
     [Test]
     procedure TestGuidWrite_DeleteStoreGUIDAsOctetOff_BindsTheKeyAsUsual;
+
+    // ---------------------------------------------------------------------
+    // Issue #384 - a ftGuid column that is NOT the key bound Null on UPDATE
+    //
+    // The six clauses above all read the KEY parameter. TCommandUpdater builds
+    // that one in its primary-key loop, which has an ftGuid arm of its own; the
+    // columns it WRITES go through _GetParamValue, whose tkRecord case tested
+    // for blob and for nullable and stopped. A plain TGUID is neither, so the
+    // Result := Null the function opens with survived, and the UPDATE bound
+    // Null over a stored GUID without raising or logging. The pair below reads
+    // the WRITTEN parameter for the two property shapes that reach a ftGuid
+    // column, and the third puts that same written parameter under the
+    // StoreGUIDAsOctet refusal the other four rendering sites already carry.
+    // ---------------------------------------------------------------------
+    [Test]
+    procedure TestGuidWrite_UpdateOfAPlainGuidValueColumn_BindsTheTextAndNotNull;
+    [Test]
+    procedure TestGuidWrite_UpdateOfANullableGuidValueColumn_RaisesAndNeverBindsNull;
+    [Test]
+    procedure TestGuidWrite_TheNullableGuidRaiseIsTheNullabilityProbeAndNotTheColumnDispatch;
+    [Test]
+    procedure TestGuidWrite_UpdateOfAGuidValueColumnStoreGUIDAsOctetOn_RaisesInsteadOfBindingText;
   end;
 
 implementation
@@ -556,6 +593,12 @@ const
   /// be read side by side. Written here in the form TGUID.ToString emits:
   /// 38 characters, braces, hyphens, UPPERCASE hex.
   cGUIDKEY = '{6F9619FF-8B86-D011-B42D-00CF4FC964FF}';
+
+  /// Issue #384. What the two ValueColumnUpdate helpers answer when the command
+  /// left the parameter of a written ftGuid column carrying Null. Spelled out
+  /// rather than returned as '' so a red clause names the silence it caught
+  /// instead of showing an empty string that could equally mean an empty GUID.
+  cUNBOUNDGUID = '<Null - a coluna ftGuid nao foi vinculada>';
 
   cSELECTCOMPCHILD =
     'SELECT compchild.cckey, compchild.cck1, compchild.cck2, ' +
@@ -2427,6 +2470,117 @@ begin
   end;
 end;
 
+/// <summary> THE KEY AND THE WRITTEN COLUMN ARE TWO DIFFERENT ARMS, AND ONLY
+///  ONE OF THEM HAD A READER. Issue #384.
+///
+///  OctetUpdate above reads gkkey, which TCommandUpdater fills in its
+///  primary-key loop - the loop that carries an explicit ftGuid arm. Nothing
+///  here read a ftGuid column on the OTHER side of the statement, the SET list,
+///  which TCommandUpdater fills through _GetParamValue. TNullableGuidChild
+///  reaches exactly that: its key is ftInteger, so the key loop cannot answer
+///  for it, and its ngcparent is a plain TGUID over a ftGuid column.
+///
+///  The change dictionary carries ngcparent alone on purpose - AModifiedFields
+///  is what drives the SET loop, so a second entry would only add a parameter
+///  that says nothing about this arm. </summary>
+function TTestDMLGenerator.ValueColumnUpdate(const AOctet: Boolean): String;
+var
+  LChanges: TDictionary<String, String>;
+  LConnection: IDBConnection;
+  LRow: TNullableGuidChild;
+  LUpdater: TCommandUpdater;
+  LValue: Variant;
+begin
+  LConnection := TFakeConnection.Create(dnSQLite,
+                   TOptions.Create.StoreGUIDAsOctet(AOctet));
+  LChanges := TDictionary<String, String>.Create;
+  LRow := TNullableGuidChild.Create;
+  try
+    LChanges.Add('ngcparent', 'ngcparent');
+    LRow.ngckey := 1;
+    LRow.ngcparent := StringToGUID(cGUIDKEY);
+    LUpdater := TCommandUpdater.Create(LConnection, dnSQLite, LRow);
+    try
+      LUpdater.GenerateUpdate(LRow, LChanges);
+      LValue := LUpdater.Params.ParamByName('ngcparent').Value;
+      if VarIsNull(LValue) or VarIsEmpty(LValue) then
+        Result := cUNBOUNDGUID
+      else
+        Result := VarToStr(LValue);
+    finally
+      LUpdater.Free;
+    end;
+  finally
+    LRow.Free;
+    LChanges.Free;
+  end;
+end;
+
+/// <summary> THE SAME COLUMN, THE OTHER PROPERTY SHAPE. Issue #384.
+///  TNullableGuidMaster.ngmparent is a Nullable&lt;TGUID&gt; over the same
+///  ftGuid column kind, and a Nullable HAS an arm in _GetParamValue - the
+///  AsType&lt;Variant&gt; one. That arm is the cast Janus.RTTI.Helper.pas
+///  documents over GetValueNullable as raising 'Invalid class typecast' for a
+///  TGUID, which is why this shape needs a clause of its own and not merely a
+///  second row of the one above. </summary>
+function TTestDMLGenerator.ValueColumnUpdateNullable(const AOctet: Boolean): String;
+var
+  LChanges: TDictionary<String, String>;
+  LConnection: IDBConnection;
+  LRow: TNullableGuidMaster;
+  LUpdater: TCommandUpdater;
+  LValue: Variant;
+begin
+  LConnection := TFakeConnection.Create(dnSQLite,
+                   TOptions.Create.StoreGUIDAsOctet(AOctet));
+  LChanges := TDictionary<String, String>.Create;
+  LRow := TNullableGuidMaster.Create;
+  try
+    LChanges.Add('ngmparent', 'ngmparent');
+    LRow.ngmkey := 1;
+    LRow.ngmparent := StringToGUID(cGUIDKEY);
+    LUpdater := TCommandUpdater.Create(LConnection, dnSQLite, LRow);
+    try
+      LUpdater.GenerateUpdate(LRow, LChanges);
+      LValue := LUpdater.Params.ParamByName('ngmparent').Value;
+      if VarIsNull(LValue) or VarIsEmpty(LValue) then
+        Result := cUNBOUNDGUID
+      else
+        Result := VarToStr(LValue);
+    finally
+      LUpdater.Free;
+    end;
+  finally
+    LRow.Free;
+    LChanges.Free;
+  end;
+end;
+
+function TTestDMLGenerator.NullableGuidMustWriteNull: String;
+var
+  LContext: TRttiContext;
+  LProperty: TRttiProperty;
+  LRow: TNullableGuidMaster;
+begin
+  Result := '';
+  LContext := TRttiContext.Create;
+  LRow := TNullableGuidMaster.Create;
+  try
+    LRow.ngmkey := 1;
+    LRow.ngmparent := StringToGUID(cGUIDKEY);
+    LProperty := LContext.GetType(TNullableGuidMaster).GetProperty('ngmparent');
+    try
+      LProperty.MustWriteNull(LRow);
+    except
+      on E: Exception do
+        Result := E.ClassName + ': ' + E.Message;
+    end;
+  finally
+    LRow.Free;
+    LContext.Free;
+  end;
+end;
+
 procedure TTestDMLGenerator.TestGuidWrite_InsertStoreGUIDAsOctetOn_RaisesInsteadOfBindingText;
 var
   LMessage: String;
@@ -2513,6 +2667,130 @@ begin
   Assert.AreEqual(cGUIDKEY, OctetDelete(False), False,
     'On the default the key parameter of the DELETE must carry exactly the ' +
     'text TGUID.ToString has always produced.');
+end;
+
+/// <summary> AN UPDATE OVER A GUID COLUMN THAT IS NOT THE KEY WROTE NULL AND
+///  SAID NOTHING. Issue #384.
+///
+///  TCommandUpdater._GetParamValue opens with Result := Null and its tkRecord
+///  case asked two questions - blob, then nullable. A plain TGUID answers no to
+///  both, the case fell out with nothing assigned, and the opening Null reached
+///  the bound parameter. The statement was well formed, the driver was happy,
+///  the row was found: the stored GUID was simply replaced by Null on every
+///  UPDATE that touched the column. This clause reads the parameter rather than
+///  the SQL because a bound value is what this path emits - the statement
+///  carries only the ':ngcparent' marker either way, so no assertion about the
+///  text of the SQL can see the defect at all. </summary>
+procedure TTestDMLGenerator.TestGuidWrite_UpdateOfAPlainGuidValueColumn_BindsTheTextAndNotNull;
+begin
+  Assert.AreEqual(cGUIDKEY, ValueColumnUpdate(False), False,
+    'A written ftGuid column must bind the same 38-character text this repo ' +
+    'renders at every other GUID site. Binding Null instead ERASES a stored ' +
+    'GUID in silence, which is worse than refusing.');
+end;
+
+/// <summary> THE NULLABLE SHAPE OF THE SAME COLUMN NEVER REACHES THE DISPATCH,
+///  AND THIS CLAUSE PINS THAT IT AT LEAST STILL SHOUTS. Issue #384.
+///
+///  MEASURED, NOT ASSUMED, AND THE MEASUREMENT CONTRADICTED THE EXPECTATION.
+///  A Nullable&lt;TGUID&gt; carrying a value was expected to fall into the
+///  AsType&lt;Variant&gt; arm of _GetParamValue and raise there. It does not get
+///  that far: TCommandUpdater._GetParamValue asks MustWriteNull FIRST, and that
+///  question alone raises 'Invalid class typecast' for this shape - proved
+///  standing alone by the clause below, which asks MustWriteNull with no
+///  command around it at all. So the arm this issue added cannot cure this
+///  shape, and pretending otherwise would be the false claim.
+///
+///  WHAT THE ARM DOES BUY THIS SHAPE is position: it stands BEFORE the
+///  IsNullable test, so the day the nullability probe stops raising, the value
+///  binds as text through the column dispatch instead of falling into the same
+///  Variant cast one method further down.
+///
+///  THE INVARIANT WORTH HOLDING MEANWHILE IS THAT IT IS NOT SILENT. The defect
+///  this issue is about is a write that erases a GUID and reports success; a
+///  raise is a bad outcome but a LOUD one. This clause dies if anyone makes
+///  this shape quiet - whether by binding Null or by swallowing the cast - and
+///  that is exactly when someone should look again. </summary>
+procedure TTestDMLGenerator.TestGuidWrite_UpdateOfANullableGuidValueColumn_RaisesAndNeverBindsNull;
+var
+  LMessage: String;
+begin
+  LMessage := OctetRefusal(function: String
+                           begin
+                             Result := ValueColumnUpdateNullable(False);
+                           end);
+
+  Assert.IsTrue(ContainsText(LMessage, 'Invalid class typecast'),
+    'An UPDATE over a Nullable<TGUID> value column must not go quiet. It ' +
+    'raises today, from the nullability probe and not from the column ' +
+    'dispatch; binding Null here would be the silent erase this issue is ' +
+    'about: message was "' + LMessage + '"');
+end;
+
+/// <summary> WHERE THE RAISE ACTUALLY LIVES, ASKED WITHOUT A COMMAND AROUND IT.
+///  Issue #384.
+///
+///  TRttiPropertyHelper_.MustWriteNull hands a Nullable to
+///  _ResolveNullFromNullableValue, which reads it through GetNullableValue -
+///  and for a Nullable&lt;TGUID&gt; THAT HOLDS A VALUE, GetNullableValue answers
+///  the FValue, a TValue of TGUID. The resolver then compares it as a Variant,
+///  which is the cast Janus.RTTI.Helper.pas itself documents as raising over a
+///  TGUID. The shape with NO value never gets there, because GetNullableValue
+///  renders absence as Variant Null - which is why this was never seen.
+///
+///  This clause exists so the raise measured by the clause above is ATTRIBUTED
+///  rather than merely observed: a fix in TCommandUpdater cannot move it,
+///  because the raise happens before TCommandUpdater looks at the property kind
+///  at all. The defect is a neighbour of this issue and belongs to
+///  Janus.RTTI.Helper.pas, not to the write commands. </summary>
+procedure TTestDMLGenerator.TestGuidWrite_TheNullableGuidRaiseIsTheNullabilityProbeAndNotTheColumnDispatch;
+var
+  LMessage: String;
+begin
+  LMessage := NullableGuidMustWriteNull;
+
+  Assert.IsTrue(ContainsText(LMessage, 'Invalid class typecast'),
+    'MustWriteNull over a Nullable<TGUID> that holds a value must be shown to ' +
+    'raise ON ITS OWN. If it stops, the clause above is measuring something ' +
+    'else and its prose is wrong: message was "' + LMessage + '"');
+end;
+
+/// <summary> THE FIFTH WRITING SITE JOINS THE REFUSAL. Issue #384, over #294.
+///
+///  The guard is what keeps this fix from reopening #294 on a path that did not
+///  exist when #294 was measured: under StoreGUIDAsOctet the schema holds 16
+///  raw bytes and the 38-character text matches nothing, so a write that
+///  succeeds is a write no read will ever find. It stands BEFORE the value is
+///  read, which is the order Janus.Command.Inserter.pas states over its own
+///  call: what is refused is the shape of the write, and a StringToGUID that
+///  happened to raise first would report the wrong defect.
+///
+///  The operation term is the UPDATE's WRITING term, distinct from the WHERE
+///  term the key loop of the same command uses - without a term of its own this
+///  clause could be satisfied by the guard that was already there. </summary>
+procedure TTestDMLGenerator.TestGuidWrite_UpdateOfAGuidValueColumnStoreGUIDAsOctetOn_RaisesInsteadOfBindingText;
+var
+  LMessage: String;
+begin
+  LMessage := OctetRefusal(function: String
+                           begin
+                             Result := ValueColumnUpdate(True);
+                           end);
+
+  Assert.IsFalse(LMessage = '',
+    'With StoreGUIDAsOctet on, the UPDATE bound the 38-character text into a ' +
+    'column the same option declares 16 raw bytes wide, and said nothing - ' +
+    'while the SELECT for that very row refused.');
+  Assert.IsTrue(ContainsText(LMessage, 'StoreGUIDAsOctet'),
+    'The error must NAME the option, so the reader knows which switch to ' +
+    'turn off: message was "' + LMessage + '"');
+  Assert.IsTrue(ContainsText(LMessage, 'ngcparent'),
+    'And name the column, like every other named error on this path: ' +
+    'message was "' + LMessage + '"');
+  Assert.IsTrue(ContainsText(LMessage, 'num UPDATE (parametro de gravacao)'),
+    'And say WHICH path refused. The key loop of this same command already ' +
+    'refuses with a term of its own; without a distinct term this clause ' +
+    'would be satisfied by that one: message was "' + LMessage + '"');
 end;
 
 initialization

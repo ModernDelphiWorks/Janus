@@ -319,7 +319,8 @@ type
     ///  O CONTRATO DO VALOR E' TGUID, E NAO String. E' o que as tres familias
     ///  de comando ja exigem: TCommandInserter._GetParamValue - POR SIMBOLO
     ///  desde a #325, que inseriu linhas naquela unit -,
-    ///  Janus.Command.Updater.pas:118-119 e Janus.Command.Deleter.pas:97-98
+    ///  Janus.Command.Updater.pas:134 (o WHERE) e :254 (uma coluna gravada,
+    ///  acrescentada pela #384) e Janus.Command.Deleter.pas:109
     ///  fazem AsType<TGUID>.ToString. Os geradores Guid32Inc/Guid36Inc/
     ///  Guid38Inc (Inserter:135-158) escrevem String via SetValue e pertencem
     ///  ao mundo ftString - NAO sao a fonte do formato de uma coluna ftGuid.

@@ -217,6 +217,43 @@ begin
         if AProperty.IsBlob then
           Result := AProperty.GetNullableValue(AInstance).AsType<TBlob>.ToBytes
         else
+        /// Issue #384. THE DISPATCH IS ON THE LABEL OF THE COLUMN, NOT ON THE
+        /// SHAPE OF THE PROPERTY - which is the same choice TCommandInserter
+        /// makes for the same column kind, and it is the difference between the
+        /// two commands: a plain TGUID answers no to every question this case
+        /// asked before, so the opening Result := Null survived and the UPDATE
+        /// bound Null over a stored GUID, in silence.
+        ///
+        /// IT STANDS BEFORE THE NULLABLE TEST BY INTENT, NOT BY MEASUREMENT.
+        /// A Nullable<TGUID> answers IsNullable, so with the two arms swapped
+        /// it would reach the AsType<Variant> below - the cast
+        /// TRttiPropertyHelper_.GetValueNullable, in Janus.RTTI.Helper.pas,
+        /// documents as raising over a TGUID. NO CLAUSE CAN TELL THE TWO ORDERS
+        /// APART TODAY, and swapping them was run: the whole suite stays green.
+        /// The reason is a neighbouring defect, NOT fixed here: MustWriteNull
+        /// above already raises 'Invalid class typecast' for a Nullable<TGUID>
+        /// that HOLDS a value, so that shape never reaches this case at all.
+        /// Pinned in Test.Janus.DML.Generator.SQLite, over
+        /// NullableGuidMustWriteNull. When that neighbour is fixed the order
+        /// here starts to matter and a clause can then hold it.
+        ///
+        /// GetNullableValue and not GetValue: for a plain TGUID the two are the
+        /// same call, and for a Nullable<TGUID> that holds a value it hands
+        /// over the FValue the cast below cannot read. The empty Nullable never
+        /// arrives here - MustWriteNull answered for it above.
+        if AFieldType = ftGuid then
+        begin
+          /// Issue #294, on a WRITTEN column of the UPDATE - a site that did
+          /// not exist when #294 was measured, because until now this path
+          /// bound Null and rendered no GUID at all. The reason is written out
+          /// over TGuidOctetRefusal in Janus.DML.Commands. It stands BEFORE the
+          /// value is read, the order TCommandInserter states over its own
+          /// call: what is refused is the whole shape of the write.
+          Self._GuardStoreGUIDAsOctet(AProperty,
+                                      'num UPDATE (parametro de gravacao)');
+          Result := AProperty.GetNullableValue(AInstance).AsType<TGuid>.ToString;
+        end
+        else
         if AProperty.IsNullable then
           Result := AProperty.GetNullableValue(AInstance).AsType<Variant>;
       end

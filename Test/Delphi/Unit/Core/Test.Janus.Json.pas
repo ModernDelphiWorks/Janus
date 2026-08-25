@@ -420,10 +420,11 @@ end;
 // same comment names the canonical form. THREE ANCHORS IN THIS PARAGRAPH WERE
 // BY LINE - :115-120, :124-136 and :766-768 - and all three rotted at once when
 // issue #326 inserted lines into that unit; they are by symbol now.
-// FOUR sites render it, all TGUID.ToString:
+// Every site that renders it does so as TGUID.ToString:
 //   TCommandInserter._GetParamValue     (INSERT value, by symbol)
-//   Janus.Command.Updater.pas:118-119    (UPDATE parameter)
-//   Janus.Command.Deleter.pas:97-98      (DELETE WHERE)
+//   Janus.Command.Updater.pas:134       (UPDATE key predicate)
+//   Janus.Command.Updater.pas:254       (UPDATE written column, issue #384)
+//   Janus.Command.Deleter.pas:109       (DELETE WHERE)
 //   TDMLGeneratorAbstract.CanonicalGuidLiteral, Janus.DML.Generator.pas
 // StrToGUID agrees on the shape and only on the shape:
 // System.SysUtils.pas:6025-6028 rejects any length but 38 and any misplaced
