@@ -42,7 +42,11 @@ uses
   MetaDbDiff.Mapping.Popular,
   MetaDbDiff.Mapping.Classes,
   MetaDbDiff.Mapping.Attributes,
-  MetaDbDiff.Mapping.Explorer;
+  MetaDbDiff.Mapping.Explorer,
+  /// Brings TRttiPropertyHelper_.MustWriteNull into scope. It must come AFTER
+  /// MetaDbDiff.Rtti.Helper: the derived helper only extends the ancestor while
+  /// the ancestor is already visible.
+  Janus.RTTI.Helper;
 
 type
   TCommandUpdater = class(TDMLCommandAbstract)
@@ -116,7 +120,19 @@ begin
         DataType := LColumn.FieldType;
         ParamType := ptUnknown;
         if DataType = ftGuid then
-          Value := LColumn.ColumnProperty.GetNullableValue(AObject).AsType<TGuid>.ToString
+        begin
+          /// Issue #294, on the KEY predicate of the UPDATE - and it does NOT
+          /// contradict the paragraph below about issue #325. That one leaves
+          /// the lookup alone because the lookup is self-consistent: the key
+          /// written and the key looked up are the same bits, so the row is
+          /// reached. Under StoreGUIDAsOctet it is NOT self-consistent - the
+          /// text form matches no row of a 16-byte column, so the UPDATE
+          /// touches nothing and reports success. The reason is written out
+          /// over TGuidOctetRefusal in Janus.DML.Commands.
+          Self._GuardStoreGUIDAsOctet(LColumn.ColumnProperty,
+                                      'no WHERE de um UPDATE (parametro de chave)');
+          Value := LColumn.ColumnProperty.GetNullableValue(AObject).AsType<TGuid>.ToString;
+        end
         else
           Value := LColumn.ColumnProperty.GetNullableValue(AObject).AsVariant;
         /// ISSUE #325 DOES NOT GUARD HERE, AND THE ASYMMETRY IS THE POINT.
@@ -190,7 +206,7 @@ function TCommandUpdater._GetParamValue(AInstance: TObject;
   AProperty: TRttiProperty; AFieldType: TFieldType): Variant;
 begin
   Result := Null;
-  if AProperty.IsNullValue(AInstance) then
+  if AProperty.MustWriteNull(AInstance) then
     Exit;
 
   case AProperty.PropertyType.TypeKind of

@@ -179,6 +179,10 @@ type
     FPostAnswers: TStringList;
     FGetAnswer: String;
     FGetAnswers: TStringList;
+    /// Which PUT, counting from one, is refused by the server - issue #377.
+    /// Zero, the default, refuses none, which is why every clause written
+    /// before this field measures exactly what it measured before.
+    FFailPutAt: Integer;
     /// nil unless a clause hands one in - see TMonitorSpy.
     FMonitor: ICommandMonitor;
     function DoExecute(const ARequestMethod: TRESTRequestMethodType;
@@ -226,6 +230,12 @@ type
     procedure QueueGetAnswer(const AAnswer: String);
     property PostAnswer: String read FPostAnswer write FPostAnswer;
     property GetAnswer: String read FGetAnswer write FGetAnswer;
+    /// Issue #377. A server that accepts the first PUT of a save and refuses
+    /// the next one is what separates "the rows were marked before they were
+    /// sent" from "the rows were sent": with every PUT accepted, both orders
+    /// leave the client looking identical, which is why the clauses that
+    /// predate this field cannot see the defect at all.
+    property FailPutAt: Integer read FFailPutAt write FFailPutAt;
   end;
 
   /// <summary> Classic cracker descendants: ApplyUpdates is protected in both
@@ -234,6 +244,10 @@ type
   TMemApply<M: class, constructor> = class(TRESTFDMemTableAdapter<M>)
   public
     class procedure Apply(const A: TRESTFDMemTableAdapter<M>);
+    /// Issue #377. FSession is protected in TDataSetAbstract<M>, and the
+    /// pending deletes are the state the unwind used to destroy - the same
+    /// cracker that reaches ApplyUpdates is what makes them observable.
+    class function PendingDeletes(const A: TRESTFDMemTableAdapter<M>): Integer;
   end;
 
   TCdsApply<M: class, constructor> = class(TRESTClientDataSetAdapter<M>)
@@ -477,6 +491,22 @@ type
     [Test]
     procedure Detector_AllThreePhasesRunInsideTheSameCall;
 
+    /// ISSUE #377. The same save as the clause above - one deleted row, edited
+    /// rows, one inserted root - with the server refusing the SECOND PUT.
+    ///
+    /// The update phase marks a row and sends a list, and the wire verb behind
+    /// that list is one PUT per item, so the send is not atomic: a refusal
+    /// partway leaves the rows behind it marked as applied and never sent, and
+    /// the pending deletes - which the finally used to destroy on the way out -
+    /// gone with them. The operator is told the save failed and holds a client
+    /// that has nothing left to re-send.
+    ///
+    /// PutCount is asserted UNCHANGED on purpose: this issue reorders the
+    /// phase, it does not add or remove a request. A clause that let the count
+    /// move would be measuring a different repair.
+    [Test]
+    procedure Order_ARefusedPutLeavesTheRestOfTheSaveResendable;
+
     /// TDataSetBaseAdapter<M>.RefreshRecord brackets its work with
     /// DisableDataSetEvents/EnableDataSetEvents, and that pair is a SWAP and
     /// not a counter: a second Disable finds the handlers already nil and
@@ -687,6 +717,13 @@ begin
     TRESTRequestMethodType.rtPUT:
       begin
         Inc(FPutCount);
+        // Issue #377. Counted BEFORE the refusal, because the count is what a
+        // clause asserts on: a PUT the server rejected still left the client.
+        // Nothing in TSessionRestFul<M>.Update wraps FConnection.Execute in a
+        // try..except - its try..finally only feeds the command monitor - so
+        // this leaves through ApplyUpdater the way a transport error would.
+        if (FFailPutAt > 0) and (FPutCount = FFailPutAt) then
+          raise Exception.CreateFmt('the server refused PUT number %d', [FPutCount]);
         Result := '{}';
       end;
     TRESTRequestMethodType.rtDELETE:
@@ -854,6 +891,12 @@ end;
 class procedure TMemApply<M>.Apply(const A: TRESTFDMemTableAdapter<M>);
 begin
   TMemApply<M>(A).ApplyUpdates(0);
+end;
+
+class function TMemApply<M>.PendingDeletes(
+  const A: TRESTFDMemTableAdapter<M>): Integer;
+begin
+  Result := TMemApply<M>(A).FSession.DeleteList.Count;
 end;
 
 { TCdsApply<M> }
@@ -1451,6 +1494,64 @@ begin
     'and so did the DELETE phase. Worse than skipped: ApplyUpdates clears ' +
     'FSession.DeleteList in its own finally whatever happened, so a row ' +
     'dropped here is gone from the client AND was never sent');
+end;
+
+procedure TTestRestReReadAfterInsert.Order_ARefusedPutLeavesTheRestOfTheSaveResendable;
+var
+  LMarker: Integer;
+  LPending: Integer;
+begin
+  BuildMemTree;
+  // The same seeding as the clause above, so the two differ only in the
+  // server's answer. A row the operator DELETED, first, so the cascade its
+  // removal fires cannot take the rows below.
+  SeedRoot(FRootMem, 'gone');
+  FRootMem.Delete;
+  // TWO rows the operator EDITED. One is not enough: with a single edited row
+  // there is no row BEHIND the refusal, and the marker written before the send
+  // is indistinguishable from the marker written after it.
+  SeedRoot(FRootMem, 'first');
+  FRootMem.Edit;
+  FRootMem.FieldByName(cInternalField).AsInteger := -1;
+  FRootMem.FieldByName(cTAG).AsString := 'changed one';
+  FRootMem.Post;
+  SeedRoot(FRootMem, 'second');
+  FRootMem.Edit;
+  FRootMem.FieldByName(cInternalField).AsInteger := -1;
+  FRootMem.FieldByName(cTAG).AsString := 'changed two';
+  FRootMem.Post;
+  // And the row the operator INSERTED, with a child under it, exactly as the
+  // clause above seeds it.
+  SeedRoot(FRootMem, 'new');
+  SeedMid(FMidMem, 'mid');
+  FRep.FailPutAt := 2;
+  Assert.WillRaise(
+    procedure
+    begin
+      TMemApply<TAitRoot>.Apply(FMemRoot);
+    end,
+    Exception,
+    'premise: the refusal really does leave ApplyUpdates - nothing in ' +
+    'TSessionRestFul<M>.Update catches it, and this issue adds no handler');
+  LPending := TMemApply<TAitRoot>.PendingDeletes(FMemRoot);
+  FRootMem.Filtered := False;
+  Assert.IsTrue(FRootMem.Locate(cTAG, 'changed two', []),
+    'premise: the row behind the refusal is still in the client dataset');
+  LMarker := FRootMem.FieldByName(cInternalField).AsInteger;
+  Assert.AreEqual(Integer(dsEdit), LMarker,
+    'the row that was never sent still says so. Marked -1 it would claim to ' +
+    'have been applied while the server never saw it, and the next save - ' +
+    'which selects on this very marker - would skip it for good');
+  Assert.AreEqual(2, FRep.PutCount,
+    'THE INVARIANT. Two rows were edited, two PUTs left, the second was ' +
+    'refused - and the double counts a PUT before it refuses it, so this is ' +
+    'attempts and not acceptances. The number is the SAME on both sides of ' +
+    'the repair, which is what says the order of send and mark moved and the ' +
+    'traffic did not');
+  Assert.AreEqual(1, LPending,
+    'and the delete the operator asked for is still pending. Emptied from a ' +
+    'finally, this list does not merely forget those rows: it owns them, so ' +
+    'Clear destroys them, and after the unwind there is nothing left to send');
 end;
 
 procedure TTestRestReReadAfterInsert.Design_TheEventSwitchIsASwapAndNotACounter;

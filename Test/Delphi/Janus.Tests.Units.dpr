@@ -102,6 +102,7 @@ uses
   Test.Janus.RTTI.Singleton  in 'Unit\Core\Test.Janus.RTTI.Singleton.pas',
   Test.Janus.RTTI.Singleton.Concurrency in 'Unit\Core\Test.Janus.RTTI.Singleton.Concurrency.pas',
   Test.Janus.Types.Nullable       in 'Unit\Core\Test.Janus.Types.Nullable.pas',
+  Test.Janus.Nullable.MustWriteNull in 'Unit\Core\Test.Janus.Nullable.MustWriteNull.pas',
   Test.Janus.Lazy.Smoke in 'Unit\Mapping.Lazy\Test.Janus.Lazy.Smoke.pas',
   Test.Janus.Container.ObjectSet.LazyProxy in 'Unit\Container\Test.Janus.Container.ObjectSet.LazyProxy.pas',
   Test.Janus.Mapping.Lazy    in 'Unit\Mapping.Lazy\Test.Janus.Mapping.Lazy.pas',
@@ -120,6 +121,9 @@ uses
   Test.Janus.DML.Generator.SQLite in 'Unit\Core\Test.Janus.DML.Generator.SQLite.pas',
   /// The ADS date literal: 'CC' is not a FormatDateTime specifier
   Test.Janus.DML.Generator.ADS in 'Unit\Core\Test.Janus.DML.Generator.ADS.pas',
+  Test.Janus.DML.Dialect.Wiring in 'Unit\Core\Test.Janus.DML.Dialect.Wiring.pas',
+  /// The SECOND dialect map - the REST view one - issue #357
+  Test.Janus.RestView.Dialect.Map in 'Unit\Core\Test.Janus.RestView.Dialect.Map.pas',
   /// The seven distributed generators - issue #341, Level 1
   Test.Janus.DML.Generator.Distributed in 'Unit\Core\Test.Janus.DML.Generator.Distributed.pas',
   Test.Janus.Server.DataSnapResource in 'Unit\RESTful\Test.Janus.Server.DataSnapResource.pas',
@@ -168,6 +172,8 @@ uses
   Test.Janus.ObjectSet.CascadeDeleteOrder in 'Integration\Test.Janus.ObjectSet.CascadeDeleteOrder.pas',
   /// The INSERT against the null pattern of the object written - issue #352
   Test.Janus.Insert.CacheVsNullness in 'Integration\Test.Janus.Insert.CacheVsNullness.pas',
+  /// Whether the child of a 1:1 association gets its own constructor run — issue #369
+  Test.Janus.ObjectSet.OneToOneChildCtor in 'Integration\Test.Janus.ObjectSet.OneToOneChildCtor.pas',
   /// What a real close costs against what emptying costs — issue #246
   Test.Janus.Close.VsEmpty in 'Unit\Container\Test.Janus.Close.VsEmpty.pas',
   /// The reopen, and the cursor count that shows the lazy path is alive — #248
@@ -196,7 +202,13 @@ uses
   Test.Janus.KeyWidth.ByIdApi in 'Unit\Core\Test.Janus.KeyWidth.ByIdApi.pas',
   /// Compile gate for Components\Source\: every RequiresUnits entry in
   /// Janus.Link.Reg.pas must name a unit that actually exists - issue #340
-  Test.Janus.LinkReg.RequiresUnits in 'Unit\Core\Test.Janus.LinkReg.RequiresUnits.pas';
+  Test.Janus.LinkReg.RequiresUnits in 'Unit\Core\Test.Janus.LinkReg.RequiresUnits.pas',
+  /// Three routes onto one child whose constructor builds a list - the
+  /// model behind the LAZY twin of issue #369
+  Test.Janus.Model.LazyCtor in 'Common\Test.Janus.Model.LazyCtor.pas',
+  /// Whether the child of a LAZY single-object association gets its own
+  /// constructor run - the lazy twin of issue #369
+  Test.Janus.ObjectSet.LazyOneToOneChildCtor in 'Integration\Test.Janus.ObjectSet.LazyOneToOneChildCtor.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

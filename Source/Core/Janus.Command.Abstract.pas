@@ -29,6 +29,7 @@ uses
   Variants,
   DataEngine.FactoryInterfaces,
   Janus.Driver.Register,
+  Janus.DML.Commands,
   Janus.DML.Interfaces;
 
 type
@@ -183,6 +184,26 @@ type
     procedure _RefuseUnsignedValueTheColumnCannotCarry(const AObject: TObject;
       const AColumnName: String; const AProperty: TRttiProperty;
       const AFieldType: TFieldType; const AValue: Variant);
+
+    /// <summary> ISSUE #294 - THE WRITE HALF OF A REFUSAL THAT USED TO GUARD
+    ///  ONLY THE READ.
+    ///
+    ///  Issues #284 and #290 made the association SELECT refuse when
+    ///  IOptions.StoreGUIDAsOctet is on, because the 38-character text of a
+    ///  TGUID matches nothing against the 16-byte column that option declares.
+    ///  The three write commands below this class emit that SAME text - as a
+    ///  bound parameter rather than as a literal, which changes the shape and
+    ///  not the outcome - and had no guard at all. A refusal that covers the
+    ///  read and not the write is worse than either: the caller stores a row
+    ///  and then cannot find it.
+    ///
+    ///  The reason, and the measurement that would lift the refusal, are
+    ///  written once over TGuidOctetRefusal in Janus.DML.Commands. This is a
+    ///  three-line delegation on purpose: the connection it asks about is the
+    ///  one this command already holds, and AOperation is the only thing each
+    ///  call site adds. </summary>
+    procedure _GuardStoreGUIDAsOctet(const AProperty: TRttiProperty;
+      const AOperation: String);
   public
     constructor Create(AConnection: IDBConnection; ADriverName: TDriverName;
       AObject: TObject); virtual;
@@ -275,6 +296,12 @@ begin
      IntToStr(Int64(TVarData(AValue).VUInt64)),
      IntToStr(High(Int64)),
      AColumnName]);
+end;
+
+procedure TDMLCommandAbstract._GuardStoreGUIDAsOctet(
+  const AProperty: TRttiProperty; const AOperation: String);
+begin
+  TGuidOctetRefusal.Check(FConnection, AProperty, AOperation);
 end;
 
 end.

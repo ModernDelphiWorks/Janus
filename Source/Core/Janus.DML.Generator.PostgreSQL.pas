@@ -41,6 +41,14 @@ type
   // Classe de banco de dados PostgreSQL
   TDMLGeneratorPostgreSQL = class(TDMLGeneratorAbstract)
   protected
+    /// <summary> Issue #355. dbnPostgreSQL is registered and, MEASURED, its
+    ///  serializer renders all four of Janus's statements byte-for-byte as the
+    ///  T-SQL one did - this generator is one of those that survived the
+    ///  missing wiring BY COINCIDENCE and not by correctness. Wired to its own
+    ///  dialect anyway: the coincidence is a property of FluentSQL's
+    ///  PostgreSQL serializer today, not a contract, and the next divergence
+    ///  they add would otherwise reach Janus as T-SQL. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
     /// para que um dialeto novo nao herde em silencio o literal de outro.
     function GuidLiteral(const AGuid: TGUID): String; override;
@@ -61,6 +69,11 @@ type
 implementation
 
 { TDMLGeneratorPostgreSQL }
+
+class function TDMLGeneratorPostgreSQL.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnPostgreSQL;
+end;
 
 constructor TDMLGeneratorPostgreSQL.Create;
 begin

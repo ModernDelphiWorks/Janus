@@ -12,12 +12,18 @@
 #   exclude  — third-party / external dep; gate prints [EXCLUDE]; not counted.
 #
 # Distribution lock (ADR-002 / CA-003):
-#   compile=18  run=0  defer=8  exclude=23  total=49
+#   compile=20  run=0  defer=6  exclude=23  total=49
 #   (issue #190: AbsoluteDB and DelphiMVC/Client reclassified compile -> exclude,
 #    matching the third-party policy already applied to every sibling row;
-#    ADO, ADO Sem DataSet, Blob Sem DataSet and Livebindings VCL reclassified
-#    compile -> defer, each for a measured defect not fixable within this repo
-#    or not safely fixable as a small change — see the per-row notes below)
+#    Blob Sem DataSet and Livebindings VCL reclassified compile -> defer, each
+#    for a measured defect not fixable within this repo or not safely fixable
+#    as a small change — see the per-row notes below.
+#    ADO and ADO Sem DataSet were deferred for an upstream DataEngine defect
+#    (DataEngine.DriverADO.pas(42) TDriverADO.Create override dropping the
+#    base class's ACache/AMetadataCache params -> E2037); that defect was
+#    fixed and merged upstream (DataEngine PR #57, origin/main commit
+#    ed76694) and the shared .modules/DataEngine checkout is synced to it,
+#    so both rows are reclassified defer -> compile)
 #
 # Drift rule (ADR-006):
 #   The driver script counts tracked .dproj under Examples/Delphi/ and
@@ -26,8 +32,8 @@
 #
 # Mode classification reference: .claude/pipeline/adr.md ADR-002 appendix.
 #
-Examples/Delphi/Data/ADO/Janus_ADO.dproj	defer	DataEngine.DriverADO.pas(42) TDriverADO.Create override drops the base class's ACache/AMetadataCache params -> E2037 "differs from previous declaration"; upstream DataEngine defect (.modules/DataEngine, not this repo), not fixable here (issue #190)
-Examples/Delphi/Data/ADO Sem DataSet/Janus_ADOSemDataSet.dproj	defer	same upstream DataEngine.DriverADO.pas(42) E2037 as ADO row above (issue #190)
+Examples/Delphi/Data/ADO/Janus_ADO.dproj	compile
+Examples/Delphi/Data/ADO Sem DataSet/Janus_ADOSemDataSet.dproj	compile
 Examples/Delphi/Data/AbsoluteDB/JanusABS.dproj	exclude	AbsoluteDB driver — third-party / not on default CI runner (issue #190: matches sibling drivers below; ABSMain.pas not found anywhere on this machine)
 Examples/Delphi/Data/Blob/Janus_Blob.dproj	compile
 Examples/Delphi/Data/Blob Sem DataSet/Janus_BlobSemDataSet.dproj	defer	TBlob (Source/Core/Janus.Types.Blob.pas) has no FMX-side ToBitmap/FindGraphicClass, only HAS_VCL; example calls .ToBitmap under FMX -> E2003 undeclared identifier. Adding FMX image support is real feature work, not a compile-gate fix (issue #190)

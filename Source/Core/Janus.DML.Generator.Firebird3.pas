@@ -29,12 +29,19 @@ uses
   Janus.Driver.Register,
   Janus.DML.Interfaces,
   DataEngine.FactoryInterfaces,
-  FluentSQL;
+  FluentSQL,
+  FluentSQL.Interfaces;
 
 type
   // Classe de banco de dados Interbase
   TDMLGeneratorFirebird3 = class(TDMLGeneratorFirebird)
   protected
+    /// <summary> Issue #355. Declared rather than inherited from
+    ///  TDMLGeneratorFirebird - the same rule GuidLiteral follows in this unit -
+    ///  so a change to the Firebird 2.5 dialect cannot move Firebird 3 without
+    ///  someone deciding it should. dbnFirebird is the only Firebird dialect
+    ///  FluentSQL registers; there is no dbnFirebird3. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
     /// para que um dialeto novo nao herde em silencio o literal de outro.
     function GuidLiteral(const AGuid: TGUID): String; override;
@@ -44,6 +51,11 @@ type
   end;
 
 implementation
+
+class function TDMLGeneratorFirebird3.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnFirebird;
+end;
 
 { TDMLGeneratorInterbase }
 

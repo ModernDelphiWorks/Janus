@@ -42,6 +42,19 @@ type
   // Classe de banco de dados ADS
   TDMLGeneratorADS = class(TDMLGeneratorAbstract)
   protected
+    /// <summary> Issue #355. dbnADS EXISTS in TFluentSQLDriver and has NO
+    ///  implementation: there is no FluentSQL.Serialize.ADS / Select.ADS unit
+    ///  and no _Register call for it, so FluentSQL.Register.pas raises
+    ///  EFluentSQLDriverNotRegistered the moment a statement is serialized.
+    ///  Measured: naming dbnADS here turns GeneratorInsert, GeneratorUpdate,
+    ///  GeneratorDelete and _BuildSelectSQL into that exception, all four.
+    ///
+    ///  So this answers dbnMSSQL - not because T-SQL is what an Advantage
+    ///  server speaks, but because it is what this generator has been emitting
+    ///  since the field existed, and because it is the one registered
+    ///  serializer that leaves the ':pN' markers alone. The day FluentSQL
+    ///  registers dbnADS this line is the single place to change. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
     /// para que um dialeto novo nao herde em silencio o literal de outro.
     function GuidLiteral(const AGuid: TGUID): String; override;
@@ -61,6 +74,11 @@ type
 implementation
 
 { TDMLGeneratorADS }
+
+class function TDMLGeneratorADS.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnMSSQL;
+end;
 
 constructor TDMLGeneratorADS.Create;
 begin

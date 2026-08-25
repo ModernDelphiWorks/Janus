@@ -83,12 +83,23 @@ uses
   Test.Janus.Model.KeyTypes in 'Common\Test.Janus.Model.KeyTypes.pas',
   /// The one shape that reaches an EMPTY Variant — issue #311
   Test.Janus.Model.KeyTypeDecoy in 'Common\Test.Janus.Model.KeyTypeDecoy.pas',
+  /// Whether the insert response says the key of EVERY row it wrote — issue #312
+  Test.Janus.Server.Resource.InsertEntities in 'RESTHorse\Test.Janus.Server.Resource.InsertEntities.pas',
   /// Whether the insert response quotes the key it carries back — issue #311
   Test.Janus.Server.Resource.KeyQuoting in 'RESTHorse\Test.Janus.Server.Resource.KeyQuoting.pas',
+  Test.Janus.Server.IdSentinelCollision in 'RESTHorse\Test.Janus.Server.IdSentinelCollision.pas',
   /// Whether a PUT can locate the row its key names — issue #320
   Test.Janus.Server.Resource.UpdateWhere in 'RESTHorse\Test.Janus.Server.Resource.UpdateWhere.pas',
   /// The WIDTH of an integer primary key — issues #324 and #325
-  Test.Janus.Server.Resource.IntegerKeyWidth in 'RESTHorse\Test.Janus.Server.Resource.IntegerKeyWidth.pas';
+  Test.Janus.Server.Resource.IntegerKeyWidth in 'RESTHorse\Test.Janus.Server.Resource.IntegerKeyWidth.pas',
+  /// Whether a segment reaches a model whose class is not 'T'+table - issue #364
+  Test.Janus.Server.ResourceNaming in 'RESTHorse\Test.Janus.Server.ResourceNaming.pas',
+  /// What a PUT answers when it locates no row — issue #363
+  Test.Janus.Server.Resource.UpdateNotFound in 'RESTHorse\Test.Janus.Server.Resource.UpdateNotFound.pas',
+  /// Whether the transport's error envelope survives the message it carries - issue #376
+  Test.Janus.Server.ExceptionEnvelope in 'RESTHorse\Test.Janus.Server.ExceptionEnvelope.pas',
+  /// What a body says about an association whose property arrives NIL — issue #366
+  Test.Janus.Server.Resource.NilBranchBody in 'RESTHorse\Test.Janus.Server.Resource.NilBranchBody.pas';
 
 begin
 {$IFDEF TESTINSIGHT}

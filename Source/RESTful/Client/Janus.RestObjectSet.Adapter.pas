@@ -35,6 +35,9 @@ uses
   /// Janus
   Janus.ObjectSet.Base.Adapter,
   Janus.RestFactory.Interfaces,
+  /// ISSUE #312 - TInsertedEntity, a forma parseada de um elemento de
+  /// `entities`. Mora ao lado de FResultParams e nunca dentro dele.
+  Janus.Session.Abstract,
   MetaDbDiff.mapping.classes,
   MetaDbDiff.types.mapping,
   Janus.Objects.Helper;
@@ -53,10 +56,18 @@ type
     ///  children.
     ///
     ///  WHY IT IS SCOPED TO THE PRIMARY KEY AND MATCHED BY NAME. Because that
-    ///  is exactly what the producer emits: Janus.Server.Resource.pas builds
-    ///  the answer from a loop over the PRIMARY KEY COLUMNS of the inserted
-    ///  entity, naming each one by ColumnProperty.Name. Nothing else is named,
-    ///  so an answer carrying any other name must change nothing.
+    ///  is exactly what `params` carries: Janus.Server.Resource.pas builds that
+    ///  array from a loop over the PRIMARY KEY COLUMNS of the inserted entity,
+    ///  naming each one by ColumnProperty.Name. Nothing else goes into `params`,
+    ///  so an answer carrying any other name THERE must change nothing.
+    ///
+    ///  THAT SENTENCE USED TO SAY "the answer" AND IT IS NOW TOO WIDE - issue
+    ///  #312. The ANSWER also carries `entities`, which names the key of every
+    ///  other row the insert wrote. What did NOT change is `params`, which is
+    ///  the source this reader is pointed at through _SetGeneratedKeyValue and
+    ///  the only thing the paragraph above is about. The `entities` side has
+    ///  its own reader, _ApplyGeneratedKeysToGraph, which reaches this same
+    ///  body through _SetGeneratedKeyValueFrom with a different source.
     ///
     ///  THIS IS NOT THE SAME CODE AS THE DATASET FAMILY'S, and the duplication
     ///  is deliberate - see the note over Insert.
@@ -85,6 +96,112 @@ type
     ///  NOT MEASURED against a live server. </summary>
     procedure _SetGeneratedKeyValue(const AObject: TObject;
       const AColumn: TColumnMapping);
+    /// <summary> The reader above with the SOURCE made a parameter - issue
+    ///  #312.
+    ///
+    ///  #312 needed the very same reading against a DIFFERENT list of pairs:
+    ///  the `keys` of one element of `entities` rather than the flat
+    ///  ResultParams. Everything that makes the reader safe - the IsWritable
+    ///  guard, the case-insensitive match, first-match-wins, and above all the
+    ///  rule that it may write only what the declared type provably accepts and
+    ///  must otherwise leave the property alone - has to hold for both, and the
+    ///  cheapest way to guarantee that is for there to be ONE of it.
+    ///
+    ///  So the body moved here unchanged and _SetGeneratedKeyValue became the
+    ///  call that passes FSession.ResultParams. The root's route is therefore
+    ///  the same code it always was, and every clause in
+    ///  Test.Janus.Rest.ObjectSetInsertKey and
+    ///  Test.Janus.Rest.NullableKeyReconciliation now holds BOTH readers
+    ///  honest. </summary>
+    procedure _SetGeneratedKeyValueFrom(const AObject: TObject;
+      const AColumn: TColumnMapping; const AKeys: TParams);
+    /// <summary> The object one `path` of the insert answer names, or NIL -
+    ///  issue #312.
+    ///
+    ///  A path is association property names separated by dots, each one
+    ///  followed by a bracketed ordinal when the association is to-many:
+    ///  `mids[0].leafs[1]`. The EMPTY path is the root and never reaches here.
+    ///
+    ///  IT NAVIGATES BY THE ASSOCIATION MAPPING AND NOT BY BARE RTTI, and that
+    ///  is the whole safety of it. Two things follow:
+    ///
+    ///    - `entities` can only ever address a MAPPED association. A path
+    ///      naming any other published property resolves to nil, so a
+    ///      defective - or hostile - answer cannot WRITE into an arbitrary part
+    ///      of the object graph.
+    ///
+    ///      THAT IS ABOUT WRITING, AND READING ALREADY HAS AN EFFECT. Resolving
+    ///      a segment calls TRttiPropertyHelper.GetNullableValue, which for a
+    ///      property that is not Nullable-shaped falls through to
+    ///      `Self.GetValue` - MetaDbDiff.Rtti.Helper, GetNullableValue, the
+    ///      `else` arm - and that RUNS THE GETTER. On a Lazy association the
+    ///      getter is what materialises the proxy, so an answer naming a lazy
+    ///      association forces a load during reconciliation, before anything is
+    ///      written and whether or not the entry is ever accepted.
+    ///
+    ///      NOT REACHABLE TODAY, and the number is measured rather than
+    ///      assumed: no Lazy association anywhere under Test\ or Examples\
+    ///      carries CascadeInsert, so no such branch can appear in `entities`
+    ///      at all, and the walk that produces it descends only CascadeInsert
+    ///      associations. Recorded as an OBSERVATION and deliberately not
+    ///      repaired here - the fix is a question about what a resolver is
+    ///      allowed to touch, not about this issue.
+    ///    - The MULTIPLICITY decides whether the segment must carry an ordinal,
+    ///      which is the same question the producer asked when it wrote the
+    ///      segment. Without it the list branch would have to cast whatever the
+    ///      property holds to TObjectList&lt;TObject&gt; and read Count off it -
+    ///      an unchecked cast on a value that came off the wire. Here a segment
+    ///      whose shape disagrees with the mapping simply resolves to nil.
+    ///
+    ///  EVERY REFUSAL IS NIL AND NOTHING RAISES, for the reason #301 wrote:
+    ///  before the answer was read, no answer of any shape could make an insert
+    ///  fail, and reading it must not have bought that.
+    ///
+    ///  NOT MEASURED against a live server. </summary>
+    function _ResolveEntityPath(const ARoot: TObject;
+      const APath: String): TObject;
+    /// <summary> Writes onto the graph the key the server generated for each
+    ///  row BELOW the root - issue #312.
+    ///
+    ///  WHY IT EXISTS. The server writes the whole aggregate and the database
+    ///  generates a key for every row, but until #312 the answer named the
+    ///  primary key of ONE class - the root. The client kept a graph whose
+    ///  every level below the first held the AutoInc placeholder, and the
+    ///  symptom arrived later, as an Update or a Delete aimed at a key no row
+    ///  has.
+    ///
+    ///  AND THE PLACEHOLDER WAS NOT EVEN CONFINED TO THE CHILD'S OWN KEY. A
+    ///  grandchild had no valid PARENT in memory either: SetAutoIncValueChilds
+    ///  walks exactly ONE level, Insert calls it only on the root, and this
+    ///  family never calls CascadeActionsExecute for an insert - so nothing
+    ///  reached the third level at all. That is why this stamps the key AND
+    ///  then walks one level down from the object it just stamped: the first
+    ///  write fixes that object's own key, the second hands it to the children
+    ///  waiting on it, exactly as the server's own cascade does.
+    ///
+    ///  IT IS ORDER INDEPENDENT ON PURPOSE. Each entry names its own target and
+    ///  carries its own keys, and the one-level walk reads the key off the
+    ///  object it has just written. So no entry depends on another having been
+    ///  applied first, and the reader does not care what order the array
+    ///  arrived in. That is the property a flat ordinal would not have had.
+    ///
+    ///  THE ROOT'S ENTRY IS SKIPPED. The root already has a reader - the
+    ///  `params` route in Insert - and answering one question twice is how two
+    ///  ends of a contract drift apart. The producer still emits the root's
+    ///  entry, because an `entities` array that describes the whole graph is
+    ///  worth more to a third party reader than one with a hole in it.
+    ///
+    ///  IT DISCRIMINATES PER ENTITY AND NOT PER AGGREGATE - issue #312, second
+    ///  delivery. Each entry is asked whether the class its path RESOLVED TO
+    ///  carries a [Sequence], which is the same question
+    ///  TSessionRestFul&lt;M&gt;.ExistSequence asks of the root. The first
+    ///  delivery let the ROOT's answer decide for the whole graph, and a mixed
+    ///  aggregate - client-supplied root key over a sequenced child - therefore
+    ///  discarded a key the database really had generated. See the gate itself
+    ///  for the measurement.
+    ///
+    ///  NOT MEASURED against a live server. </summary>
+    procedure _ApplyGeneratedKeysToGraph(const AObject: TObject);
     /// <summary> The Nullable arm of the reader above - issue #317.
     ///
     ///  WHAT WAS WRONG. A `Nullable<T>` property is tkRecord, so it matched no
@@ -275,6 +392,16 @@ end;
 
 procedure TRESTObjectSetAdapter<M>._SetGeneratedKeyValue(const AObject: TObject;
   const AColumn: TColumnMapping);
+begin
+  // ISSUE #312 - o corpo desta leitura virou _SetGeneratedKeyValueFrom, com a
+  // FONTE por parametro, para que a leitura de `entities` seja A MESMA e nao
+  // uma segunda copia dela. A raiz continua vindo de FResultParams, e nenhuma
+  // entrada de `entities` entra ali - ver TInsertedEntity.
+  _SetGeneratedKeyValueFrom(AObject, AColumn, FSession.ResultParams);
+end;
+
+procedure TRESTObjectSetAdapter<M>._SetGeneratedKeyValueFrom(
+  const AObject: TObject; const AColumn: TColumnMapping; const AKeys: TParams);
 var
   LProperty: TRttiProperty;
   LParam: TParam;
@@ -288,9 +415,9 @@ begin
   // not writable rather than letting SetValue raise on it.
   if not LProperty.IsWritable then
     Exit;
-  for LFor := 0 to FSession.ResultParams.Count -1 do
+  for LFor := 0 to AKeys.Count -1 do
   begin
-    LParam := FSession.ResultParams.Items[LFor];
+    LParam := AKeys.Items[LFor];
     // The answer names the key by PROPERTY name, which is what the producer
     // wrote. Case-insensitively, for the same reason the DataSet family reads
     // it through FindField: a third party server is not obliged to echo the
@@ -338,6 +465,179 @@ begin
   end;
 end;
 
+function TRESTObjectSetAdapter<M>._ResolveEntityPath(const ARoot: TObject;
+  const APath: String): TObject;
+var
+  LSegments: TArray<String>;
+  LSegment: String;
+  LName: String;
+  LIndexText: String;
+  LIndex: Integer;
+  LOpen: Integer;
+  LCurrent: TObject;
+  LAssociations: TAssociationMappingList;
+  LAssociation: TAssociationMapping;
+  LFound: TAssociationMapping;
+  LIsList: Boolean;
+  LValue: TValue;
+  LList: TObjectList<TObject>;
+begin
+  Result := nil;
+  if APath = '' then
+    Exit;
+  LCurrent := ARoot;
+  LSegments := APath.Split(['.']);
+  for LSegment in LSegments do
+  begin
+    if LCurrent = nil then
+      Exit(nil);
+    LName := LSegment;
+    LIndex := -1;
+    LOpen := Pos('[', LSegment);
+    if LOpen > 0 then
+    begin
+      if LSegment[Length(LSegment)] <> ']' then
+        Exit(nil);
+      LName := Copy(LSegment, 1, LOpen -1);
+      LIndexText := Copy(LSegment, LOpen +1, Length(LSegment) - LOpen -1);
+      if not TryStrToInt(LIndexText, LIndex) then
+        Exit(nil);
+      if LIndex < 0 then
+        Exit(nil);
+    end;
+    if LName = '' then
+      Exit(nil);
+    LAssociations := TMappingExplorer.GetMappingAssociation(LCurrent.ClassType);
+    if LAssociations = nil then
+      Exit(nil);
+    LFound := nil;
+    for LAssociation in LAssociations do
+    begin
+      // Case-insensitively, for the same reason the key name is matched that
+      // way: a third party server is not obliged to echo the spelling back.
+      if SameText(LAssociation.PropertyRtti.Name, LName) then
+      begin
+        LFound := LAssociation;
+        Break;
+      end;
+    end;
+    if LFound = nil then
+      Exit(nil);
+    // THE MULTIPLICITY DECIDES THE SHAPE OF THE SEGMENT, and it is the same
+    // question the producer asked when it wrote it. A to-many association
+    // MUST carry an ordinal and a to-one MUST NOT; anything else is an answer
+    // about a graph this client does not have.
+    LIsList := LFound.Multiplicity in [TMultiplicity.OneToMany,
+                                       TMultiplicity.ManyToMany];
+    if LIsList <> (LIndex >= 0) then
+      Exit(nil);
+    LValue := LFound.PropertyRtti.GetNullableValue(LCurrent);
+    if not LValue.IsObject then
+      Exit(nil);
+    if not LIsList then
+      // TValue reports tkClass for a NIL instance too, so this can still be
+      // nil - the loop head above catches it on the next turn and the final
+      // assignment below cannot answer a dangling one.
+      LCurrent := LValue.AsObject
+    else
+    begin
+      LList := TObjectList<TObject>(LValue.AsObject);
+      if LList = nil then
+        Exit(nil);
+      if LIndex >= LList.Count then
+        Exit(nil);
+      LCurrent := LList.Items[LIndex];
+    end;
+  end;
+  Result := LCurrent;
+end;
+
+procedure TRESTObjectSetAdapter<M>._ApplyGeneratedKeysToGraph(
+  const AObject: TObject);
+var
+  LEntity: TInsertedEntity;
+  LTarget: TObject;
+  LPrimaryKey: TPrimaryKeyColumnsMapping;
+  LColumn: TColumnMapping;
+begin
+  for LEntity in FSession.ResultEntities do
+  begin
+    // The root has its own reader - see the doc comment over the declaration.
+    //
+    // THIS GUARD IS REDUNDANT TODAY AND SAYS SO, because a mutation proved it:
+    // removed, with a {$MESSAGE WARN} the compiler echoed as W1054, the
+    // RESTfulDriver suite stayed at 272/0/0. _ResolveEntityPath refuses the
+    // empty path on its own, so the entry would be dropped one line below
+    // anyway. It stays because the two refusals answer different questions -
+    // that one says "the empty path addresses nothing", this one says "the
+    // root is not this reader's to write" - and it would become live the day
+    // the resolver learned to answer for the root. It is NOT load-bearing now.
+    if LEntity.Path = '' then
+      Continue;
+    LTarget := _ResolveEntityPath(AObject, LEntity.Path);
+    if LTarget = nil then
+      Continue;
+    // The producer says WHICH CLASS it measured, and when it does the reader
+    // checks it. A path that resolves to something else is an answer about a
+    // graph this client does not have, and writing a key from it would be
+    // writing a real number onto the wrong object - silently, which is exactly
+    // the failure a bare ordinal would have had. The check is skipped when the
+    // answer omits `class`, so a third party server that does not send it is
+    // still read.
+    if (LEntity.EntityClassName <> '') and
+       (not SameText(LEntity.EntityClassName, LTarget.ClassName)) then
+      Continue;
+
+    // THE GATE, ASKED PER ENTITY - issue #312, second delivery.
+    //
+    // This is the SAME question TSessionRestFul<M>.ExistSequence asks -
+    // `GetMappingSequence(<class>) <> nil` - put to the class the path
+    // RESOLVED TO instead of to the root. One question asked twice, which is
+    // the house idiom; a second table kept in step by hand is what it avoids.
+    //
+    // WHY IT CANNOT BE THE ROOT'S ANSWER. Insert used to call this reader from
+    // inside `if FSession.ExistSequence`, and that gate asks ONE class. In a
+    // MIXED aggregate - a root whose key the client supplies over a child that
+    // carries its own [Sequence] - the root answers False and the child's real
+    // generated key was discarded with the whole array. Measured on
+    // Test.Janus.Model.ClientKeyRoot: the child came out at the placeholder
+    // while the answer said 601. Asking one class a question that is per ROW
+    // is the very defect #312 repairs in `params`, one level up.
+    //
+    // WHY IT CANNOT SIMPLY BE REMOVED. An entity with no sequence has no
+    // SERVER-generated key, so its value came from the client and must
+    // survive; a server echoing it back must not be able to overwrite it.
+    // Measured: removing this line reddens
+    // Insert_AnEntryWhoseEntityHasNoSequenceOfItsOwnIsNotRead.
+    //
+    // THIS IS ABOUT THE ENTITY, NOT ABOUT THE VALUE. A sequenced entity whose
+    // key the caller happened to fill in by hand is still reconciled from the
+    // answer - that is the same reading #301 gave the root and it is not
+    // widened here.
+    if TMappingExplorer.GetMappingSequence(LTarget.ClassType) = nil then
+      Continue;
+
+    LPrimaryKey := TMappingExplorer.GetMappingPrimaryKeyColumns(LTarget.ClassType);
+    // No `raise` here, unlike Insert's own reading of the root's mapping: an
+    // entry for an unmapped branch is a defect in the ANSWER, and an answer
+    // must not be able to make an insert that already succeeded fail.
+    if LPrimaryKey = nil then
+      Continue;
+    // Two loops rather than one, for the reason #301 wrote at the root: no
+    // column may be cascaded down before every column has been reconciled.
+    for LColumn in LPrimaryKey.Columns do
+      _SetGeneratedKeyValueFrom(LTarget, LColumn, LEntity.Keys);
+
+    // AND THIS IS THE HALF THE ROOT'S READER ALREADY HAD. Stamping the mid's
+    // own key leaves the LEAF still pointing at the placeholder, because
+    // nothing on the client copies a mid's key down - SetAutoIncValueChilds
+    // walks one level and Insert calls it on the root alone. Walking one level
+    // from each reconciled object is what gives the grandchild a valid parent.
+    for LColumn in LPrimaryKey.Columns do
+      SetAutoIncValueChilds(LTarget, LColumn);
+  end;
+end;
+
 procedure TRESTObjectSetAdapter<M>.Insert(const AObject: M);
 var
   LPrimaryKey: TPrimaryKeyColumnsMapping;
@@ -376,7 +676,41 @@ begin
 
       for LColumn in LPrimaryKey.Columns do
         SetAutoIncValueChilds(AObject, LColumn);
+
     end;
+
+    // ISSUE #312 - AND NOW EVERY LEVEL BELOW THE ROOT. The two loops above
+    // reconcile the root and hand its key to the level under it, which is all
+    // the answer could carry before this issue. `entities` names the key the
+    // server generated for each of the OTHER rows, so each of them can be
+    // reconciled and can hand ITS key to the level under IT.
+    //
+    // OUTSIDE THE ExistSequence GATE, AND THE FIRST DELIVERY OF #312 HAD IT
+    // INSIDE. That gate is #301's, written for the ROOT's key, and it answers
+    // `GetMappingSequence(TClass(M)) <> nil` - it asks ONE CLASS, the root.
+    // The reason written beside it, "with no [Sequence] there is no generated
+    // key to reconcile", is true of a SYMMETRIC aggregate and FALSE of a MIXED
+    // one: a root whose key the CLIENT supplies over a child that carries its
+    // own [Sequence] answers False at the gate, and the whole array - a key
+    // the database really did generate and the server really did report - was
+    // thrown away. Measured on Test.Janus.Model.ClientKeyRoot, the model #305
+    // wrote for exactly that asymmetry: the child came out at -1 while the
+    // answer said 601.
+    //
+    // AND IT WAS THIS ISSUE'S OWN DEFECT ONE LEVEL UP - asking ONE CLASS a
+    // question that is PER ROW is what #312 repairs in `params`.
+    //
+    // THE GATE DID NOT GO AWAY; IT MOVED TO WHERE THE QUESTION BELONGS. Each
+    // entry is now asked the SAME question about the entity its path resolved
+    // to - see _ApplyGeneratedKeysToGraph. Taking the gate away instead of
+    // moving it is not an option and that is measured too: it reddens
+    // Insert_AnEntryWhoseEntityHasNoSequenceOfItsOwnIsNotRead, where root and
+    // child are both NotInc and the client's own values have to survive.
+    //
+    // NOTHING ELSE MOVED. The root's reading of `params` stays inside the gate
+    // exactly as #301 left it, which is what
+    // MixedGraph_TheClientSuppliedRootKeyIsNotTouched holds it to.
+    _ApplyGeneratedKeysToGraph(AObject);
   except
     on E: Exception do
     begin
@@ -391,6 +725,40 @@ var
 begin
   inherited;
   LObjectList := TObjectList<M>.Create;
+  // ISSUE #362 - THE LIST IS TRANSPORT, NOT AN OWNER, AND THE DEFAULT SAID
+  // OTHERWISE. TObjectList<M>.Create leaves OwnsObjects at True, and the Clear
+  // below therefore DESTROYED the item - which here is THE CALLER'S OBJECT,
+  // not a copy of it. `Update(AObject)` does not suggest a transfer of
+  // ownership, so the obvious consumer
+  //
+  //     LObj := ...; try LObjectSet.Update(LObj); finally LObj.Free; end;
+  //
+  // was writing a use-after-free and then a double free, silently. Measured by
+  // a per-address destruction ledger: one destruction of the very object the
+  // caller passed. See Test.Janus.Rest.ObjectSetOwnership.
+  //
+  // WHY THE LIST STAYS AT ALL. Because the only method on the RESTful session
+  // that puts a PUT on the wire takes one: TSessionRestFul<M>.Update(const
+  // AObjectList: TObjectList<M>) is the sole Update override there. The
+  // single-object overload it inherits - TSessionAbstract<M>.Update(const
+  // AObject: M; const AKey: String) - reaches FCommandExecutor and
+  // FModifiedFields.Items[AKey], and a RESTful session has neither:
+  // FCommandExecutor is assigned by the SQL sessions and by nothing on this
+  // side. Measured, not argued - routing this method through that overload
+  // gives an access violation reading address 00000000 in all four Update
+  // clauses and puts NOT ONE request on the wire. Removing the list would mean
+  // adding a second way to spell the same round trip to a shipped generic,
+  // whose list overload TRESTDataSetAdapter<M>.ApplyUpdater still needs,
+  // because that one really does batch N objects.
+  //
+  // NOTHING ELSE ENTERS THIS LIST, and that is why turning ownership off
+  // cannot start leaking something. The list is a local of this method and its
+  // whole population is the three statements below: create, ONE Add of the
+  // argument, clear and free. The neighbouring list that legitimately DOES own
+  // its items - LUpdateList in TRESTDataSetAdapter<M>.ApplyUpdater, filled
+  // with objects that method creates itself - is a different local in a
+  // different unit and is deliberately untouched.
+  LObjectList.OwnsObjects := False;
   try
     LObjectList.Add(AObject);
     FSession.Update(LObjectList);

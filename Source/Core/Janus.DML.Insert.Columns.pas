@@ -111,7 +111,11 @@ uses
   Janus.Types.Blob,
   MetaDbDiff.Mapping.Classes,
   MetaDbDiff.Mapping.Explorer,
-  MetaDbDiff.Rtti.Helper;
+  MetaDbDiff.Rtti.Helper,
+  /// Brings TRttiPropertyHelper_.MustWriteNull into scope. It must come AFTER
+  /// MetaDbDiff.Rtti.Helper: the derived helper only extends the ancestor while
+  /// the ancestor is already visible.
+  Janus.RTTI.Helper;
 
 type
   /// <summary> The columns ONE object contributes to ONE insert, and the
@@ -172,7 +176,7 @@ begin
         /// test already rejected.
         LKeep := False;
         if Assigned(LColumn.ColumnProperty) then
-          if not LColumn.ColumnProperty.IsNullValue(AObject) then
+          if not LColumn.ColumnProperty.MustWriteNull(AObject) then
             if not LColumn.IsNoInsert then
               /// A join column is a value READ from another table. The inserter
               /// has never bound one and the base row has no business

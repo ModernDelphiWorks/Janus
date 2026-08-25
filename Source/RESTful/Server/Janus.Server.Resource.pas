@@ -57,8 +57,78 @@ type
       /// The %s is now a whole serialised JSON OBJECT, braces included - it
       /// used to be the inside of a pair list, with the braces written here.
       /// The document on the wire is unchanged.
-      cRESOURCEINSERT      = '{"result":"Resource %s insert command executed successfully", "params":[%s]}';
+      /// ISSUE #312 - THE ANSWER GAINS A SIBLING KEY AND `params` DOES NOT
+      /// MOVE. `params` still carries the ROOT's primary key and NOTHING else,
+      /// byte for byte what it carried before this issue, and that is a
+      /// constraint rather than an oversight: TRESTDataSetAdapter<M>.
+      /// ApplyInserter walks 0..ResultParams.Count-1 and writes ANY field the
+      /// row has and the answer names - not just key columns - with the LAST
+      /// one winning. A child's key added to `params` could therefore
+      /// OVERWRITE the root's own key the moment the two spell the same
+      /// column name. Everything new goes into `entities`, which is a sibling
+      /// of `params` and which no reader in this repository read before this
+      /// issue - see the enumeration over _CollectInsertedEntities.
+      cRESOURCEINSERT      = '{"result":"Resource %s insert command executed successfully", "params":[%s], "entities":%s}';
       cRESOURCEUPDATE      = '{"result":"Resource %s update command executed successfully"}';
+      /// ISSUE #363 - THE ANSWER OF A PUT THAT LOCATED NO ROW, AND IT IS
+      /// RETURNED RATHER THAN RAISED.
+      ///
+      /// WHAT CHOOSES THE TRANSPORT'S PATH IS `Exit` VERSUS `raise`, AND
+      /// NOTHING ELSE. Each of TRESTServerHorse's four routes is one Res.Send
+      /// of this class's Result wrapped in a bare try/except whose handler
+      /// sends Format(cEXCEPTION, [E.Message]) instead
+      /// (TRESTServerHorse.AddResources, anchored by SYMBOL). A value that is
+      /// RETURNED is sent as it stands; only an EXCEPTION reaches the wrapper.
+      /// THE TOP-LEVEL KEY OF THE DOCUMENT PLAYS NO PART IN THAT CHOICE -
+      /// measured by mutation: spelling this constant `{"exception":...}` while
+      /// keeping the Exit leaves the RESTHorse suite green, and the body still
+      /// leaves through Res.Send and still parses. An earlier draft of this note
+      /// said the shared `result` key "is what lets it leave through the
+      /// transport's ordinary Send path"; that was false, and the very next
+      /// sentence of the same paragraph measured the RAISE rather than the key.
+      ///
+      /// SO THE `result` KEY IS COHERENCE, NOT MECHANISM, AND IT IS STILL
+      /// DELIBERATE. Every answer this class RETURNS is spelled that way -
+      /// cRESOURCEDELETE, cRESOURCEINSERT, cRESOURCEUPDATE - `exception` is
+      /// what it RAISES. The key is chosen to match its siblings; the Exit is
+      /// what makes the answer arrive readable.
+      ///
+      /// AND THE RETURN, WHICH IS THE MECHANISM, WAS THE MEASUREMENT WHEN THIS
+      /// NOTE WAS WRITTEN. On the tree that carried issue #363,
+      /// Format(cEXCEPTION, [E.Message]) pasted the message into a `%s` INSIDE
+      /// a JSON string while the messages of this class were themselves JSON
+      /// DOCUMENTS, so a raised answer arrived as
+      ///   {"Exception": "{"result":"No records found to delete, ..."}"}
+      /// and TJSONObject.ParseJSONValue answered nil for it. nil is what makes
+      /// TJanusClient.ResponseValue raise cRESTNOJSONVALUE - "the body was
+      /// empty, was not JSON, ..." - the complaint about the CALLER'S PAYLOAD
+      /// that issue was opened against. Raising here would have reproduced the
+      /// defect inside the repair.
+      ///
+      /// ISSUE #376 REMOVED THAT REASON, AND THE `Exit` STAYS ANYWAY. cEXCEPTION
+      /// now interpolates an ESCAPED string literal, so a raised answer parses
+      /// whatever the message says (anchored by SYMBOL; pinned by
+      /// Test.Janus.Server.ExceptionEnvelope). What raising would still cost is
+      /// the OTHER half this note already names below - the shape of the answer
+      /// decides whether the Janus REST client raises at all - and #376 did not
+      /// touch that, so turning this Exit into a raise remains a decision with
+      /// its own price rather than a free correction.
+      ///
+      /// THE PRICE OF RETURNING IS PAID ON THE CLIENT, AND IT IS NAMED RATHER
+      /// THAN HIDDEN. A body that parses is a body the Janus REST client does
+      /// NOT raise on, and TSessionRestFul<M>.Update assigns the answer to a
+      /// local that only its CommandMonitor block reads - so the PUT that
+      /// located no row now completes in total silence one layer up. Measured
+      /// on both sides against a live server, and pinned by
+      /// Characterisation_TheJanusClientSwallowsThisAnswer in
+      /// Test.Janus.Server.Resource.UpdateNotFound, whose header carries the
+      /// argument and the alternatives.
+      ///
+      /// The wrapper defect above was REPORTED here and repaired by issue #376,
+      /// in Janus.Server.Horse and not in this unit: it belonged to all four
+      /// verbs at once, and the repair left the envelope's top-level key exactly
+      /// where every error consumer already reads it.
+      cRESOURCEUPDATENOTFOUND = '{"result":"Resource %s update command found no record with the key informed"}';
     function ResolverFindToSkip(const AObjectSet: TRESTObjectSet;
       const AQuery: TRESTQueryParse): string;
     function ResolverFindFilter(const AObjectSet: TRESTObjectSet;
@@ -91,6 +161,7 @@ uses
   StrUtils,
   MetaDbDiff.mapping.classes,
   MetaDbDiff.mapping.attributes,
+  MetaDbDiff.types.mapping,
   MetaDbDiff.rtti.helper,
   Janus.Json,
   Janus.Objects.Helper,
@@ -207,6 +278,190 @@ begin
   Result := TJSONString.Create(VarToStr(LValue));
 end;
 
+/// <summary> One PATH SEGMENT appended to the path of the object above it.
+///  Issue #312. The root's path is the EMPTY STRING, so the first segment
+///  carries no leading separator. </summary>
+function _JoinEntityPath(const APath, ASegment: String): String;
+begin
+  if APath = '' then
+    Result := ASegment
+  else
+    Result := APath + '.' + ASegment;
+end;
+
+/// <summary> The keys the database generated for EVERY row this insert wrote,
+///  each one said TOGETHER WITH WHOSE IT IS. Issue #312.
+///
+///  WHAT WAS WRONG. The server writes the whole aggregate - TRESTObjectSet.
+///  Insert cascades through CascadeActionsExecute and the database generates a
+///  key for every row - and the answer asked the primary key of exactly ONE
+///  class: `GetMappingPrimaryKeyColumns(LObject.ClassType)` over the ROOT. So
+///  the client's root came back reconciled and the whole graph under it kept
+///  the AutoInc placeholder. The symptom is not an error at save time; it is
+///  the NEXT Update or Delete of that child aiming at a key no row has.
+///
+///  WHY A WALK AFTER THE FACT RATHER THAN INSTRUMENTING THE CASCADE. Because
+///  when Insert returns, the server's own copy of the graph ALREADY HOLDS every
+///  generated key - that is what SetAutoIncValueChilds and the per-item stamp
+///  inside OneToManyCascadeActionsExecute have just finished doing. Reading it
+///  here needs no hook, no accumulator threaded through three methods, and no
+///  change at all to Janus.Server.RestObjectSet.pas, which is the file the
+///  cascade lives in and the one hardest to touch safely.
+///
+///  HOW A CHILD IS IDENTIFIED, AND WHY NOT THE THREE ALTERNATIVES.
+///  By its PATH from the root: the association PROPERTY name, plus a bracketed
+///  ordinal when the association is to-many. `mids[0].leafs[1]`.
+///
+///    - By CLASS NAME alone: cannot tell two siblings of one list apart, and a
+///      list of N children is the shape this issue is actually about.
+///    - By the child's OWN key as it arrived: that key is the PLACEHOLDER, and
+///      every child in the graph carries the SAME placeholder. It is not a
+///      discriminator at all.
+///    - By a flat ORDINAL over the traversal: it works only while both ends
+///      walk in the same order, and a wrong ordinal writes a real key onto the
+///      wrong object SILENTLY. A path is CHECKABLE - the reader resolves each
+///      segment against the mapping and against the actual list, and a segment
+///      that does not resolve writes nothing.
+///
+///  WHAT THE PATH BINDS BETWEEN THE TWO ENDS, stated so it can be argued with:
+///
+///    1. The client's graph must still have the SHAPE it POSTed. It does: the
+///       REST ObjectSet family sends the aggregate in ONE POST and never
+///       cascades an insert of its own - Janus.RestObjectSet.Adapter.pas has
+///       exactly one CascadeActionsExecute call and it is CascadeDelete - so
+///       nothing on the client adds, removes or reorders a list between the
+///       POST and the read.
+///    2. List ORDER must survive the round trip, because `[1]` means the second
+///       element of the list the client sent. JSON arrays are ordered and both
+///       ends walk 0..Count-1.
+///    3. The segment is the association PROPERTY name, not the table name and
+///       not the column name. A third party server answering `entities` has to
+///       spell the property the client's class declares.
+///
+///  WHAT IT DELIBERATELY DOES NOT BIND: the ORDER of the entries in the array,
+///  and the order in which associations are declared. Each entry names its own
+///  target and carries its own keys, so the reader can apply them in any order
+///  - which is why a flat ordinal was refused above.
+///
+///  ONLY ASSOCIATIONS CARRYING CascadeInsert ARE DESCENDED, which is the same
+///  predicate CascadeActionsExecute filters on. A branch the cascade did not
+///  write has no generated key to report, and reporting the value the client
+///  sent as if the server had produced it is worse than saying nothing.
+///
+///  RECURSION WITHOUT A VISITED SET, deliberately. A cyclic aggregate would
+///  spin here - and it would have spun in CascadeActionsExecute first, which is
+///  the code that ran immediately before this and which has no visited set
+///  either. A guard here would not protect anything that reaches this line; it
+///  would only make the walk disagree with the walk it is describing.
+///
+///  NOT MEASURED against a live server, and not measured for an aggregate whose
+///  child key is SUPPLIED rather than generated - there the child is already
+///  right and the entry merely restates it. </summary>
+procedure _CollectInsertedEntities(const AObject: TObject; const APath: String;
+  const AEntities: TJSONArray);
+var
+  LPrimaryKey: TPrimaryKeyColumnsMapping;
+  LColumn: TColumnMapping;
+  LAssociations: TAssociationMappingList;
+  LAssociation: TAssociationMapping;
+  LEntity: TJSONObject;
+  LKeys: TJSONObject;
+  LValue: TValue;
+  LChild: TObject;
+  LList: TObjectList<TObject>;
+  LFor: Integer;
+begin
+  if AObject = nil then
+    Exit;
+  LKeys := TJSONObject.Create;
+  LPrimaryKey := TMappingExplorer.GetMappingPrimaryKeyColumns(AObject.ClassType);
+  /// An entity with no primary key mapping still gets an entry, with an EMPTY
+  /// keys object. Saying "this object was written and I have no key for it" is
+  /// information; omitting it would make the array's shape depend on the
+  /// mapping and a reader could not tell an unmapped branch from one the walk
+  /// never reached.
+  if LPrimaryKey <> nil then
+    for LColumn in LPrimaryKey.Columns do
+      LKeys.AddPair(LColumn.ColumnProperty.Name,
+                    _PrimaryKeyValueToJson(LColumn, AObject));
+  LEntity := TJSONObject.Create;
+  LEntity.AddPair('path', TJSONString.Create(APath));
+  LEntity.AddPair('class', TJSONString.Create(AObject.ClassName));
+  LEntity.AddPair('keys', LKeys);
+  AEntities.AddElement(LEntity);
+
+  LAssociations := TMappingExplorer.GetMappingAssociation(AObject.ClassType);
+  if LAssociations = nil then
+    Exit;
+  for LAssociation in LAssociations do
+  begin
+    // THIS FILTER IS GROUPED BY ARGUMENT AND NOT BY MEASUREMENT, and a
+    // mutation says so: removed, with a {$MESSAGE WARN} the compiler echoed as
+    // W1054, Janus.Tests.RESTHorse stayed at 177/0/0.
+    //
+    // THE REASON IS A FACT ABOUT THE FIXTURE TREE THIS SUITE LINKS, and the
+    // SCOPE of that sentence matters, because an earlier version of it said
+    // "in this repository" and that is FALSE. Re-derived by sweeping every
+    // [Association] under Test\ and Examples\ and reading forward from each to
+    // its `property` line: 66 textual occurrences in all - 27 under Test\, 39
+    // under Examples\ - of which 29 carry NO [CascadeActions].
+    //
+    // THOSE ARE OCCURRENCES, NOT DECLARATIONS, and the difference is declared
+    // rather than rounded away: 5 of the 66 are not attributes at all - 3 under
+    // Test\ are prose inside comments or an Assert argument, and 2 under
+    // Examples\ are attributes commented out. Real declarations: 61. It does
+    // not move the conclusion, because the shape the filter exists for is
+    // common either way.
+    //
+    // What is true is only that none of those sits on a model any RESTHorse
+    // fixture inserts. The nearest live one is
+    // Examples\Delphi\Data\Models\Janus.Model.Master.pas:110 - a to-ONE
+    // association with no [CascadeActions] whose branch IS constructed, at
+    // :131 of that same file.
+    //
+    // AN EARLIER VERSION OF THIS NOTE SAID :129 AND THAT WAS WRONG - re-read
+    // here, :129 is the `begin` and :131 is `Fclient := Tclient.Create;`. And
+    // naming WHICH copy is part of the citation: Examples\Delphi\RESTful\
+    // Horse\models\Janus.Model.Master.pas is a second copy that happens to
+    // carry the same two line numbers today. The one cited is the Data\Models\
+    // one.
+    //
+    // The filter mirrors the predicate CascadeActionsExecute itself filters on,
+    // which is what this walk is describing; closing it honestly needs a
+    // RESTHorse model with a populated branch the cascade does NOT write, and
+    // building one is a piece of work of its own.
+    if not (TCascadeAction.CascadeInsert in LAssociation.CascadeActions) then
+      Continue;
+    LValue := LAssociation.PropertyRtti.GetNullableValue(AObject);
+    if not LValue.IsObject then
+      Continue;
+    if LAssociation.Multiplicity in [TMultiplicity.OneToOne,
+                                     TMultiplicity.ManyToOne] then
+    begin
+      /// TValue reports tkClass for a NIL instance too, so IsObject above lets
+      /// an optional branch that was never filled through. Same guard, same
+      /// reason, as TRESTObjectSet.OneToOneCascadeActionsExecute.
+      LChild := LValue.AsObject;
+      if LChild = nil then
+        Continue;
+      _CollectInsertedEntities(LChild,
+        _JoinEntityPath(APath, LAssociation.PropertyRtti.Name), AEntities);
+    end
+    else
+    if LAssociation.Multiplicity in [TMultiplicity.OneToMany,
+                                     TMultiplicity.ManyToMany] then
+    begin
+      LList := TObjectList<TObject>(LValue.AsObject);
+      if LList = nil then
+        Continue;
+      for LFor := 0 to LList.Count -1 do
+        _CollectInsertedEntities(LList.Items[LFor],
+          _JoinEntityPath(APath, LAssociation.PropertyRtti.Name) +
+          '[' + IntToStr(LFor) + ']', AEntities);
+    end;
+  end;
+end;
+
 /// <summary> The SQL LITERAL of one primary key column, RENDERED rather than
 ///  pasted into a statement. Issue #320.
 ///
@@ -301,21 +556,31 @@ end;
 ///  and must not be allowed to identify an arbitrary one. It comes back as ''
 ///  and the caller emits `1 = 0`, the same idiom Janus.DML.Generator uses for
 ///  an undetermined association value. The PUT then leaves through the
-///  `if LObjectOld = nil then Exit` that ParseUpdate already had for a row
-///  that is not there, so this is not a new exit - it is an existing one,
-///  reached honestly instead of by a SQL syntax error.
+///  not-found exit that ParseUpdate already had for a row that is not there,
+///  so this is not a new exit - it is an existing one, reached honestly
+///  instead of by a SQL syntax error.
 ///
 ///  AND THAT TRADE HAS A COST WORTH NAMING. Before this change, a PUT whose
 ///  key carried no value emitted `WHERE (ktnull.ktopt=)` and the request died
 ///  loudly - `[FireDAC][Phys][SQLite] ERROR: near ")": syntax error`. It now
-///  emits `WHERE (1 = 0)` and the caller gets an EMPTY BODY and no exception.
-///  That is consistent with what ParseUpdate already did for a row that is not
-///  there, and the alternative - letting a malformed statement decide - was
-///  worse. But the "PUT that silently does nothing" this issue was opened
-///  against remains the house's answer for a missing row: what changed is that
-///  it is now reached BY CONTRACT rather than BY ACCIDENT. Whether a PUT that
-///  matches no row should answer 404 instead of an empty 200 is a question
-///  about what a consumer receives, and it is not this repair's to settle.
+///  emits `WHERE (1 = 0)` and takes the not-found exit, which is consistent
+///  with what ParseUpdate already did for a row that is not there; the
+///  alternative - letting a malformed statement decide - was worse.
+///
+///  WHAT THAT EXIT ANSWERS HAS SINCE CHANGED, AND THE TWO SENTENCES THAT USED
+///  TO STAND HERE WERE FALSIFIED BY IT RATHER THAN DELETED. They said the
+///  caller "gets an EMPTY BODY and no exception", and that the "PUT that
+///  silently does nothing ... remains the house's answer for a missing row".
+///  Both were true when written and neither is now: issue #363 measured what
+///  that empty body does to a consumer - TJanusClient.ResponseValue turns a
+///  nil JSONValue into cRESTNOJSONVALUE, a complaint about the payload the
+///  CALLER sent - and the exit now answers cRESOURCEUPDATENOTFOUND. The `1 = 0`
+///  path above reaches that same answer, so a key the request left
+///  undetermined is now reported rather than swallowed.
+///
+///  The STATUS is still not settled here and #363 did not settle it either:
+///  everything the Horse transport emits is 200, errors included, and no seam
+///  between this class and any of the five transports carries a status at all.
 ///
 ///  DATE AND TIME GO OUT IN ISO-8601 AND THE RESIDUE IS DECLARED. The
 ///  dialect-correct mask lives in TDMLGeneratorAbstract.FDateFormat, which has
@@ -496,7 +761,17 @@ var
   procedure ExceptionExecute;
   begin
     if LObject = nil then
-      raise Exception.Create('{"result":"No records found to delete, with the filter entered!"}');
+      /// ISSUE #376 - THE MESSAGE IS A SENTENCE, AND IT USED TO BE A JSON
+      /// DOCUMENT. The wording is the same one it always carried; what is gone
+      /// is the `{"result":"..."}` that used to wrap it. A RAISED message
+      /// reaches the wire through the transport's error envelope, which is the
+      /// ONLY writer of JSON on that path - so a message that spelled its own
+      /// document put one document inside another's string. Escaping (see
+      /// cEXCEPTION in Janus.Server.Horse) now keeps the envelope parseable
+      /// whatever the message says, and this message no longer asks it to
+      /// carry a document it would have to escape and a consumer would have to
+      /// parse twice. Anchored by SYMBOL.
+      raise Exception.Create('No records found to delete, with the filter entered!');
   end;
 
   procedure FilterExecuteFind;
@@ -610,6 +885,7 @@ var
   LClassType: TClass;
   LObjectSet: TRESTObjectSet;
   LParams: TJSONObject;
+  LEntities: TJSONArray;
   LAllowVerbs: TRESTAllowVerbCache;
 begin
   LClassType := TMappingExplorer.GetRepositoryMapping
@@ -631,6 +907,9 @@ begin
   try
     LObjectSet := TRESTObjectSet.Create(FConnection, LClassType);
     LObject := LClassType.Create;
+    // Not a duplicate of the line above: LClassType is a plain TClass, so the
+    // line above runs TObject.Create and the model constructor never fires.
+    // Canonical note at Janus.Objects.Helper.TObjectHelper.MethodCall.
     LObject.MethodCall('Create', []);
 
     TJanusJson.JsonToObject(AValue, LObject);
@@ -649,10 +928,15 @@ begin
       /// the decimal separator JSON requires rather than the one the machine's
       /// locale requires, are then the serialiser's job and not this loop's.
       LParams := TJSONObject.Create;
+      /// ISSUE #312 - the SIBLING key. Built from the SAME graph `params` was
+      /// built from, and after the same Insert, so the two can never describe
+      /// two different writes. `params` is not touched: see cRESOURCEINSERT.
+      LEntities := TJSONArray.Create;
       try
         for LColumn in LPrimaryKey.Columns do
           LParams.AddPair(LColumn.ColumnProperty.Name,
                           _PrimaryKeyValueToJson(LColumn, LObject));
+        _CollectInsertedEntities(LObject, '', LEntities);
         /// ToJSON and NOT ToString: both run TJSONAncestor.ToChars, so both
         /// escape the quote and the backslash, but ToString passes no options
         /// while ToJSON passes EncodeBelow32 and EncodeAbove127. A control
@@ -660,9 +944,11 @@ begin
         /// one that can still emit a document nobody can parse.
         /// An empty column list now yields {} instead of indexing LValues[0].
         Result := Format(cRESOURCEINSERT, [AQuery.ResourceName,
-                                           LParams.ToJSON]);
+                                           LParams.ToJSON,
+                                           LEntities.ToJSON]);
       finally
         LParams.Free;
+        LEntities.Free;
       end;
     finally
       LObject.Free;
@@ -691,8 +977,23 @@ var
 begin
   LClassType := TMappingExplorer.GetRepositoryMapping
                                 .FindEntityByName(AQuery.ResourceName);
+  /// ISSUE #363 - this was a bare `Exit`, so a PUT naming a resource the
+  /// server never registered completed with an EMPTY BODY. ParseInsert and
+  /// ParseFind (anchored by SYMBOL) both raise cRESOURCENOTREGISTER for the
+  /// same mistake. It now says what they say.
+  ///
+  /// AND WHAT IS LEFT IS ParseDelete, WHICH STILL ANSWERS SILENCE. It carries
+  /// the SAME bare `Exit` on the SAME nil LClassType - measured over a live
+  /// Horse server, DELETE /api/Janus/NotAnEntityAtAll(1) answers status 200,
+  /// length 0, ParseJSONValue nil. So this class is THREE-RAISE / ONE-SILENT,
+  /// not the two-and-two an earlier draft of this note claimed when it called
+  /// PUT "the only one of the three that answered silence". ParseDelete is not
+  /// repaired inside this issue - its own not-found signal is the separate
+  /// question cRESOURCEUPDATENOTFOUND documents - and the silence is pinned by
+  /// Characterisation_TheUnregisteredResourceExitOfDeleteStillAnswersSilence
+  /// so the count cannot rot again.
   if LClassType = nil then
-    Exit;
+    raise Exception.CreateFmt(cRESOURCENOTREGISTER, [AQuery.ResourceName]);
 
   if TMappingExplorer.GetRESTReadOnly(LClassType) then
     raise Exception.CreateFmt(cRESOURCEREADONLY, [AQuery.ResourceName]);
@@ -707,6 +1008,8 @@ begin
   try
     LObjectSet := TRESTObjectSet.Create(FConnection, LClassType);
     LObjectNew := LClassType.Create;
+    // Not a duplicate of the line above - LClassType is a plain TClass. See the
+    // canonical note at Janus.Objects.Helper.TObjectHelper.MethodCall.
     LObjectNew.MethodCall('Create', []);
 
     TJanusJson.JsonToObject(AValue, LObjectNew);
@@ -737,8 +1040,12 @@ begin
       end;
       LWhere := Copy(LWhere, 1, Length(LWhere) -5);
       LObjectOld := LObjectSet.FindOne(LWhere);
+      /// ISSUE #363 - this was a bare `Exit`, so the request completed with an
+      /// EMPTY BODY and the caller was told nothing at all about the one thing
+      /// that went wrong. See cRESOURCEUPDATENOTFOUND for why the answer is
+      /// RETURNED here and not raised the way ParseDelete raises its own.
       if LObjectOld = nil then
-        Exit;
+        Exit(Format(cRESOURCEUPDATENOTFOUND, [AQuery.ResourceName]));
 
       try
         LObjectSet.Modify(LObjectOld);

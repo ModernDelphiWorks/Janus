@@ -42,6 +42,23 @@ type
   // Classe de conexao concreta com dbExpress
   TDMLGeneratorMySQL = class(TDMLGeneratorAbstract)
   protected
+    /// <summary> Issue #355, AND THE ONE THE #337 GUARD WAS PLANTED FOR.
+    ///
+    ///  dbnMySQL IS registered, so this is not the ADS case. It is worse: the
+    ///  MySQL serializer rewrites EVERY ':pN' to '?' over the whole string
+    ///  (FluentSQL.SerializeMySQL.pas:52, a StringReplace per bind), and the
+    ///  marker Janus put into the value slot has nothing left to be restored
+    ///  over. Measured by naming dbnMySQL here: GeneratorInsert and
+    ///  GeneratorUpdate refuse by name - "allocated 2 bind(s) but only 0
+    ///  marker(s) could be put back" - which is the #337 count doing precisely
+    ///  what it was written to do, BEFORE this repair and on purpose.
+    ///  GeneratorDelete and the SELECT are unaffected: neither allocates a bind.
+    ///
+    ///  This answers dbnMSSQL, which is what the generator emitted before, and
+    ///  the real question is left OPEN rather than answered by disarming the
+    ///  guard: whether Janus should consume the positional '?' that MySQL
+    ///  wants is a product decision, not a wiring one. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
     /// para que um dialeto novo nao herde em silencio o literal de outro.
     function GuidLiteral(const AGuid: TGUID): String; override;
@@ -62,6 +79,11 @@ type
 implementation
 
 { TDMLGeneratorMySQL }
+
+class function TDMLGeneratorMySQL.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnMSSQL;
+end;
 
 constructor TDMLGeneratorMySQL.Create;
 begin

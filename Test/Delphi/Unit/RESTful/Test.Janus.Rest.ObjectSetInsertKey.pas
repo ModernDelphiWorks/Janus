@@ -58,14 +58,21 @@
   gap was levels two and three; here the root itself was never reconciled, so
   the cascade did not merely lag - it propagated a number that exists nowhere.
 
-  WHY THE ROOT'S OWN KEY IS THE ONLY THING STAMPED
+  WHY THE ROOT'S OWN KEY IS THE ONLY THING STAMPED FROM `params`
 
-  Because it is the only thing the answer carries. The producer is a loop over
-  the PRIMARY KEY COLUMNS of the inserted entity, naming each by
-  ColumnProperty.Name; nothing below the root is named. So the reader is
+  Because it is the only thing `params` carries. The producer of that array is a
+  loop over the PRIMARY KEY COLUMNS of the inserted entity, naming each by
+  ColumnProperty.Name; nothing below the root goes into it. So the reader is
   PK-scoped and name-matched on purpose, and
   AnswerThatNamesNoPrimaryKeyLeavesThePlaceholder is what holds it to that: an
-  answer that names something else must change nothing at all.
+  answer that names something else THERE must change nothing at all.
+
+  THAT HEADING AND THAT FIRST SENTENCE USED TO SAY "the answer" RATHER THAN
+  "`params`", AND THE WIDER READING IS NOW FALSE - issue #312. The ANSWER gained
+  a sibling key, `entities`, which names the key of every other row the insert
+  wrote. `params` did not move, and every document in THIS fixture carries
+  `params` alone, so nothing below is measuring the wrong thing; what needed
+  correcting is the word, not the clauses.
 
   WHAT IS STILL NOT RECONCILED, AND IS NOT THIS ISSUE
 
@@ -74,6 +81,19 @@
   here yet. Two tests below pin the CURRENT reading of that so a later change
   cannot move it silently:
   ChildOwnKeyIsNotReconciled and GrandchildIsNotReachedByThisCascade.
+
+  THAT PARAGRAPH IS NOW ABOUT THE OLD CONTRACT ONLY - ISSUE #312. The answer
+  has since gained a SIBLING key, `entities`, which names the key of every row
+  the insert wrote and says whose each one is; the reader for it is
+  TRESTObjectSetAdapter<M>._ApplyGeneratedKeysToGraph and the clauses are in
+  Test.Janus.Rest.GraphInsertEntities.
+
+  The two characterisation clauses below are NOT contradicted by that and are
+  NOT deleted: every answer in THIS fixture carries `params` and nothing else,
+  which is what every server produced before #312 and what the four hand
+  written servers under Examples\Delphi\RESTful still produce. Their subject is
+  what the client does with the OLD document, and that has not moved. What is
+  no longer true is the sentence "has no counterpart here yet".
 
   WHY THE ASSERTIONS NAME NUMBERS AND NOT "NOTHING RAISED"
 

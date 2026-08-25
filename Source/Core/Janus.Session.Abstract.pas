@@ -43,6 +43,46 @@ uses
   Janus.Command.Executor.Abstract;
 
 type
+  /// <summary> One row an insert wrote, and the key the database generated for
+  ///  it, said TOGETHER WITH WHOSE IT IS. Issue #312.
+  ///
+  ///  This is the PARSED form of one element of the `entities` array
+  ///  Janus.Server.Resource.pas emits next to `params` - see the doc comment
+  ///  over _CollectInsertedEntities there for the format and for why a child is
+  ///  addressed by PATH.
+  ///
+  ///  WHY THIS IS NOT MORE TParam ENTRIES IN ResultParams, which is where the
+  ///  root's key lives. Because ResultParams is a FLAT list of name/value pairs
+  ///  with no owner, and it already has two readers that disagree about a
+  ///  repeated name: TRESTObjectSetAdapter<M>._SetGeneratedKeyValue matches by
+  ///  PROPERTY name and the FIRST match decides, while
+  ///  TRESTDataSetAdapter<M>.ApplyInserter writes ANY field the answer names
+  ///  and the LAST one wins. Putting a child's key in there would let a child
+  ///  called `Id` overwrite the ROOT's key in the DataSet family, silently. A
+  ///  separate structure is what makes that impossible rather than unlikely.
+  ///
+  ///  Keys carries text, exactly like ResultParams - the parser forces
+  ///  ftString on every entry - so the reader's rule is the same one #301
+  ///  wrote: write only what the declared type provably accepts, and otherwise
+  ///  leave the property alone. </summary>
+  TInsertedEntity = class
+  private
+    FPath: String;
+    FEntityClassName: String;
+    FKeys: TParams;
+  public
+    constructor Create;
+    destructor Destroy; override;
+    /// The path from the inserted ROOT. EMPTY for the root itself.
+    property Path: String read FPath write FPath;
+    /// What the producer says it measured. EMPTY when the answer omitted it.
+    property EntityClassName: String read FEntityClassName
+      write FEntityClassName;
+    property Keys: TParams read FKeys;
+  end;
+
+  TInsertedEntityList = class(TObjectList<TInsertedEntity>);
+
   TSessionAbstract<M: class, constructor> = class abstract
   private
     procedure _ExecuteContextHooks(const AEventName: String;
@@ -54,6 +94,9 @@ type
     FPageNext: Integer;
     FDeleteList: TObjectList<M>;
     FResultParams: TParams;
+    /// ISSUE #312. Lives beside FResultParams and NEVER inside it - see the
+    /// doc comment over TInsertedEntity for why the two must not merge.
+    FResultEntities: TInsertedEntityList;
     FFindWhereUsed: Boolean;
     FFindWhereRefreshUsed: Boolean;
     FFetchingRecords: Boolean;
@@ -92,6 +135,10 @@ type
     procedure RefreshRecordWhere(const AWhere: String); virtual;
     function SelectAssociation(const AObject: TObject): String; virtual;
     function ResultParams: TParams;
+    /// ISSUE #312. Empty for every answer that carries no `entities` key -
+    /// which is every answer the framework produced before this issue, and the
+    /// four hand written servers under Examples\Delphi\RESTful.
+    function ResultEntities: TInsertedEntityList;
     // DataSet e ObjectSet
     procedure ModifyFieldsCompare(const AKey: String; const AObjectSource,
       AObjectUpdate: TObject); virtual;
@@ -137,6 +184,20 @@ uses
   MetaDbDiff.mapping.explorer,
   MetaDbDiff.mapping.classes;
 
+{ TInsertedEntity }
+
+constructor TInsertedEntity.Create;
+begin
+  FKeys := TParams.Create;
+end;
+
+destructor TInsertedEntity.Destroy;
+begin
+  FKeys.Clear;
+  FKeys.Free;
+  inherited;
+end;
+
 { TSessionAbstract<M> }
 
 constructor TSessionAbstract<M>.Create(const APageSize: Integer = -1);
@@ -145,6 +206,7 @@ begin
   FModifiedFields := TObjectDictionary<String, TDictionary<String, String>>.Create([doOwnsValues]);
   FDeleteList := TObjectList<M>.Create;
   FResultParams := TParams.Create;
+  FResultEntities := TInsertedEntityList.Create;
   FFetchingRecords := False;
   // Inicia uma lista interna para gerenciar campos alterados
   FModifiedFields.Clear;
@@ -160,6 +222,8 @@ begin
   FModifiedFields.Free;
   FResultParams.Clear;
   FResultParams.Free;
+  FResultEntities.Clear;
+  FResultEntities.Free;
   inherited;
 end;
 
@@ -432,6 +496,11 @@ end;
 function TSessionAbstract<M>.ResultParams: TParams;
 begin
   Result := FResultParams;
+end;
+
+function TSessionAbstract<M>.ResultEntities: TInsertedEntityList;
+begin
+  Result := FResultEntities;
 end;
 
 function TSessionAbstract<M>.SelectAssociation(const AObject: TObject): String;

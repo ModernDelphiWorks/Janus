@@ -23,6 +23,7 @@ uses
   Variants,
   StrUtils,
   Generics.Collections,
+  FluentSQL.Interfaces,
   Janus.DML.Generator,
   Janus.Json,
   Janus.DML.Commands,
@@ -33,6 +34,35 @@ uses
 type
   TDMLGeneratorNoSQL = class(TDMLGeneratorAbstract)
   protected
+    /// <summary> Issue #355. ANSWERED BECAUSE THE BASE MEMBER IS ABSTRACT, AND
+    ///  FOR NO OTHER REASON: THIS FAMILY NEVER REACHES FluentSQL AT ALL.
+    ///
+    ///  THE FIRST VERSION OF THIS COMMENT SAID THE OPPOSITE, AND IS REPLACED
+    ///  RATHER THAN DELETED. It claimed that "INSERT, UPDATE and DELETE are
+    ///  inherited from TDMLGeneratorAbstract and DO go through FluentSQL, so it
+    ///  needs a dialect like everybody else". Both halves are false, and reading
+    ///  this unit is what says so. There are exactly SIX routes from
+    ///  TDMLGeneratorAbstract to CreateFluentSQL: GeneratorInsert,
+    ///  GeneratorUpdate, GeneratorDelete, and _BuildSelectSQL reached through
+    ///  GenerateSelectOneToOne, GenerateSelectOneToOneMany and the generator's
+    ///  own GeneratorSelectAll / GeneratorSelectWhere. THIS CLASS OVERRIDES ALL
+    ///  SIX, and NOT ONE override calls inherited - the three DML ones build a
+    ///  Mongo command with a TStringBuilder, the two association ones answer '',
+    ///  the two SELECT ones answer GetCriteriaSelectNoSQL. The only `inherited`
+    ///  in this unit are in Create and Destroy, and the same is true of
+    ///  Janus.DML.Generator.MongoDB.pas, which adds no override of its own.
+    ///
+    ///  So FFluentSQLDriver is WRITTEN for this family and never READ. dbnMSSQL
+    ///  is the enum zero it has been carrying since the field existed, and any
+    ///  other value would change nothing that runs. That is the honest reason to
+    ///  leave it where it is - not a claim that T-SQL suits MongoDB.
+    ///
+    ///  dbnMongoDB IS registered in FluentSQL, and this is still not the place
+    ///  to point at it: reaching their MQL serializer would mean deleting the
+    ///  overrides above and letting the base build the statements - a rewrite of
+    ///  this family, NOT MEASURED against any Mongo consumer. That is a separate
+    ///  decision and it is not made here. </summary>
+    class function SerializationDialect: TFluentSQLDriver; override;
     /// Ver TDMLGeneratorAbstract.GuidLiteral: abstract de proposito,
     /// para que um dialeto novo nao herde em silencio o literal de outro.
     function GuidLiteral(const AGuid: TGUID): String; override;
@@ -68,6 +98,11 @@ uses
   MetaDbDiff.mapping.attributes;
 
 { TDMLGeneratorNoSQL }
+
+class function TDMLGeneratorNoSQL.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnMSSQL;
+end;
 
 constructor TDMLGeneratorNoSQL.Create;
 begin
@@ -245,7 +280,31 @@ begin
       .Append('command=find& ')
         .Append('collection=' + LTable.Name);
     // PrimaryKey
-    if AID.ToString <> '-1' then
+    // ISSUE #361 - THIS LINE READ `if AID.ToString <> '-1' then`, AN
+    // INDEPENDENT COPY OF THE SENTINEL THE ISSUE ONLY NAMED IN THE SQL
+    // GENERATOR. It was found by enumerating the repository for the value and
+    // not by the report, and it carried the same defect: -1 is also
+    // cAutoIncNotGenerated (Janus.DataSet.Fields.pas:51), so a stale
+    // placeholder asking for ONE document produced a criteria with NO filter,
+    // which is every document in the collection. "No id" is now a TYPELESS
+    // TValue - out of band, so a caller that supplies an id cannot spell it -
+    // and the test is the same question TDMLGeneratorAbstract._NoIdSupplied
+    // asks. THIS ARM IS NOT COVERED BY ANY CLAUSE IN THIS REPOSITORY: no
+    // fixture stands up a Mongo connection, so the change is compiled and
+    // reasoned, NOT MEASURED.
+    //
+    // IT CARRIES THE SAME DECLARED INVERSION AS ITS SQL SIBLING, and here by
+    // reasoning rather than by measurement. A TValue that carries no type
+    // answers '' from ToString, which is <> '-1', so this line used to build a
+    // filter out of that empty value - `filter={"k":""}`, a document that
+    // almost certainly matches nothing. It now produces a criteria with NO
+    // filter, which is EVERY document. That is the same trade the SQL side
+    // takes deliberately - see the board of twelve shapes in
+    // TDMLGeneratorAbstract._NoIdSupplied - and it is written down here so
+    // the Mongo arm is not read as an accident of the port. It is also the
+    // WIDER of the two, because nothing on this path holds a RecordCount = 1
+    // guard.
+    if AID.TypeInfo <> nil then
     begin
       LPrimaryKey := TMappingExplorer.GetMappingPrimaryKey(AClass);
       if LPrimaryKey <> nil then
@@ -300,9 +359,12 @@ end;
 
 /// <summary> INALCANCAVEL NESTA FAMILIA, e concreto so' porque a classe precisa
 ///  ser instanciavel. TDMLGeneratorNoSQL sobrescreve GenerateSelectOneToOne e
-///  GenerateSelectOneToOneMany para devolver '' (:87-97 desta unidade), entao
-///  _GetPropertyValue - e com ele o ramo ftGuid - nunca e' chamado por este
-///  caminho. TDMLGeneratorMongoDB herda as duas sobrescritas e por isso NAO
+///  GenerateSelectOneToOneMany para devolver '' - ANCORA POR SIMBOLO, e nao por
+///  linha: o ":87-97" que estava escrito aqui apodreceu na issue #355, que
+///  inseriu a declaracao de SerializationDialect acima e empurrou os dois
+///  metodos para baixo. Entao _GetPropertyValue - e com ele o ramo ftGuid -
+///  nunca e' chamado por este caminho.
+///  TDMLGeneratorMongoDB herda as duas sobrescritas e por isso NAO
 ///  redeclara este metodo: dar-lhe um literal SQL seria inventar comportamento
 ///  que nao roda. O UUID do MongoDB nem literal SQL e': e' binData subtipo 4,
 ///  construido por UUID("36 com hifen") ou BinData(4,"base64")

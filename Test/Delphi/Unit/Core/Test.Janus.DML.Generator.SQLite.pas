@@ -62,7 +62,15 @@ type
   private
     FDriver: TDriverName;
     FOptions: IOptions;
+    FExecutedDDL: String;
   public
+    /// <summary> EVERY ExecuteDirect THIS DOUBLE RECEIVED, IN ORDER, ONE PER
+    ///  LINE. Issue #357. TRESTViewManager.EnsureView does not return the DDL it
+    ///  built - it hands it to the connection - so a clause about WHICH DIALECT
+    ///  WROTE THE VIEW has no other way to read the answer. A String and not a
+    ///  TStringList deliberately: it is managed, so this double still needs no
+    ///  destructor even though hundreds of tests construct it. </summary>
+    function ExecutedDDL: String;
     constructor Create(ADriver: TDriverName); overload;
     /// Options is nil for every other test on purpose - a generator must
     /// survive a connection that answers nothing, and that nil-safety is what
@@ -121,6 +129,15 @@ type
   ///  in the FDateFormat mould would have compiled clean, run clean, and
   ///  emitted '1 = 0' again. </summary>
   TDMLGeneratorWithoutGuid = class(TDMLGeneratorAbstract)
+  protected
+    /// Issue #355 made this abstract in the base, and a generator that lives in
+    /// a test answers it like any other. NOT because the build would otherwise
+    /// fail - measured by deleting the NexusDB override: the compile ends at
+    /// exit code 0 and the only complaint is a W1020 that drowns among the 118
+    /// this project already emits, GuidLiteral's included. The failure lands at
+    /// the FIRST CONSTRUCTION, as EAbstractError. Which is exactly why it is
+    /// answered here: this class is constructed, by the clause below.
+    class function SerializationDialect: TFluentSQLDriver; override;
   public
     constructor Create; override;
     function GeneratorSelectAll(AClass: TClass; APageSize: Integer;
@@ -224,6 +241,37 @@ type
     property childs: TObjectList<TNullableGuidChild> read Fchilds write Fchilds;
   end;
 
+  /// <summary> A ROW WHOSE PRIMARY KEY IS ftGuid, WHICH IS WHAT THE WRITE
+  ///  COMMANDS NEED AND NO OTHER FIXTURE HERE HAS. Issue #294.
+  ///
+  ///  The three write commands touch a GUID in two different places, and one
+  ///  entity reaches both:
+  ///    - TCommandInserter binds EVERY mapped column, so gkkey alone would do;
+  ///    - TCommandUpdater and TCommandDeleter build their WHERE out of the
+  ///      PRIMARY KEY columns only, so the GUID has to BE the key - a ftGuid
+  ///      column that is not part of the key never reaches those two loops.
+  ///  The ftGuid fixtures that existed before this issue - TNullableGuidChild,
+  ///  TNullableGuidMaster in this unit, TCompChild and TCompMaster in
+  ///  Test.Janus.Model.RestLazyKeys - all carry an INTEGER key with a GUID
+  ///  beside it, which is the association shape issue #284 needed.
+  ///
+  ///  gkname exists so the UPDATE has something to SET: GenerateUpdate exits
+  ///  before the key loop when the modified-field dictionary is empty. </summary>
+  [Entity]
+  [Table('guidkeyrow', '')]
+  [PrimaryKey('gkkey', TAutoIncType.NotInc, TGeneratorType.NoneInc,
+              TSortingOrder.NoSort, True, 'Primary key')]
+  TGuidKeyRow = class
+  private
+    Fgkkey: TGUID;
+    Fgkname: String;
+  public
+    [Column('gkkey', ftGuid, 38)]
+    property gkkey: TGUID read Fgkkey write Fgkkey;
+    [Column('gkname', ftString, 20)]
+    property gkname: String read Fgkname write Fgkname;
+  end;
+
   /// <summary> TWELVE COLUMNS, AND THE COUNT IS THE POINT. Issue #337.
   ///
   ///  Since FluentSQL parameterised the value slot, the marker this generator
@@ -301,10 +349,17 @@ type
   ///  survivors - so each needs a clause of its own, or an inverted condition
   ///  and a wrong message would ship unnoticed.
   ///
-  ///  UseDialect reaches ConfigureFluentSQLDriver, which only the SQLite and
-  ///  Firebird generators call for real; asking for MySQL makes FluentSQL
-  ///  serialize as MySQL, and their MySQL serializer rewrites every ':pN' to
-  ///  '?' (FluentSQL.SerializeMySQL.pas:52), so NOTHING is left to restore.
+  ///  UseDialect reaches ConfigureFluentSQLDriver. THE HALF-SENTENCE THAT USED
+  ///  TO DESCRIBE THAT METHOD IS OUT OF DATE AND IS REPLACED RATHER THAN
+  ///  DELETED: it said ConfigureFluentSQLDriver was what "only the SQLite and
+  ///  Firebird generators call for real", which was true and was the defect
+  ///  issue #355 repaired. Since #355 no generator calls it at all - each one
+  ///  DECLARES its dialect through SerializationDialect and the base
+  ///  constructor does the wiring - and ConfigureFluentSQLDriver survives
+  ///  precisely so that this probe can override the declared dialect at
+  ///  runtime. Asking for MySQL makes FluentSQL serialize as MySQL, and their
+  ///  MySQL serializer rewrites every ':pN' to '?'
+  ///  (FluentSQL.SerializeMySQL.pas:52), so NOTHING is left to restore.
   ///  SpliceWith reaches the splice with a hand-made pair that is not a
   ///  prefix, which their serializer never produces. Descending from the
   ///  SQLite generator rather than from the abstract keeps the probe down to
@@ -325,6 +380,18 @@ type
     function GuidSelect(const ADriver: TDriverName; const AMany: Boolean): String;
     function NullableGuidSelect(const ASet: Boolean): String;
     function OctetSelect(const AOctet: Boolean): String;
+    /// Issue #294. The three write commands under the same switch. Each
+    /// returns the GUID KEY AS THE COMMAND BOUND IT - the TParam, not the
+    /// statement - because a bound value is what these three actually emit for
+    /// a ftGuid column; none of them writes a GUID literal into the SQL.
+    function OctetInsert(const AOctet: Boolean): String;
+    function OctetUpdate(const AOctet: Boolean): String;
+    function OctetDelete(const AOctet: Boolean): String;
+    /// Issue #294. The message of whatever AWrite raised, or the empty string
+    /// when it raised nothing - which is the state this issue found on all
+    /// three write paths and is therefore worth naming rather than asserting
+    /// three times in three shapes.
+    function OctetRefusal(const AWrite: TFunc<String>): String;
     function FindAssociation(AClass: TClass; const AClassNameRef: String): TAssociationMapping;
     /// <summary> EVERY VALUE OF AN INSERT IS THE MARKER OF THE COLUMN IN ITS
     ///  OWN POSITION. Issue #337. It reads the two parenthesised lists out of
@@ -407,6 +474,19 @@ type
     procedure TestSplice_AValueRegionThatIsAPrefix_CarriesTheTailOverUntouched;
     [Test]
     procedure TestGenerateNextPacket_UsesSqlitePagination;
+    /// ISSUE #361 - THE OTHER HALF OF THE MIGRATION, AND IT WAS REACHED BUT
+    /// NOT CERTIFIED. GenerateNextPacket is the second of the two callers that
+    /// ask the generator for a statement with NO key predicate, and the repair
+    /// moved it from the integer -1 to a typeless TValue. Measured on 7227497:
+    /// a bare raise there killed 4 clauses, so the method IS exercised - but
+    /// swapping its "everything" argument for a TYPED value killed ZERO. Its
+    /// neighbour above asserts only the LIMIT/OFFSET text, and the three
+    /// NextPacketList_PageOnly_* clauses count rows a connection double hands
+    /// back regardless of the SQL, so a key predicate could appear in that
+    /// statement and nothing in either suite would say a word. This clause is
+    /// the one that says it.
+    [Test]
+    procedure TestGenerateNextPacket_CarriesNoKeyPredicate;
     [Test]
     procedure TestGenerateSelectOneToOne_UsesAssociationColumns;
     [Test]
@@ -446,6 +526,26 @@ type
     procedure TestGuid_StoreGUIDAsOctetOn_RaisesInsteadOfMatchingNothing;
     [Test]
     procedure TestGuid_StoreGUIDAsOctetOff_EmitsTheLiteralAsUsual;
+
+    // ---------------------------------------------------------------------
+    // Issue #294 - the SAME refusal on the WRITE side. The pair above only
+    // ever guarded the association SELECT, so with the option on the read
+    // refused and the write went through: the caller stored a row it could
+    // then not read back. Three pairs, one per write command, each with its
+    // OFF half proving the default did not move.
+    // ---------------------------------------------------------------------
+    [Test]
+    procedure TestGuidWrite_InsertStoreGUIDAsOctetOn_RaisesInsteadOfBindingText;
+    [Test]
+    procedure TestGuidWrite_InsertStoreGUIDAsOctetOff_BindsTheGuidAsUsual;
+    [Test]
+    procedure TestGuidWrite_UpdateStoreGUIDAsOctetOn_RaisesInsteadOfBindingText;
+    [Test]
+    procedure TestGuidWrite_UpdateStoreGUIDAsOctetOff_BindsTheKeyAsUsual;
+    [Test]
+    procedure TestGuidWrite_DeleteStoreGUIDAsOctetOn_RaisesInsteadOfBindingText;
+    [Test]
+    procedure TestGuidWrite_DeleteStoreGUIDAsOctetOff_BindsTheKeyAsUsual;
   end;
 
 implementation
@@ -551,10 +651,16 @@ end;
 
 procedure TFakeConnection.ExecuteDirect(const ASQL: String);
 begin
+  FExecutedDDL := FExecutedDDL + ASQL + sLineBreak;
 end;
 
 procedure TFakeConnection.ExecuteDirect(const ASQL: String; const AParams: TParams);
 begin
+end;
+
+function TFakeConnection.ExecutedDDL: String;
+begin
+  Result := FExecutedDDL;
 end;
 
 procedure TFakeConnection.ExecuteScript(const AScript: String);
@@ -1562,6 +1668,39 @@ begin
   end;
 end;
 
+procedure TTestDMLGenerator.TestGenerateNextPacket_CarriesNoKeyPredicate;
+var
+  LClient: Tclient;
+  LSelecter: TCommandSelecter;
+  LSQL: String;
+begin
+  LClient := CreateClient;
+  try
+    LSelecter := TCommandSelecter.Create(FConnection, dnSQLite, LClient);
+    try
+      LSQL := LowerCase(LSelecter.GenerateNextPacket(Tclient, 10, 20));
+      /// THE KEY COLUMN BY NAME, NOT ' WHERE ' - a query scope is entitled to
+      /// put a WHERE in this statement, and only the KEY predicate is the
+      /// thing "give me everything" must never carry.
+      Assert.DoesNotContain(LSQL, 'client.client_id =', True,
+        'ISSUE #361: a paged read of EVERY row must not carry a key ' +
+        'predicate. This is the clause that dies if the typeless TValue at ' +
+        'the GenerateNextPacket call site is replaced by a typed value - the ' +
+        'exact half of the migration that was compiled and uncertified. ' +
+        'Emitted: ' + LSQL);
+      /// AND THE PREMISE, so a repair that empties the statement altogether
+      /// cannot turn this clause green by accident.
+      Assert.Contains(LSQL, 'from client', True,
+        'premise: this is still a select over the client table. Emitted: ' +
+        LSQL);
+    finally
+      LSelecter.Free;
+    end;
+  finally
+    LClient.Free;
+  end;
+end;
+
 procedure TTestDMLGenerator.TestGenerateSelectOneToOne_UsesAssociationColumns;
 var
   LAssociation: TAssociationMapping;
@@ -1666,10 +1805,14 @@ end;
 
 { TDMLGeneratorWithoutGuid }
 
+class function TDMLGeneratorWithoutGuid.SerializationDialect: TFluentSQLDriver;
+begin
+  Result := dbnSQLite;
+end;
+
 constructor TDMLGeneratorWithoutGuid.Create;
 begin
   inherited;
-  ConfigureFluentSQLDriver(dnSQLite);
   FDateFormat := 'yyyy-MM-dd';
   FTimeFormat := 'HH:MM:SS';
 end;
@@ -2180,12 +2323,205 @@ begin
     'must be indistinguishable from a connection that answers nothing.');
 end;
 
+/// <summary> THE REFUSAL WAS HALF A REFUSAL, AND HALF A REFUSAL IS WORSE THAN
+///  NONE. Issue #294.
+///
+///  The pair above guards ONE call site: _GetPropertyValue, which only the
+///  association SELECT reaches (Janus.DML.Generator.pas, GenerateSelectOneToOne
+///  and GenerateSelectOneToOneMany). With StoreGUIDAsOctet on, that made the
+///  READ refuse while the WRITE went through untouched - the caller stores a
+///  row and then cannot find it, which is a worse place to leave someone than
+///  either refusing both or refusing neither.
+///
+///  WHAT THE WRITE SIDE ACTUALLY EMITS IS A BOUND PARAMETER, NOT A LITERAL,
+///  and these helpers read back the PARAMETER for that reason. TCommandInserter
+///  binds through TParam.AsGuid; TCommandUpdater and TCommandDeleter bind the
+///  38-character text of TGUID.ToString. The statement itself carries only
+///  ':column' markers in all three. The shape differs from the SELECT; the
+///  defect does not, because the value that reaches a 16-byte column is the
+///  same text either way. </summary>
+function TTestDMLGenerator.OctetRefusal(const AWrite: TFunc<String>): String;
+begin
+  Result := '';
+  try
+    AWrite();
+  except
+    on E: Exception do
+      Result := E.Message;
+  end;
+end;
+
+function TTestDMLGenerator.OctetInsert(const AOctet: Boolean): String;
+var
+  LConnection: IDBConnection;
+  LInserter: TCommandInserter;
+  LRow: TGuidKeyRow;
+begin
+  LConnection := TFakeConnection.Create(dnSQLite,
+                   TOptions.Create.StoreGUIDAsOctet(AOctet));
+  LRow := TGuidKeyRow.Create;
+  try
+    LRow.gkkey := StringToGUID(cGUIDKEY);
+    LRow.gkname := 'octet';
+    LInserter := TCommandInserter.Create(LConnection, dnSQLite, LRow);
+    try
+      LInserter.GenerateInsert(LRow);
+      Result := LInserter.Params.ParamByName('gkkey').AsGuid.ToString;
+    finally
+      LInserter.Free;
+    end;
+  finally
+    LRow.Free;
+  end;
+end;
+
+function TTestDMLGenerator.OctetUpdate(const AOctet: Boolean): String;
+var
+  LChanges: TDictionary<String, String>;
+  LConnection: IDBConnection;
+  LRow: TGuidKeyRow;
+  LUpdater: TCommandUpdater;
+begin
+  LConnection := TFakeConnection.Create(dnSQLite,
+                   TOptions.Create.StoreGUIDAsOctet(AOctet));
+  LChanges := TDictionary<String, String>.Create;
+  LRow := TGuidKeyRow.Create;
+  try
+    LChanges.Add('gkname', 'gkname');
+    LRow.gkkey := StringToGUID(cGUIDKEY);
+    LRow.gkname := 'octet';
+    LUpdater := TCommandUpdater.Create(LConnection, dnSQLite, LRow);
+    try
+      LUpdater.GenerateUpdate(LRow, LChanges);
+      Result := String(LUpdater.Params.ParamByName('gkkey').Value);
+    finally
+      LUpdater.Free;
+    end;
+  finally
+    LRow.Free;
+    LChanges.Free;
+  end;
+end;
+
+function TTestDMLGenerator.OctetDelete(const AOctet: Boolean): String;
+var
+  LConnection: IDBConnection;
+  LDeleter: TCommandDeleter;
+  LRow: TGuidKeyRow;
+begin
+  LConnection := TFakeConnection.Create(dnSQLite,
+                   TOptions.Create.StoreGUIDAsOctet(AOctet));
+  LRow := TGuidKeyRow.Create;
+  try
+    LRow.gkkey := StringToGUID(cGUIDKEY);
+    LRow.gkname := 'octet';
+    LDeleter := TCommandDeleter.Create(LConnection, dnSQLite, LRow);
+    try
+      LDeleter.GenerateDelete(LRow);
+      Result := String(LDeleter.Params.ParamByName('gkkey').Value);
+    finally
+      LDeleter.Free;
+    end;
+  finally
+    LRow.Free;
+  end;
+end;
+
+procedure TTestDMLGenerator.TestGuidWrite_InsertStoreGUIDAsOctetOn_RaisesInsteadOfBindingText;
+var
+  LMessage: String;
+begin
+  LMessage := OctetRefusal(function: String
+                           begin
+                             Result := OctetInsert(True);
+                           end);
+
+  Assert.IsFalse(LMessage = '',
+    'With StoreGUIDAsOctet on, the INSERT bound the 38-character text of the ' +
+    'GUID into a column the same option declares 16 raw bytes wide, and said ' +
+    'nothing - while the SELECT for that very row refused.');
+  Assert.IsTrue(ContainsText(LMessage, 'StoreGUIDAsOctet'),
+    'The error must NAME the option, so the reader knows which switch to ' +
+    'turn off: message was "' + LMessage + '"');
+  Assert.IsTrue(ContainsText(LMessage, 'gkkey'),
+    'And name the column, like every other named error on this path: ' +
+    'message was "' + LMessage + '"');
+  Assert.IsTrue(ContainsText(LMessage, 'parametro de gravacao'),
+    'And say WHICH path refused. Without a term of its own, this clause and ' +
+    'the two below could all be satisfied by a single guard in one of the ' +
+    'three commands: message was "' + LMessage + '"');
+end;
+
+procedure TTestDMLGenerator.TestGuidWrite_InsertStoreGUIDAsOctetOff_BindsTheGuidAsUsual;
+begin
+  Assert.AreEqual(cGUIDKEY, OctetInsert(False), False,
+    'On the default the INSERT must bind exactly what it always bound. This ' +
+    'is the half that proves the guard reads the OPTION and not merely the ' +
+    'presence of a ftGuid column.');
+end;
+
+procedure TTestDMLGenerator.TestGuidWrite_UpdateStoreGUIDAsOctetOn_RaisesInsteadOfBindingText;
+var
+  LMessage: String;
+begin
+  LMessage := OctetRefusal(function: String
+                           begin
+                             Result := OctetUpdate(True);
+                           end);
+
+  Assert.IsFalse(LMessage = '',
+    'The key predicate of an UPDATE is a lookup against the stored column, ' +
+    'and under StoreGUIDAsOctet the text form finds nothing - the UPDATE ' +
+    'reaches zero rows and reports success.');
+  Assert.IsTrue(ContainsText(LMessage, 'StoreGUIDAsOctet'),
+    'The error must NAME the option: message was "' + LMessage + '"');
+  Assert.IsTrue(ContainsText(LMessage, 'gkkey'),
+    'And name the column: message was "' + LMessage + '"');
+  Assert.IsTrue(ContainsText(LMessage, 'de um UPDATE'),
+    'And say WHICH path refused: message was "' + LMessage + '"');
+end;
+
+procedure TTestDMLGenerator.TestGuidWrite_UpdateStoreGUIDAsOctetOff_BindsTheKeyAsUsual;
+begin
+  Assert.AreEqual(cGUIDKEY, OctetUpdate(False), False,
+    'On the default the key parameter of the UPDATE must carry exactly the ' +
+    'text TGUID.ToString has always produced.');
+end;
+
+procedure TTestDMLGenerator.TestGuidWrite_DeleteStoreGUIDAsOctetOn_RaisesInsteadOfBindingText;
+var
+  LMessage: String;
+begin
+  LMessage := OctetRefusal(function: String
+                           begin
+                             Result := OctetDelete(True);
+                           end);
+
+  Assert.IsFalse(LMessage = '',
+    'A DELETE whose key predicate matches nothing removes nothing and says ' +
+    'so to no one - the same silence issue #284 removed from the SELECT.');
+  Assert.IsTrue(ContainsText(LMessage, 'StoreGUIDAsOctet'),
+    'The error must NAME the option: message was "' + LMessage + '"');
+  Assert.IsTrue(ContainsText(LMessage, 'gkkey'),
+    'And name the column: message was "' + LMessage + '"');
+  Assert.IsTrue(ContainsText(LMessage, 'de um DELETE'),
+    'And say WHICH path refused: message was "' + LMessage + '"');
+end;
+
+procedure TTestDMLGenerator.TestGuidWrite_DeleteStoreGUIDAsOctetOff_BindsTheKeyAsUsual;
+begin
+  Assert.AreEqual(cGUIDKEY, OctetDelete(False), False,
+    'On the default the key parameter of the DELETE must carry exactly the ' +
+    'text TGUID.ToString has always produced.');
+end;
+
 initialization
   TDUnitX.RegisterTestFixture(TTestDMLGenerator);
   TRegisterClass.RegisterEntity(TGuidOverStringChild);
   TRegisterClass.RegisterEntity(TGuidOverStringMaster);
   TRegisterClass.RegisterEntity(TNullableGuidChild);
   TRegisterClass.RegisterEntity(TNullableGuidMaster);
+  TRegisterClass.RegisterEntity(TGuidKeyRow);
   TRegisterClass.RegisterEntity(TWideSlot);
   TRegisterClass.RegisterEntity(TPlaceholderNamedKey);
 

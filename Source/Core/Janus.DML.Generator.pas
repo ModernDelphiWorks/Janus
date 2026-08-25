@@ -57,7 +57,7 @@ type
       AFieldType: TFieldType): Variant;
       procedure _GenerateJoinColumn(AClass: TClass; ATable: TTableMapping;
         const ASQL: IFluentSQL);
-    function _IsType(const AID: TValue): Boolean;
+    function _NoIdSupplied(const AID: TValue): Boolean;
     /// <summary> THE LITERAL OF A DATE, TIME OR TIMESTAMP AID, IN THIS
     ///  DIALECT'S OWN MASK. False when AID is not one of those three, so the
     ///  caller falls through to the arm it always had. Issue #326.
@@ -95,7 +95,6 @@ type
     ///  else quoted. Issue #326. </summary>
     function _KeyLiteral(const AID: TValue): String;
     function _GetGuidValue(AObject: TObject; AProperty: TRttiProperty): TGUID;
-    function _StoreGUIDAsOctet: Boolean;
     procedure _GuardStoreGUIDAsOctet(AProperty: TRttiProperty);
     /// <summary> THE NAMED BIND MARKER THIS GENERATOR ASKED FOR, PUT BACK OVER
     ///  THE POSITIONAL :pN THAT THE FLUENTSQL VALUE SLOT ALLOCATES. Issue #337.
@@ -192,8 +191,66 @@ type
     // that rotted, which is why a count is a bad thing to write down.
     FFormatSettings: TFormatSettings;
       FFluentSQLDriver: TFluentSQLDriver;
+      /// <summary> THE DIALECT THIS GENERATOR HANDS TO FluentSQL. Issue #355.
+      ///
+      ///  ABSTRACT, AND THAT IS THE WHOLE REPAIR. The dialect used to be set by
+      ///  a call in the constructor, which meant a descendant could simply not
+      ///  make it - and ten of the fourteen did not. The field they left behind
+      ///  is not empty, it is the ZERO VALUE of TFluentSQLDriver, which is
+      ///  dbnMSSQL: every one of them was asking FluentSQL to serialize as
+      ///  T-SQL without ever saying so.
+      ///
+      ///  WHAT ACTUALLY HAPPENS TO A DESCENDANT THAT STAYS SILENT, MEASURED AND
+      ///  NOT ASSUMED - because "the compiler refuses it" is what an abstract
+      ///  member SOUNDS like and it is not what this build does. Deleting the
+      ///  NexusDB override and building Janus.Tests.Units: EXIT CODE 0, ZERO
+      ///  compile errors, an executable produced. What comes out is one
+      ///  W1020 - "Constructing instance of 'TDMLGeneratorNexusDB' containing
+      ///  abstract method 'TDMLGeneratorAbstract.SerializationDialect'", on the
+      ///  RegisterDriver factory at the foot of that unit - and W1020 is ROUTINE
+      ///  NOISE here: the same build already emits 118 of them, one of which is
+      ///  TDMLGeneratorAbstract.GuidLiteral, the sibling net this design copies.
+      ///  The refusal is at RUNTIME, EAbstractError on the first construction:
+      ///  six clauses errored with "Abstract Error", DialectOf_NexusDB among
+      ///  them.
+      ///
+      ///  THAT IS STILL THE WHOLE POINT, AND IT IS STILL BETTER THAN WHAT IT
+      ///  REPLACES. A silent dbnMSSQL emits plausible SQL forever and nothing
+      ///  says a word; a missing declaration cannot survive one construction,
+      ///  and Test.Janus.DML.Dialect.Wiring gives every generator a clause of
+      ///  its own so the construction happens in the suite.
+      ///
+      ///  AND IT CLOSES THE CLASS ONLY INSIDE TDMLGeneratorAbstract. Every route
+      ///  from THIS tree to a FluentSQL dialect now passes through here. It is
+      ///  not the only route in Janus: Janus.Server.RestView.Manager.pas has a
+      ///  second, independent TDriverName-to-TFluentSQLDriver map that
+      ///  SerializationDialect does not reach.
+      ///
+      ///  Asked as a class function, and answered by the descendant with a
+      ///  constant it already owns: each generator unit names its TDriverName
+      ///  two hundred lines below, at its TDriverRegister.RegisterDriver call.
+      ///  Nothing is inverted - the base asks a question the subclass was
+      ///  already answering somewhere else.
+      ///
+      ///  NOT EVERY GENERATOR CAN NAME ITS OWN ENGINE, AND THE ONES THAT CANNOT
+      ///  SAY WHY IN THEIR OWN OVERRIDE. TFluentSQLDriver has fifteen members
+      ///  and FluentSQL implements seven of them; dbnADS, dbnAbsoluteDB,
+      ///  dbnElevateDB, dbnNexusDB and dbnInterbase have no serializer at all
+      ///  and raise EFluentSQLDriverNotRegistered when asked, and dbnMySQL has
+      ///  one that eats the ':pN' markers Janus depends on. Those overrides
+      ///  answer dbnMSSQL and carry the measurement that says so. </summary>
+      class function SerializationDialect: TFluentSQLDriver; virtual; abstract;
       class function ResolveFluentSQLDriver(
         const AGeneratorDriver: TDriverName): TFluentSQLDriver; static;
+      /// <summary> OVERRIDES THE DECLARED DIALECT AT RUNTIME, AND IS NOT HOW
+      ///  GENERATORS ARE WIRED. Issue #355 moved the wiring into the
+      ///  constructor above; this stayed because the #337 refusal has to be
+      ///  reachable - TDMLGeneratorDialectProbe in
+      ///  Test.Janus.DML.Generator.SQLite pulls it to hand a generator the
+      ///  MySQL dialect and watch GeneratorInsert refuse. Two mechanisms for
+      ///  the same thing is exactly what this issue was about, so this one is
+      ///  named as the lever it is instead of being left to look like the
+      ///  other half of the wiring. </summary>
       procedure ConfigureFluentSQLDriver(const AGeneratorDriver: TDriverName);
       function CreateFluentSQL: IFluentSQL;
       /// <summary> THE RESTORED VALUE REGION, WITH THE VERBATIM TAIL CARRIED OVER
@@ -344,6 +401,11 @@ implementation
 
 constructor TDMLGeneratorAbstract.Create;
 begin
+  /// Issue #355. FIRST LINE OF THE CONSTRUCTOR, AND NOT A CALL A DESCENDANT
+  /// MAKES. SerializationDialect is abstract, so the dispatch here lands on the
+  /// override of the class actually being built - which is why the answer is
+  /// right even though this runs before the descendant constructor body.
+  FFluentSQLDriver := SerializationDialect;
   FQueryCache := TQueryCache.Create;
   // Invariant traz DateSeparator '/' e TimeSeparator ':', que sao exatamente os
   // caracteres que as mascaras dos dialetos ja pressupoem -- por isso o conserto
@@ -810,9 +872,23 @@ begin
   LScopeWhere := GetGeneratorQueryScopeWhere(AClass);
   if LScopeWhere <> '' then
     Result := ' WHERE ' + LScopeWhere;
-  if _IsType(AID) then
+  if _NoIdSupplied(AID) then
     Exit;
   LPrimaryKey := TMappingExplorer.GetMappingPrimaryKey(AClass);
+  // ISSUE #361 - AN ID WAS SUPPLIED AND THE CLASS MAPS NO PRIMARY KEY: REFUSE.
+  // This is the third mouth of the hole #326 closed twice below, and it was
+  // left open because the arm that follows was written as `if LPrimaryKey <>
+  // nil then` - so a class with no key mapping fell out of this method with
+  // the predicate still EMPTY, and the caller ran its SELECT or DELETE over
+  // the whole table for a question about one row. The two guards inside that
+  // arm cannot see this shape, because they only run once it is entered.
+  // Refusing by name is the form the neighbour already uses, and it is louder
+  // than a full-table read that answers 200.
+  if LPrimaryKey = nil then
+    raise Exception.CreateFmt('An id was supplied for %s, which maps no ' +
+      'primary key, so the predicate would be empty and the statement would ' +
+      'match EVERY row. To read all records, use the overload that takes no ' +
+      'id.', [AClass.ClassName]);
   if LPrimaryKey <> nil then
   begin
     // ISSUE #326 - ONE TERM PER VALUE THE CALLER SUPPLIED, AND NO MORE.
@@ -831,7 +907,8 @@ begin
     // first key column happens to be UNIQUE the old behaviour was CORRECT.
     LValues := _KeyValues(AID);
     // AN ID WAS SUPPLIED AND NOT ONE TERM CAN BE BUILT FROM IT: REFUSE.
-    // Reaching here means _IsType already agreed the caller HAS given an id,
+    // Reaching here means _NoIdSupplied already agreed the caller HAS given an
+    // id - the method issue #361 renamed from _IsType and rewrote -
     // so answering with no predicate would read the WHOLE TABLE for a question
     // about one row. Two shapes get here and both were MEASURED, not imagined:
     //   * an EMPTY TArray<TValue> from the entry point #326 adds - Find([])
@@ -940,32 +1017,94 @@ begin
   Result := True;
 end;
 
-function TDMLGeneratorAbstract._IsType(const AID: TValue): Boolean;
-var
-  LIntValue: Int64;
+/// <summary> ISSUE #361 - "GIVE ME EVERYTHING" AND "GIVE ME THE ROW WITH THIS
+///  ID" ARE NOW TWO QUESTIONS, AND THEY ARE NO LONGER TOLD APART BY A VALUE.
+///
+///  THIS METHOD USED TO BE CALLED _IsType AND ANSWERED True FOR EXACTLY -1 -
+///  as UInt64, as Int64, as Integer, AND as the string '-1'. GetGeneratorWhere
+///  answers an id it agrees with by discarding the whole predicate, so -1
+///  meant "no filter". The trouble is that -1 is ALSO the framework's
+///  placeholder for an AutoInc key the generator has not answered yet -
+///  cAutoIncNotGenerated, Janus.DataSet.Fields.pas:51 - so a stale placeholder
+///  travelling to the server as an id turned a question about ONE row into a
+///  statement over EVERY row. MEASURED on develop 0103408, SQLite in a file,
+///  through the server alone with raw HTTP and no Janus client: against a
+///  table holding a single row, `DELETE resource(-1)` answered 200
+///  "delete command executed successfully" and left the table EMPTY, the
+///  grandchild going with it by cascade, and `GET resource(-1)` handed back
+///  that row. What kept it from emptying a larger table is not this method: it
+///  is TRESTObjectManager.Find (Janus.Server.RestObject.Manager.pas:567-586)
+///  refusing to build an object unless RecordCount = 1.
+///
+///  THE REPAIR IS NOT A DIFFERENT MAGIC NUMBER. Any integer chosen to mean
+///  "no id" can be reached by an id, so the marker is moved OUT OF BAND: "no
+///  id" is now a TYPELESS TValue, and a caller that actually supplies an id
+///  hands over a value that carries a type. Every path that carries an id from
+///  outside - the REST path segment (Janus.Server.Resource.pas:514 and :802
+///  hand AQuery.ID.ToString to TRESTObjectSet.Find), IContainerObjectSet<M>
+///  .Find, IContainerDataSet<M>.Find/Open - arrives holding a typed value, so
+///  none of them can ever be read as "no filter" again. -1 goes back to being
+///  an ordinary key value and builds the predicate any other key would.
+///
+///  AND THIS REPAIR IS AN INVERSION FOR ONE SHAPE, WHICH IS DECLARED HERE
+///  RATHER THAN LEFT TO BE DISCOVERED. A TValue that carries NO TYPE used to
+///  be REFUSED and is now served the WHOLE TABLE. Measured base x HEAD through
+///  TCommandSelecter.GenerateSelectID, twelve shapes, and only these moved:
+///    * typeless TValue (TValue.Empty, Default(TValue)):
+///        0103408 RAISED "an id was supplied carrying no values"
+///        -> here  SELECT ... FROM keyonly, no predicate
+///    * Integer -1 / Int64 -1 / String '-1': whole table -> real predicate
+///    * UInt64 High(UInt64):                 whole table -> real predicate
+///  The first is the cost, the rest are the repair. The reason the old code
+///  refused a typeless value is incidental and worth knowing: TValue.IsType<T>
+///  answers True for one, so _KeyValues took the TArray<TValue> arm and handed
+///  back an EMPTY array, which the #326 guard then caught.
+///  Two things keep the exposure small, and neither is a guard: the REST route
+///  always arrives as AQuery.ID.ToString, a typed String and never a typeless
+///  value; and this method is reached only from the SELECT family - DELETE
+///  does not pass through GetGeneratorWhere at all. It is pinned by
+///  Test.Janus.DML.KeyPredicate's TypelessTValue_MeansEveryRow_AndThatIs-
+///  Deliberate so it cannot drift back in silence.
+///
+///  ONE MINE THE OLD DESIGN CARRIED AND THIS ONE DOES NOT. Because the test
+///  was BY VALUE, a legitimate 64-bit key could be swallowed: the UInt64 arm
+///  asked TryAsType<Int64> = -1, so High(UInt64) - every bit set, an ordinary
+///  key - was read as "no id" and returned the whole table. MEASURED on
+///  0103408, shape 05 of the board above. With no value test left, the shape
+///  cannot recur.
+///
+///  THE TWO CALLERS THAT REALLY MEAN "EVERYTHING" WERE ENUMERATED AND MOVED,
+///  and they are the only two in this repository: TCommandSelecter's
+///  GenerateSelectAll (Janus.Command.Selecter.pas:129) and its
+///  GenerateNextPacket overload (:175), both now passing TValue.Empty. The
+///  third site in the family, GenerateSelectID (:167), passes -1 as PAGE SIZE
+///  and a real id, and is untouched. Test.Janus.DML.Dialect.Wiring's SelectOf
+///  helper is the only clause that asked the generator for "everything" by
+///  hand and it moved with them. WHETHER ANYONE OUTSIDE THIS REPOSITORY CALLS
+///  GeneratorSelectAll WITH -1 IS NOT MEASURABLE FROM HERE AND IS NOT
+///  MEASURED - the same exposure the composite-key repair declared thirty
+///  lines up.
+///
+///  THE SIBLING SENTINEL WAS FOUND AND MOVED WITH IT: TDMLGeneratorNoSQL
+///  spelled the same test as `AID.ToString <> '-1'`
+///  (Janus.DML.Generator.NoSQL.pas), an independent copy this issue did not
+///  name. It now asks the same question this method does.
+///
+///  THE TEST IS `TypeInfo = nil` AND NOT `TValue.IsEmpty`, AND THE DIFFERENCE
+///  WAS MEASURED, NOT REASONED. The first draft of this method asked
+///  AID.IsEmpty, which reads well and is WRONG: the RTL answers True there for
+///  an empty DYNAMIC ARRAY and for an empty STRING as well as for a typeless
+///  value. That let the two #326 clauses through -
+///  Test.Janus.DML.KeyPredicate's EmptyValueArray_IsRefusedInsteadOfMatching-
+///  EveryRow and EmptyValueArray_OnTheOpenChain_IsRefusedNotAWholeTableRead
+///  both went RED with "Method did not throw any exceptions", because Find([])
+///  was being read as "no id" and skipping the very refusal they certify. A
+///  typeless TValue is the only shape no caller supplying an id can produce;
+///  an empty array and an empty string are ids that name nothing, and those
+///  belong to the guards below. </summary>
+function TDMLGeneratorAbstract._NoIdSupplied(const AID: TValue): Boolean;
 begin
-  Result := False;
-  if AID.IsType<UInt64> then
-  begin
-    if AID.TryAsType<Int64>(LIntValue) and (LIntValue = -1)  then
-      Result := True;
-    Exit;
-  end;
-  if AID.IsType<Int64> then
-  begin
-    if AID.AsInt64 = -1 then
-      Result := True;
-    Exit;
-  end;
-  if AID.IsType<Integer> then
-  begin
-    if AID.AsInteger = -1 then
-      Result := True;
-    Exit;
-  end;
-  if AID.IsType<String> then
-    if AID.AsString = '-1' then
-      Result := True;
+  Result := AID.TypeInfo = nil;
 end;
 
 function TDMLGeneratorAbstract._BuildSelectSQL(AClass: TClass;
@@ -1065,7 +1204,7 @@ var
 begin
   LValue := AProperty.GetNullableValue(AObject);
   // Nullable<TGUID> SEM VALOR chega aqui como Variant Null
-  // (MetaDbDiff.RTTI.Helper.pas:356-359). Vira GUID vazio, que o chamador
+  // (MetaDbDiff.RTTI.Helper.pas:357-360). Vira GUID vazio, que o chamador
   // converte na guarda '1 = 0' - uma FK opcional nao preenchida nao e' erro.
   // Sem esta linha o TryAsType abaixo falha e o codigo levanta o erro NOMEADO
   // de tipo errado sobre uma FK legitimamente nula; e' o que a mutacao de
@@ -1076,7 +1215,7 @@ begin
   // NEUTRALIDADE DE RESPOSTA - nao inalcancabilidade. A distincao importa
   // porque a versao anterior deste comentario afirmava que nenhum caminho
   // produzia TValue vazio, e isso era FALSO:
-  //   IsNullable e' checagem POR NOME (MetaDbDiff.RTTI.Helper.pas:620-629):
+  //   IsNullable e' checagem POR NOME (MetaDbDiff.RTTI.Helper.pas:621-630):
   //   basta o record se chamar "Nullable<...>". Um record assim COM FHasValue
   //   (True) e SEM FValue passa pela checagem, chega em
   //   MetaDbDiff.RTTI.Helper.pas:362-364, nao acha o campo, e sai com o
@@ -1105,58 +1244,20 @@ begin
       [AProperty.Name, AProperty.PropertyType.Name]);
 end;
 
-function TDMLGeneratorAbstract._StoreGUIDAsOctet: Boolean;
-var
-  LOptions: IOptions;
-begin
-  // Nil-safe nos DOIS niveis de proposito: um gerador pode ser criado sem
-  // SetConnection (o registro por fabrica nao a exige), e uma IDBConnection
-  // pode devolver Options nil - e' o que o duble de teste faz. Nenhum dos
-  // dois casos e' "octeto"; ambos sao "nao sei", e nao saber nao pode
-  // levantar excecao num caminho que hoje funciona.
-  Result := False;
-  if FConnection = nil then
-    Exit;
-  LOptions := FConnection.Options;
-  if LOptions = nil then
-    Exit;
-  Result := LOptions.StoreGUIDAsOctet;
-end;
-
-/// <summary> O EIXO QUE DIVERGE DE VERDADE, E QUE ESTE PR NAO IMPLEMENTA.
+/// <summary> THE READ SIDE OF ONE REFUSAL THAT NOW HAS FOUR CALL SITES.
+///  Issue #294.
 ///
-///  IOptions.StoreGUIDAsOctet NAO e' hipotese futura: e' setter publico, vivo
-///  hoje (DataEngine.DriverConnection.pas:123, default False em :1904). Com
-///  ela ligada o DDL desta casa deixa de guardar TEXTO e passa a guardar
-///  BINARIO de 16 bytes - MetaDbDiff.Metadata.Extract.pas:509-526 emite
-///  CHAR(16) CHARACTER SET OCTETS no Firebird e BYTE(16) no PostgreSQL.
-///
-///  O literal que este ramo emite e' texto de 38 caracteres. Contra uma coluna
-///  de 16 bytes ele casa ZERO LINHAS, EM SILENCIO - que e' exatamente o
-///  defeito da #284 entrando por outra porta. O desenho inteiro deste conserto
-///  se justifica em "falhar cedo e alto em vez de emitir '1 = 0' de novo";
-///  deixar este eixo sem guarda seria contradizer a propria justificativa.
-///
-///  Por que ERRO e nao suporte: a forma correta no modo octeto e' por dialeto
-///  e exige medicao contra banco vivo - Firebird quer CHAR_TO_UUID('36 com
-///  hifen') ou x'32hex'; PostgreSQL emite 'BYTE(%1)', tipo que o PostgreSQL
-///  nao tem (o binario dele e' bytea), ou seja o proprio DDL do modo octeto
-///  esta' em disputa. Escolher uma forma sem medir seria inventar. O erro
-///  nomeado transforma um silencio em uma conversa, e nao custa nada a quem
-///  nao usa a opcao - que e' o default. </summary>
+///  The mechanism, the reason it is a refusal rather than a feature, and the
+///  measurement that would lift it all live in ONE place -
+///  TGuidOctetRefusal in Janus.DML.Commands - because the three write commands
+///  need the same answer and could not reach it here: this method is private,
+///  and they hold the generator only as IDMLGeneratorCommand. What stays here
+///  is the operation phrase, which is the only thing that differs between the
+///  four call sites. </summary>
 procedure TDMLGeneratorAbstract._GuardStoreGUIDAsOctet(AProperty: TRttiProperty);
 begin
-  if _StoreGUIDAsOctet then
-    raise Exception.CreateFmt(
-      'A conexao esta com IOptions.StoreGUIDAsOctet ligada, e a coluna ftGuid ' +
-      'mapeada na propriedade "%s" entra num WHERE de associacao. Nesse modo o ' +
-      'schema guarda o GUID como BINARIO de 16 bytes (Firebird: CHAR(16) ' +
-      'CHARACTER SET OCTETS; PostgreSQL: BYTE(16)), e o literal de texto que ' +
-      'este gerador emite casaria ZERO LINHAS em silencio. A geracao de SELECT ' +
-      'por associacao ainda NAO suporta GUID em octeto - ou desligue ' +
-      'StoreGUIDAsOctet para esta conexao, ou implemente GuidLiteral do ' +
-      'dialeto para o modo octeto e remova esta guarda.',
-      [AProperty.Name]);
+  TGuidOctetRefusal.Check(FConnection, AProperty,
+    'num WHERE de associacao (geracao de SELECT)');
 end;
 
 function TDMLGeneratorAbstract.CanonicalGuidLiteral(const AGuid: TGUID): String;
@@ -1383,14 +1484,24 @@ begin
       /// serializer rewrites every ':pN' to '?' before returning
       /// (FluentSQL.SerializeMySQL.pas:52, a StringReplace over the whole
       /// string), and their UNION merge renumbers ':pN' to ':pM'
-      /// (FluentSQL.Serialize.pas:58-62). Neither reaches Janus TODAY, and the
-      /// reason is itself a defect rather than a design: only two of the twelve
-      /// dialect generators call ConfigureFluentSQLDriver - SQLite and Firebird
-      /// - so every other one renders through the enum's zero value, dbnMSSQL,
-      /// which leaves ':pN' alone. The day somebody repairs THAT, the MySQL
-      /// generator starts serializing as MySQL, and without this count the DML
-      /// of MySQL and MariaDB breaks WITHOUT A WORD. The count has to land
-      /// before the repair, not after it.
+      /// (FluentSQL.Serialize.pas:58-62). Neither reaches Janus TODAY.
+      ///
+      /// THE SENTENCE THAT USED TO FOLLOW IS OUT OF DATE AND IS REPLACED RATHER
+      /// THAN DELETED. It said the reason was "itself a defect rather than a
+      /// design: only two of the twelve dialect generators call
+      /// ConfigureFluentSQLDriver - SQLite and Firebird - so every other one
+      /// renders through the enum's zero value, dbnMSSQL", and it predicted
+      /// that "the day somebody repairs THAT, the MySQL generator starts
+      /// serializing as MySQL, and without this count the DML of MySQL and
+      /// MariaDB breaks WITHOUT A WORD".
+      ///
+      /// THAT DAY WAS ISSUE #355, AND THE PREDICTION WAS RIGHT. The wiring is
+      /// now declared per generator by SerializationDialect, and pointing the
+      /// MySQL one at dbnMySQL was MEASURED to land exactly here: "allocated 2
+      /// bind(s) but only 0 marker(s) could be put back" on GeneratorInsert,
+      /// and 1 of 1 on GeneratorUpdate. Which is why the MySQL generator still
+      /// answers dbnMSSQL and says so in its own override - the count caught
+      /// the repair, the repair did not quietly walk past the count.
       if LWritten <> Length(AMarkers) then
         raise Exception.CreateFmt(
           'The FluentSQL value slot allocated %d bind(s) but only %d marker(s) ' +
