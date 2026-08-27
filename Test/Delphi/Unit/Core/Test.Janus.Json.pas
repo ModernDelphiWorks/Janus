@@ -87,12 +87,35 @@ type
     property ngopt: Nullable<TGUID> read Fngopt write Fngopt;
   end;
 
+  /// <summary> As tres formas de data NULAVEL, numa classe so - ao contrario do
+  ///  par de GUID acima, que precisou se separar porque um deles LEVANTAVA
+  ///  excecao e contaminava as assercoes do outro. Aqui nenhuma levanta: as
+  ///  tres caem no mesmo arm de SetValueNullable e falham do MESMO jeito
+  ///  (gravando 30/12/1899), entao uma classe basta e o teste fica legivel. </summary>
+  TNullableDateJsonEntity = class
+  private
+    Fndid: Integer;
+    Fndt: Nullable<TDateTime>;
+    Fnd: Nullable<TDate>;
+    Fnt: Nullable<TTime>;
+    Fnnum: Nullable<Integer>;
+    Fncur: Nullable<Currency>;
+  public
+    property ndid: Integer read Fndid write Fndid;
+    property ndt: Nullable<TDateTime> read Fndt write Fndt;
+    property nd: Nullable<TDate> read Fnd write Fnd;
+    property nt: Nullable<TTime> read Fnt write Fnt;
+    property nnum: Nullable<Integer> read Fnnum write Fnnum;
+    property ncur: Nullable<Currency> read Fncur write Fncur;
+  end;
+
   [TestFixture]
   TTestJanusJson = class
   private
     function CreateEntity: TSampleJsonEntity;
     function CreateGuidEntity: TGuidJsonEntity;
     function CreateNullableGuidEntity: TNullableGuidJsonEntity;
+    function CreateNullableDateEntity: TNullableDateJsonEntity;
   public
     [Test]
     procedure TestObjectToJsonString_SerializesScalarProperties;
@@ -147,6 +170,20 @@ type
     procedure TestSetValueNullable_TreatsBlankTextAsEmptyGuid;
     [Test]
     procedure TestSetValueNullable_TreatsBlankTextAsClearedNullableGuid;
+    [Test]
+    procedure TestSetValueNullable_BlankTextClearsNullableDateTime;
+    [Test]
+    procedure TestSetValueNullable_BlankTextClearsNullableDate;
+    [Test]
+    procedure TestSetValueNullable_BlankTextClearsNullableTime;
+    [Test]
+    procedure TestSetValueNullable_RealTextStillFillsNullableDateTime;
+    [Test]
+    procedure TestSetValueNullable_BlankTextClearsNullableInteger;
+    [Test]
+    procedure TestSetValueNullable_BlankTextClearsNullableCurrency;
+    [Test]
+    procedure TestSetValueNullable_RealTextStillFillsNullableInteger;
     [Test]
     procedure TestSetValueNullable_ClearsBareGuidWhenNullRendersAsText;
     [Test]
@@ -648,6 +685,166 @@ begin
     LProperty.SetValueNullable(LEntity, LProperty.PropertyType.Handle,
                                StringOfChar(' ', 38), False);
     Assert.AreEqual(GUIDToString(TGUID.Empty), GUIDToString(LEntity.gjkey));
+  finally
+    LEntity.Free;
+  end;
+end;
+
+function TTestJanusJson.CreateNullableDateEntity: TNullableDateJsonEntity;
+begin
+  Result := TNullableDateJsonEntity.Create;
+  Result.ndid := 5;
+  // Ja NASCE preenchida de proposito: se o objeto viesse limpo, um SetValue que
+  // nao fizesse NADA passaria nos tres testes abaixo. O valor tem de ser
+  // APAGADO, e so da para ver isso apagando algo que estava la.
+  Result.ndt := EncodeDate(2026, 8, 27) + EncodeTime(14, 30, 0, 0);
+  Result.nd  := TDate(EncodeDate(2026, 8, 27));
+  Result.nt  := TTime(EncodeTime(14, 30, 0, 0));
+  Result.nnum := 777;
+  Result.ncur := 12.34;
+end;
+
+// TEXTO EM BRANCO NUMA DATA NULAVEL E NULL, NAO 30/12/1899.
+//
+// MEDIDO ao vivo antes do conserto (backend Axial sobre Firebird 2.5, coluna
+// A04_FON.A04_DATAGARANTIA, lendo a LINHA por isql e nao o eco do POST):
+//   ""  -> 1899-12-30      null -> <NULL>      ausente -> <NULL>      data -> ok
+// Ou seja: das quatro entradas, so a string vazia errava, e errava em 216
+// colunas Nullable<TDateTime> do schema daquele produto.
+//
+// A causa nao esta no parser. Iso8601ToDateTime devolve TDateTime, um tipo que
+// NAO TEM COMO dizer NULL - JsonFlow.Utils.pas:92 transforma falha de parse em
+// `Result := 0`, e 0 e 30/12/1899. So o arm do Nullable consegue expressar
+// ausencia, e e por isso que o conserto (e o teste) moram aqui.
+//
+// A guarda e literalmente a mesma dos dois arms de TGUID, cujos testes vizinhos
+// ja prendem os DOIS termos (VType <= varNull e o Trim) pelo motivo do
+// NullAsStringValue documentado acima.
+procedure TTestJanusJson.TestSetValueNullable_BlankTextClearsNullableDateTime;
+var
+  LEntity: TNullableDateJsonEntity;
+  LContext: TRttiContext;
+  LProperty: TRttiProperty;
+begin
+  LEntity := CreateNullableDateEntity;
+  try
+    Assert.IsTrue(LEntity.ndt.HasValue, 'pre-condicao: tem de comecar preenchida');
+    LProperty := LContext.GetType(LEntity.ClassType).GetProperty('ndt');
+    LProperty.SetValueNullable(LEntity, LProperty.PropertyType.Handle, '', True);
+    Assert.IsFalse(LEntity.ndt.HasValue);
+  finally
+    LEntity.Free;
+  end;
+end;
+
+procedure TTestJanusJson.TestSetValueNullable_BlankTextClearsNullableDate;
+var
+  LEntity: TNullableDateJsonEntity;
+  LContext: TRttiContext;
+  LProperty: TRttiProperty;
+begin
+  LEntity := CreateNullableDateEntity;
+  try
+    LProperty := LContext.GetType(LEntity.ClassType).GetProperty('nd');
+    // ESPACOS, nao string vazia: e o que uma coluna CHAR de largura fixa
+    // devolve, e e o caso que o Trim da guarda existe para pegar.
+    LProperty.SetValueNullable(LEntity, LProperty.PropertyType.Handle, '   ', True);
+    Assert.IsFalse(LEntity.nd.HasValue);
+  finally
+    LEntity.Free;
+  end;
+end;
+
+procedure TTestJanusJson.TestSetValueNullable_BlankTextClearsNullableTime;
+var
+  LEntity: TNullableDateJsonEntity;
+  LContext: TRttiContext;
+  LProperty: TRttiProperty;
+begin
+  LEntity := CreateNullableDateEntity;
+  try
+    LProperty := LContext.GetType(LEntity.ClassType).GetProperty('nt');
+    LProperty.SetValueNullable(LEntity, LProperty.PropertyType.Handle, '', True);
+    Assert.IsFalse(LEntity.nt.HasValue);
+  finally
+    LEntity.Free;
+  end;
+end;
+
+// O CONTRA-CASO. Sem ele, uma guarda que limpasse SEMPRE passaria nos tres
+// testes acima - e seria um estrago muito maior que o defeito original.
+procedure TTestJanusJson.TestSetValueNullable_RealTextStillFillsNullableDateTime;
+var
+  LEntity: TNullableDateJsonEntity;
+  LContext: TRttiContext;
+  LProperty: TRttiProperty;
+begin
+  LEntity := TNullableDateJsonEntity.Create;
+  try
+    LProperty := LContext.GetType(LEntity.ClassType).GetProperty('ndt');
+    LProperty.SetValueNullable(LEntity, LProperty.PropertyType.Handle,
+                               '2026-08-27T14:30:00', True);
+    Assert.IsTrue(LEntity.ndt.HasValue);
+    Assert.AreEqual(EncodeDate(2026, 8, 27) + EncodeTime(14, 30, 0, 0),
+                    TDateTime(LEntity.ndt.Value), 1 / (24 * 60 * 60));
+  finally
+    LEntity.Free;
+  end;
+end;
+
+// O LADO NUMERICO DO MESMO DEFEITO, COM SINTOMA DIFERENTE.
+//
+// Sem a guarda, Integer('') levanta EConvertError e a requisicao inteira cai:
+// medido no backend Axial como HTTP 500 com NENHUMA linha gravada, contra o
+// silencioso 30/12/1899 do lado das datas. Mesma causa (campo em branco chega
+// como ""), remedio identico.
+procedure TTestJanusJson.TestSetValueNullable_BlankTextClearsNullableInteger;
+var
+  LEntity: TNullableDateJsonEntity;
+  LContext: TRttiContext;
+  LProperty: TRttiProperty;
+begin
+  LEntity := CreateNullableDateEntity;
+  try
+    Assert.IsTrue(LEntity.nnum.HasValue, 'pre-condicao: tem de comecar preenchida');
+    LProperty := LContext.GetType(LEntity.ClassType).GetProperty('nnum');
+    LProperty.SetValueNullable(LEntity, LProperty.PropertyType.Handle, '', True);
+    Assert.IsFalse(LEntity.nnum.HasValue);
+  finally
+    LEntity.Free;
+  end;
+end;
+
+procedure TTestJanusJson.TestSetValueNullable_BlankTextClearsNullableCurrency;
+var
+  LEntity: TNullableDateJsonEntity;
+  LContext: TRttiContext;
+  LProperty: TRttiProperty;
+begin
+  LEntity := CreateNullableDateEntity;
+  try
+    LProperty := LContext.GetType(LEntity.ClassType).GetProperty('ncur');
+    LProperty.SetValueNullable(LEntity, LProperty.PropertyType.Handle, '  ', True);
+    Assert.IsFalse(LEntity.ncur.HasValue);
+  finally
+    LEntity.Free;
+  end;
+end;
+
+// O contra-caso do lado numerico. Note o valor vindo como TEXTO: e assim que
+// chega de um JSON com aspas, que e o caso que a guarda podia ter estragado.
+procedure TTestJanusJson.TestSetValueNullable_RealTextStillFillsNullableInteger;
+var
+  LEntity: TNullableDateJsonEntity;
+  LContext: TRttiContext;
+  LProperty: TRttiProperty;
+begin
+  LEntity := TNullableDateJsonEntity.Create;
+  try
+    LProperty := LContext.GetType(LEntity.ClassType).GetProperty('nnum');
+    LProperty.SetValueNullable(LEntity, LProperty.PropertyType.Handle, '4321', True);
+    Assert.IsTrue(LEntity.nnum.HasValue);
+    Assert.AreEqual(4321, LEntity.nnum.Value);
   finally
     LEntity.Free;
   end;

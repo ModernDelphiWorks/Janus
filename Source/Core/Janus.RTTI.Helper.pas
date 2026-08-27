@@ -260,15 +260,38 @@ procedure TRttiPropertyHelper_.SetValueNullable(const AInstance: Pointer;
   const ATypeInfo: PTypeInfo; const AValue: Variant;
   const AUseISO8601DateFormat: Boolean);
 begin
+  /// <summary> OS ARMS NUMERICOS PELO MESMO MOTIVO - e com sintoma DIFERENTE,
+  ///  que e justamente por que estao aqui e nao ficaram de fora.
+  ///
+  ///  MEDIDO na mesma tabela e na mesma rodada (A04_FON.A04_LOTE,
+  ///  Nullable&lt;Integer&gt;), lendo a LINHA por isql:
+  ///
+  ///    ""       -> HTTP 500, nenhuma linha gravada   <-- o defeito daqui
+  ///    null     -> 201, &lt;NULL&gt;
+  ///    ausente  -> 201, &lt;NULL&gt;
+  ///    12345    -> 201, 12345
+  ///
+  ///  A data ERRAVA EM SILENCIO (gravava 30/12/1899); o numero DERRUBA a
+  ///  requisicao, porque Integer('') levanta EConvertError. A causa e a mesma -
+  ///  campo de formulario deixado em branco chega como "" - e o remedio tambem.
+  ///
+  ///  O QUE ESTES ARMS NAO CONSERTAM, E FOI MEDIDO NA MESMA RODADA: texto
+  ///  NAO-VAZIO e nao-numerico ("abc") continua saindo 500. Isso e entrada
+  ///  genuinamente invalida, e transforma-la em 4xx e decisao de TRADUCAO DE
+  ///  ERRO, nao de branco-vs-nulo. Fica declarado aqui em vez de silenciosamente
+  ///  sugerido como resolvido.
+  ///
+  ///  NAO SE APLICA A Nullable&lt;String&gt; nem a Nullable&lt;Boolean&gt;: em texto, ""
+  ///  e um valor legitimo e continua sendo gravado como tal. </summary>
   if ATypeInfo = TypeInfo(Nullable<Integer>) then
-    if TVarData(AValue).VType <= varNull then
-      Self.SetValue(AInstance, TValue.From(Nullable<Integer>.Create(AValue)))
+    if (TVarData(AValue).VType <= varNull) or (Trim(VarToStr(AValue)) = '') then
+      Self.SetValue(AInstance, TValue.From(Nullable<Integer>.Create(Null)))
     else
       Self.SetValue(AInstance, TValue.From(Nullable<Integer>.Create(Integer(AValue))))
   else
   if ATypeInfo = TypeInfo(Nullable<Int64>) then
-    if TVarData(AValue).VType <= varNull then
-      Self.SetValue(AInstance, TValue.From(Nullable<Int64>.Create(AValue)))
+    if (TVarData(AValue).VType <= varNull) or (Trim(VarToStr(AValue)) = '') then
+      Self.SetValue(AInstance, TValue.From(Nullable<Int64>.Create(Null)))
     else
       Self.SetValue(AInstance, TValue.From(Nullable<Int64>.Create(Int64(AValue))))
   else
@@ -277,17 +300,17 @@ begin
                                    .Create(AValue)))
   else
   if ATypeInfo = TypeInfo(Nullable<Currency>) then
-    if TVarData(AValue).VType <= varNull then
+    if (TVarData(AValue).VType <= varNull) or (Trim(VarToStr(AValue)) = '') then
       Self.SetValue(AInstance, TValue.From(Nullable<Currency>
-                                     .Create(AValue)))
+                                     .Create(Null)))
     else
       Self.SetValue(AInstance, TValue.From(Nullable<Currency>
                                      .Create(Currency(AValue))))
   else
   if ATypeInfo = TypeInfo(Nullable<Double>) then
-    if TVarData(AValue).VType <= varNull then
+    if (TVarData(AValue).VType <= varNull) or (Trim(VarToStr(AValue)) = '') then
       Self.SetValue(AInstance, TValue.From(Nullable<Double>
-                                     .Create(AValue)))
+                                     .Create(Null)))
     else
       Self.SetValue(AInstance, TValue.From(Nullable<Double>
                                      .Create(Double(AValue))))
@@ -296,26 +319,59 @@ begin
     Self.SetValue(AInstance, TValue.From(Nullable<Boolean>
                                    .Create(AValue)))
   else
+  /// <summary> TEXTO EM BRANCO NUMA COLUNA DE DATA E NULL, NAO 1899-12-30.
+  ///
+  ///  MEDIDO ao vivo (backend Axial, Firebird 2.5, A04_FON.A04_DATAGARANTIA,
+  ///  Nullable&lt;TDateTime&gt;), lendo a LINHA GRAVADA por isql e nao o eco do POST:
+  ///
+  ///    entrada JSON        linha gravada
+  ///    ------------        -------------
+  ///    ""                  1899-12-30     <-- o defeito
+  ///    null                <NULL>
+  ///    campo ausente       <NULL>
+  ///    "2026-08-27T14:30"  2026-08-27
+  ///
+  ///  Ou seja: das quatro entradas, so a string vazia errava. A causa nao e o
+  ///  parser: Iso8601ToDateTime devolve TDateTime, um tipo que NAO TEM COMO
+  ///  dizer NULL (JsonFlow.Utils.pas:92 - falha de parse vira `Result := 0`, e
+  ///  0 e 30/12/1899). So o arm do Nullable pode expressar a ausencia, e e por
+  ///  isso que o conserto mora AQUI e nao la.
+  ///
+  ///  A GUARDA E A MESMA DOS DOIS ARMS DE TGUID LOGO ABAIXO, palavra por
+  ///  palavra, pelo mesmo motivo medido que esta documentado la: VType &lt;=
+  ///  varNull nao cobre texto em branco, e o Trim sozinho nao cobre um NULL
+  ///  genuino quando NullAsStringValue foi trocado. Os dois termos sao
+  ///  necessarios.
+  ///
+  ///  E O `Null` EXPLICITO NAO E COSMETICO. Nullable&lt;T&gt;.Create(Variant)
+  ///  (Janus.Types.Nullable.pas:83-96) so limpa quando VarIsNull ou VarIsEmpty;
+  ///  uma string VAZIA nao e nenhum dos dois, entao repassar AValue cairia no
+  ///  TValue.FromVariant('').AsType&lt;TDateTime&gt; - exatamente o caminho que se
+  ///  esta fechando. Passar Null faz o Clear, como o arm de TGUID ja fazia.
+  ///
+  ///  NAO VALE PARA TEXTO: em Nullable&lt;String&gt;, "" e uma string vazia
+  ///  legitima e continua sendo gravada como tal. Data nao tem valor vazio
+  ///  representavel; texto tem. </summary>
   if ATypeInfo = TypeInfo(Nullable<TDateTime>) then
-    if TVarData(AValue).VType <= varNull then
+    if (TVarData(AValue).VType <= varNull) or (Trim(VarToStr(AValue)) = '') then
       Self.SetValue(AInstance, TValue.From(Nullable<TDateTime>
-                                     .Create(AValue)))
+                                     .Create(Null)))
     else
       Self.SetValue(AInstance, TValue.From(Nullable<TDateTime>
                                      .Create(Iso8601ToDateTime(AValue, AUseISO8601DateFormat))))
   else
   if ATypeInfo = TypeInfo(Nullable<TDate>) then
-    if TVarData(AValue).VType <= varNull then
+    if (TVarData(AValue).VType <= varNull) or (Trim(VarToStr(AValue)) = '') then
       Self.SetValue(AInstance, TValue.From(Nullable<TDate>
-                                     .Create(AValue)))
+                                     .Create(Null)))
     else
       Self.SetValue(AInstance, TValue.From(Nullable<TDate>
                                      .Create(Iso8601ToDateTime(AValue, AUseISO8601DateFormat))))
   else
   if ATypeInfo = TypeInfo(Nullable<TTime>) then
-    if TVarData(AValue).VType <= varNull then
+    if (TVarData(AValue).VType <= varNull) or (Trim(VarToStr(AValue)) = '') then
       Self.SetValue(AInstance, TValue.From(Nullable<TTime>
-                                     .Create(AValue)))
+                                     .Create(Null)))
     else
       Self.SetValue(AInstance, TValue.From(Nullable<TTime>
                                      .Create(Iso8601ToDateTime(AValue, AUseISO8601DateFormat))))
